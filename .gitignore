@@ -1,0 +1,5 @@
+# Local config files
+local-values.yaml
+
+# MacOS
+.DS_Store
