@@ -1,8 +1,6 @@
-FROM apache/airflow:2.2.1-python3.8
+FROM reigncl/airflow:2.1.3-python3.8-onbuild
 
-COPY requirements.txt .
-COPY ./dags /opt/airflow/dags
-COPY ./plugins /opt/airflow/plugins
+USER airflow
 
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
