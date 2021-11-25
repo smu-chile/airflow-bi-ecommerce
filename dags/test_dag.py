@@ -27,6 +27,5 @@ with DAG(
     )
     dag.doc_md = """
     This is a documentation placed anywhere
-    """  # otherwise, type it like this
-
+    """ 
     t1
