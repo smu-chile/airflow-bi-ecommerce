@@ -160,7 +160,7 @@ def record_updated_stocks(ti):
     conn = psycopg2.connect(host=Variable.get("POSTGRESQL_HOST"), 
                             database=Variable.get("POSTGRESQL_DB"), 
                             user=Variable.get("POSTGRESQL_USER"), 
-                            password=Variable.get("POSTGRESQL_PASS"),
+                            password=Variable.get("POSTGRESQL_PASSWORD"),
                             options="-c search_path=ecommops")
 
     query = "INSERT INTO stock_adjustment"
