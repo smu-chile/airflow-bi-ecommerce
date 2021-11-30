@@ -147,12 +147,12 @@ def record_updated_stocks(ti):
     print(n_records)
 
     query_values = []
-    columns = ["material", "material_uv", "store_ref_id", "warehouse_ref_id", "tienda", "descripcion", "etapa", "timestamp"]
+    columns = ["material", "material_uv", "store_ref_id", "warehouse_ref_id", "tienda", "stock", "descripcion", "etapa", "timestamp"]
     for document in documents:
         print(document)
         query_tuple = (document["material"], document["material_uv"],
                         document["store_ref_id"], document["warehouse_ref_id"],  
-                        document["tienda"], document["descripcion"], 
+                        document["tienda"], document["stock_janis"], document["descripcion"], 
                         2, document["timestamp"].strftime("%Y-%m-%dT%H:%M:%S"))
         query_values.append(query_tuple)
 
