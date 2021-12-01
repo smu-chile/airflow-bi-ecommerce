@@ -18,7 +18,8 @@ def check_process_run():
     mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".lppxi.mongodb.net/"+mongo_db+"?retryWrites=true&w=majority&authSource=admin")
     mongo_collection = mongo_client[mongo_db]["stock_processed_files"]
 
-    curr_local_datetime = datetime.utcnow()
+    local_tz = pytz.timezone('America/Santiago')
+    curr_local_datetime = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(local_tz)
     prefix = "ecommops/stock_adjustment/"+curr_local_datetime.strftime("%Y/%m/%d/")
     file_name = prefix+"stage_2.csv"
 
@@ -191,13 +192,14 @@ def record_process_metadata(ti):
     return
 
 default_args = {
-    'owner': 'airflow',
-    'depends_on_past': False,
-    'email': ['airflow@example.com'],
-    'email_on_failure': False,
-    'email_on_retry': False,
-    'retries': 0,
-    'retry_delay': timedelta(minutes=5)
+    "owner": "airflow",
+    "depends_on_past": False,
+    "email": ["airflow@example.com"],
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+    "retry_delay": timedelta(minutes=5),
+    "schedule_interval": "0 10 * * *"
 }
 with DAG(
     'stock_adjustment_stage2',
