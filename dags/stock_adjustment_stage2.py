@@ -199,13 +199,12 @@ default_args = {
     "email_on_retry": False,
     "retries": 0,
     "retry_delay": timedelta(minutes=5),
-    "schedule_interval": "0 10 * * *"
 }
 with DAG(
     'stock_adjustment_stage2',
     default_args=default_args,
     description="DAG to mantain 0 stock on those SKU that have already been adjusted the previous day",
-    schedule_interval=timedelta(days=1),
+    schedule_interval="0 10 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["OPS", "Janis"],
