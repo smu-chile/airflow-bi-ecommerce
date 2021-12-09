@@ -1,15 +1,37 @@
+from sqlalchemy.sql.elements import False_
 from airflow import DAG
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, ShortCircuitOperator
 
 from datetime import datetime
 from io import StringIO
 
 import boto3
+import botocore
 import mysql.connector
 import pandas as pd
 import psycopg2
 import sqlalchemy
+
+def check_process_run():
+    curr_datetime = datetime.utcnow()
+    prefix = "janis/replica/wms_stores/"+curr_datetime.strftime("%Y/%m/%d/")
+    file_name = prefix+"wms_stores.csv"
+
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
+    bucket = s3_resource.Bucket(bucket_name)
+    try:
+        bucket.Object(file_name)
+    except botocore.errorfactory.NoSuchKey as e:
+        print("File not found: "+file_name)
+        return False
+    print("File found: "+file_name)
+    print("Starting process...")
+    return True
+
 
 def get_janis_store_list():
     curr_datetime = datetime.utcnow()
@@ -113,10 +135,10 @@ def load_janis_store_list(ti):
     df = pd.read_csv(csv_file.get()["Body"])
     print(df)
 
-    host=Variable.get("POSTGRESQL_HOST")
-    database=Variable.get("POSTGRESQL_DB")
-    username=Variable.get("POSTGRESQL_USER")
-    password=Variable.get("POSTGRESQL_PASSWORD")
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
     
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
@@ -156,14 +178,19 @@ with DAG(
     Extracción y carga de tabla-indice de tiendas de Janis.
     """ 
 
-    t0 = PythonOperator(
+    t0 = ShortCircuitOperator(
+        task_id = "check_process_run",
+        python_callable = check_process_run
+    )
+    
+    t1 = PythonOperator(
         task_id = "get_janis_store_list",
         python_callable = get_janis_store_list
     )
 
-    t1 = PythonOperator(
+    t2 = PythonOperator(
         task_id = "load_janis_store_list",
         python_callable = load_janis_store_list
     )
 
-    t0 >> t1
+    t0 >> t1 >> t2

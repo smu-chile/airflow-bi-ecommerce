@@ -32,12 +32,16 @@ def check_process_run():
 
     # if False, skip all downstream tasks:
     if mongo_collection.count_documents(filter={"file_name": file_name}) > 0:
+        print("File already processed: "+file_name)
         return False
     else:
         try:
             bucket.Object(file_name)
         except botocore.errorfactory.NoSuchKey as e:
+            print("File not found: "+file_name)
             return False
+    print("File found: "+file_name)
+    print("Starting process...")
     return True
 
 def read_stock_adjustment_stage2_s3_file():
