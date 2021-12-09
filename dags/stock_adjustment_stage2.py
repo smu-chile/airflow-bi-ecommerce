@@ -4,6 +4,7 @@ from airflow.operators.python import PythonOperator, ShortCircuitOperator
 
 from datetime import datetime, timedelta, date
 import boto3
+import botocore
 import json
 import pymongo
 import psycopg2
@@ -32,10 +33,12 @@ def check_process_run():
     # if False, skip all downstream tasks:
     if mongo_collection.count_documents(filter={"file_name": file_name}) > 0:
         return False
-    elif bucket.Object(file_name) is None:
-        return False
     else:
-        return True
+        try:
+            bucket.Object(file_name)
+        except botocore.errorfactory.NoSuchKey as e:
+            return False
+    return True
 
 def read_stock_adjustment_stage2_s3_file():
     access_key = Variable.get("AWS_ACCESS_KEY")
