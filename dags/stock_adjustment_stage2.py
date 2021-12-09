@@ -36,7 +36,7 @@ def check_process_run():
         return False
     else:
         try:
-            bucket.Object(file_name)
+            bucket.Object(file_name).get()
         except botocore.errorfactory.NoSuchKey as e:
             print("File not found: "+file_name)
             return False

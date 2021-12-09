@@ -24,7 +24,7 @@ def check_process_run():
     s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
     bucket = s3_resource.Bucket(bucket_name)
     try:
-        bucket.Object(file_name)
+        bucket.Object(file_name).get()
     except botocore.errorfactory.NoSuchKey as e:
         print("File not found: "+file_name)
         return False
