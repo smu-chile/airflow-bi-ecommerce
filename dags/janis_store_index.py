@@ -1,4 +1,3 @@
-from sqlalchemy.sql.elements import False_
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, ShortCircuitOperator
