@@ -27,10 +27,11 @@ def check_process_run():
         bucket.Object(file_name).get()
     except botocore.exceptions.ClientError as e:
         print("File not found: "+file_name)
-        return False
-    print("File found: "+file_name)
-    print("Starting process...")
-    return True
+        print("Starting process...")
+        return True
+    print("File already exists: "+file_name)
+    print("Stoping process...")
+    return False
 
 
 def get_janis_store_list():
@@ -143,11 +144,11 @@ def load_janis_store_list(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    # Save to MariaDB:
+    # Save to PostgreSQL:
     df.to_sql(name="tiendas",
                 con=engine,         
                 schema="public",         
-                if_exists='append',         
+                if_exists='replace',         
                 index=False,         
                 chunksize=20000,         
                 method='multi')
