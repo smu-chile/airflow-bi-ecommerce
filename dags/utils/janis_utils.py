@@ -12,8 +12,8 @@ BASE_S3_PATH = "janis/replica/"
 
 def load_full_table_to_s3(table_name):
     curr_datetime = datetime.utcnow()
-    prefix = BASE_S3_PATH+"stock/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
-    file_name = prefix+"stock.csv"
+    prefix = BASE_S3_PATH+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
+    file_name = prefix+table_name+".csv"
 
     query = f"SELECT * FROM janis_jackie.{table_name} ;"
 
