@@ -4,6 +4,7 @@ from airflow.operators.python import PythonOperator, ShortCircuitOperator
 
 from datetime import datetime, timedelta, date
 import boto3
+import botocore
 import json
 import pymongo
 import psycopg2
@@ -18,6 +19,12 @@ def check_process_run():
     mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".lppxi.mongodb.net/"+mongo_db+"?retryWrites=true&w=majority&authSource=admin")
     mongo_collection = mongo_client[mongo_db]["stock_processed_files"]
 
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
+    bucket = s3_resource.Bucket(bucket_name)
+
     local_tz = pytz.timezone('America/Santiago')
     curr_local_datetime = datetime.utcnow().replace(tzinfo=pytz.utc).astimezone(local_tz)
     prefix = "ecommops/stock_adjustment/"+curr_local_datetime.strftime("%Y/%m/%d/")
@@ -25,9 +32,17 @@ def check_process_run():
 
     # if False, skip all downstream tasks:
     if mongo_collection.count_documents(filter={"file_name": file_name}) > 0:
+        print("File already processed: "+file_name)
         return False
     else:
-        return True
+        try:
+            bucket.Object(file_name).get()
+        except botocore.exceptions.ClientError as e:
+            print("File not found: "+file_name)
+            return False
+    print("File found: "+file_name)
+    print("Starting process...")
+    return True
 
 def read_stock_adjustment_stage2_s3_file():
     access_key = Variable.get("AWS_ACCESS_KEY")
