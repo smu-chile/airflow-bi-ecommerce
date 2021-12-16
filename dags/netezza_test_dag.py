@@ -35,6 +35,8 @@ def netezza_test():
     result = curs.fetchall()
 
     print(result[0])
+    curs.close()
+    conn.close()
     return
 
 default_args = {
