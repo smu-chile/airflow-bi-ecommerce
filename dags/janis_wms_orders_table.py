@@ -25,7 +25,7 @@ with DAG(
     'janis_wms_orders_full_table_load',
     default_args=default_args,
     description="Extracción y carga de tabla wms_orders desde Janis Replica.",
-    schedule_interval="None",
+    schedule_interval=None,
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "Janis"],
