@@ -30,14 +30,10 @@ def netezza_full_table_load_to_s3(table_name):
 
     url = '{0}:user={1};password={2}'.format(connection_string, dsn_uid, dsn_pwd)
 
-    try:
-        conn = jaydebeapi.connect(jdbc_driver_name, 
+    
+    conn = jaydebeapi.connect(jdbc_driver_name, 
                                 connection_string, {'user': dsn_uid, 'password': dsn_pwd},
                                 jars=jdbc_driver_loc)
-    except Exception as e:
-        print("Connection error")
-        print(e)
-        return
 
     cur = conn.cursor()
     cur.execute(sql_str)
