@@ -165,15 +165,18 @@ default_args = {
 with DAG(
     'janis_wms_orders_full_table_load',
     default_args=default_args,
-    description="Extracción y carga de tabla wms_orders desde Janis Replica.",
+    description="""Extracción y carga historica de tabla wms_orders desde Janis Replica.""",
     schedule_interval=None,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["DATA", "Janis"],
+    tags=["DATA", "Janis", "S3", "Workspace"],
 ) as dag:
 
     dag.doc_md = """
     Extracción y carga de tabla de wms_orders de Janis.
+    Extracción y carga historica de tabla wms_orders desde Janis Replica.
+    Este proceso recargará la historia completa de la tabla wms_orders, por lo que se recomienda precaución al momento de ejecutarlo.
+    Es posible que este proceso tarde varios minutos en ejecutar.            
     """ 
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
