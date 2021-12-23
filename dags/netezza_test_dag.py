@@ -47,17 +47,17 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'Netezza_test',
+    'Netezza_connection_healthcheck',
     default_args=default_args,
     description="Netezza test",
-    schedule_interval="0 7 * * *",
+    schedule_interval="*/10 * * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DW"],
 ) as dag:
 
     dag.doc_md = """
-    Netezza test.
+    Netezza connection healthcheck.
     """ 
     t0 = PythonOperator(
         task_id = "netezza_test",
