@@ -21,15 +21,23 @@ def process_categories_table(ti):
     
     s3_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
     df0 = pd.read_csv(s3_object.get()["Body"])
-    print(df0)
 
-    df = df0[["id", "ref_id", "name", "ref_parent"]]
-    df1 = df[df["ref_parent"].isnull()].rename(columns={"id":"id1", "ref_id":"ref_id1", "name":"name1", "ref_parent":"ref_parent1"})
-    df2 = pd.merge(df1, df, left_on="ref_id1", right_on="ref_parent", how="left").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2"})
-    df2 = df2[df2["ref_parent2"].isnull()]
-    df3 = pd.merge(df2, df, left_on="ref_id2", right_on="ref_parent", how="left").rename(columns={"id":"id3", "ref_id":"ref_id3", "name":"name3", "ref_parent":"ref_parent3"})
+    df = df0[["id", "ref_id", "name", "ref_parent", "status"]]
+    # -----
+
+    df1 = df[df["ref_parent"].isnull()].rename(columns={"id":"id1", "ref_id":"ref_id1", "name":"name1", "ref_parent":"ref_parent1", "status": "status1"})
+    df2 = pd.merge(df1, df[df["ref_parent"].notnull()], left_on="ref_id1", right_on="ref_parent", how="left").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2", "status": "status2"})
+    df3 = pd.merge(df2, df[df["ref_parent"].notnull()], left_on="ref_id2", right_on="ref_parent", how="left").rename(columns={"id":"id3", "ref_id":"ref_id3", "name":"name3", "ref_parent":"ref_parent3", "status": "status3"})
 
     df = df3.append(df2).append(df1)
+
+    print("Total records: ")
+    print(len(df.index))
+
+    df = df[df["status1"] == 9]
+    df = df[(df["status2"] == 9) | (df["status2"].isnull())]
+    df = df[(df["status3"].isnull()) | (df["status3"] == 9)] 
+
     df["id"] = np.select(
         [
             df["id3"].notnull(),
@@ -42,10 +50,11 @@ def process_categories_table(ti):
         default=df["id1"]
     )
 
+    # -----
     df = df[["id", "name1", "name2", "name3"]]
     df = df.rename(columns={"name1": "n1", "name2": "n2", "name3": "n3"})
 
-    df = pd.merge(df, df0[["id", "status"]], on="id", how="left")
+    print("Nested categories: ")
     print(len(df.index))
 
     host = Variable.get("POSTGRESQL_HOST")
