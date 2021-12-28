@@ -50,7 +50,7 @@ def netezza_full_table_load_to_s3(table_name):
 
     print(len(df.index))
     print(df)
-    df.to_csv(buffer, header=True, index=False)
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
     access_key = Variable.get("AWS_ACCESS_KEY")

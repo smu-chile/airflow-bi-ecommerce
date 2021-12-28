@@ -39,7 +39,7 @@ def load_full_table_to_s3(table_name):
     df = pd.DataFrame(results, columns=columns)
     buffer = StringIO()
 
-    df.to_csv(buffer, header=True, index=False)
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
     access_key = Variable.get("AWS_ACCESS_KEY")

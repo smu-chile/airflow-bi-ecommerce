@@ -44,6 +44,65 @@ def _create_final_store_table(ti):
     print(df_j.columns)
     print(df_j.iloc[0])
 
+    df_j = df_j[["id", "title", "ref_id", "sales_channel", "lat", "lng", "street_name", "street_number", 
+                 "city", "state", "neighborhood", "status", "date_modified", "date_created"]]
+    df_j = df_j.rename(columns={"title": "nombre_tienda_janis",
+                                "ref_id": "id_sap",
+                                "sales_channel": "canal_venta_vtex",
+                                "lat": "latitud",
+                                "lng": "longitud",
+                                "street_name": "calle",
+                                "street_number": "numero",
+                                "city": "ciudad",
+                                "state": "region",
+                                "neighborhood": "comuna",
+                                "date_modified": "fecha_modificacion",
+                                "date_created": "fecha_creacion"})
+    df_dw = df_dw["STORE_ID", "STORE_NAME", "FLRSP_AREA"] # Falta gerente de zona
+    df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda_DW",
+                                "FLRSP_AREA": "m2_sala_DW"})
+    
+    df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID", how="left")
+    df = df[["id",
+            "nombre_tienda_janis",
+            "nombre_tienda_DW",
+            "id_sap",
+            "canal_venta_vtex",
+            "latitud",
+            "longitud",
+            "calle",
+            "numero",
+            "ciudad",
+            "region",
+            "comuna",
+            # gerente
+            "m2_sala_DW",
+            "fecha_modificacion",
+            "fecha_creacion"]]
+
+    # Fix date formats
+    df["date_modified"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
+    df["date_created"] = pd.to_datetime(df["fecha_creacion"], unit="s")
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # Save to PostgreSQL:
+    df.to_sql(name="tiendas",
+                con=engine,         
+                schema="ecommdata",         
+                if_exists='replace',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+
+    print("Data saved to PostgreSQL.")
+
     return
 
 default_args = {
