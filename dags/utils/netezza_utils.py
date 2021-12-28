@@ -66,4 +66,4 @@ def netezza_full_table_load_to_s3(table_name):
         Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
     )
 
-    return
+    return file_name
