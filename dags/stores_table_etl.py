@@ -72,7 +72,7 @@ with DAG(
         python_callable = netezza_full_table_load_to_s3,
         op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_STORE"},
         retries = 2,
-        retries_delay = timedelta(minutes=1)
+        retry_delay = timedelta(minutes=1)
     )
 
     t1 = PythonOperator(
