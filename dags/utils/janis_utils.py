@@ -17,17 +17,13 @@ def load_full_table_to_s3(table_name):
 
     query = f"SELECT * FROM janis_jackie.{table_name} ;"
 
-    try:
-        conn = mysql.connector.connect(
-            user=Variable.get("JANIS_MARIADB_USER"),
-            password=Variable.get("JANIS_MARIADB_PASSWORD"),
-            host=Variable.get("JANIS_MARIADB_HOST"),
-            port=3306,
-            database=Variable.get("JANIS_MARIADB_DATABASE")
-        )
-    except mysql.connector.Error as e:
-        print(f"Error connecting to MariaDB Platform: {e}")
-        return
+    conn = mysql.connector.connect(
+        user=Variable.get("JANIS_MARIADB_USER"),
+        password=Variable.get("JANIS_MARIADB_PASSWORD"),
+        host=Variable.get("JANIS_MARIADB_HOST"),
+        port=3306,
+        database=Variable.get("JANIS_MARIADB_DATABASE")
+    )
 
     # Get Cursor
     cur = conn.cursor()
