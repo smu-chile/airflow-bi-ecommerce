@@ -58,7 +58,7 @@ def process_categories_table(ti):
         default=df["status1"]
     )
 
-    df["status"] = np.where(df["status_code"].isin(0, 8), "inactivo", "activo")
+    df["status"] = np.where(df["status_code"].isin([0, 8]), "inactivo", "activo")
     df = df[["id", "name1", "name2", "name3", "status"]]
     df = df.rename(columns={"name1": "n1", "name2": "n2", "name3": "n3"})
 
