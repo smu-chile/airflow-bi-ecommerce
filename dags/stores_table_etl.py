@@ -70,8 +70,8 @@ def _create_final_store_table(ti):
     df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda_DW",
                                 "FLRSP_AREA_x": "m2_sala_DW",
                                 "GERENTE_ZONA": "gerente_zona_DW"})
-    df_dw["STORE_ID_x"] = df_dw["STORE_ID_x"].astype("int")
     
+    df_j["id_sap"] = df_j["id_sap"].astype("string")
     df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID_x", how="left")
     df = df[["id",
             "nombre_tienda_janis",
