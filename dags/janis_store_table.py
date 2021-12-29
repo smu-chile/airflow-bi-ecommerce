@@ -7,12 +7,8 @@ from utils.janis_utils import load_full_table_to_s3
 from datetime import datetime
 from io import StringIO
 
-import boto3
-import botocore
-import mysql.connector
 import pandas as pd
-import psycopg2
-import sqlalchemy
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -22,9 +18,9 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'janis_admins_full_table_load',
+    'janis_wms_stores_full_load',
     default_args=default_args,
-    description="Extracción y carga de tabla admins desde Janis Replica.",
+    description="Extracción y carga de tabla wms_stores desde Janis Replica.",
     schedule_interval="0 3 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -32,12 +28,12 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de admins de Janis.
+    Extracción y carga de tabla de wms_stores de Janis.
     """ 
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "admins"}
+        op_kwargs = {"table_name": "wms_stores"}
     )
 
     t0
