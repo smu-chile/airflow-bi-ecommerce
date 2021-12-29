@@ -66,9 +66,9 @@ def _create_final_store_table(ti):
     # Join Hierarchy table
     df_dw = pd.merge(df_dw_stores, df_dw_hierarchy, left_on="STORE_KEY", right_on="STORE_KEY", how="left")
     print(df_dw.columns)
-    df_dw = df_dw[["STORE_ID", "STORE_NAME", "FLRSP_AREA", "GERENTE_ZONA"]]
+    df_dw = df_dw[["STORE_ID_x", "STORE_NAME", "FLRSP_AREA_x", "GERENTE_ZONA"]]
     df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda_DW",
-                                "FLRSP_AREA": "m2_sala_DW",
+                                "FLRSP_AREA_x": "m2_sala_DW",
                                 "GERENTE_ZONA": "gerente_zona_DW"})
     
     df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID", how="left")
