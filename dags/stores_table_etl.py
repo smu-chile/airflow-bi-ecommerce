@@ -34,7 +34,7 @@ def _create_final_store_table(ti):
     dw_stores_s3_object = s3_hook.get_key(dw_stores_file_name, bucket_name=s3_bucket)
     df_dw_stores = pd.read_csv(dw_stores_s3_object.get()["Body"])
 
-    dw_hierarchy_s3_object = s3_hook.get_key(dw_stores_file_name, bucket_name=s3_bucket)
+    dw_hierarchy_s3_object = s3_hook.get_key(dw_hierarchy_file_name, bucket_name=s3_bucket)
     df_dw_hierarchy = pd.read_csv(dw_hierarchy_s3_object.get()["Body"])
     
     janis_s3_object = s3_hook.get_key(janis_file_name, bucket_name=s3_bucket)
@@ -66,7 +66,7 @@ def _create_final_store_table(ti):
     # Join Hierarchy table
     df_dw = pd.merge(df_dw_stores, df_dw_hierarchy, left_on="STORE_KEY", right_on="STORE_KEY", how="left")
     print(df_dw.columns)
-    df_dw = df_dw[["STORE_ID", "STORE_KEY", "STORE_NAME", "FLRSP_AREA", "GERENTE_ZONA"]]
+    df_dw = df_dw[["STORE_ID", "STORE_NAME", "FLRSP_AREA", "GERENTE_ZONA"]]
     df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda_DW",
                                 "FLRSP_AREA": "m2_sala_DW",
                                 "GERENTE_ZONA": "gerente_zona_DW"})
