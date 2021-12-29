@@ -71,7 +71,7 @@ def _create_final_store_table(ti):
                                 "FLRSP_AREA_x": "m2_sala_DW",
                                 "GERENTE_ZONA": "gerente_zona_DW"})
     
-    df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID", how="left")
+    df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID_x", how="left")
     df = df[["id",
             "nombre_tienda_janis",
             "nombre_tienda_DW",
