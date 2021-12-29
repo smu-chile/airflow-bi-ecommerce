@@ -71,6 +71,7 @@ def _create_final_store_table(ti):
                                 "FLRSP_AREA_x": "m2_sala_DW",
                                 "GERENTE_ZONA": "gerente_zona_DW"})
     
+    df_dw["STORE_ID_x"] = df_dw["STORE_ID_x"].str.lstrip("0")
     df_j["id_sap"] = df_j["id_sap"].astype("string")
     df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID_x", how="left")
     df = df[["id",
@@ -91,9 +92,11 @@ def _create_final_store_table(ti):
             "fecha_modificacion",
             "fecha_creacion"]]
 
+    # Fix id type
+    df["id_sap"] = df["id_sap"].astype("int")
     # Fix date formats
-    df["date_modified"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
-    df["date_created"] = pd.to_datetime(df["fecha_creacion"], unit="s")
+    df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
+    df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
