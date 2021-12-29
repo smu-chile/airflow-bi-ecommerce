@@ -63,7 +63,9 @@ def _create_final_store_table(ti):
                                 "neighborhood": "comuna",
                                 "date_modified": "fecha_modificacion",
                                 "date_created": "fecha_creacion"})
+    # Join Hierarchy table
     df_dw = pd.merge(df_dw_stores, df_dw_hierarchy, left_on="STORE_KEY", right_on="STORE_KEY", how="left")
+    print(df_dw.columns)
     df_dw = df_dw[["STORE_ID", "STORE_KEY", "STORE_NAME", "FLRSP_AREA", "GERENTE_ZONA"]]
     df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda_DW",
                                 "FLRSP_AREA": "m2_sala_DW",
@@ -84,10 +86,9 @@ def _create_final_store_table(ti):
             "comuna",
             "gerente_zona_DW",
             "m2_sala_DW",
+            "status",
             "fecha_modificacion",
             "fecha_creacion"]]
-
-    # Join Hierarchy table
 
     # Fix date formats
     df["date_modified"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
