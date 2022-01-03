@@ -66,4 +66,3 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
 
     return True
 
-###inyeccion('c8ec5fdb8ed50dfc67115a5d8fb58105abe3b831064b3732d57f43e81e79e5e5', 'unimarcdev', 'aa19fa61330a18fcebe83a288ea1109e0673d1bb', "AKIATUMEPLTI4P25LPMZ", "1q1SLea/PN4J/L2fbWgW3+fpJtBw0i4GwPfzYUX+", "s3-bi-ecommerce-develop")

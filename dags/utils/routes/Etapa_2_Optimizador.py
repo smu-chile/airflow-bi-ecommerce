@@ -215,5 +215,3 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
         return False
 
     return True
-
-###report_generator('AKIATUMEPLTI4P25LPMZ', '1q1SLea/PN4J/L2fbWgW3+fpJtBw0i4GwPfzYUX+', 's3-bi-ecommerce-develop')
