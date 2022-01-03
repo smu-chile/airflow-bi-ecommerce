@@ -179,10 +179,8 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
             data_4_matrix = pd.concat([pd.DataFrame(centro_distribucion), df2_transportadora], ignore_index=True)
             data_4_matrix.reset_index(inplace=True, drop=True)
 
-            if __name__ == '__main__':
-                lista_rutas, dista_list, lista_carga = main()
+            lista_rutas, dista_list, lista_carga = main()
         
-
             df_resultado_rutas = pd.DataFrame()
 
             for ruta in range(len(lista_rutas)):
