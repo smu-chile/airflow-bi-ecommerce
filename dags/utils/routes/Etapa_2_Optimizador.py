@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
 from vincenty import vincenty
-from datetime import date
+from datetime import date, timedelta, datetime
+import pytz
+import math
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 import boto3
@@ -14,18 +16,19 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
         routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH)
     search_parameters.time_limit.seconds = 30
     search_parameters.log_search = True
-    
 
     s3_resource = boto3.resource("s3", aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name="us-east-1")
 
     bucket = s3_resource.Bucket(aws_bucket_name)
     
-    fecha_hoy = date.today().strftime('%Y-%m-%d') 
+    fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
     
     #parametros
     id_transportadora = '0469'
     capacity = 25
-    trucks_no = 2
+    #trucks_no = 2
+    lng_tienda = -70.6068642
+    lat_tienda = -33.5138181
 
     prefix = "ecommops/capacity/rutas/" + fecha_hoy + "/"
     name = 'Etapa_1_' + id_transportadora + '.csv'
@@ -35,10 +38,10 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
    
     df2 = pd.read_csv(csv_file.get()["Body"])
   
-    ###df2 = pd.read_csv('janis_output.csv')
-
     df2['lat'] = df2['lat'].astype(float)
     df2['lng'] = df2['lng'].astype(float)
+
+    print(f'Etapa 2. Ingresaron {len(df2)} ordenes a la etapa 2 desde la etapa 1.')
 
     ### DISTANCIAS ###
 
@@ -52,7 +55,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
     def get_distance_matrix(data4matrix):
         dist_matrix = []
 
-        for row in range(len(data4matrix)): # tqdm(range(len(data4matrix))):
+        for row in range(len(data4matrix)):
             temp_list = []
             for col in range(len(data4matrix)):
                 dist = vincenty_algo(data4matrix.loc[row, 'lat'], data4matrix.loc[row, 'lng'], 
@@ -116,14 +119,12 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
 
     def main():
 
-
         data = create_data_model()
 
         manager = pywrapcp.RoutingIndexManager(len(data['distance_matrix']),
                                             data['num_vehicles'], data['depot'])
 
         routing = pywrapcp.RoutingModel(manager)
-
 
         def distance_callback(from_index, to_index):
 
@@ -172,15 +173,18 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
             TRUCK_CAPACITY = capacity
             df2_transportadora = df2.loc[df2['transportadora'] == transp]
             df2_transportadora = df2_transportadora.reset_index().drop(columns=['index'])
-            trucks_needed = trucks_no #int(math.ceil(df2_transportadora.shape[0] / TRUCK_CAPACITY))
+            trucks_needed = int(math.ceil(df2_transportadora.shape[0] / TRUCK_CAPACITY))
+
+            if trucks_needed > 2:
+                print('Etapa 2: Se ha excedido el numero maximo de camiones, por lo que se ha creado mas de 2 rutas')
 
             centro_distribucion = []
-            centro_distribucion.insert(0, {'Orden': 'Origen', 'lat': -33.5138181,'lng': -70.6068642})
+            centro_distribucion.insert(0, {'Orden': 'Origen', 'lat': lat_tienda,'lng': lng_tienda})
             data_4_matrix = pd.concat([pd.DataFrame(centro_distribucion), df2_transportadora], ignore_index=True)
             data_4_matrix.reset_index(inplace=True, drop=True)
+            
+            lista_rutas, dista_list, lista_carga = main()        
 
-            lista_rutas, dista_list, lista_carga = main()
-        
             df_resultado_rutas = pd.DataFrame()
 
             for ruta in range(len(lista_rutas)):
@@ -196,7 +200,6 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
 
         df_resultado_transportadora = df_resultado_transportadora[df_resultado_transportadora['Orden'] != 'Origen']
 
-        
         buffer = StringIO()
         df_resultado_transportadora.to_csv(buffer, header=True, index=True, encoding="utf-8")
         buffer.seek(0)
@@ -206,10 +209,15 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
 
         s3_client = boto3.client("s3", aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name = "us-east-1")
         response = s3_client.put_object(Bucket=aws_bucket_name, Key=file_name2, Body=buffer.getvalue())
-
+        print(f'Etapa 2. El numero de ordenes procesadas fue de {len(df_resultado_transportadora)}')
     
     except Exception as e:
         print(f"Error: {e}")
         return False
+
+    if len(df_resultado_transportadora) != 0:
+        print('Etapa 2. Se ha finalizado exitosamente la ejecucion de la segunda etapa.')
+    else:
+        print('Etapa 2. El dataframe no tiene registros, repetir operacion')
 
     return True
