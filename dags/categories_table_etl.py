@@ -34,10 +34,6 @@ def process_categories_table(ti):
     print("Total records: ")
     print(len(df.index))
 
-    df = df[df["status1"] == 9]
-    df = df[(df["status2"] == 9) | (df["status2"].isnull())]
-    df = df[(df["status3"].isnull()) | (df["status3"] == 9)] 
-
     df["id"] = np.select(
         [
             df["id3"].notnull(),
@@ -50,12 +46,21 @@ def process_categories_table(ti):
         default=df["id1"]
     )
 
-    # -----
-    df = df[["id", "name1", "name2", "name3"]]
-    df = df.rename(columns={"name1": "n1", "name2": "n2", "name3": "n3"})
+    df["status_code"] = np.select(
+        [
+            df["id3"].notnull(),
+            df["id2"].notnull()
+        ],
+        [
+            df["status3"],
+            df["status2"]
+        ],
+        default=df["status1"]
+    )
 
-    print("Nested categories: ")
-    print(len(df.index))
+    df["status"] = np.where(df["status_code"].isin([0, 8]), "inactivo", "activo")
+    df = df[["id", "name1", "name2", "name3", "status"]]
+    df = df.rename(columns={"name1": "n1", "name2": "n2", "name3": "n3"})
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
