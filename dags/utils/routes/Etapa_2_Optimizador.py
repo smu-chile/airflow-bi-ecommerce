@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 from vincenty import vincenty
-from tqdm import tqdm
 from datetime import date, timedelta, datetime
 import pytz
 import math
@@ -56,7 +55,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
     def get_distance_matrix(data4matrix):
         dist_matrix = []
 
-        for row in tqdm(range(len(data4matrix))):
+        for row in range(len(data4matrix)):
             temp_list = []
             for col in range(len(data4matrix)):
                 dist = vincenty_algo(data4matrix.loc[row, 'lat'], data4matrix.loc[row, 'lng'], 

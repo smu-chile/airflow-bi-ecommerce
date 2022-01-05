@@ -29,6 +29,7 @@ def send_email(email_recipient,
     #The body and the attachments for the mail
     message.attach(body)
 
+    #server = smtplib.SMTP(host, port=port)
     server = smtplib.SMTP_SSL(host, port=port)
     server.send_message(message, from_addr=sender, to_addrs=receiver)   
     print("Se envio correctamente el mail de fallas")
