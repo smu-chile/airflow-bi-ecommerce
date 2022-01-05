@@ -97,4 +97,4 @@ with DAG(
         python_callable = _check_stage_three
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5
