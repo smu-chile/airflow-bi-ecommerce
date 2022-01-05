@@ -28,11 +28,6 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
 
     print(f'Etapa 3. Se importaron {len(df)} ordenes desde la etapa 2.')
 
-    fecha_mañana = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=1)).strftime('%Y-%m-%d')
-    mes = int(fecha_mañana.month)
-    dia = int(fecha_mañana.day)
-    ano = int(fecha_mañana.year)
-
     headers = {
         'Janis-Api-Secret': janis_api_secret ,
         'Janis-Client': janis_api_client,
