@@ -88,7 +88,11 @@ with DAG(
             "janis_api_key": Variable.get("JANIS_API_KEY"), 
             "aws_access_key": Variable.get("AWS_ACCESS_KEY"), 
             "aws_secret_key": Variable.get("AWS_SECRET_KEY"), 
-            "aws_bucket_name": Variable.get("AWS_S3_BUCKET_NAME")
+            "aws_bucket_name": Variable.get("AWS_S3_BUCKET_NAME"),
+            "mongo_user": Variable.get("MONGODB_USER"), 
+            "mongo_pass": Variable.get("MONGODB_PASSWORD"), 
+            "cluster_name": Variable.get("MONGODB_CLUSTER"), 
+            "db": "ecommerceOpsDB"
         }
     )
 
