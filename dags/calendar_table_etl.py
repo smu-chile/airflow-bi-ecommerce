@@ -52,6 +52,22 @@ def _generate_calendar_table(ti):
     df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
     df["semana_ano_texto"] = df["ano"].astype("string") + "W" + df["semana_numerico"].astype("string")
 
+    base_row = df[df["fecha_fix"] == datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)]
+
+    base_year = base_row.iloc[0]["ano"]
+    base_month = base_row.iloc[0]["mes_numerico"]
+    base_week = base_row.iloc[0]["semana_numerico"]
+    base_day = base_row.iloc[0]["dia_ano"]
+    base_semester = base_row.iloc[0]["semestre_numerico"]
+    base_quarter = base_row.iloc[0]["trimestre_numerico"]
+
+    df["ano_relativo"] = df["ano"] - base_year
+    df["mes_relativo"] = df["mes_numerico"] - base_month
+    df["semana_relativa"] = df["semana_numerico"] - base_week
+    df["dia_relativo"] = df["dia_ano"] - base_day
+    df["semestre_relativo"] = df["semestre_numerico"] - base_semester
+    df["trimestre_relativo"] = df["trimestre_numerico"] - base_quarter
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -82,6 +98,12 @@ def _generate_calendar_table(ti):
             ano smallint NULL,
             semana_numerico smallint NULL,
             semana_ano_texto varchar(20) NULL,
+            ano_relativo smallint NULL,
+            mes_relativo smallint NULL,
+            semana_relativa smallint NULL,
+            dia_relativo smallint NULL,
+            semestre_relativo smallint NULL,
+            trimestre_relativo smallint NULL,
             CONSTRAINT calendario_pk PRIMARY KEY (fecha)
         )
     """
