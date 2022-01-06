@@ -28,6 +28,26 @@ def _generate_calendar_table(ti):
     print(df_dw_date.head(1))
 
     df = df_dw_date.drop(["DATE_KEY", "CALENDAR_YEAR_MONTH_KEY", "CALENDAR_YEAR_WEEK_KEY"], axis=1)
+    df = df.rename(columns={
+        	"DATE_VALUE": "fecha",
+	        "CALENDAR_DAY_OF_MONTH": "dia_mes",
+	        "CALENDAR_DAY_OF_QUARTER": "dia_trimestre",
+	        "CALENDAR_DAY_OF_YEAR": "dia_anio",
+            "WEEKDAY_NUMBER": "dia_semana_numerico",
+            "WEEKDAY_NAME_ABBREVIATED": "dia_semana_abreviado",
+            "WEEKDAY_NAME": "dia_semana_texto",
+            "CALENDAR_MONTH_NUMBER": "mes_numerico",
+            "CALENDAR_MONTH_NAME": "mes_texto",
+            "CALENDAR_MONTH_ABBREVIATION": "mes_abreviado",
+            "QUARTER": "trimestre_numerico",
+            "QUARTER_TXT": "trimestre_texto",
+            "SEMESTER": "semestre_numerico",
+            "SEMESTER_TXT": "semestre_texto",
+            "CALENDAR_YEAR": "anio",
+            "WEEK_NUMBER": "semana_numerico"
+    })
+
+    df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
