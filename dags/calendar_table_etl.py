@@ -1,3 +1,4 @@
+from sqlalchemy.engine import create_engine
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
@@ -10,6 +11,7 @@ from datetime import datetime, timedelta
 def _generate_calendar_table(ti):
     import pandas as pd
     import sqlalchemy
+    from sqlalchemy import text
 
     dw_date_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_date_full_load"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -32,7 +34,7 @@ def _generate_calendar_table(ti):
         	"DATE_VALUE": "fecha",
 	        "CALENDAR_DAY_OF_MONTH": "dia_mes",
 	        "CALENDAR_DAY_OF_QUARTER": "dia_trimestre",
-	        "CALENDAR_DAY_OF_YEAR": "dia_anio",
+	        "CALENDAR_DAY_OF_YEAR": "dia_ano",
             "WEEKDAY_NUMBER": "dia_semana_numerico",
             "WEEKDAY_NAME_ABBREVIATED": "dia_semana_abreviado",
             "WEEKDAY_NAME": "dia_semana_texto",
@@ -43,12 +45,12 @@ def _generate_calendar_table(ti):
             "QUARTER_TXT": "trimestre_texto",
             "SEMESTER": "semestre_numerico",
             "SEMESTER_TXT": "semestre_texto",
-            "CALENDAR_YEAR": "anio",
+            "CALENDAR_YEAR": "ano",
             "WEEK_NUMBER": "semana_numerico"
     })
 
     df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
-    df["semana_anio_texto"] = df["anio"].astype("string") + "W" + df["semana_numerico"].astype("string")
+    df["semana_ano_texto"] = df["ano"].astype("string") + "W" + df["semana_numerico"].astype("string")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -58,11 +60,39 @@ def _generate_calendar_table(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
+    connection = engine.connect()
+    drop_query = "DROP TABLE IF EXISTS ecommdata.calendario"
+    connection.execute(text(drop_query))
+    create_table_query = """
+        CREATE TABLE ecommdata.calendario (
+            fecha date NULL,
+            dia_mes smallint NULL,
+            dia_trimestre smallint NULL,
+            dia_ano smallint NULL,
+            dia_semana_numerico smallint NULL,
+            dia_semana_abreviado varchar(20) NULL,
+            dia_semana_texto varchar(20) NULL,
+            mes_numerico smallint NULL,
+            mes_texto varchar(20) NULL,
+            mes_abreviado varchar(20) NULL,
+            trimestre_numerico smallint NULL,
+            trimestre_texto varchar(20) NULL,
+            semestre_numerico smallint NULL,
+            semestre_texto varchar(20) NULL,
+            ano smallint NULL,
+            semana_numerico smallint NULL,
+            semana_ano_texto varchar(20) NULL,
+            CONSTRAINT calendario_pk PRIMARY KEY (fecha)
+        )
+    """
+    connection.execute(text(create_table_query))
+    connection.close()
+
     # Save to PostgreSQL:
     df.to_sql(name="calendario",
                 con=engine,         
                 schema="ecommdata",         
-                if_exists='replace',         
+                if_exists='append',         
                 index=False,         
                 chunksize=20000,         
                 method='multi')
