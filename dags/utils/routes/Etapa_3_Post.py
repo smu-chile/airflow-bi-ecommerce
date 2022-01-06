@@ -58,8 +58,6 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
             resp_list.append(response)
             print(f'Etapa 3. La ruta creada fue: {response}.')
 
-            response = json.loads(response)
-
             respuesta_response = {}
             respuesta_response['response'] = response
             
