@@ -5,7 +5,6 @@ from io import StringIO
 import boto3
 import smtplib
 import pytz
-import math
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
@@ -121,7 +120,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     
 
     for row in df2.itertuples():
-        if (math.isnan(row.lat) or  row.lat == '') or (math.isnan(row.lng) or  row.lng == '') == True:
+        if (row.lat is None or row.lat == '') or (row.lat is None or row.lng == '') == True:
             lista_error_nulo.append(row.Orden)
 
     total_lista_error = lista_error_ruta + lista_error_nulo
