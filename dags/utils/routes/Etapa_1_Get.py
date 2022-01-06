@@ -18,7 +18,6 @@ def send_email(email_recipient,
     port = 25
     sender = "reportes_ecommerce@smu.cl"
     receiver = email_recipient
-
     mail_body = email_message
 
     message = MIMEMultipart()
@@ -89,10 +88,12 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
                 else:
                     lista_error_ruta.append(x['id'])
                     pass
+
             if response['data'] == list():
                 indicador = False
             else:
                 indicador = True
+            
             contador = contador + 1
             
             
@@ -104,7 +105,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
             #    pickle.dump(x, f)
 
         except Exception as e:
-            print(f'Error 404: {e}')
+            print(f'Error: {e}')
             return False
 
     df2 = pd.DataFrame(lista_ordenes, columns=['transportadora','Orden','lat','lng'])
@@ -128,7 +129,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     if len(total_lista_error) != 0:
         print(f'Etapa 1. Se excluyeron {len(total_lista_error)} ordenes por falta de coordenadas')
         body = 'Estimados: \n\n Debido a que algunas ordenes se encuentran con problemas, se han excluido del proceso automático de generación de rutas las siguientes ordenes: \n\n                        Ordenes con Ruta: {}  \n\n                                         Ordenes sin Latitud y Longitud  : {}      \n\n Quedamos atento a cualquier consulta. \n\n Saludos'.format(lista_error_ruta, lista_error_nulo)
-        send_email(lista_enviar,'Optimizacion de Ruta: Mensaje de Error por Ordenes No Asignadas', body)
+        #send_email(lista_enviar,'Optimizacion de Ruta: Mensaje de Error por Ordenes No Asignadas', body)
         df2 = df2[~df2['Orden'].isin(total_lista_error)]
     
 
