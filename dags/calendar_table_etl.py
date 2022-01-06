@@ -48,6 +48,7 @@ def _generate_calendar_table(ti):
     })
 
     df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
+    df["semana_anio_texto"] = df["anio"].astype("string") + "W" + df["semana_numerico"].astype("string")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
