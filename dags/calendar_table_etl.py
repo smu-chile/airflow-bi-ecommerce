@@ -4,6 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 
+from utils.calendar import delta_yearweeks
 from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
@@ -52,6 +53,7 @@ def _generate_calendar_table(ti):
     df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
     df["semana_ano_texto"] = df["ano"].astype("string") + "W" + df["semana_numerico"].astype("string")
 
+    years53 = df[df["semana_numerico"] == 53]["ano"].unique().tolist()
     base_row = df[df["fecha"] == datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)]
 
     base_year = base_row.iloc[0]["ano"]
@@ -62,11 +64,11 @@ def _generate_calendar_table(ti):
     base_quarter = base_row.iloc[0]["trimestre_numerico"]
 
     df["ano_relativo"] = df["ano"] - base_year
-    df["mes_relativo"] = df["mes_numerico"] - base_month
-    df["semana_relativa"] = df["semana_numerico"] - base_week
+    df["mes_relativo"] = df["ano_relativo"]*12 + (df["mes_numerico"] - base_month)
+    df["semana_relativa"] = df["ano"].apply(delta_yearweeks, args=[base_year, years53]) + (df["semana_numerico"] - base_week)
     df["dia_relativo"] = df["dia_ano"] - base_day
-    df["semestre_relativo"] = df["semestre_numerico"] - base_semester
-    df["trimestre_relativo"] = df["trimestre_numerico"] - base_quarter
+    df["semestre_relativo"] = df["ano_relativo"]*2 + df["semestre_numerico"] - base_semester
+    df["trimestre_relativo"] = df["ano_relativo"]*4 + df["trimestre_numerico"] - base_quarter
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
