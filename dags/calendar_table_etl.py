@@ -52,7 +52,7 @@ def _generate_calendar_table(ti):
     df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
     df["semana_ano_texto"] = df["ano"].astype("string") + "W" + df["semana_numerico"].astype("string")
 
-    base_row = df[df["fecha_fix"] == datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)]
+    base_row = df[df["fecha"] == datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)]
 
     base_year = base_row.iloc[0]["ano"]
     base_month = base_row.iloc[0]["mes_numerico"]
