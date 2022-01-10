@@ -86,7 +86,6 @@ def _generate_calendar_table(ti):
         CREATE TABLE ecommdata.calendario (
             fecha date NULL,
             dia_mes smallint NULL,
-            dia_trimestre smallint NULL,
             dia_ano smallint NULL,
             dia_semana_numerico smallint NULL,
             dia_semana_abreviado varchar(20) NULL,
