@@ -53,7 +53,9 @@ def _generate_calendar_table(ti):
     df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
     df["semana_ano_texto"] = df["ano"].astype("string") + "W" + df["semana_numerico"].astype("string")
 
-    years53 = df[df["semana_numerico"] == 53]["ano"].unique().tolist()
+    years53 = df[(df["semana_numerico"] == 53) & (df["mes_numerico"] == 12)]["ano"].unique().tolist()
+    print("Years with 53 weeks calendar: ")
+    print(years53)
     base_row = df[df["fecha"] == datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)]
 
     base_year = base_row.iloc[0]["ano"]
