@@ -66,7 +66,7 @@ def _generate_calendar_table(ti):
     df["ano_relativo"] = df["ano"] - base_year
     df["mes_relativo"] = df["ano_relativo"]*12 + (df["mes_numerico"] - base_month)
     df["semana_relativa"] = df["ano"].apply(delta_yearweeks, args=[base_year, years53]) + (df["semana_numerico"] - base_week)
-    df["dia_relativo"] = df["dia_ano"] - base_day
+    df["dia_relativo"] = df["ano_relativo"]*365 + df["dia_ano"] - base_day
     df["semestre_relativo"] = df["ano_relativo"]*2 + df["semestre_numerico"] - base_semester
     df["trimestre_relativo"] = df["ano_relativo"]*4 + df["trimestre_numerico"] - base_quarter
 
