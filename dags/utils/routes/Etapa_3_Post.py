@@ -28,11 +28,6 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
 
     print(f'Etapa 3. Se importaron {len(df)} ordenes desde la etapa 2.')
 
-    fecha_mañana = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=1)).strftime('%Y-%m-%d')
-    mes = int(fecha_mañana.month)
-    dia = int(fecha_mañana.day)
-    ano = int(fecha_mañana.year)
-
     headers = {
         'Janis-Api-Secret': janis_api_secret ,
         'Janis-Client': janis_api_client,
@@ -63,15 +58,13 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
             resp_list.append(response)
             print(f'Etapa 3. La ruta creada fue: {response}.')
 
-            response = json.loads(response)
-
             respuesta_response = {}
             respuesta_response['response'] = response
             
             respuesta_response["timestamp"] = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0))
             respuesta_response["pedidos"] = len(df)
             respuesta_response["transportadora"] = id_transportadora
-            respuesta_response['ruta'] = x
+            respuesta_response['ruta'] = int(x)
             respuesta_response['refId'] = id_transportadora + (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
 
             mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+cluster_name+".lppxi.mongodb.net/"+db+"?retryWrites=true&w=majority&authSource=admin")
