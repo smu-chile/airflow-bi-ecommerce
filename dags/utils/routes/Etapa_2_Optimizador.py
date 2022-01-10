@@ -80,7 +80,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
 
     def print_solution(data, manager, routing, solution):
 
-        print(f'Objective: {solution.ObjectiveValue()}')
+        #print(f'Objective: {solution.ObjectiveValue()}')
         total_distance = 0
         total_load = 0
         lista_rutas = []
@@ -107,13 +107,13 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
             stops_list.append(manager.IndexToNode(index))
             plan_output += 'Distance of the route: {}km\n'.format(route_distance)
             plan_output += 'Load of the route: {}\n'.format(route_load)
-            print(plan_output)
+            #print(plan_output)
             lista_rutas.append(stops_list)
             total_distance += route_distance
             total_load += route_load
         
-        print('Total distance of all routes: {}km'.format(total_distance))
-        print('Total load of all routes: {}'.format(total_load))
+        #print('Total distance of all routes: {}km'.format(total_distance))
+        #print('Total load of all routes: {}'.format(total_load))
         return lista_rutas, dista_list, lista_carga
 
 
