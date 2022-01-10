@@ -136,15 +136,14 @@ with DAG(
     'calendar_table_etl',
     default_args=default_args,
     description="Netezza vm_dim_date full table load to S3 and transformation-load to Postgres",
-    schedule_interval="0 7 1 * *",
+    schedule_interval="0 7 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "DW", "S3"],
 ) as dag:
 
     dag.doc_md = """
-    Netezza VW_DIM_DATE full table load.
-    Monthly process.
+    Netezza VW_DIM_DATE full table load and relative dates calculation.
     """ 
     t0 = PythonOperator(
         task_id = "netezza_vm_dim_date_full_load",
