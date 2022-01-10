@@ -30,11 +30,10 @@ def _generate_calendar_table(ti):
     print(df_dw_date.columns)
     print(df_dw_date.head(1))
 
-    df = df_dw_date.drop(["DATE_KEY", "CALENDAR_YEAR_MONTH_KEY", "CALENDAR_YEAR_WEEK_KEY"], axis=1)
+    df = df_dw_date.drop(["DATE_KEY", "CALENDAR_YEAR_MONTH_KEY", "CALENDAR_YEAR_WEEK_KEY", "CALENDAR_DAY_OF_QUARTER"], axis=1)
     df = df.rename(columns={
         	"DATE_VALUE": "fecha",
 	        "CALENDAR_DAY_OF_MONTH": "dia_mes",
-	        "CALENDAR_DAY_OF_QUARTER": "dia_trimestre",
 	        "CALENDAR_DAY_OF_YEAR": "dia_ano",
             "WEEKDAY_NUMBER": "dia_semana_numerico",
             "WEEKDAY_NAME_ABBREVIATED": "dia_semana_abreviado",
