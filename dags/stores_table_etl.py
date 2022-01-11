@@ -102,7 +102,7 @@ def _create_final_store_table(ti):
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s")
 
     # Extra column
-    df["glosa"] = df["id_sap"] + " - " + df["nombre_tienda"]
+    df["glosa"] = df["id"] + " - " + df["nombre_tienda"]
 
     # Fix columns
     df["numero"] = df["numero"].str.replace(".0", "", regex=False)
@@ -140,7 +140,7 @@ def _create_final_store_table(ti):
             fecha_apertura date NULL,
             fecha_modificacion timestamp NULL,
             fecha_creacion timestamp NULL,
-            CONSTRAINT tiendas_pk PRIMARY KEY (id_sap)
+            CONSTRAINT tiendas_pk PRIMARY KEY (id)
         )
     """
     connection.execute(text(create_table_query))
