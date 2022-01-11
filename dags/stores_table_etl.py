@@ -105,8 +105,8 @@ def _create_final_store_table(ti):
     df["glosa"] = df["id"] + " - " + df["nombre_tienda"]
 
     # Fix columns
-    df["numero"] = df["numero"].str.replace(".0", "", regex=False)
-    df["region"] = df["region"].str.replace(".0", "", regex=False)
+    df["numero"] = df["numero"].astype("string").str.replace(".0", "", regex=False)
+    df["region"] = df["region"].astype("string").str.replace(".0", "", regex=False)
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
