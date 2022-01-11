@@ -17,6 +17,7 @@ def _create_final_store_table(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
+    from sqlalchemy import text
 
     dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
     dw_hierarchy_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_hierarchy_full_load_to_s3"])[0]
@@ -58,25 +59,26 @@ def _create_final_store_table(ti):
                                 "lng": "longitud",
                                 "street_name": "calle",
                                 "street_number": "numero",
-                                "city": "ciudad",
-                                "state": "region",
-                                "neighborhood": "comuna",
                                 "date_modified": "fecha_modificacion",
                                 "date_created": "fecha_creacion"})
     # Join Hierarchy table
+    df_dw_hierarchy = df_dw_hierarchy[["STORE_KEY", "GERENTE_TIENDA"]]
     df_dw = pd.merge(df_dw_stores, df_dw_hierarchy, left_on="STORE_KEY", right_on="STORE_KEY", how="left")
     print(df_dw.columns)
-    df_dw = df_dw[["STORE_ID_x", "STORE_NAME", "FLRSP_AREA_x", "GERENTE_ZONA"]]
-    df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda_DW",
-                                "FLRSP_AREA_x": "m2_sala_DW",
-                                "GERENTE_ZONA": "gerente_zona_DW"})
+    df_dw = df_dw[["STORE_ID", "STORE_NAME", "FLRSP_AREA", "GERENTE_TIENDA", "STE_ID", "CITY_ID", "COUNTY_DESC"]]
+    df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda",
+                                "FLRSP_AREA": "m2_sala",
+                                "GERENTE_TIENDA": "gerente_tienda",
+                                "STE_ID": "region",
+                                "CITY_ID": "ciudad",
+                                "COUNTY_DESC": "comuna"})
     
-    df_dw["STORE_ID_x"] = df_dw["STORE_ID_x"].str.lstrip("0")
-    df_j["id_sap"] = df_j["id_sap"].astype("string")
-    df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID_x", how="left")
+    # df_dw["STORE_ID_x"] = df_dw["STORE_ID_x"].str.lstrip("0")
+    df_j["id_sap"] = df_j["id_sap"].astype("string").str.pad(4, "left", '0')
+    df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID", how="left")
     df = df[["id",
             "nombre_tienda_janis",
-            "nombre_tienda_DW",
+            "nombre_tienda",
             "id_sap",
             "canal_venta_vtex",
             "latitud",
@@ -86,17 +88,18 @@ def _create_final_store_table(ti):
             "ciudad",
             "region",
             "comuna",
-            "gerente_zona_DW",
-            "m2_sala_DW",
+            "gerente_tienda",
+            "m2_sala",
             "status",
             "fecha_modificacion",
             "fecha_creacion"]]
 
-    # Fix id type
-    df["id_sap"] = df["id_sap"].astype("int")
     # Fix date formats
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s")
+
+    # Extra column
+    df["glosa"] = df["id_sap"] + " - " + df["nombre_tienda"]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -106,11 +109,41 @@ def _create_final_store_table(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
+    connection = engine.connect()
+    drop_query = "DROP TABLE IF EXISTS ecommdata.tiendas"
+    connection.execute(text(drop_query))
+    create_table_query = """
+        CREATE TABLE ecommdata.tiendas (
+            id int8 NULL,
+            nombre_tienda_janis varchar(255) NULL,
+            "nombre_tienda" varchar(255) NULL,
+            id_sap varchar(255) NOT NULL,
+            canal_venta_vtex varchar(255) NULL,
+            latitud numeric(12,9) NULL,
+            longitud numeric(12,9) NULL,
+            calle varchar(255) NULL,
+            numero varchar(50) NULL,
+            ciudad varchar(255) NULL,
+            region varchar(255) NULL,
+            comuna varchar(255) NULL,
+            "gerente_tienda" varchar(255) NULL,
+            "m2_sala" varchar(255) NULL,
+            status int2 NULL,
+            glosa varchar(255) NULL,
+            fecha_modificacion timestamp NULL,
+            fecha_creacion timestamp NULL,
+            CONSTRAINT tiendas_pk PRIMARY KEY (id_sap)
+        )
+    """
+    connection.execute(text(create_table_query))
+    connection.close()
+
+
     # Save to PostgreSQL:
     df.to_sql(name="tiendas",
                 con=engine,         
                 schema="ecommdata",         
-                if_exists='replace',         
+                if_exists='append',         
                 index=False,         
                 chunksize=20000,         
                 method='multi')
@@ -120,7 +153,7 @@ def _create_final_store_table(ti):
     return
 
 default_args = {
-    "owner": "dw_test",
+    "owner": "ecommerce_data",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
