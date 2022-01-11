@@ -52,7 +52,7 @@ def _create_final_store_table(ti):
 
     df_j = df_j[["id", "title", "ref_id", "sales_channel", "lat", "lng", "street_name", "street_number", 
                  "city", "state", "neighborhood", "status", "date_modified", "date_created"]]
-    df_j = df_j.rename(columns={"id": "id_janis"
+    df_j = df_j.rename(columns={"id": "id_janis",
                                 "title": "nombre_tienda_janis",
                                 "ref_id": "id",
                                 "sales_channel": "canal_venta_vtex",
