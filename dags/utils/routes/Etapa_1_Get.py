@@ -130,7 +130,6 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
         print(f'Etapa 1. Se excluyeron {len(total_lista_error)} ordenes por falta de coordenadas')
         body = 'Estimados: \n\n Debido a que algunas ordenes se encuentran con problemas, se han excluido del proceso automático de generación de rutas las siguientes ordenes: \n\n                        Ordenes con Ruta: {}  \n\n                                         Ordenes sin Latitud y Longitud  : {}      \n\n Quedamos atento a cualquier consulta. \n\n Saludos'.format(lista_error_ruta, lista_error_nulo)
         #send_email(lista_enviar,'Optimizacion de Ruta: Mensaje de Error por Ordenes No Asignadas', body)
-        df2 = df2[~df2['Orden'].isin(total_lista_error)]
 
         print(f'Las ordenes que NO se ejecutaron, fueron: {total_lista_error}')
 
@@ -144,6 +143,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
         s3_client = boto3.client("s3", aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name = "us-east-1")
         response = s3_client.put_object(Bucket=aws_bucket_name, Key=file_name, Body=buffer.getvalue())
+        df2 = df2[~df2['Orden'].isin(total_lista_error)]
     
     df2.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)

@@ -62,7 +62,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
             respuesta_response['response'] = response
             
             respuesta_response["timestamp"] = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0))
-            respuesta_response["pedidos"] = len(df)
+            respuesta_response["pedidos"] = len(df.loc[df['RutaID'] == x])
             respuesta_response["transportadora"] = id_transportadora
             respuesta_response['ruta'] = int(x)
             respuesta_response['refId'] = id_transportadora + (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
