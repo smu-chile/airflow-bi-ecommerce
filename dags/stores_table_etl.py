@@ -134,6 +134,7 @@ def _create_final_store_table(ti):
             region varchar(255) NULL,
             comuna varchar(255) NULL,
             "gerente_tienda" varchar(255) NULL,
+            "gerente_operaciones" varchar(255) NULL,
             "m2_sala" varchar(255) NULL,
             status int2 NULL,
             glosa varchar(255) NULL,
