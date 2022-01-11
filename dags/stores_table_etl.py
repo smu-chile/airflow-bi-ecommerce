@@ -121,10 +121,10 @@ def _create_final_store_table(ti):
     connection.execute(text(drop_query))
     create_table_query = """
         CREATE TABLE ecommdata.tiendas (
-            id int8 NULL,
+            id varchar(255) NULL,
             nombre_tienda_janis varchar(255) NULL,
             "nombre_tienda" varchar(255) NULL,
-            id_sap varchar(255) NOT NULL,
+            id_janis varchar(255) NOT NULL,
             canal_venta_vtex varchar(255) NULL,
             latitud numeric(12,9) NULL,
             longitud numeric(12,9) NULL,
