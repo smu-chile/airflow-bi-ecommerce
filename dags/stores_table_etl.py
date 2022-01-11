@@ -52,8 +52,9 @@ def _create_final_store_table(ti):
 
     df_j = df_j[["id", "title", "ref_id", "sales_channel", "lat", "lng", "street_name", "street_number", 
                  "city", "state", "neighborhood", "status", "date_modified", "date_created"]]
-    df_j = df_j.rename(columns={"title": "nombre_tienda_janis",
-                                "ref_id": "id_sap",
+    df_j = df_j.rename(columns={"id": "id_janis"
+                                "title": "nombre_tienda_janis",
+                                "ref_id": "id",
                                 "sales_channel": "canal_venta_vtex",
                                 "lat": "latitud",
                                 "lng": "longitud",
@@ -62,24 +63,25 @@ def _create_final_store_table(ti):
                                 "date_modified": "fecha_modificacion",
                                 "date_created": "fecha_creacion"})
     # Join Hierarchy table
-    df_dw_hierarchy = df_dw_hierarchy[["STORE_KEY", "GERENTE_TIENDA"]]
+    df_dw_hierarchy = df_dw_hierarchy[["STORE_KEY", "GERENTE_TIENDA", "GERENTE_ZONA"]]
     df_dw = pd.merge(df_dw_stores, df_dw_hierarchy, left_on="STORE_KEY", right_on="STORE_KEY", how="left")
     print(df_dw.columns)
-    df_dw = df_dw[["STORE_ID", "STORE_NAME", "FLRSP_AREA", "GERENTE_TIENDA", "STE_ID", "CITY_ID", "COUNTY_DESC"]]
+    df_dw = df_dw[["STORE_ID", "STORE_NAME", "FLRSP_AREA", "GERENTE_TIENDA", "GERENTE_ZONA", "STE_ID", "CITY_ID", "COUNTY_DESC"]]
     df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda",
                                 "FLRSP_AREA": "m2_sala",
                                 "GERENTE_TIENDA": "gerente_tienda",
+                                "GERENTE_ZONA": "gerente_operaciones",
                                 "STE_ID": "region",
                                 "CITY_ID": "ciudad",
                                 "COUNTY_DESC": "comuna"})
     
     # df_dw["STORE_ID_x"] = df_dw["STORE_ID_x"].str.lstrip("0")
-    df_j["id_sap"] = df_j["id_sap"].astype("string").str.pad(4, "left", '0')
-    df = pd.merge(df_j, df_dw, left_on="id_sap", right_on="STORE_ID", how="left")
+    df_j["id"] = df_j["id"].astype("string").str.pad(4, "left", '0')
+    df = pd.merge(df_j, df_dw, left_on="id", right_on="STORE_ID", how="left")
     df = df[["id",
             "nombre_tienda_janis",
             "nombre_tienda",
-            "id_sap",
+            "id_janis",
             "canal_venta_vtex",
             "latitud",
             "longitud",
@@ -89,6 +91,7 @@ def _create_final_store_table(ti):
             "region",
             "comuna",
             "gerente_tienda",
+            "gerente_operaciones",
             "m2_sala",
             "status",
             "fecha_modificacion",
@@ -100,6 +103,10 @@ def _create_final_store_table(ti):
 
     # Extra column
     df["glosa"] = df["id_sap"] + " - " + df["nombre_tienda"]
+
+    # Fix columns
+    df["numero"] = df["numero"].str.replace(".0", "", regex=False)
+    df["region"] = df["region"].str.replace(".0", "", regex=False)
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -130,6 +137,7 @@ def _create_final_store_table(ti):
             "m2_sala" varchar(255) NULL,
             status int2 NULL,
             glosa varchar(255) NULL,
+            fecha_apertura date NULL,
             fecha_modificacion timestamp NULL,
             fecha_creacion timestamp NULL,
             CONSTRAINT tiendas_pk PRIMARY KEY (id_sap)
