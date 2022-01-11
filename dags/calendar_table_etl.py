@@ -51,6 +51,7 @@ def _generate_calendar_table(ti):
 
     df["fecha"] = pd.to_datetime(df["fecha"], format="%Y-%m-%d")
     df["semana_ano_texto"] = df["ano"].astype("string") + "W" + df["semana_numerico"].astype("string")
+    df["mes_ano_texto"] = df["ano"].astype("string") + " " + df["mes_abreviado"]
 
     years53 = df[(df["semana_numerico"] == 53) & (df["mes_numerico"] == 12)]["ano"].unique().tolist()
     print("Years with 53 weeks calendar: ")
@@ -93,6 +94,7 @@ def _generate_calendar_table(ti):
             mes_numerico smallint NULL,
             mes_texto varchar(20) NULL,
             mes_abreviado varchar(20) NULL,
+            mes_ano_texto varchar(20) NULL,
             trimestre_numerico smallint NULL,
             trimestre_texto varchar(20) NULL,
             semestre_numerico smallint NULL,
