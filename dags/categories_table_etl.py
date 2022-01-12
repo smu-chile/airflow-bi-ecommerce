@@ -10,6 +10,7 @@ from datetime import datetime
 import numpy as np
 import pandas as pd
 import sqlalchemy
+from sqlalchemy import text
 
 def process_categories_table(ti):
     file_name = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
@@ -26,8 +27,8 @@ def process_categories_table(ti):
     # -----
 
     df1 = df[df["ref_parent"].isnull()].rename(columns={"id":"id1", "ref_id":"ref_id1", "name":"name1", "ref_parent":"ref_parent1", "status": "status1"})
-    df2 = pd.merge(df1, df[df["ref_parent"].notnull()], left_on="ref_id1", right_on="ref_parent", how="left").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2", "status": "status2"})
-    df3 = pd.merge(df2, df[df["ref_parent"].notnull()], left_on="ref_id2", right_on="ref_parent", how="left").rename(columns={"id":"id3", "ref_id":"ref_id3", "name":"name3", "ref_parent":"ref_parent3", "status": "status3"})
+    df2 = pd.merge(df1, df[df["ref_parent"].notnull()], left_on="ref_id1", right_on="ref_parent", how="inner").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2", "status": "status2"})
+    df3 = pd.merge(df2, df[df["ref_parent"].notnull()], left_on="ref_id2", right_on="ref_parent", how="inner").rename(columns={"id":"id3", "ref_id":"ref_id3", "name":"name3", "ref_parent":"ref_parent3", "status": "status3"})
 
     df = df3.append(df2).append(df1)
 
@@ -70,11 +71,16 @@ def process_categories_table(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE ecommdata.categorias"
+    connection.execute(text(truncate_query))
+    connection.close()
+
     # Save to PostgreSQL:
     df.to_sql(name="categorias",
                 con=engine,         
                 schema="ecommdata",         
-                if_exists='replace',         
+                if_exists='append',         
                 index=False,         
                 chunksize=20000,         
                 method='multi')
