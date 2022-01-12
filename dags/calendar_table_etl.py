@@ -10,6 +10,7 @@ from utils.netezza_utils import netezza_full_table_load_to_s3
 from datetime import datetime, timedelta
 
 def _generate_calendar_table(ti):
+    import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
@@ -65,12 +66,15 @@ def _generate_calendar_table(ti):
     base_semester = base_row.iloc[0]["semestre_numerico"]
     base_quarter = base_row.iloc[0]["trimestre_numerico"]
 
+    df["temp_semana_numerico"] = np.where((df["semana_numerico"].isin(52, 53)) & (df["mes_numerico"] == 1), 0, df["semana_numerico"])
     df["ano_relativo"] = df["ano"] - base_year
     df["mes_relativo"] = df["ano_relativo"]*12 + (df["mes_numerico"] - base_month)
-    df["semana_relativa"] = df["ano"].apply(delta_yearweeks, args=[base_year, years53]) + (df["semana_numerico"] - base_week)
+    df["semana_relativa"] = df["ano"].apply(delta_yearweeks, args=[base_year, years53]) + (df["temp_semana_numerico"] - base_week)
     df["dia_relativo"] = df["ano_relativo"]*365 + df["dia_ano"] - base_day
     df["semestre_relativo"] = df["ano_relativo"]*2 + df["semestre_numerico"] - base_semester
     df["trimestre_relativo"] = df["ano_relativo"]*4 + df["trimestre_numerico"] - base_quarter
+
+    df = df.drop(columns=["temp_semana_numerico"])
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -81,37 +85,8 @@ def _generate_calendar_table(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     connection = engine.connect()
-    drop_query = "DROP TABLE IF EXISTS ecommdata.calendario"
-    connection.execute(text(drop_query))
-    create_table_query = """
-        CREATE TABLE ecommdata.calendario (
-            fecha date NULL,
-            dia_mes smallint NULL,
-            dia_ano smallint NULL,
-            dia_semana_numerico smallint NULL,
-            dia_semana_abreviado varchar(20) NULL,
-            dia_semana_texto varchar(20) NULL,
-            mes_numerico smallint NULL,
-            mes_texto varchar(20) NULL,
-            mes_abreviado varchar(20) NULL,
-            mes_ano_texto varchar(20) NULL,
-            trimestre_numerico smallint NULL,
-            trimestre_texto varchar(20) NULL,
-            semestre_numerico smallint NULL,
-            semestre_texto varchar(20) NULL,
-            ano smallint NULL,
-            semana_numerico smallint NULL,
-            semana_ano_texto varchar(20) NULL,
-            ano_relativo smallint NULL,
-            mes_relativo smallint NULL,
-            semana_relativa smallint NULL,
-            dia_relativo smallint NULL,
-            semestre_relativo smallint NULL,
-            trimestre_relativo smallint NULL,
-            CONSTRAINT calendario_pk PRIMARY KEY (fecha)
-        )
-    """
-    connection.execute(text(create_table_query))
+    truncate_query = "TRUNCATE TABLE ecommdata.calendario"
+    connection.execute(text(truncate_query))
     connection.close()
 
     # Save to PostgreSQL:
