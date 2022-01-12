@@ -66,7 +66,7 @@ def _generate_calendar_table(ti):
     base_semester = base_row.iloc[0]["semestre_numerico"]
     base_quarter = base_row.iloc[0]["trimestre_numerico"]
 
-    df["temp_semana_numerico"] = np.where((df["semana_numerico"].isin(52, 53)) & (df["mes_numerico"] == 1), 0, df["semana_numerico"])
+    df["temp_semana_numerico"] = np.where((df["semana_numerico"].isin([52, 53])) & (df["mes_numerico"] == 1), 0, df["semana_numerico"])
     df["ano_relativo"] = df["ano"] - base_year
     df["mes_relativo"] = df["ano_relativo"]*12 + (df["mes_numerico"] - base_month)
     df["semana_relativa"] = df["ano"].apply(delta_yearweeks, args=[base_year, years53]) + (df["temp_semana_numerico"] - base_week)
