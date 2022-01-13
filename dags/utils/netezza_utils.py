@@ -1,4 +1,5 @@
 from airflow.models import Variable
+from airflow.hooks.S3_hook import S3Hook
 
 from datetime import datetime
 from io import StringIO
@@ -10,7 +11,7 @@ import pandas as pd
 
 BASE_S3_PATH = "data_warehouse/"
 
-def netezza_full_table_load_to_s3(table_name):
+def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_connection"):
     curr_datetime = datetime.utcnow()
     prefix = BASE_S3_PATH+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
     file_name = prefix+table_name+".csv"    
@@ -53,17 +54,12 @@ def netezza_full_table_load_to_s3(table_name):
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    access_key = Variable.get("AWS_ACCESS_KEY")
-    secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_client = boto3.client(
-        "s3",
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name = "us-east-1"
-    )
-    response = s3_client.put_object(
-        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
-    )
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+    s3_hook.load_file_obj(buffer.getvalue(),
+                  key=file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
 
     return file_name
