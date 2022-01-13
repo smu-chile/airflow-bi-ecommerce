@@ -20,6 +20,8 @@ def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_co
     if where is not None:
         sql_str = sql_str + " WHERE " + where
 
+    print(sql_str)
+
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
     dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
     dsn_port = "5480" 
@@ -58,7 +60,7 @@ def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_co
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id=aws_conn_id)
-    s3_hook.load_file_obj(buffer.getvalue(),
+    s3_hook.load_string(buffer.getvalue(),
                   key=file_name,
                   bucket_name=s3_bucket,
                   replace=True,
