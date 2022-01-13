@@ -35,7 +35,9 @@ with DAG(
     t0 = PythonOperator(
         task_id = "netezza_vm_fact_ou_logt_smy_full_load",
         python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY"},
+        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
+                     "where": "date_value = DATE(NOW() - interval '1 days' "
+        },
         retries = 2,
         retry_delay = timedelta(minutes=1)
     )
