@@ -17,6 +17,8 @@ def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_co
     file_name = prefix+table_name+".csv"    
 
     sql_str = f"SELECT * FROM {table_name}"
+    if where is not None:
+        sql_str = sql_str + " WHERE " + where
 
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
     dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
