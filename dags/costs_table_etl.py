@@ -2,15 +2,23 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
 def _get_store_list():
-    
-    return
+    query = "SELECT id FROM ecommdata.tiendas"
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    print(results)
+    cursor.close()
+    pg_connection.close()
+    return results
 
 def _create_final_costs_table(ti):
 
@@ -37,13 +45,9 @@ with DAG(
     Extract costs data from Datawarehouse to consolidate
     a single costs table on Postgres workspace.
     """ 
-    t0 = PostgresOperator(
+    t0 = PythonOperator(
         task_id = "get_store_id_list_from_workspace",
-        postgres_conn_id="postgresql_conn",
-        sql = """
-            SELECT id
-            FROM ecommdata.tiendas
-        """
+        python_callable = _get_store_list
     )
 
     # t1 = PythonOperator(
