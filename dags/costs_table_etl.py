@@ -1,11 +1,16 @@
 from airflow import DAG
+from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
+
+def _get_store_list():
+    
+    return
 
 def _create_final_costs_table(ti):
 
@@ -32,27 +37,35 @@ with DAG(
     Extract costs data from Datawarehouse to consolidate
     a single costs table on Postgres workspace.
     """ 
-    t0 = PythonOperator(
-        task_id = "netezza_vm_fact_ou_logt_smy_full_load",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
-                     "where": "date_value = DATE(NOW() - interval '1 days')"
-        },
-        retries = 2,
-        retry_delay = timedelta(minutes=1)
+    t0 = PostgresOperator(
+        task_id = "get_store_id_list_from_workspace",
+        sql = """
+            SELECT id
+            FROM ecommdata.tiendas
+        """
     )
 
-    t1 = PythonOperator(
-        task_id = "netezza_vm_dim_sku_attr_full_load",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_SKU_ATTR"},
-        retries = 2,
-        retry_delay = timedelta(minutes=1)
-    )
+    # t1 = PythonOperator(
+    #     task_id = "netezza_vm_fact_ou_logt_smy_full_load",
+    #     python_callable = netezza_full_table_load_to_s3,
+    #     op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
+    #                  "where": "date_value = DATE(NOW() - interval '1 days')"
+    #     },
+    #     retries = 2,
+    #     retry_delay = timedelta(minutes=1)
+    # )
 
-    t2 = PythonOperator(
-        task_id = "save_transformed_store_table",
-        python_callable = _create_final_costs_table
-    )
+    # t2 = PythonOperator(
+    #     task_id = "netezza_vm_dim_sku_attr_full_load",
+    #     python_callable = netezza_full_table_load_to_s3,
+    #     op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_SKU_ATTR"},
+    #     retries = 2,
+    #     retry_delay = timedelta(minutes=1)
+    # )
 
-    [t0, t1] >> t2
+    # t3 = PythonOperator(
+    #     task_id = "save_transformed_store_table",
+    #     python_callable = _create_final_costs_table
+    # )
+
+    t0
