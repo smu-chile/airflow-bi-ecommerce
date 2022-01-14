@@ -39,6 +39,7 @@ with DAG(
     """ 
     t0 = PostgresOperator(
         task_id = "get_store_id_list_from_workspace",
+        postgres_conn_id="postgresql_conn",
         sql = """
             SELECT id
             FROM ecommdata.tiendas
