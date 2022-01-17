@@ -11,9 +11,11 @@ import pandas as pd
 
 BASE_S3_PATH = "data_warehouse/"
 
-def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_connection"):
+def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_connection", extra_prefix=None):
     curr_datetime = datetime.utcnow()
     prefix = BASE_S3_PATH+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
+    if extra_prefix is not None:
+        prefix = prefix+"_"+extra_prefix+"_"
     file_name = prefix+table_name+".csv"    
 
     sql_str = f"SELECT * FROM {table_name}"
