@@ -84,8 +84,17 @@ with DAG(
 
     with TaskGroup("ou_key_list_tasks") as dynamic_task_group:
         for ou_key in ou_key_list:
-            dummy_ou_task = DummyOperator(
-                task_id = "dummy_task_"+str(ou_key)
+            dummy_ou_task = PythonOperator(
+                task_id = "netezza_vm_fact_ou_logt_smy_filtered_load_"+str(ou_key),
+                python_callable = netezza_full_table_load_to_s3,
+                op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
+                            "where": """date_value = DATE(NOW() - interval '1 days') 
+                                        AND ACTIVO = 1
+                                        AND CATALOGADO = 1
+                                        AND OU_KEY = """ + str(ou_key),
+                            "extra_prefix": str(ou_key),
+                },
+                pool="base_five_slots_pool"
             )
     
     end_task = DummyOperator(
