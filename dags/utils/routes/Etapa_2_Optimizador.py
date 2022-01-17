@@ -26,7 +26,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
     #parametros
     id_transportadora = '0469'
     capacity = 25
-    #trucks_no = 2
+    trucks_no = 2
     lng_tienda = -70.6068642
     lat_tienda = -33.5138181
 
@@ -173,10 +173,10 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
             TRUCK_CAPACITY = capacity
             df2_transportadora = df2.loc[df2['transportadora'] == transp]
             df2_transportadora = df2_transportadora.reset_index().drop(columns=['index'])
-            trucks_needed = int(math.ceil(df2_transportadora.shape[0] / TRUCK_CAPACITY))
+            trucks_needed = trucks_no #int(math.ceil(df2_transportadora.shape[0] / TRUCK_CAPACITY))
 
-            if trucks_needed > 2:
-                print('Etapa 2: Se ha excedido el numero maximo de camiones, por lo que se ha creado mas de 2 rutas')
+            # if trucks_needed > 2:
+            #     print('Etapa 2: Se ha excedido el numero maximo de camiones, por lo que se ha creado mas de 2 rutas')
 
             centro_distribucion = []
             centro_distribucion.insert(0, {'Orden': 'Origen', 'lat': lat_tienda,'lng': lng_tienda})
@@ -212,7 +212,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
         print(f'Etapa 2. El numero de ordenes procesadas fue de {len(df_resultado_transportadora)}')
     
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Etapa 2 Error: Se excedio el numero maximo de camiones permitido.")
         return False
 
     if len(df_resultado_transportadora) != 0:
