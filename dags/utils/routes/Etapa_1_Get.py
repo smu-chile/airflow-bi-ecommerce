@@ -43,7 +43,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
             'Content-Type': 'application/json' }
 
     #parametros
-    id_transportadora = '0469'
+    id_transportadora = '0581-3'
     lista_enviar = ['fmacaya@smu.cl','djimenezg@smu.cl']
     fecha_mañana = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=1)).strftime('%Y-%m-%d')
     fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
@@ -61,7 +61,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
     while indicador == True: 
         
-        url = "https://janisqa.in/api/order/get?carrierId={}&status=ready_for_shipping&perPage=30&page={}&shippingDate={}".format(id_transportadora,str(contador),shipping_date)
+        url = "https://janis.in/api/order/get?carrierId={}&status=ready_for_shipping&perPage=30&page={}&shippingDate={}".format(id_transportadora,str(contador),shipping_date)
         
         payload={}
         response = requests.request("GET", url, headers=headers, data=payload)
