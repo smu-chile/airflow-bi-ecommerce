@@ -85,7 +85,7 @@ with DAG(
     with TaskGroup("ou_key_list_tasks") as dynamic_task_group:
         for ou_key in ou_key_list:
             dummy_ou_task = DummyOperator(
-                task_id = "dummy_task_"+ou_key
+                task_id = "dummy_task_"+str(ou_key)
             )
     
     end_task = DummyOperator(
