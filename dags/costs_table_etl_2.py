@@ -57,7 +57,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'costs_table_etl',
+    'costs_table_etl_v2',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
     schedule_interval="0 7 * * *",
