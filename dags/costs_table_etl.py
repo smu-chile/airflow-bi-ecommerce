@@ -29,10 +29,12 @@ def _get_ou_key_list(ti):
 
     curr_datetime = datetime.utcnow()
     prefix = "/data_warehouse/DWC_SMU.SMU.VW_DIM_STORE/"+curr_datetime.strftime("%Y/%m/%d/")
+    print("Searching prefix: "+prefix)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    store_object_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=prefix)
+    store_object_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=prefix, delimiter="/")
+    print("Store object list: "+str(store_object_list))
     store_object_key = store_object_list[0]
     store_object = s3_hook.get_key(store_object_key, bucket_name=s3_bucket)
     df_stores = pd.read_csv(store_object.get()["Body"])
