@@ -80,7 +80,7 @@ with DAG(
         python_callable = _get_ou_key_list
     )
 
-    ou_key_list = Variable.get(key="ou_key_list")
+    ou_key_list = Variable.get(key="ou_key_list", deserialize_json=True)
 
     with TaskGroup("ou_key_list_tasks") as dynamic_task_group:
         for ou_key in ou_key_list:
