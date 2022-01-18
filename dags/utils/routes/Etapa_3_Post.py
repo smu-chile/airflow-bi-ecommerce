@@ -16,7 +16,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
     fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
 
     #parametros
-    id_transportadora = '0469'
+    id_transportadora = '0581-3'
     dicc_vehiculo = 27
     dicc_choferes = "17334430-90"
 
@@ -51,7 +51,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
             df_json['logisticCompanyId'] = 5 #Traer
             df_json = json.dumps(df_json, indent=4)
 
-            url = "https://logistics.janisqa.in/api/routes"
+            url = "https://logistics.janis.in/api/routes"
 
             response = requests.request("POST", url, headers=headers, data=df_json)
             response = response.json()
