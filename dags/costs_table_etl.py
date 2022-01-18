@@ -53,7 +53,7 @@ def _create_final_costs_table(ti):
     dw_fact_ou_logt_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_fact_ou_logt_smy_filtered_load"])[0]
     dw_sku_attr_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_sku_attr_full_load"])[0]
 
-    store_ou_key_list = ti.xcom_pull(key="return_value", task_ids=["get_store_id_list_from_workspace"])[0]
+    store_ou_key_list = ti.xcom_pull(key="return_value", task_ids=["get_ou_key_list_from_datawarehouse"])[0]
     df_store_ou_key = pd.DataFrame(store_ou_key_list, columns=["OU_KEY", "STORE_ID"])
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
