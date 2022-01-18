@@ -1,7 +1,6 @@
 from airflow.models import Variable
 from airflow.hooks.S3_hook import S3Hook
 
-from datetime import datetime
 from io import StringIO
 import os
 
@@ -11,16 +10,22 @@ import pandas as pd
 
 BASE_S3_PATH = "data_warehouse/"
 
-def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_connection", extra_prefix=None):
-    curr_datetime = datetime.utcnow()
-    prefix = BASE_S3_PATH+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
+def netezza_full_table_load_to_s3(ts, table_name, where=None, date_query=None, aws_conn_id="aws_s3_connection", extra_prefix=None):
+    print("Execution datetime: " + ts)
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+table_name+"/"+curr_datetime+"_"
     if extra_prefix is not None:
-        prefix = prefix+"_"+extra_prefix+"_"
+        prefix = prefix+extra_prefix+"_"
     file_name = prefix+table_name+".csv"    
+
+    print("File to be created: "+file_name)
 
     sql_str = f"SELECT * FROM {table_name}"
     if where is not None:
         sql_str = sql_str + " WHERE " + where
+    if date_query is not None:
+        date_query = date_query % ts[:10]
+        sql_str = sql_str + " AND " + date_query
 
     print(sql_str)
 
@@ -34,10 +39,6 @@ def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_co
 
     connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
     
-
-    url = '{0}:user={1};password={2}'.format(connection_string, dsn_uid, dsn_pwd)
-
-    
     conn = jaydebeapi.connect(jdbc_driver_name, 
                                 connection_string, {'user': dsn_uid, 'password': dsn_pwd},
                                 jars=jdbc_driver_loc)
@@ -48,15 +49,14 @@ def netezza_full_table_load_to_s3(table_name, where=None, aws_conn_id="aws_s3_co
     columns = [i[0] for i in cur.description]
 
     print(columns)
-    print(results[0])
     cur.close()
     conn.close()
 
     df = pd.DataFrame(results, columns=columns)
     buffer = StringIO()
 
+    print("Number of records:")
     print(len(df.index))
-    print(df)
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
