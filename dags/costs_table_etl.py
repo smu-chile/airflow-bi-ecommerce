@@ -124,7 +124,7 @@ with DAG(
         task_id = "netezza_vm_fact_ou_logt_smy_filtered_load",
         python_callable = netezza_full_table_load_to_s3,
         op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
-                    "where": """AND ACTIVO = 1
+                    "where": """ ACTIVO = 1
                                 AND CATALOGADO = 1
                                 AND OU_KEY IN """ + ou_key_list_query,
                     "date_query": "date_value = DATE(TO_DATE('%s', 'YYYY-MM-DD') - interval '1 days') "
