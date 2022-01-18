@@ -44,44 +44,50 @@ def _get_ou_key_list(ti):
     ou_key_list = df_stores["OU_KEY"].to_list()
     Variable.set(key="ou_key_list", value=ou_key_list)
 
-    return ou_key_list
+    store_ou_key_list = list(zip(df_stores["OU_KEY"], df_stores["STORE_ID"]))
+
+    return store_ou_key_list
 
 def _create_final_costs_table(ti):
-    # import pandas as pd
-    # dw_fact_ou_logt_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_fact_ou_logt_smy_filtered_load"])[0]
-    # dw_sku_attr_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_sku_attr_full_load"])[0]
+    import pandas as pd
+    dw_fact_ou_logt_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_fact_ou_logt_smy_filtered_load"])[0]
+    dw_sku_attr_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_sku_attr_full_load"])[0]
 
-    # s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    # s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    store_ou_key_list = ti.xcom_pull(key="return_value", task_ids=["get_store_id_list_from_workspace"])[0]
+    df_store_ou_key = pd.DataFrame(store_ou_key_list, columns=["OU_KEY", "STORE_ID"])
 
-    # if not s3_hook.check_for_key(dw_fact_ou_logt_file, bucket_name=s3_bucket):
-    #     raise Exception("Key %s does not exist." % dw_fact_ou_logt_file)
-    # if not s3_hook.check_for_key(dw_sku_attr_file, bucket_name=s3_bucket):
-    #     raise Exception("Key %s does not exist." % dw_sku_attr_file)
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    # dw_fact_ou_object = s3_hook.get_key(dw_fact_ou_logt_file, bucket_name=s3_bucket)
-    # df_dw_fact_ou = pd.read_csv(dw_fact_ou_object.get()["Body"])
+    if not s3_hook.check_for_key(dw_fact_ou_logt_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % dw_fact_ou_logt_file)
+    if not s3_hook.check_for_key(dw_sku_attr_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % dw_sku_attr_file)
 
-    # dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_file, bucket_name=s3_bucket)
-    # df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"])
+    dw_fact_ou_object = s3_hook.get_key(dw_fact_ou_logt_file, bucket_name=s3_bucket)
+    df_dw_fact_ou = pd.read_csv(dw_fact_ou_object.get()["Body"])
+    df_dw_fact_ou_store = pd.merge(df_dw_fact_ou, df_store_ou_key, on="OU_KEY", how="left")
+    df_dw_fact_ou_store = df_dw_fact_ou_store[["DATE_VALUE", "ACTIVO", "CATALOGADO", "NBR_ITM_SOLD", "COGS", "SKU_KEY", "STORE_ID"]]
 
-    # """
-    #     SELECT  COST.DATE_VALUE AS fecha
-    #             , S.STORE_ID AS id_sap
-    #             , SKUATTR.SKU_PRODUCT AS material
-    #             , SKUATTR.NM AS descripcion_material
-    #             , COST.ACTIVO AS activo
-    #             , COST.CATALOGADO AS catalogado
-    #             , COST.NBR_ITM_SOLD AS unidades_vendidas
-    #             , COST.COGS AS cogs
-    #     FROM DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY COST
-    #     LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SKUATTR ON SKUATTR.SKU_KEY = COST.SKU_KEY
-    #     LEFT JOIN DWC_SMU.SMU.VW_DIM_STORE S ON S.OU_KEY = COST.OU_KEY 
-    #     WHERE cost.date_value = '2022-01-04'
-    #         AND COST.CATALOGADO = 1
-    #         AND COST.ACTIVO = 1
-    #     LIMIT 100
-    # """
+    dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_file, bucket_name=s3_bucket)
+    df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"])
+    df_dw_sku_attr = df_dw_sku_attr[["SKU_PRODUCT", "NM", "SKU_KEY"]]
+
+    df = pd.merge(df_dw_fact_ou, df_dw_sku_attr, on="SKU_KEY", how="left")
+    df = df.drop(columns=["SKU_KEY"])
+    df = df.rename(columns={
+        "DATE_VALUE": "fecha",
+        "STORE_ID": "id_tienda",
+        "SKU_PRODUCT": "material",
+        "NM": "descripcion_material",
+        "ACTIVO": "activo",
+        "CATALOGADO": "catalogado",
+        "NBR_ITM_SOLD": "unidades_vendidas",
+        "COGS": "cogs"
+    })
+
+    print(df.dtypes)
+    print(df.head(1))
 
     return
 
@@ -130,7 +136,8 @@ with DAG(
                     "date_query": "date_value = DATE(TO_DATE('%s', 'YYYY-MM-DD') - interval '1 days') "
         },
         retries = 2,
-        retry_delay = timedelta(minutes=1)
+        retry_delay = timedelta(minutes=1),
+        execution_timeout = timedelta(minutes=60)
     )
 
     t3 = PythonOperator(
