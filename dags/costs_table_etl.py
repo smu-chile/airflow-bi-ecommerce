@@ -133,17 +133,17 @@ with DAG(
         retry_delay = timedelta(minutes=1)
     )
 
-    # t3 = PythonOperator(
-    #     task_id = "netezza_vm_dim_sku_attr_full_load",
-    #     python_callable = netezza_full_table_load_to_s3,
-    #     op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_SKU_ATTR"},
-    #     retries = 2,
-    #     retry_delay = timedelta(minutes=1)
-    # )
+    t3 = PythonOperator(
+        task_id = "netezza_vm_dim_sku_attr_full_load",
+        python_callable = netezza_full_table_load_to_s3,
+        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_SKU_ATTR"},
+        retries = 2,
+        retry_delay = timedelta(minutes=1)
+    )
 
-    # t4 = PythonOperator(
-    #     task_id = "create_final_costs_table",
-    #     python_callable = _create_final_costs_table
-    # )
+    t4 = PythonOperator(
+        task_id = "create_final_costs_table",
+        python_callable = _create_final_costs_table
+    )
 
-    t0 >> t1 >> t2 # [t2, t3] >> t4
+    t0 >> t1 >> [t2, t3] >> t4
