@@ -137,7 +137,7 @@ with DAG(
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
-        execution_timeout = timedelta(minutes=90)
+        execution_timeout = timedelta(minutes=60)
     )
 
     t3 = PythonOperator(
