@@ -69,3 +69,34 @@ def netezza_full_table_load_to_s3(ts, table_name, where=None, date_query=None, a
                   encrypt=False)
 
     return file_name
+
+def render_netezza_view(view_name):
+    """
+    Simple select query over a specific View on Netezza DW
+    to start rendering process and speed up future queries.
+    Returns None
+    """
+
+    sql_str = "SELECT * FROM "+view_name+" LIMIT 100"
+    print(sql_str)
+
+    dsn_database = Variable.get("DW_SECRET_DATABASE") 
+    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
+    dsn_port = "5480" 
+    dsn_uid = Variable.get("DW_SECRET_USER")
+    dsn_pwd = Variable.get("DW_PASSWORD")
+    jdbc_driver_name = "org.netezza.Driver" 
+    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+
+    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
+    
+    conn = jaydebeapi.connect(jdbc_driver_name, 
+                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
+                                jars=jdbc_driver_loc)
+
+    cur = conn.cursor()
+    cur.execute(sql_str)
+    cur.close()
+    conn.close()
+
+    return
