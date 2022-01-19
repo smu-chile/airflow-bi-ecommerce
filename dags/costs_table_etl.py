@@ -50,6 +50,8 @@ def _get_ou_key_list(ti):
 
 def _create_final_costs_table(ti):
     import pandas as pd
+    import sqlalchemy
+
     dw_fact_ou_logt_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_fact_ou_logt_smy_filtered_load"])[0]
     dw_sku_attr_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_sku_attr_full_load"])[0]
 
@@ -88,6 +90,25 @@ def _create_final_costs_table(ti):
 
     print(df.dtypes)
     print(df.head(1))
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # Save to PostgreSQL:
+    df.to_sql(name="costos",
+                con=engine,         
+                schema="ecommdata",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+
+    print("Data saved to PostgreSQL.")
 
     return
 
