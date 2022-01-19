@@ -16,7 +16,7 @@ with DAG(
     'pre_query_vm_fact_ou_logt_smy',
     default_args=default_args,
     description="Simple select query to start view's rendering process.",
-    schedule_interval="0 7 * * *",
+    schedule_interval="20 11 * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
     tags=["DATA", "DW"],
@@ -29,5 +29,7 @@ with DAG(
         task_id = "netezza_vm_fact_ou_logt_smy_pre_query",
         python_callable = render_netezza_view,
         op_kwargs = {"view_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY"},
-        execution_timeout = timedelta(minutes=45)
+        execution_timeout = timedelta(minutes=30),
+        retries = 2,
+        retry_delay = timedelta(minutes=1)
     )
