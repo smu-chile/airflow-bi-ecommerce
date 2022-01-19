@@ -2,9 +2,8 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.dummy import DummyOperator
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.utils.task_group import TaskGroup
 
 from utils.netezza_utils import netezza_full_table_load_to_s3
 
@@ -35,6 +34,8 @@ def _get_ou_key_list(ti):
 
     store_object_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=prefix)
     print("Store object list: "+str(store_object_list))
+    if len(store_object_list) == 0:
+        print("There are no objects on the given prefix. Upstream tasks will be mark as Failed.")
     store_object_key = store_object_list[0]
     store_object = s3_hook.get_key(store_object_key, bucket_name=s3_bucket)
     df_stores = pd.read_csv(store_object.get()["Body"])
@@ -43,9 +44,50 @@ def _get_ou_key_list(ti):
     ou_key_list = df_stores["OU_KEY"].to_list()
     Variable.set(key="ou_key_list", value=ou_key_list)
 
-    return ou_key_list
+    store_ou_key_list = list(zip(df_stores["OU_KEY"], df_stores["STORE_ID"]))
+
+    return store_ou_key_list
 
 def _create_final_costs_table(ti):
+    import pandas as pd
+    dw_fact_ou_logt_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_fact_ou_logt_smy_filtered_load"])[0]
+    dw_sku_attr_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_sku_attr_full_load"])[0]
+
+    store_ou_key_list = ti.xcom_pull(key="return_value", task_ids=["get_ou_key_list_from_datawarehouse"])[0]
+    df_store_ou_key = pd.DataFrame(store_ou_key_list, columns=["OU_KEY", "STORE_ID"])
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    if not s3_hook.check_for_key(dw_fact_ou_logt_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % dw_fact_ou_logt_file)
+    if not s3_hook.check_for_key(dw_sku_attr_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % dw_sku_attr_file)
+
+    dw_fact_ou_object = s3_hook.get_key(dw_fact_ou_logt_file, bucket_name=s3_bucket)
+    df_dw_fact_ou = pd.read_csv(dw_fact_ou_object.get()["Body"])
+    df_dw_fact_ou_store = pd.merge(df_dw_fact_ou, df_store_ou_key, on="OU_KEY", how="left")
+    df_dw_fact_ou_store = df_dw_fact_ou_store[["DATE_VALUE", "ACTIVO", "CATALOGADO", "NBR_ITM_SOLD", "COGS", "SKU_KEY", "STORE_ID"]]
+
+    dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_file, bucket_name=s3_bucket)
+    df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"])
+    df_dw_sku_attr = df_dw_sku_attr[["SKU_PRODUCT", "NM", "SKU_KEY"]]
+
+    df = pd.merge(df_dw_fact_ou, df_dw_sku_attr, on="SKU_KEY", how="left")
+    df = df.drop(columns=["SKU_KEY"])
+    df = df.rename(columns={
+        "DATE_VALUE": "fecha",
+        "STORE_ID": "id_tienda",
+        "SKU_PRODUCT": "material",
+        "NM": "descripcion_material",
+        "ACTIVO": "activo",
+        "CATALOGADO": "catalogado",
+        "NBR_ITM_SOLD": "unidades_vendidas",
+        "COGS": "cogs"
+    })
+
+    print(df.dtypes)
+    print(df.head(1))
 
     return
 
@@ -60,9 +102,10 @@ with DAG(
     'costs_table_etl',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2021, 1, 1),
-    catchup=False,
+    schedule_interval="0 8 * * *",
+    start_date=datetime(2022, 1, 1),
+    catchup=True,
+    max_active_runs=1,
     tags=["DATA", "DW", "S3", "Workspace", "Costos"],
 ) as dag:
 
@@ -81,50 +124,33 @@ with DAG(
     )
 
     ou_key_list = Variable.get(key="ou_key_list", deserialize_json=True)
+    ou_key_list_query = "("+",".join([str(i) for i in ou_key_list])+")"
 
-    with TaskGroup("ou_key_list_tasks") as dynamic_task_group:
-        for ou_key in ou_key_list:
-            dummy_ou_task = PythonOperator(
-                task_id = "netezza_vm_fact_ou_logt_smy_filtered_load_"+str(ou_key),
-                python_callable = netezza_full_table_load_to_s3,
-                op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
-                            "where": """date_value = DATE(NOW() - interval '1 days') 
-                                        AND ACTIVO = 1
-                                        AND CATALOGADO = 1
-                                        AND OU_KEY = """ + str(ou_key),
-                            "extra_prefix": str(ou_key),
-                },
-                pool="base_five_slots_pool"
-            )
-    
-    end_task = DummyOperator(
-        task_id = "end_task",
-        trigger_rule='none_failed'
+    t2 = PythonOperator(
+        task_id = "netezza_vm_fact_ou_logt_smy_filtered_load",
+        python_callable = netezza_full_table_load_to_s3,
+        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
+                    "where": """ ACTIVO = 1
+                                AND CATALOGADO = 1
+                                AND OU_KEY IN """ + ou_key_list_query,
+                    "date_query": "date_value = DATE(TO_DATE('%s', 'YYYY-MM-DD') - interval '1 days') "
+        },
+        retries = 2,
+        retry_delay = timedelta(minutes=1),
+        execution_timeout = timedelta(minutes=60)
     )
 
-    # t1 = PythonOperator(
-    #     task_id = "netezza_vm_fact_ou_logt_smy_full_load",
-    #     python_callable = netezza_full_table_load_to_s3,
-    #     op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
-    #                  "where": "date_value = DATE(NOW() - interval '1 days')"
-    #     },
-    #     retries = 2,
-    #     retry_delay = timedelta(minutes=1)
-    # )
+    t3 = PythonOperator(
+        task_id = "netezza_vm_dim_sku_attr_full_load",
+        python_callable = netezza_full_table_load_to_s3,
+        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_SKU_ATTR"},
+        retries = 2,
+        retry_delay = timedelta(minutes=1)
+    )
 
-    # t2 = PythonOperator(
-    #     task_id = "netezza_vm_dim_sku_attr_full_load",
-    #     python_callable = netezza_full_table_load_to_s3,
-    #     op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_SKU_ATTR"},
-    #     retries = 2,
-    #     retry_delay = timedelta(minutes=1)
-    # )
+    t4 = PythonOperator(
+        task_id = "create_final_costs_table",
+        python_callable = _create_final_costs_table
+    )
 
-    # t3 = PythonOperator(
-    #     task_id = "save_transformed_store_table",
-    #     python_callable = _create_final_costs_table
-    # )
-
-    # ou_key_list = Variable.delete(key="ou_key_list")
-
-    t0 >> t1 >> dynamic_task_group >> end_task
+    t0 >> t1 >> [t2, t3] >> t4
