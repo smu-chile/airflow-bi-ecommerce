@@ -73,7 +73,7 @@ def _create_final_costs_table(ti):
     df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"])
     df_dw_sku_attr = df_dw_sku_attr[["SKU_PRODUCT", "NM", "SKU_KEY"]]
 
-    df = pd.merge(df_dw_fact_ou, df_dw_sku_attr, on="SKU_KEY", how="left")
+    df = pd.merge(df_dw_fact_ou_store, df_dw_sku_attr, on="SKU_KEY", how="left")
     df = df.drop(columns=["SKU_KEY"])
     df = df.rename(columns={
         "DATE_VALUE": "fecha",
