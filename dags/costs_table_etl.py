@@ -72,7 +72,7 @@ def _create_final_costs_table(ti):
     df_dw_fact_ou_store = df_dw_fact_ou_store[["DATE_VALUE", "ACTIVO", "CATALOGADO", "NBR_ITM_SOLD", "COGS", "SKU_KEY", "STORE_ID"]]
 
     dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_file, bucket_name=s3_bucket)
-    df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"])
+    df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"], dtype={"SKU_PRODUCT": "str"})
     df_dw_sku_attr = df_dw_sku_attr[["SKU_PRODUCT", "NM", "SKU_KEY"]]
 
     df = pd.merge(df_dw_fact_ou_store, df_dw_sku_attr, on="SKU_KEY", how="left")
@@ -123,7 +123,7 @@ with DAG(
     'costs_table_etl',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="0 8 * * *",
+    schedule_interval="0 12 * * *",
     start_date=datetime(2022, 1, 1),
     catchup=True,
     max_active_runs=1,
