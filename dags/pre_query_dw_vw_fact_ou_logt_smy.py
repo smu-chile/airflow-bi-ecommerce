@@ -13,7 +13,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'netezza_pre_query_vm_fact_ou_logt_smy',
+    'pre_query_vm_fact_ou_logt_smy',
     default_args=default_args,
     description="Simple select query to start view's rendering process.",
     schedule_interval="0 7 * * *",
