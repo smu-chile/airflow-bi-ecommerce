@@ -18,7 +18,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
     #parametros
     id_transportadora = '0581-3'
     dicc_vehiculo = 27
-    dicc_choferes = "17334430-90"
+    dicc_choferes = "173344309"
 
     prefix = "ecommops/capacity/rutas/" + fecha_hoy + "/"
     name = 'Etapa_2_' + id_transportadora + '.csv'
