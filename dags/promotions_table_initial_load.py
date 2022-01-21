@@ -212,7 +212,7 @@ with DAG(
                                 AND REGISTRO_VALIDO = 'X'
                                 AND ORGANIZACION_VENTAS = '1000'
                                 AND CANAL_DISTRIBUCION in ('10','70')
-                                AND ID_EVENTO <> '572' LIMIT 10"""
+                                AND ID_EVENTO <> '572' """
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
