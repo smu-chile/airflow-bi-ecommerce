@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 
 def _create_initial_promotions_table(ti):
+    import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
@@ -96,6 +97,9 @@ def _create_initial_promotions_table(ti):
     df["PORCENTAJE_FINANCIAMIENTO"] = df["PORCENTAJE_FINANCIAMIENTO"]/100
     df["PORCENTAJE_COSTO_PROMOCIONAL"] = df["PORCENTAJE_COSTO_PROMOCIONAL"]/100
     df["PORCENTAJE_DE_DESCUENTO"] = df["PORCENTAJE_DE_DESCUENTO"]/100
+
+    # Fix boolean data:
+    df["REGISTRO_VALIDO"] = np.where(df["REGISTRO_VALIDO"] == "X", True, False)
 
     columns_rename = {
         "N_PROMOCION": "n_promocion",
