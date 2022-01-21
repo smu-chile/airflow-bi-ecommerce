@@ -21,13 +21,13 @@ def _get_store_list():
     pg_connection.close()
     return results
 
-def _get_ou_key_list(ti):
+def _get_ou_key_list(ti, ts):
     import pandas as pd
     store_ids = ti.xcom_pull(key="return_value", task_ids=["get_store_id_list_from_workspace"])[0]
     store_ids = [store_id[0] for store_id in store_ids]
 
-    curr_datetime = datetime.utcnow()
-    prefix = "data_warehouse/DWC_SMU.SMU.VW_DIM_STORE/"+curr_datetime.strftime("%Y/%m/%d/")
+    execution_datetime = ts[:10].replace("-", "/")
+    prefix = "data_warehouse/DWC_SMU.SMU.VW_DIM_STORE/"+execution_datetime+"/"
     print("Searching prefix: "+prefix)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -154,7 +154,7 @@ with DAG(
                     "where": """ ACTIVO = 1
                                 AND CATALOGADO = 1
                                 AND OU_KEY IN """ + ou_key_list_query,
-                    "date_query": "date_value = DATE(TO_DATE('%s', 'YYYY-MM-DD') - interval '1 days') "
+                    "date_query": "date_value = TO_DATE('%s', 'YYYY-MM-DD') "
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
