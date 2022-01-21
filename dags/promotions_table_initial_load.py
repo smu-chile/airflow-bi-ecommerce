@@ -72,7 +72,7 @@ def _create_initial_promotions_table(ti):
         "REGISTRO_VALIDO": "str"
     }
     df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
-    df["ID_MECANICA"] = df["ID_MECANICA"].astype("int")
+    df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
     
     # Fix date types:
     df["DESDE_SELL_IN"] = pd.to_datetime(df["DESDE_SELL_IN"], format="%Y-%m-%d", errors="ignore")
