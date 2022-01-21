@@ -27,7 +27,7 @@ def _create_initial_promotions_table(ti):
 		"NOMBRE_PROMOCION": "str",
 		"ID_EVENTO": "int",
 		"DESCRIPCION_EVENTO_PROMOCIONAL": "str",
-		"ID_MECANICA": "int",
+		"ID_MECANICA": "float",
 		"DESCRIPCION_MECANICA": "str",
 		"MATERIAL": "int64",
 		"DESC_MATERIAL": "str",
@@ -72,6 +72,7 @@ def _create_initial_promotions_table(ti):
         "REGISTRO_VALIDO": "str"
     }
     df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
+    df["ID_MECANICA"] = df["ID_MECANICA"].astype("int")
     
     # Fix date types:
     df["DESDE_SELL_IN"] = pd.to_datetime(df["DESDE_SELL_IN"], format="%Y-%m-%d", errors="ignore")
