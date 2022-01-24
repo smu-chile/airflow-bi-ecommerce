@@ -1,4 +1,3 @@
-from re import A
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
