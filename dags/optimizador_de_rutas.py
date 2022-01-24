@@ -37,7 +37,7 @@ with DAG(
     'optimizador_de_rutas',
     default_args=default_args,
     description="Generación y optimización de rutas.",
-    schedule_interval="0 0 * * 1-4",
+    schedule_interval="0 0 * * 7,1-3",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["OPS", "Janis", "S3"],
