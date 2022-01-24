@@ -1,3 +1,4 @@
+from re import A
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
@@ -19,6 +20,7 @@ def _create_initial_promotions_table(ti):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
+    print("Searching file: "+dw_promotion_file)
     if not s3_hook.check_for_key(dw_promotion_file, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % dw_promotion_file)
 
@@ -86,6 +88,7 @@ def _create_initial_promotions_table(ti):
     df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
     
     # Fix date types:
+    print("Fixing date datatype columns...")
     df["DESDE_SELL_IN"] = pd.to_datetime(df["DESDE_SELL_IN"], format="%Y-%m-%d", errors="ignore")
     df["HASTA_SELL_IN"] = pd.to_datetime(df["HASTA_SELL_IN"], format="%Y-%m-%d", errors="ignore")
     df["FECHA_INICIO_DE_PROMOCION"] = pd.to_datetime(df["FECHA_INICIO_DE_PROMOCION"], format="%Y-%m-%d", errors="ignore")
@@ -93,12 +96,14 @@ def _create_initial_promotions_table(ti):
     df["FECHA_MODIFICACION"] = pd.to_datetime(df["FECHA_MODIFICACION"], format="%Y-%m-%d %H:%M:%S.000", errors="ignore")
 
     # Fix percentage data:
+    print("Fixing percentage columns...")
     df["PORCENTAJE_N"] = df["PORCENTAJE_N"]/100
     df["PORCENTAJE_FINANCIAMIENTO"] = df["PORCENTAJE_FINANCIAMIENTO"]/100
     df["PORCENTAJE_COSTO_PROMOCIONAL"] = df["PORCENTAJE_COSTO_PROMOCIONAL"]/100
     df["PORCENTAJE_DE_DESCUENTO"] = df["PORCENTAJE_DE_DESCUENTO"]/100
 
     # Fix boolean data:
+    print("Fixing boolean datatype columns...")
     df["REGISTRO_VALIDO"] = np.where(df["REGISTRO_VALIDO"] == "X", True, False)
 
     columns_rename = {
@@ -152,6 +157,8 @@ def _create_initial_promotions_table(ti):
     }
 
     df = df.rename(columns=columns_rename)
+
+    print("Number of records to be loaded: "+str(len(df.index)))
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
