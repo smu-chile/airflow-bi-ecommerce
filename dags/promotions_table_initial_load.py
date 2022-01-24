@@ -100,6 +100,7 @@ def _create_initial_promotions_table(ti):
     df["PORCENTAJE_FINANCIAMIENTO"] = df["PORCENTAJE_FINANCIAMIENTO"]/100
     df["PORCENTAJE_COSTO_PROMOCIONAL"] = df["PORCENTAJE_COSTO_PROMOCIONAL"]/100
     df["PORCENTAJE_DE_DESCUENTO"] = df["PORCENTAJE_DE_DESCUENTO"]/100
+    df["DESCUENTOFINAL"] = df["DESCUENTOFINAL"]/100
 
     # Fix boolean data:
     print("Fixing boolean datatype columns...")
@@ -150,7 +151,7 @@ def _create_initial_promotions_table(ti):
 		"FECHA_FIN_DE_PROMOCION": "fecha_fin_de_promocion",
 		"PORCENTAJE_DE_DESCUENTO": "porcentaje_de_descuento",
 		"PROMOEVENTMECHANISM": "promo_event_mechanism",
-		"DESCUENTOFINAL": "descuento_final",
+		"DESCUENTOFINAL": "porcentaje_descuento_final",
 		"FECHA_MODIFICACION": "fecha_modificacion",
         "REGISTRO_VALIDO": "registro_valido"
     }
