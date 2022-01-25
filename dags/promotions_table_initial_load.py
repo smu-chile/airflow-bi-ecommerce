@@ -25,6 +25,7 @@ def _create_initial_promotions_table(ti):
 
     dw_promotion_object = s3_hook.get_key(dw_promotion_file, bucket_name=s3_bucket)
     columns_types = {
+        "ID_WORKFLOW": "int64",
         "N_PROMOCION": "int64",
 		"NOMBRE_PROMOCION": "str",
 		"ID_EVENTO": "int",
@@ -74,7 +75,7 @@ def _create_initial_promotions_table(ti):
         "REGISTRO_VALIDO": "str"
     }
     df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
-    df = df[["N_PROMOCION",	"NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
+    df = df[["ID_WORKFLOW", "N_PROMOCION",	"NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
 		    "DESCRIPCION_MECANICA", "MATERIAL", "DESC_MATERIAL", "UN_MEDIDA_VENTA", "ORGANIZACION_VENTAS",
 		    "CANAL_DISTRIBUCION", "EAN", "LINEA", "DESCRIPCION_LINEA", "DESC_MARCA", "TIPO_PROMOCION",
 		    "DESC_PROMOCION", "PRECIO_MODAL", "PRECIO_MODAL_TOTAL", "PRECIO_PROMOCIONAL", "PRECIO_TOTAL_PROMOCIONAL",
@@ -83,7 +84,9 @@ def _create_initial_promotions_table(ti):
 		    "TIPO_FINANCIAMIENTO", "IMPORTE_NEGOCIADO", "PORCENTAJE_FINANCIAMIENTO", "COSTO_NETO_UMP",
 		    "PORCENTAJE_COSTO_PROMOCIONAL", "DESDE_SELL_IN", "HASTA_SELL_IN", "FECHA_INICIO_DE_PROMOCION",
 		    "FECHA_FIN_DE_PROMOCION", "PORCENTAJE_DE_DESCUENTO", "PROMOEVENTMECHANISM", "DESCUENTOFINAL",
-		    "FECHA_MODIFICACION", "REGISTRO_VALIDO"]]
+		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT"]]  
+
+
     df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
     
     # Fix date types:
@@ -106,7 +109,11 @@ def _create_initial_promotions_table(ti):
     print("Fixing boolean datatype columns...")
     df["REGISTRO_VALIDO"] = np.where(df["REGISTRO_VALIDO"] == "X", True, False)
 
+    # Left pad material column:
+    df["MATERIAL"] = df["MATERIAL"].str.pad(18, side="left", fillchar="0")
+
     columns_rename = {
+        "ID_WORKFLOW": "id",
         "N_PROMOCION": "n_promocion",
 		"NOMBRE_PROMOCION": "nombre_promocion",
 		"ID_EVENTO": "id_evento",
@@ -153,7 +160,9 @@ def _create_initial_promotions_table(ti):
 		"PROMOEVENTMECHANISM": "promo_event_mechanism",
 		"DESCUENTOFINAL": "porcentaje_descuento_final",
 		"FECHA_MODIFICACION": "fecha_modificacion",
-        "REGISTRO_VALIDO": "registro_valido"
+        "REGISTRO_VALIDO": "registro_valido",
+        "NOMBRE_DEL_PROVEEDOR_SELL_OUT": "nombre_proveedor_sell_out",
+        "PROVEEDOR_SELL_OUT": "proveedor_sell_out"
     }
 
     df = df.rename(columns=columns_rename)
