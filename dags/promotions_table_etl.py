@@ -1,20 +1,23 @@
+from decimal import ExtendedContext
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import netezza_full_table_load_to_s3
+from utils.netezza_utils import netezza_incremental_load_to_s3
+from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime, timedelta
 
 
-def _create_initial_promotions_table(ti):
+def _promotions_table_incremental_load(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
     
-    dw_promotion_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vw_workflow_initial_load"])[0]
+    dw_promotion_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vw_workflow_incremental_load"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -75,7 +78,7 @@ def _create_initial_promotions_table(ti):
         "REGISTRO_VALIDO": "str"
     }
     df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
-    df = df[["ID_WORKFLOW", "N_PROMOCION",	"NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
+    df = df[["ID_WORKFLOW", "N_PROMOCION", "NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
 		    "DESCRIPCION_MECANICA", "MATERIAL", "DESC_MATERIAL", "UN_MEDIDA_VENTA", "ORGANIZACION_VENTAS",
 		    "CANAL_DISTRIBUCION", "EAN", "LINEA", "DESCRIPCION_LINEA", "DESC_MARCA", "TIPO_PROMOCION",
 		    "DESC_PROMOCION", "PRECIO_MODAL", "PRECIO_MODAL_TOTAL", "PRECIO_PROMOCIONAL", "PRECIO_TOTAL_PROMOCIONAL",
@@ -84,9 +87,7 @@ def _create_initial_promotions_table(ti):
 		    "TIPO_FINANCIAMIENTO", "IMPORTE_NEGOCIADO", "PORCENTAJE_FINANCIAMIENTO", "COSTO_NETO_UMP",
 		    "PORCENTAJE_COSTO_PROMOCIONAL", "DESDE_SELL_IN", "HASTA_SELL_IN", "FECHA_INICIO_DE_PROMOCION",
 		    "FECHA_FIN_DE_PROMOCION", "PORCENTAJE_DE_DESCUENTO", "PROMOEVENTMECHANISM", "DESCUENTOFINAL",
-		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT"]]  
-
-
+		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT"]]
     df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
     
     # Fix date types:
@@ -113,7 +114,6 @@ def _create_initial_promotions_table(ti):
     df["MATERIAL"] = df["MATERIAL"].str.pad(18, side="left", fillchar="0")
 
     columns_rename = {
-        "ID_WORKFLOW": "id",
         "N_PROMOCION": "n_promocion",
 		"NOMBRE_PROMOCION": "nombre_promocion",
 		"ID_EVENTO": "id_evento",
@@ -169,29 +169,33 @@ def _create_initial_promotions_table(ti):
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
-    
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdata.workflow_promociones"
-    connection.execute(text(truncate_query))
-    connection.close()
-
-    # Save to PostgreSQL:
-    df.to_sql(name="workflow_promociones",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL. Table: ecommdata.workflow_promociones")
+    records = list(df.to_records(index=False))
+    columns = list(df.columns)
+    columns_string = "("+",".join(columns)+")"
+    update_columns = [column for column in columns if column != "id"]
+    update_columns_string = "("+",".join(update_columns)+")"
+    excluded_columns = ["EXCLUDED."+column for column in update_columns]
+    excluded_columns_string = "("+",".join(excluded_columns)+")"
+    nullif_string = "NULLIF(%s, 'nan')"
+    values_list = []
+    for column in columns:
+        if column == "id":
+            values_list.append("%s")
+        else:
+            values_list.append(nullif_string)
+    query = f"""
+        INSERT INTO ecommdata.workflow_promociones {columns_string} 
+        VALUES ({','.join(values_list)})
+        ON CONFLICT (id)
+        DO UPDATE SET {update_columns_string} = {excluded_columns_string};
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(query, records)
+    cursor.commit()
+    cursor.close()
+    pg_connection.close()
 
     return
 
@@ -203,41 +207,51 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'workflow_promotions_table_initial_load',
+    'workflow_promotions_table_incremental_load',
     default_args=default_args,
-    description="Extraction and initial load of workflow_promotion data.",
-    schedule_interval=None,
+    description="Extraction and transformation of incremental workflow_promotion data.",
+    schedule_interval="0 9 * * *",
     start_date=datetime(2022, 1, 1),
-    catchup=True,
+    catchup=False,
     max_active_runs=1,
     tags=["DATA", "DW", "S3", "Workspace", "Promociones"],
 ) as dag:
 
     dag.doc_md = """
     Extract workflow table data (promotions) from Datawarehouse
-    with filters for a full initial load to S3, then select specific
-    columns from csv file and load it to Postgres workspace. \n
-    This process will attempt to TRUNCATE the table before loading records.
+    with filters for an incremental load to S3, then select specific
+    columns from csv file and load it to Postgres workspace.
     """ 
 
     t0 = PythonOperator(
-        task_id = "netezza_vw_workflow_initial_load", 
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "NZ_BU.ECOMERCE.VW_WORKFLOW",
-                    "where": """ FECHA_INICIO_DE_PROMOCION >= '2021-01-01'
-                                AND REGISTRO_VALIDO = 'X'
-                                AND ORGANIZACION_VENTAS = '1000'
-                                AND CANAL_DISTRIBUCION in ('10','70')
-                                AND ID_EVENTO <> '572' """
+        task_id="get_max_updated_at_value",
+        python_callable=get_max_updated_at_value,
+        op_kwargs={
+            "schema": "ecommdata",
+            "table_name": "workflow_promociones",
+            "updated_at_field": "FECHA_MODIFICACION"
+        }
+    )
+
+    t1 = PythonOperator(
+        task_id = "netezza_vw_workflow_incremental_load", 
+        python_callable = netezza_incremental_load_to_s3,
+        op_kwargs = {
+            "table_name": "NZ_BU.ECOMERCE.VW_WORKFLOW",
+            "xcom_update_date_task_id": "get_max_updated_at_value",
+            "update_column": "FECHA_MODIFICACION",
+            "where": """ ORGANIZACION_VENTAS = '1000'
+                        AND CANAL_DISTRIBUCION in ('10','70')
+                        AND ID_EVENTO <> '572' """
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
         execution_timeout = timedelta(minutes=60)
     )
 
-    t1 = PythonOperator(
-        task_id = "create_initial_workflow_promotions_table",
-        python_callable = _create_initial_promotions_table
+    t2 = PythonOperator(
+        task_id = "promotions_table_incremental_load",
+        python_callable = _promotions_table_incremental_load
     )
 
-    t0 >> t1
+    t0 >> t1 >> t2
