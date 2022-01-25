@@ -1,0 +1,257 @@
+from decimal import ExtendedContext
+from airflow import DAG
+from airflow.hooks.S3_hook import S3Hook
+from airflow.models import Variable
+from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+
+from utils.netezza_utils import netezza_incremental_load_to_s3
+from utils.postgres_utils import get_max_updated_at_value
+
+from datetime import datetime, timedelta
+
+
+def _promotions_table_incremental_load(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+    
+    dw_promotion_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vw_workflow_incremental_load"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+dw_promotion_file)
+    if not s3_hook.check_for_key(dw_promotion_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % dw_promotion_file)
+
+    dw_promotion_object = s3_hook.get_key(dw_promotion_file, bucket_name=s3_bucket)
+    columns_types = {
+        "ID_WORKFLOW": "int64",
+        "N_PROMOCION": "int64",
+		"NOMBRE_PROMOCION": "str",
+		"ID_EVENTO": "int",
+		"DESCRIPCION_EVENTO_PROMOCIONAL": "str",
+		"ID_MECANICA": "float",
+		"DESCRIPCION_MECANICA": "str",
+		"MATERIAL": "int64",
+		"DESC_MATERIAL": "str",
+		"UN_MEDIDA_VENTA": "str",
+		"ORGANIZACION_VENTAS": "str",
+		"CANAL_DISTRIBUCION": "str",
+		"EAN": "str",
+		"LINEA": "str",
+		"DESCRIPCION_LINEA": "str",
+		"DESC_MARCA": "str",
+		"TIPO_PROMOCION": "int",
+		"DESC_PROMOCION": "str",
+		"PRECIO_MODAL": "float",
+		"PRECIO_MODAL_TOTAL": "float",
+		"PRECIO_PROMOCIONAL": "float",
+		"PRECIO_TOTAL_PROMOCIONAL": "float",
+		"AHORRO": "float",
+		"AHORRO_TOTAL": "float",
+		"CANTIDAD_N": "int",
+		"CANTIDAD_M": "int",
+		"PRECIO_FIJO": "float",
+		"DESDE_KG": "float",
+		"PRECIO_KILO": "float",
+		"LLEVAS_N": "float",
+		"PRECIO_N": "float",
+		"PORCENTAJE_N": "float",
+		"COSTO_UNIDAD_MEDIDA_DE_PEDIDO": "float",
+		"COSTO_UNIDAD_MEDIDA_DE_VENTA": "float",
+		"TIPO_FINANCIAMIENTO": "str",
+        "IMPORTE_NEGOCIADO": "float",
+		"PORCENTAJE_FINANCIAMIENTO": "float",
+		"COSTO_NETO_UMP": "float",
+		"PORCENTAJE_COSTO_PROMOCIONAL": "float",
+		"DESDE_SELL_IN": "str",
+		"HASTA_SELL_IN": "str",
+		"FECHA_INICIO_DE_PROMOCION": "str",
+		"FECHA_FIN_DE_PROMOCION": "str",
+		"PORCENTAJE_DE_DESCUENTO": "float",
+		"PROMOEVENTMECHANISM": "str",
+		"DESCUENTOFINAL": "float",
+		"FECHA_MODIFICACION": "str",
+        "REGISTRO_VALIDO": "str"
+    }
+    df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
+    df = df[["ID_WORKFLOW", "N_PROMOCION", "NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
+		    "DESCRIPCION_MECANICA", "MATERIAL", "DESC_MATERIAL", "UN_MEDIDA_VENTA", "ORGANIZACION_VENTAS",
+		    "CANAL_DISTRIBUCION", "EAN", "LINEA", "DESCRIPCION_LINEA", "DESC_MARCA", "TIPO_PROMOCION",
+		    "DESC_PROMOCION", "PRECIO_MODAL", "PRECIO_MODAL_TOTAL", "PRECIO_PROMOCIONAL", "PRECIO_TOTAL_PROMOCIONAL",
+		    "AHORRO", "AHORRO_TOTAL", "CANTIDAD_N", "CANTIDAD_M", "PRECIO_FIJO", "DESDE_KG", "PRECIO_KILO",
+		    "LLEVAS_N", "PRECIO_N", "PORCENTAJE_N", "COSTO_UNIDAD_MEDIDA_DE_PEDIDO", "COSTO_UNIDAD_MEDIDA_DE_VENTA",
+		    "TIPO_FINANCIAMIENTO", "IMPORTE_NEGOCIADO", "PORCENTAJE_FINANCIAMIENTO", "COSTO_NETO_UMP",
+		    "PORCENTAJE_COSTO_PROMOCIONAL", "DESDE_SELL_IN", "HASTA_SELL_IN", "FECHA_INICIO_DE_PROMOCION",
+		    "FECHA_FIN_DE_PROMOCION", "PORCENTAJE_DE_DESCUENTO", "PROMOEVENTMECHANISM", "DESCUENTOFINAL",
+		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT"]]
+    df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
+    
+    # Fix date types:
+    print("Fixing date datatype columns...")
+    df["DESDE_SELL_IN"] = pd.to_datetime(df["DESDE_SELL_IN"], format="%Y-%m-%d", errors="ignore")
+    df["HASTA_SELL_IN"] = pd.to_datetime(df["HASTA_SELL_IN"], format="%Y-%m-%d", errors="ignore")
+    df["FECHA_INICIO_DE_PROMOCION"] = pd.to_datetime(df["FECHA_INICIO_DE_PROMOCION"], format="%Y-%m-%d", errors="ignore")
+    df["FECHA_FIN_DE_PROMOCION"] = pd.to_datetime(df["FECHA_FIN_DE_PROMOCION"], format="%Y-%m-%d", errors="ignore")
+    df["FECHA_MODIFICACION"] = pd.to_datetime(df["FECHA_MODIFICACION"], format="%Y-%m-%d %H:%M:%S.000", errors="ignore")
+
+    # Fix percentage data:
+    print("Fixing percentage columns...")
+    df["PORCENTAJE_N"] = df["PORCENTAJE_N"]/100
+    df["PORCENTAJE_FINANCIAMIENTO"] = df["PORCENTAJE_FINANCIAMIENTO"]/100
+    df["PORCENTAJE_COSTO_PROMOCIONAL"] = df["PORCENTAJE_COSTO_PROMOCIONAL"]/100
+    df["PORCENTAJE_DE_DESCUENTO"] = df["PORCENTAJE_DE_DESCUENTO"]/100
+    df["DESCUENTOFINAL"] = df["DESCUENTOFINAL"]/100
+
+    # Fix boolean data:
+    print("Fixing boolean datatype columns...")
+    df["REGISTRO_VALIDO"] = np.where(df["REGISTRO_VALIDO"] == "X", True, False)
+
+    # Left pad material column:
+    df["MATERIAL"] = df["MATERIAL"].str.pad(18, side="left", fillchar="0")
+
+    columns_rename = {
+        "N_PROMOCION": "n_promocion",
+		"NOMBRE_PROMOCION": "nombre_promocion",
+		"ID_EVENTO": "id_evento",
+		"DESCRIPCION_EVENTO_PROMOCIONAL": "descripcion_evento_promocional",
+		"ID_MECANICA": "id_mecanica",
+		"DESCRIPCION_MECANICA": "descripcion_mecanica",
+		"MATERIAL": "material",
+		"DESC_MATERIAL": "descripcion_material",
+		"UN_MEDIDA_VENTA": "umv",
+		"ORGANIZACION_VENTAS": "organizacion_ventas",
+		"CANAL_DISTRIBUCION": "canal_distribucion",
+		"EAN": "ean",
+		"LINEA": "linea",
+		"DESCRIPCION_LINEA": "descripcion_linea",
+		"DESC_MARCA": "marca",
+		"TIPO_PROMOCION": "tipo_promocion",
+		"DESC_PROMOCION": "desc_promocion",
+		"PRECIO_MODAL": "precio_modal",
+		"PRECIO_MODAL_TOTAL": "precio_modal_total",
+		"PRECIO_PROMOCIONAL": "precio_promocional",
+		"PRECIO_TOTAL_PROMOCIONAL": "precio_total_promocional",
+		"AHORRO": "ahorro",
+		"AHORRO_TOTAL": "ahorro_total",
+		"CANTIDAD_N": "cantidad_n",
+		"CANTIDAD_M": "cantidad_m",
+		"PRECIO_FIJO": "precio_fijo",
+		"DESDE_KG": "desde_kg",
+		"PRECIO_KILO": "precio_kilo",
+		"LLEVAS_N": "llevas_n",
+		"PRECIO_N": "precio_n",
+		"PORCENTAJE_N": "porcentaje_n",
+		"COSTO_UNIDAD_MEDIDA_DE_PEDIDO": "costo_unidad_medida_de_pedido",
+		"COSTO_UNIDAD_MEDIDA_DE_VENTA": "costo_unidad_medida_de_venta",
+		"TIPO_FINANCIAMIENTO": "tipo_financiamiento",
+        "IMPORTE_NEGOCIADO": "importe_negociado",
+		"PORCENTAJE_FINANCIAMIENTO": "porcentaje_financiamiento",
+		"COSTO_NETO_UMP": "costo_neto_ump",
+		"PORCENTAJE_COSTO_PROMOCIONAL": "porcentaje_costo_promocional",
+		"DESDE_SELL_IN": "desde_sell_in",
+		"HASTA_SELL_IN": "hasta_sell_in",
+		"FECHA_INICIO_DE_PROMOCION": "fecha_inicio_de_promocion",
+		"FECHA_FIN_DE_PROMOCION": "fecha_fin_de_promocion",
+		"PORCENTAJE_DE_DESCUENTO": "porcentaje_de_descuento",
+		"PROMOEVENTMECHANISM": "promo_event_mechanism",
+		"DESCUENTOFINAL": "porcentaje_descuento_final",
+		"FECHA_MODIFICACION": "fecha_modificacion",
+        "REGISTRO_VALIDO": "registro_valido",
+        "NOMBRE_DEL_PROVEEDOR_SELL_OUT": "nombre_proveedor_sell_out",
+        "PROVEEDOR_SELL_OUT": "proveedor_sell_out"
+    }
+
+    df = df.rename(columns=columns_rename)
+
+    print("Number of records to be loaded: "+str(len(df.index)))
+
+    records = list(df.to_records(index=False))
+    columns = list(df.columns)
+    columns_string = "("+",".join(columns)+")"
+    update_columns = [column for column in columns if column != "id"]
+    update_columns_string = "("+",".join(update_columns)+")"
+    excluded_columns = ["EXCLUDED."+column for column in update_columns]
+    excluded_columns_string = "("+",".join(excluded_columns)+")"
+    nullif_string = "NULLIF(%s, 'nan')"
+    values_list = []
+    for column in columns:
+        if column == "id":
+            values_list.append("%s")
+        else:
+            values_list.append(nullif_string)
+    query = f"""
+        INSERT INTO ecommdata.workflow_promociones {columns_string} 
+        VALUES ({','.join(values_list)})
+        ON CONFLICT (id)
+        DO UPDATE SET {update_columns_string} = {excluded_columns_string};
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(query, records)
+    cursor.commit()
+    cursor.close()
+    pg_connection.close()
+
+    return
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+with DAG(
+    'workflow_promotions_table_incremental_load',
+    default_args=default_args,
+    description="Extraction and transformation of incremental workflow_promotion data.",
+    schedule_interval="0 9 * * *",
+    start_date=datetime(2022, 1, 1),
+    catchup=False,
+    max_active_runs=1,
+    tags=["DATA", "DW", "S3", "Workspace", "Promociones"],
+) as dag:
+
+    dag.doc_md = """
+    Extract workflow table data (promotions) from Datawarehouse
+    with filters for an incremental load to S3, then select specific
+    columns from csv file and load it to Postgres workspace.
+    """ 
+
+    t0 = PythonOperator(
+        task_id="get_max_updated_at_value",
+        python_callable=get_max_updated_at_value,
+        op_kwargs={
+            "schema": "ecommdata",
+            "table_name": "workflow_promociones",
+            "updated_at_field": "FECHA_MODIFICACION"
+        }
+    )
+
+    t1 = PythonOperator(
+        task_id = "netezza_vw_workflow_incremental_load", 
+        python_callable = netezza_incremental_load_to_s3,
+        op_kwargs = {
+            "table_name": "NZ_BU.ECOMERCE.VW_WORKFLOW",
+            "xcom_update_date_task_id": "get_max_updated_at_value",
+            "update_column": "FECHA_MODIFICACION",
+            "where": """ ORGANIZACION_VENTAS = '1000'
+                        AND CANAL_DISTRIBUCION in ('10','70')
+                        AND ID_EVENTO <> '572' """
+        },
+        retries = 2,
+        retry_delay = timedelta(minutes=1),
+        execution_timeout = timedelta(minutes=60)
+    )
+
+    t2 = PythonOperator(
+        task_id = "promotions_table_incremental_load",
+        python_callable = _promotions_table_incremental_load
+    )
+
+    t0 >> t1 >> t2
