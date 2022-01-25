@@ -110,7 +110,7 @@ def _create_initial_promotions_table(ti):
     df["REGISTRO_VALIDO"] = np.where(df["REGISTRO_VALIDO"] == "X", True, False)
 
     # Left pad material column:
-    df["MATERIAL"] = df["MATERIAL"].str.pad(18, side="left", fillchar="0")
+    df["MATERIAL"] = df["MATERIAL"].astype("string", errors="ignore").str.pad(18, side="left", fillchar="0")
 
     columns_rename = {
         "ID_WORKFLOW": "id",
