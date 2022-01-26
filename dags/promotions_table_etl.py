@@ -5,18 +5,19 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import netezza_incremental_load_to_s3
-from utils.postgres_utils import get_max_updated_at_value
+from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
 
-def _promotions_table_incremental_load(ti):
+def _promotions_table_incremental_load(ti, ts):
     import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
     
+    print("Execution datetime: " + ts)
+    curr_datetime = ts[:10].replace("-", "/")
     dw_promotion_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vw_workflow_incremental_load"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -125,7 +126,7 @@ def _promotions_table_incremental_load(ti):
 		"UN_MEDIDA_VENTA": "umv",
 		"ORGANIZACION_VENTAS": "organizacion_ventas",
 		"CANAL_DISTRIBUCION": "canal_distribucion",
-		"EAN": "ean",
+        "EAN": "ean",
 		"LINEA": "linea",
 		"DESCRIPCION_LINEA": "descripcion_linea",
 		"DESC_MARCA": "marca",
@@ -169,33 +170,29 @@ def _promotions_table_incremental_load(ti):
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
-    records = list(df.to_records(index=False))
-    columns = list(df.columns)
-    columns_string = "("+",".join(columns)+")"
-    update_columns = [column for column in columns if column != "id"]
-    update_columns_string = "("+",".join(update_columns)+")"
-    excluded_columns = ["EXCLUDED."+column for column in update_columns]
-    excluded_columns_string = "("+",".join(excluded_columns)+")"
-    nullif_string = "NULLIF(%s, 'nan')"
-    values_list = []
-    for column in columns:
-        if column == "id":
-            values_list.append("%s")
-        else:
-            values_list.append(nullif_string)
-    query = f"""
-        INSERT INTO ecommdata.workflow_promociones {columns_string} 
-        VALUES ({','.join(values_list)})
-        ON CONFLICT (id)
-        DO UPDATE SET {update_columns_string} = {excluded_columns_string};
-    """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.executemany(query, records)
-    cursor.commit()
-    cursor.close()
-    pg_connection.close()
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    connection = engine.connect()
+    delete_query = """DELETE FROM ecommdata.workflow_promociones
+                        WHERE FECHA_FIN_DE_PROMOCION >= TO_DATE('%s', 'YYYY-MM-DD') - INTERVAL '7 days' 
+                    """
+    connection.execute(text(delete_query))
+    connection.close()
+
+    # Save to PostgreSQL:
+    df.to_sql(name="workflow_promociones",
+                con=engine,         
+                schema="ecommdata",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
 
     return
 
@@ -224,34 +221,24 @@ with DAG(
     """ 
 
     t0 = PythonOperator(
-        task_id="get_max_updated_at_value",
-        python_callable=get_max_updated_at_value,
-        op_kwargs={
-            "schema": "ecommdata",
-            "table_name": "workflow_promociones",
-            "updated_at_field": "FECHA_MODIFICACION"
-        }
-    )
-
-    t1 = PythonOperator(
         task_id = "netezza_vw_workflow_incremental_load", 
-        python_callable = netezza_incremental_load_to_s3,
+        python_callable = netezza_full_table_load_to_s3,
         op_kwargs = {
             "table_name": "NZ_BU.ECOMERCE.VW_WORKFLOW",
-            "xcom_update_date_task_id": "get_max_updated_at_value",
-            "update_column": "FECHA_MODIFICACION",
             "where": """ ORGANIZACION_VENTAS = '1000'
+                        AND REGISTRO_VALIDO = 'X'
                         AND CANAL_DISTRIBUCION in ('10','70')
-                        AND ID_EVENTO <> '572' """
+                        AND ID_EVENTO <> '572' """,
+            "date_query": "FECHA_FIN_DE_PROMOCION >= TO_DATE('%s', 'YYYY-MM-DD') - INTERVAL '7 days' "
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
         execution_timeout = timedelta(minutes=60)
     )
 
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id = "promotions_table_incremental_load",
         python_callable = _promotions_table_incremental_load
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1
