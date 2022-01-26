@@ -179,8 +179,8 @@ def _promotions_table_incremental_load(ti, ts):
     engine = sqlalchemy.create_engine(conn_url)
 
     connection = engine.connect()
-    delete_query = """DELETE FROM ecommdata.workflow_promociones
-                        WHERE FECHA_FIN_DE_PROMOCION >= TO_DATE('%s', 'YYYY-MM-DD') - INTERVAL '7 days' 
+    delete_query = f"""DELETE FROM ecommdata.workflow_promociones
+                        WHERE fecha_fin_de_promocion >= TO_DATE('{curr_datetime}', 'YYYY/MM/DD') - INTERVAL '7 days' 
                     """
     connection.execute(text(delete_query))
     connection.close()
