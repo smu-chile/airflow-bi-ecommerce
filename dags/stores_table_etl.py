@@ -154,7 +154,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'tiendas_etl',
+    'stores_table_etl',
     default_args=default_args,
     description="Extraction and transformation of store data.",
     schedule_interval="0 7 * * *",
