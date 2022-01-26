@@ -115,6 +115,7 @@ def _promotions_table_incremental_load(ti, ts):
     df["MATERIAL"] = df["MATERIAL"].astype("string").str.pad(18, side="left", fillchar="0")
 
     columns_rename = {
+        "ID_WORKFLOW": "id_workflow",
         "N_PROMOCION": "n_promocion",
 		"NOMBRE_PROMOCION": "nombre_promocion",
 		"ID_EVENTO": "id_evento",
