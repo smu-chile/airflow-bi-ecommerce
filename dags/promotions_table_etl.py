@@ -112,7 +112,7 @@ def _promotions_table_incremental_load(ti, ts):
     df["REGISTRO_VALIDO"] = np.where(df["REGISTRO_VALIDO"] == "X", True, False)
 
     # Left pad material column:
-    df["MATERIAL"] = df["MATERIAL"].str.pad(18, side="left", fillchar="0")
+    df["MATERIAL"] = df["MATERIAL"].astype("string").str.pad(18, side="left", fillchar="0")
 
     columns_rename = {
         "N_PROMOCION": "n_promocion",
