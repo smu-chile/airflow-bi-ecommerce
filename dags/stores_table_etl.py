@@ -125,7 +125,7 @@ def _create_final_store_table(ti):
                 "fecha_modificacion",
                 "fecha_creacion",
                 "glosa"]
-    columns_query = "id,"+",".join(columns)
+    columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
@@ -144,7 +144,7 @@ def _create_final_store_table(ti):
     print(fixed_records)
     print(f"Number of records: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.tiendas ("""+columns_query+""") 
+        INSERT INTO ecommdata.tiendas (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
