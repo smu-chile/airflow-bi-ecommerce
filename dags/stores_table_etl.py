@@ -123,7 +123,8 @@ def _create_final_store_table(ti):
                 "m2_sala",
                 "status",
                 "fecha_modificacion",
-                "fecha_creacion"]
+                "fecha_creacion",
+                "glosa"]
     columns_query = "id,"+",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["NULLIF(%s, 'nan')" for column in columns])
