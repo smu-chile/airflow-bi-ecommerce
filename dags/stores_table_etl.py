@@ -15,6 +15,7 @@ def _create_final_store_table(ti):
     Join them with Pandas, give format and save result to Postgres. 
     """
     # Prefer local import at Task level for better DAG run time.
+    import numpy as np
     import pandas as pd
 
     dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
@@ -134,10 +135,10 @@ def _create_final_store_table(ti):
     for record in records:
         fixed_record = []
         for value in record:
-            if value == "nan":
-                fixed_record.append("nan")
-            else:
+            if isinstance(value, np.generic):
                 fixed_record.append(value.item())
+            else:
+                fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records: {str(len(fixed_records))}")
     incremental_query = """
