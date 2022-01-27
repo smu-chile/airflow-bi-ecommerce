@@ -15,10 +15,7 @@ def _create_final_store_table(ti):
     Join them with Pandas, give format and save result to Postgres. 
     """
     # Prefer local import at Task level for better DAG run time.
-    import numpy as np
     import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
 
     dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
     dw_hierarchy_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_hierarchy_full_load_to_s3"])[0]
@@ -129,8 +126,17 @@ def _create_final_store_table(ti):
     columns_query = "id,"+",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["NULLIF(%s, 'nan')" for column in columns])
+    df = df.fillna("nan")
     records = list(df.to_records(index=False))
-    print(f"Number of records: {str(len(records))}")
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        if record == "nan":
+            fixed_records.append("nan")
+        else:
+            fixed_records.append(record.item())
+    print(f"Number of records: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata.tiendas ("""+columns_query+""") 
         VALUES ("""+values_query+""")
@@ -141,7 +147,7 @@ def _create_final_store_table(ti):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.executemany(incremental_query, records)
+    cursor.executemany(incremental_query, fixed_records)
     cursor.commit()
     cursor.close()
     pg_connection.close()
