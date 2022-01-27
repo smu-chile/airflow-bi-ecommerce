@@ -1,7 +1,8 @@
 from airflow import DAG
+from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_utils import load_full_table_to_s3
 from utils.netezza_utils import netezza_full_table_load_to_s3
@@ -16,8 +17,6 @@ def _create_final_store_table(ti):
     # Prefer local import at Task level for better DAG run time.
     import numpy as np
     import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
 
     dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
     dw_hierarchy_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_hierarchy_full_load_to_s3"])[0]
@@ -69,7 +68,7 @@ def _create_final_store_table(ti):
     df_dw = df_dw[["STORE_ID", "STORE_NAME", "FLRSP_AREA", "GERENTE_TIENDA", "GERENTE_ZONA", "STE_ID", "CITY_ID", "COUNTY_DESC"]]
     df_dw = df_dw.rename(columns={"STORE_NAME": "nombre_tienda",
                                 "FLRSP_AREA": "m2_sala",
-                                "GERENTE_TIENDA": "gerente_tienda",
+                                "GERENTE_TIENDA": "gerente_zonal",
                                 "GERENTE_ZONA": "gerente_operaciones",
                                 "STE_ID": "region",
                                 "CITY_ID": "ciudad",
@@ -90,7 +89,7 @@ def _create_final_store_table(ti):
             "ciudad",
             "region",
             "comuna",
-            "gerente_tienda",
+            "gerente_zonal",
             "gerente_operaciones",
             "m2_sala",
             "status",
@@ -98,8 +97,8 @@ def _create_final_store_table(ti):
             "fecha_creacion"]]
 
     # Fix date formats
-    df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
-    df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s")
+    df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").astype("str")
+    df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").astype("str")
 
     # Extra column
     df["glosa"] = df["id"] + " - " + df["nombre_tienda"]
@@ -108,56 +107,57 @@ def _create_final_store_table(ti):
     df["numero"] = df["numero"].astype("string").str.replace(".0", "", regex=False)
     df["region"] = df["region"].astype("string").str.replace(".0", "", regex=False)
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    columns = ["nombre_tienda_janis",
+                "nombre_tienda",
+                "id_janis",
+                "canal_venta_vtex",
+                "latitud",
+                "longitud",
+                "calle",
+                "numero",
+                "ciudad",
+                "region",
+                "comuna",
+                "gerente_zonal",
+                "gerente_operaciones",
+                "m2_sala",
+                "status",
+                "fecha_modificacion",
+                "fecha_creacion",
+                "glosa"]
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    connection = engine.connect()
-    drop_query = "DROP TABLE IF EXISTS ecommdata.tiendas"
-    connection.execute(text(drop_query))
-    create_table_query = """
-        CREATE TABLE ecommdata.tiendas (
-            id varchar(255) NULL,
-            nombre_tienda_janis varchar(255) NULL,
-            "nombre_tienda" varchar(255) NULL,
-            id_janis varchar(255) NOT NULL,
-            canal_venta_vtex varchar(255) NULL,
-            latitud numeric(12,9) NULL,
-            longitud numeric(12,9) NULL,
-            calle varchar(255) NULL,
-            numero varchar(50) NULL,
-            ciudad varchar(255) NULL,
-            region varchar(255) NULL,
-            comuna varchar(255) NULL,
-            "gerente_tienda" varchar(255) NULL,
-            "gerente_operaciones" varchar(255) NULL,
-            "m2_sala" varchar(255) NULL,
-            status int2 NULL,
-            glosa varchar(255) NULL,
-            fecha_apertura date NULL,
-            fecha_modificacion timestamp NULL,
-            fecha_creacion timestamp NULL,
-            CONSTRAINT tiendas_pk PRIMARY KEY (id)
-        )
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(fixed_records)
+    print(f"Number of records: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.tiendas (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
-    connection.execute(text(create_table_query))
-    connection.close()
-
-
-    # Save to PostgreSQL:
-    df.to_sql(name="tiendas",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL.")
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
 
     return
 
