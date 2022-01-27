@@ -130,12 +130,14 @@ def _create_final_store_table(ti):
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = ",".join(["NULLIF(%s, 'nan')"])
     records = list(df.to_records(index=False))
+    print(f"Number of records: {str(len(records))}")
     incremental_query = """
         INSERT INTO ecommdata.tiendas ("""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE ("""+columns_query+""") = ("""+excluded_query+""") 
     """
+    print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgres_conn_id")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -143,6 +145,7 @@ def _create_final_store_table(ti):
     cursor.commit()
     cursor.close()
     pg_connection.close()
+    print("Data loaded to Postgres")
 
     return
 
