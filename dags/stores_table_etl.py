@@ -154,7 +154,7 @@ def _create_final_store_table(ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
-    cursor.commit()
+    pg_connection.commit()
     cursor.close()
     pg_connection.close()
     print("Data loaded to Postgres")
