@@ -126,9 +126,9 @@ def _create_final_store_table(ti):
                 "status",
                 "fecha_modificacion",
                 "fecha_creacion"]
-    columns_query = ",".join(columns)
+    columns_query = "id,"+",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = ",".join(["NULLIF(%s, 'nan')"])
+    values_query = "%s,"+",".join(["NULLIF(%s, 'nan')" for column in columns])
     records = list(df.to_records(index=False))
     print(f"Number of records: {str(len(records))}")
     incremental_query = """
