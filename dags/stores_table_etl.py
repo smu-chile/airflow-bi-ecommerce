@@ -138,7 +138,7 @@ def _create_final_store_table(ti):
         DO UPDATE ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgres_conn_id")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, records)
