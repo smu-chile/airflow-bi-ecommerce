@@ -147,7 +147,7 @@ def _create_final_store_table(ti):
         INSERT INTO ecommdata.tiendas ("""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
-        DO UPDATE ("""+columns_query+""") = ("""+excluded_query+""") 
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
