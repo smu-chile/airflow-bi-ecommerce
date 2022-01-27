@@ -8,6 +8,8 @@ import pytz
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+#added new feature
+
 def send_email(email_recipient,
                email_subject,
                email_message,
