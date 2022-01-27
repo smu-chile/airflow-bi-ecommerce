@@ -132,10 +132,13 @@ def _create_final_store_table(ti):
     # Change data types to native python types
     fixed_records = []
     for record in records:
-        if record == "nan":
-            fixed_records.append("nan")
-        else:
-            fixed_records.append(record.item())
+        fixed_record = []
+        for value in record:
+            if value == "nan":
+                fixed_record.append("nan")
+            else:
+                fixed_record.append(value.item())
+        fixed_records.append(tuple(fixed_record))
     print(f"Number of records: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata.tiendas ("""+columns_query+""") 
