@@ -127,8 +127,8 @@ def _create_final_store_table(ti):
                 "glosa"]
     columns_query = "id,"+",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = "%s,"+",".join(["NULLIF(%s, 'nan')" for column in columns])
-    df = df.fillna("nan")
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
     records = list(df.to_records(index=False))
     
     # Change data types to native python types
