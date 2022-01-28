@@ -6,6 +6,7 @@ import pytz
 import random
 import boto3
 import pymongo
+import time
 
 
 def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key, aws_secret_key, aws_bucket_name, mongo_user, mongo_pass, cluster_name, db):
@@ -45,6 +46,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
             df_json['refId'] = id_transportadora + (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
             df_json['vehicleId'] = dicc_vehiculo
             df_json['initialCash'] = 0
+            lista_ordenes_ruta = [int(x) for x in df.loc[df['RutaID'] == x]['Orden'].values]
             df_json['orders'] = [{'orderId': int(x)} for x in df.loc[df['RutaID'] == x]['Orden'].values]
             df_json['deliveryAssistantsEmployeeIds'] = [ dicc_choferes] 
             df_json['driversEmployeeIds'] = [dicc_choferes] 
@@ -53,28 +55,57 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
 
             url = "https://logistics.janis.in/api/routes"
 
-            response = requests.request("POST", url, headers=headers, data=df_json)
-            response = response.json()
+            digit = 5
+            step = 0
+
+            print(f'Iterando Ruta Número: {x}')
+
+            while (digit == 5) and (step < 4):
+
+                print(f'La ejecución terminó en el ciclo número: {step + 1}')
+
+                if step > 0:
+                    time.sleep(600)
+
+                response = requests.request("POST", url, headers=headers, data=df_json)
+
+                print(f'Response Print: {response}')
+                print(f'Status Code: {response.status_code}')
+
+                digit = int(response.status_code/100)
+                response = response.json()
+                step += 1
+
+            if digit == 2:
+
+                print(f'Etapa 3. La ruta creada fue: {response}.')
+
+            else:
+                print(f'Error fatal: {response.status_code}')
+                print(f'Lista de Rutas NO Inyectadas: {lista_ordenes_ruta}')
+
             resp_list.append(response)
-            print(f'Etapa 3. La ruta creada fue: {response}.')
 
-            respuesta_response = {}
-            respuesta_response['response'] = response
-            
-            respuesta_response["timestamp"] = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0))
-            respuesta_response["pedidos"] = len(df.loc[df['RutaID'] == x])
-            respuesta_response["transportadora"] = id_transportadora
-            respuesta_response['ruta'] = int(x)
-            respuesta_response['refId'] = id_transportadora + (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
 
-            mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+cluster_name+".lppxi.mongodb.net/"+db+"?retryWrites=true&w=majority&authSource=admin")
-            mongo_collection = mongo_client[db]["routes"]
-            #mongo_metadata = mongo_client.get_colletion("routes")
-            mongo_collection.insert_one(respuesta_response)
+        respuesta_response = {}
+        respuesta_response['response'] = resp_list
+        
+        respuesta_response["timestamp"] = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0))
+        respuesta_response["pedidos"] = len(df.loc[df['RutaID'] == x])
+        respuesta_response["transportadora"] = id_transportadora
+        respuesta_response['ruta'] = int(x)
+        respuesta_response['refId'] = id_transportadora + (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
+
+        mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+cluster_name+".lppxi.mongodb.net/"+db+"?retryWrites=true&w=majority&authSource=admin")
+        mongo_collection = mongo_client[db]["routes"]
+        #mongo_metadata = mongo_client.get_colletion("routes")
+        mongo_collection.insert_one(respuesta_response)
 
     except Exception as e:
+        digit = 0
         print(f"ERROR: {e}")
         return False
+
 
     if len(resp_list) != 0:
         print('Etapa 3. Se ha finalizado exitosamente la ejecucion de la tercera etapa.')
