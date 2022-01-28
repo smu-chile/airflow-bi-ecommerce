@@ -70,11 +70,12 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
                     time.sleep(600)
 
                 response = requests.request("POST", url, headers=headers, data=df_json)
+                stat_code = response.status_code
 
                 print(f'Response Print: {response}')
-                print(f'Status Code: {response.status_code}')
+                print(f'Status Code: {stat_code}')
 
-                digit = int(response.status_code/100)
+                digit = int(stat_code/100)
                 response = response.json()
                 step += 1
 
@@ -83,8 +84,8 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
                 print(f'Etapa 3. La ruta creada fue: {response}.')
 
             else:
-                print(f'Error fatal: {response.status_code}')
-                print(f'Lista de Rutas NO Inyectadas: {lista_ordenes_ruta}')
+                print(f'Error fatal: {stat_code}')
+                print(f'Lista de Ordenes NO Inyectadas: {lista_ordenes_ruta}')
 
             resp_list.append(response)
 
