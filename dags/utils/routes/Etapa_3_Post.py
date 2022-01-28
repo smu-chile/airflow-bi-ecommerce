@@ -18,7 +18,8 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
 
     #parametros
     id_transportadora = '0469'
-    dicc_vehiculo = 27
+    #dicc_vehiculo = 27
+    dicc_vehiculo = 30
     #dicc_choferes = "173344309"
     dicc_choferes = "17334430-90"
 
@@ -49,7 +50,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
             df_json['initialCash'] = 0
             lista_ordenes_ruta = [int(x) for x in df.loc[df['RutaID'] == x]['Orden'].values]
             df_json['orders'] = [{'orderId': int(x)} for x in df.loc[df['RutaID'] == x]['Orden'].values]
-            df_json['deliveryAssistantsEmployeeIds'] = [ dicc_choferes] 
+            df_json['deliveryAssistantsEmployeeIds'] = [dicc_choferes] 
             df_json['driversEmployeeIds'] = [dicc_choferes] 
             df_json['logisticCompanyId'] = 5 #Traer
             df_json = json.dumps(df_json, indent=4)
