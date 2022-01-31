@@ -86,6 +86,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
             else:
                 print(f'Error fatal: {stat_code}')
                 print(f'Lista de Ordenes NO Inyectadas: {lista_ordenes_ruta}')
+                return False
 
             resp_list.append(response)
 
