@@ -126,7 +126,7 @@ def incremental_load_table_s3(ti,
         print(updated_date)
         if updated_date is None:
             updated_date = "1999-01-01"
-        date_query_strings.append(f"{updated_column} > {updated_date}")
+        date_query_strings.append(f"{updated_column} > '{updated_date}'")
     
     sql_str = sql_str + " AND ".join(date_query_strings)
 
