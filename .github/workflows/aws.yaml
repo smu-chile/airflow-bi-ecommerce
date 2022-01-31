@@ -47,27 +47,17 @@ jobs:
           BUILD_NUMBER: dev-${{ github.run_number }}
           BRANCH_NAME: develop
 
-      # - name: Build the image
-      #   run: docker build -f Dockerfile.dev -t $IMAGE_NAME .
+      - name: Build the image
+        run: docker build -f Dockerfile.dev -t $IMAGE_NAME .
 
-      # - name: Prisma Cloud image scan
-      #   id: scan
-      #   uses: PaloAltoNetworks/prisma-cloud-scan@v1
-      #   with:
-      #     pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
-      #     pcc_user: ${{ secrets.PCC_USER }}
-      #     pcc_pass: ${{ secrets.PCC_PASS }}
-      #     image_name: ${{ env.IMAGE_NAME }}
-
-      - name: Build the container image
-        run: docker build . --file Dockerfile --tag localbuild/testimage:latest
-      - uses: anchore/scan-action@v2.0.4
+      - name: Prisma Cloud image scan
+        id: scan
+        uses: PaloAltoNetworks/prisma-cloud-scan@v1
         with:
-          image: "localbuild/testimage:latest"
-          grype-version: "0.13.0"
-          debug: false
-          fail-build: false
-          severity-cutoff: High
+          pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
+          pcc_user: ${{ secrets.PCC_USER }}
+          pcc_pass: ${{ secrets.PCC_PASS }}
+          image_name: ${{ env.IMAGE_NAME }}
 
       - uses: smu-chile/aws-ecr-policy-action@master
         with:
@@ -100,27 +90,17 @@ jobs:
           BUILD_NUMBER: stg-${{ github.run_number }}
           BRANCH_NAME: staging
 
-      # - name: Build the image
-      #   run: docker build -f Dockerfile.dev -t $IMAGE_NAME .
+      - name: Build the image
+        run: docker build -f Dockerfile.dev -t $IMAGE_NAME .
 
-      # - name: Prisma Cloud image scan
-      #   id: scan
-      #   uses: PaloAltoNetworks/prisma-cloud-scan@v1
-      #   with:
-      #     pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
-      #     pcc_user: ${{ secrets.PCC_USER }}
-      #     pcc_pass: ${{ secrets.PCC_PASS }}
-      #     image_name: ${{ env.IMAGE_NAME }}
-
-      - name: Build the container image
-        run: docker build . --file Dockerfile.dev --tag localbuild/testimage:latest
-      - uses: anchore/scan-action@v2.0.4
+      - name: Prisma Cloud image scan
+        id: scan
+        uses: PaloAltoNetworks/prisma-cloud-scan@v1
         with:
-          image: "localbuild/testimage:latest"
-          grype-version: "0.13.0"
-          debug: false
-          fail-build: false
-          severity-cutoff: Medium
+          pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
+          pcc_user: ${{ secrets.PCC_USER }}
+          pcc_pass: ${{ secrets.PCC_PASS }}
+          image_name: ${{ env.IMAGE_NAME }}
 
       - uses: smu-chile/aws-ecr-policy-action@master
         with:
@@ -152,28 +132,17 @@ jobs:
           BUILD_NUMBER: prod-${{ github.run_number }}
           BRANCH_NAME: master
 
-      # - name: Build the image
-      #   run: docker build -f Dockerfile.prod -t $IMAGE_NAME .
+      - name: Build the image
+        run: docker build -f Dockerfile.prod -t $IMAGE_NAME .
 
-      # - name: Prisma Cloud image scan
-      #   id: scan
-      #   uses: PaloAltoNetworks/prisma-cloud-scan@v1
-      #   with:
-      #     pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
-      #     pcc_user: ${{ secrets.PCC_USER }}
-      #     pcc_pass: ${{ secrets.PCC_PASS }}
-      #     image_name: ${{ env.IMAGE_NAME }}
-
-      - name: Build the container image
-        run: docker build . --file Dockerfile.prod --tag localbuild/testimage:latest
-
-      - uses: anchore/scan-action@v2.0.4
+      - name: Prisma Cloud image scan
+        id: scan
+        uses: PaloAltoNetworks/prisma-cloud-scan@v1
         with:
-          image: "localbuild/testimage:latest"
-          grype-version: "0.13.0"
-          debug: false
-          fail-build: false
-          severity-cutoff: Medium
+          pcc_console_url: ${{ secrets.PCC_CONSOLE_URL }}
+          pcc_user: ${{ secrets.PCC_USER }}
+          pcc_pass: ${{ secrets.PCC_PASS }}
+          image_name: ${{ env.IMAGE_NAME }}
 
       - uses: smu-chile/aws-ecr-policy-action@master
         with:
