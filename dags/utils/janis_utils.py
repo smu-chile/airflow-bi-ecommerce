@@ -124,7 +124,7 @@ def incremental_load_table_s3(ti,
         updated_date = ti.xcom_pull(key="return_value", task_ids=[xcom_updated_date_task_id])[0]
         print("updated_date:")
         print(updated_date)
-        if updated_column == "None":
+        if updated_date == "None":
             updated_column = "1999-01-01"
         date_query_strings.append(f"{updated_column} > {updated_date}")
     
