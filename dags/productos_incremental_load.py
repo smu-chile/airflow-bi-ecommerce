@@ -92,7 +92,7 @@ def _incremental_load_products_table(ti):
     print(fixed_records)
     print(f"Number of records: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.products (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.productos (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
