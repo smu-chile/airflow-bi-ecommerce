@@ -15,7 +15,7 @@ def _incremental_load_products_table(ti):
     import sqlalchemy
     from sqlalchemy import text
     
-    products_file = ti.xcom_pull(key="return_value", task_ids=["incremental_load_products_table"])[0]
+    products_file = ti.xcom_pull(key="return_value", task_ids=["incremental_load_table_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
