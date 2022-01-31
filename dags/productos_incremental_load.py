@@ -142,7 +142,7 @@ with DAG(
         task_id = "incremental_load_table_to_s3",
         python_callable = incremental_load_table_s3,
         op_kwargs = {
-            "table_name": "productos", 
+            "table_name": "products", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
             "updated_column": "fecha_modificacion", 
         }
