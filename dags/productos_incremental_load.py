@@ -64,6 +64,8 @@ def _incremental_load_products_table(ti):
     print("Number of records to be loaded: "+str(len(df.index)))
 
     columns = [
+        "ref_id",
+        "vtex_id",
         "material",
 		"nombre",
 		"id_categoria",
