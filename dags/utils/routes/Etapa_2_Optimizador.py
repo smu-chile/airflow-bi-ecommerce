@@ -24,7 +24,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
     fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
     
     #parametros
-    id_transportadora = '0469'
+    id_transportadora = '0581-3'
     capacity = 25
     trucks_no = 2
     lng_tienda = -70.6068642
