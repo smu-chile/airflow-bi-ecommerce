@@ -33,6 +33,9 @@ def _incremental_load_products_table(ti):
     } 
 
     df = pd.read_csv(products_object.get()["Body"], dtype=column_types)
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
     df = df[["id", "ref_id", "vtex_id", "ref_code", "name", "category", "brand", "date_created", "date_modified"]]  
 
     # Ensure correct datatypes:
