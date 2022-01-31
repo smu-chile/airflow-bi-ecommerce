@@ -86,6 +86,8 @@ def _incremental_load_products_table(ti):
         for value in record:
             if isinstance(value, np.generic):
                 fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
