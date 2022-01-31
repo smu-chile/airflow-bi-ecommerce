@@ -25,19 +25,21 @@ def _create_initial_products_table(ti):
     products_object = s3_hook.get_key(products_file, bucket_name=s3_bucket)
 
     column_types = {
-        "id": "int",
         "ref_id": "string",
-        "vtex_id": "int",
         "ref_code": "string",
         "name": "string",
-        "category": "int",
-        "brand": "int",
-        "date_created": "int",
-        "date_modified": "int"
     } 
 
     df = pd.read_csv(products_object.get()["Body"], dtype=column_types)
     df = df[["id", "ref_id", "vtex_id", "ref_code", "name", "category", "brand", "date_created", "date_modified"]]  
+
+    # Ensure correct datatypes:
+    df["id"] = df["id"].astype("int")
+    df["vtex_id"] = df["vtex_id"].astype("int")
+    df["category"] = df["category"].astype("int")
+    df["brand"] = df["brand"].astype("int")
+    df["date_created"] = df["date_created"].astype("int")
+    df["date_modified"] = df["date_modified"].astype("int")
     
     # Fix date types and timezone:
     print("Fixing date datatype columns...")
