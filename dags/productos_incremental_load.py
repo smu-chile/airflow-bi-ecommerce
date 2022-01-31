@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_utils import incremental_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
@@ -62,29 +63,47 @@ def _create_initial_products_table(ti):
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    columns = [
+        "material",
+		"nombre",
+		"id_categoria",
+		"id_marca",
+		"fecha_creacion",
+		"fecha_modificacion"
+    ]
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdata.productos"
-    connection.execute(text(truncate_query))
-    connection.close()
-
-    # Save to PostgreSQL:
-    df.to_sql(name="productos",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL. Table: ecommdata.productos")
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(fixed_records)
+    print(f"Number of records: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.products (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
 
     return
 
@@ -99,7 +118,7 @@ with DAG(
     'etl_productos_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla productos desde Janis Replica hasta Workspace.",
-    schedule_interval=None,
+    schedule_interval="30 * * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "productos"],
