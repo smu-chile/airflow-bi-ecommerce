@@ -32,8 +32,8 @@ def _create_initial_products_table(ti):
         "name": "string",
         "category": "int",
         "brand": "int",
-        "date_created": "int64",
-        "date_modified": "int64"
+        "date_created": "int",
+        "date_modified": "int"
     } 
 
     df = pd.read_csv(products_object.get()["Body"], dtype=column_types)
