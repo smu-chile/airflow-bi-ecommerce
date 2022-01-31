@@ -134,7 +134,7 @@ with DAG(
         op_kwargs = {
             "schema": "ecommdata",
             "table_name": "productos", 
-            "updated_at_field": "date_modified"
+            "updated_at_field": "fecha_modificacion"
         }
     )
 
@@ -144,7 +144,7 @@ with DAG(
         op_kwargs = {
             "table_name": "products", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "fecha_modificacion", 
+            "updated_column": "date_modified"
         }
     )
 
