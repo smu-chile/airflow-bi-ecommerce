@@ -43,6 +43,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
             'Content-Type': 'application/json' }
 
     #parametros
+    #id_transportadora = '0469'
     id_transportadora = '0581-3'
     lista_enviar = ['fmacaya@smu.cl','djimenezg@smu.cl']
     fecha_mañana = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=1)).strftime('%Y-%m-%d')

@@ -1,18 +1,9 @@
 from airflow import DAG
-from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
 from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
-from io import StringIO
-
-import boto3
-import botocore
-import mysql.connector
-import pandas as pd
-import psycopg2
-import sqlalchemy
 
 default_args = {
     "owner": "ecommerce_data",

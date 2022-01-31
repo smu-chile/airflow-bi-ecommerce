@@ -10,4 +10,4 @@ def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn
     print(results)
     cursor.close()
     pg_connection.close()
-    return results
+    return results[0][0]
