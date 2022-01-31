@@ -134,7 +134,7 @@ with DAG(
         op_kwargs = {
             "schema": "ecommdata",
             "table_name": "productos", 
-            "updated_at_field": "fecha_modificacion"
+            "updated_at_field": "date_modified"
         }
     )
 
