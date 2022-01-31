@@ -34,12 +34,12 @@ def _create_initial_products_table(ti):
     df = df[["id", "ref_id", "vtex_id", "ref_code", "name", "category", "brand", "date_created", "date_modified"]]  
 
     # Ensure correct datatypes:
-    df["id"] = df["id"].astype("int")
-    df["vtex_id"] = df["vtex_id"].astype("int")
-    df["category"] = df["category"].astype("int")
-    df["brand"] = df["brand"].astype("int")
-    df["date_created"] = df["date_created"].astype("int")
-    df["date_modified"] = df["date_modified"].astype("int")
+    df["id"] = df["id"].astype("int", errors="ignore")
+    df["vtex_id"] = df["vtex_id"].astype("int", errors="ignore")
+    df["category"] = df["category"].astype("int", errors="ignore")
+    df["brand"] = df["brand"].astype("int", errors="ignore")
+    df["date_created"] = df["date_created"].astype("int", errors="ignore")
+    df["date_modified"] = df["date_modified"].astype("int", errors="ignore")
     
     # Fix date types and timezone:
     print("Fixing date datatype columns...")
