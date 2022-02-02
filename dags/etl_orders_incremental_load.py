@@ -206,7 +206,7 @@ def _incremental_load_ordes_table(ti):
     incremental_query = """
         INSERT INTO ecommdata.ordenes (orden,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id)
+        ON CONFLICT (orden)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
