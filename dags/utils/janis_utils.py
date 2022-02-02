@@ -111,7 +111,7 @@ def incremental_load_table_s3(ti,
         prefix = prefix+extra_prefix+"_"
     file_name = prefix+table_name+".csv"
 
-    sql_str = f"SELECT * FROM {table_name} WHERE "
+    sql_str = f"SELECT * FROM janis_jackie.{table_name} WHERE "
     date_query_strings = []
     if created_column is not None:
         created_date = ti.xcom_pull(key="return_value", task_ids=[xcom_created_date_task_id])[0]
