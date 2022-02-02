@@ -94,7 +94,6 @@ def _incremental_load_products_table(ti):
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
-    print(fixed_records)
     print(f"Number of records: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata.productos (id,"""+columns_query+""") 
