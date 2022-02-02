@@ -204,7 +204,7 @@ def _incremental_load_ordes_table(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.productos (orden,"""+columns_query+""") 
+        INSERT INTO ecommdata.ordenes (orden,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
