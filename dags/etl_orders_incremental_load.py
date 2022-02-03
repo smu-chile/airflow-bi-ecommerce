@@ -31,9 +31,6 @@ def _incremental_load_ordes_table(ti):
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
     
-    # Test with first 100 records:
-    # TODO: remove limit filter
-    df = df.head(100)
     print(f"Number of records extracted: {len(df.index)}")
 
     # Select only relevant columns:
