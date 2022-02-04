@@ -12,8 +12,6 @@ from datetime import datetime
 def _incremental_load_ordes_table(ti):
     import numpy as np
     import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
     
     orders_file = ti.xcom_pull(key="return_value", task_ids=["incremental_load_table_to_s3"])[0]
 
