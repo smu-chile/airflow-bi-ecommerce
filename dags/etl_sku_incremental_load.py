@@ -9,43 +9,43 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
-def _incremental_load_products_table(ti):
+def _incremental_load_skus_table(ti):
     import numpy as np
     import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
     
-    products_file = ti.xcom_pull(key="return_value", task_ids=["incremental_load_table_to_s3"])[0]
+    skus_file = ti.xcom_pull(key="return_value", task_ids=["incremental_load_table_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+products_file)
-    if not s3_hook.check_for_key(products_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % products_file)
+    print("Searching file: "+skus_file)
+    if not s3_hook.check_for_key(skus_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % skus_file)
 
-    products_object = s3_hook.get_key(products_file, bucket_name=s3_bucket)
+    skus_object = s3_hook.get_key(skus_file, bucket_name=s3_bucket)
 
-    column_types = {
-        "ref_id": "string",
-        "ref_code": "string",
-        "name": "string",
-    } 
-
-    df = pd.read_csv(products_object.get()["Body"], dtype=column_types)
+    df = pd.read_csv(skus_object.get()["Body"])
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
-    df = df[["id", "ref_id", "vtex_id", "ref_code", "name", "category", "brand", "date_created", "date_modified"]]  
-
-    # Ensure correct datatypes:
-    df["id"] = df["id"].astype("int", errors="ignore")
-    df["vtex_id"] = df["vtex_id"].astype("int", errors="ignore")
-    df["category"] = df["category"].astype("int", errors="ignore")
-    df["brand"] = df["brand"].astype("int", errors="ignore")
-    df["date_created"] = df["date_created"].astype("int", errors="ignore")
-    df["date_modified"] = df["date_modified"].astype("int", errors="ignore")
     
+    print(f"Number of records extracted: {len(df.index)}")
+
+    # Select only relevant columns:
+    df = df[[
+        "id",
+        "ref_id",
+        "vtex_id",
+        "ean", 
+        "product",
+        "name", 
+        "unit_multiplier_un",
+        "unit_multiplier", 
+        "pack_units", 
+        "date_created",
+        "date_modified"
+            ]]
+
     # Fix date types and timezone:
     print("Fixing date datatype columns...")
     df["date_created"] = pd.to_datetime(df["date_created"], errors="ignore", unit="s")
@@ -53,29 +53,32 @@ def _incremental_load_products_table(ti):
     df["date_modified"] = pd.to_datetime(df["date_modified"], errors="ignore", unit="s")
     df["date_modified"] = df["date_modified"].dt.tz_localize('UTC').dt.tz_convert('America/Santiago')
 
+    # Rename columns to match workspace schema:
     columns_rename = {
-        "ref_code": "material",
-		"name": "nombre",
-		"category": "id_categoria",
-		"brand": "id_marca",
-		"date_created": "fecha_creacion",
-		"date_modified": "fecha_modificacion"
+        "ean": "ean_primario",
+        "product": "id_producto",
+        "name": "nombre_sku",
+        "unit_multiplier_un": "PPUM",
+        "unit_multiplier": "multiplicador_unidad_medida",
+        "pack_units": "unidades_pack",
+        "date_created": "fecha_creacion",
+        "date_modified": "fecha_modificacion"
     }
-
     df = df.rename(columns=columns_rename)
-
-    print("Number of records to be loaded: "+str(len(df.index)))
 
     columns = [
         "ref_id",
         "vtex_id",
-        "material",
-		"nombre",
-		"id_categoria",
-		"id_marca",
-		"fecha_creacion",
-		"fecha_modificacion"
+        "ean_primario",
+        "id_producto",
+        "nombre_sku",
+        "PPUM",
+        "multiplicador_unidad_medida",
+        "unidades_pack",
+        "fecha_creacion",
+        "fecha_modificacion"
     ]
+
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
@@ -94,9 +97,9 @@ def _incremental_load_products_table(ti):
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
-    print(f"Number of records: {str(len(fixed_records))}")
+    print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.productos (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.skus (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -121,17 +124,17 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_productos_incremental_load',
+    'etl_skus_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla productos desde Janis Replica hasta Workspace.",
+    description="Extracción y carga de tabla skus desde Janis Replica hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata", "productos"],
+    tags=["DATA", "Janis", "ecommdata", "skus"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de productos de Janis a Workspace.
+    Extracción y carga de tabla de skus de Janis a Workspace. \n
     UPSERT incremental basado en fecha_modificacion.
     """ 
     t0 = PythonOperator(
@@ -139,7 +142,7 @@ with DAG(
         python_callable = get_max_updated_at_value,
         op_kwargs = {
             "schema": "ecommdata",
-            "table_name": "productos", 
+            "table_name": "skus", 
             "updated_at_field": "fecha_modificacion"
         }
     )
@@ -148,15 +151,16 @@ with DAG(
         task_id = "incremental_load_table_to_s3",
         python_callable = incremental_load_table_s3,
         op_kwargs = {
-            "table_name": "products", 
+            "table_name": "skus", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_modified"
+            "updated_column": "date_modified",
+            "from_unixtime": True
         }
     )
 
     t2 = PythonOperator(
-        task_id = "incremental_load_products_table",
-        python_callable = _incremental_load_products_table
+        task_id = "incremental_load_skus_table",
+        python_callable = _incremental_load_skus_table
     )
 
     t0 >> t1 >> t2
