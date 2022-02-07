@@ -46,6 +46,13 @@ def _incremental_load_skus_table(ti):
         "date_modified"
             ]]
 
+    # Fix date types and timezone:
+    print("Fixing date datatype columns...")
+    df["date_created"] = pd.to_datetime(df["date_created"], errors="ignore", unit="s")
+    df["date_created"] = df["date_created"].dt.tz_localize('UTC').dt.tz_convert('America/Santiago')
+    df["date_modified"] = pd.to_datetime(df["date_modified"], errors="ignore", unit="s")
+    df["date_modified"] = df["date_modified"].dt.tz_localize('UTC').dt.tz_convert('America/Santiago')
+
     # Rename columns to match workspace schema:
     columns_rename = {
         "ean": "ean_primario",
