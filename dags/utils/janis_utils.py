@@ -62,9 +62,12 @@ def load_full_table_to_s3(table_name):
 
     return file_name
 
-def load_custom_query_to_s3(ts, query, query_name):
-    curr_datetime = datetime.utcnow()
-    prefix = BASE_S3_PATH+query_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
+def load_custom_query_to_s3(ts, query, query_name, extra_prefix=None):
+    print("Execution datetime: " + ts)
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+query_name+"/"+curr_datetime+"_"
+    if extra_prefix is not None:
+        prefix = prefix+extra_prefix+"_"
     file_name = prefix+query_name+".csv"
 
     results, columns = _execute_mariadb_query(query)
