@@ -8,6 +8,7 @@ from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 import boto3
 from io import StringIO
+from airflow.models import Variable
 
 def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
 
@@ -24,7 +25,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
     fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
     
     #parametros
-    id_transportadora = '0581-3'
+    id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA")
     capacity = 25
     trucks_no = 2
     lng_tienda = -70.6068642
