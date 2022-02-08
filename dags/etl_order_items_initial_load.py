@@ -3,11 +3,11 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
-from utils.janis_utils import load_full_table_to_s3
+from utils.janis_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
-def _create_initial_products_table(ti):
+def _create_initial_order_items_table(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
@@ -32,7 +32,7 @@ def _create_initial_products_table(ti):
     df = pd.read_csv(order_items_object.get()["Body"], dtype=column_types)
     df = df[[
         "id", 
-        "order_id",
+        "seq_id",
 		"item_index",
 		"substitute_of", 
 		"sku",
@@ -70,7 +70,7 @@ def _create_initial_products_table(ti):
     df["unit_multiplier"] = df["unit_multiplier"].astype("int", errors="ignore")
 
     columns_rename = {
-        "order_id": "id_orden",
+        "seq_id": "id_orden",
 		"item_index": "indice_item",
 		"substitute_of": "id_producto_substituido",
 		"sku": "sku_vtex_id",
@@ -140,15 +140,40 @@ with DAG(
     dag.doc_md = """
     Extracción y carga inicial de tabla de orden_productos de Janis.
     """ 
+    t_hist = PythonOperator(
+        task_id = "load_hist_table_to_s3",
+        python_callable = load_custom_query_to_s3,
+        op_kwargs = {
+            "query": """
+                SELECT woi.*, wo.seq_id
+                FROM janis_jackie.wms_order_items AS woi
+                JOIN janis_jackie.wms_orders AS wo
+                ON woi.order_id = wo.id
+                WHERE wo.id < 168886
+            """,
+            "query_name": "wms_order_items",
+            "extra_prefix": "hist"
+        }
+    )
+    
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
-        python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "wms_order_items"}
+        python_callable = load_custom_query_to_s3,
+        op_kwargs = {
+            "query": """
+                SELECT woi.*, wo.seq_id
+                FROM janis_jackie.wms_order_items AS woi
+                JOIN janis_jackie.wms_orders AS wo
+                ON woi.order_id = wo.id
+                WHERE wo.id >= 168886
+            """,
+            "query_name": "wms_order_items",
+        }
     )
 
     t1 = PythonOperator(
-        task_id = "create_initial_products_table",
-        python_callable = _create_initial_products_table
+        task_id = "create_initial_orden_productos_table",
+        python_callable = _create_initial_order_items_table
     )
 
-    t0 >> t1
+    [t_hist, t0 >> t1]

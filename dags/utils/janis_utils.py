@@ -32,12 +32,14 @@ def _execute_mariadb_query(query):
     return results, columns
 
 
-def load_full_table_to_s3(table_name):
+def load_full_table_to_s3(table_name, where=None):
     curr_datetime = datetime.utcnow()
     prefix = BASE_S3_PATH+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
     file_name = prefix+table_name+".csv"
 
-    query = f"SELECT * FROM janis_jackie.{table_name} ;"
+    query = f"SELECT * FROM janis_jackie.{table_name} "
+    if where is not None:
+        query = query + f"WHERE {where} ;"
 
     results, columns = _execute_mariadb_query(query)
 
