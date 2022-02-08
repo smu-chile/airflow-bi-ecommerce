@@ -31,7 +31,7 @@ def _get_new_order_ids_from_s3(ts):
     return order_ids
 
 def _get_order_items_from_janis(ts, ti):
-    order_ids = ti.xcom_pull(key="return_value", task_ids=["incremental_load_table_to_s3"])[0]
+    order_ids = ti.xcom_pull(key="return_value", task_ids=["get_new_order_ids_from_s3"])[0]
     print(len(order_ids))
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
@@ -40,7 +40,8 @@ def _get_order_items_from_janis(ts, ti):
         WHERE woi.order_id IN {query_order_ids} 
     """
     print(query)
-    return
+    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_items")
+    return s3_object_name
 
 default_args = {
     "owner": "ecommerce_data",
