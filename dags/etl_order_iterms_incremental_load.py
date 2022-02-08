@@ -14,7 +14,7 @@ def _get_new_order_ids_from_s3(ts):
     import pandas as pd
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"/janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
+    orders_file = f"janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -33,6 +33,13 @@ def _get_new_order_ids_from_s3(ts):
 def _get_order_items_from_janis(ts, ti):
     order_ids = ti.xcom_pull(key="return_value", task_ids=["incremental_load_table_to_s3"])[0]
     print(len(order_ids))
+    query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
+    query = f"""
+        SELECT *
+        FROM janis_jackie.wms_order_items AS woi
+        WHERE woi.order_id IN {query_order_ids} 
+    """
+    print(query)
     return
 
 default_args = {
