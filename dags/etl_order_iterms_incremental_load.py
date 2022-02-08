@@ -26,7 +26,7 @@ def _get_new_order_ids_from_s3(ts):
 
     df = pd.read_csv(orders_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
-    order_ids = df["seq_id"].tolist()
+    order_ids = df["id"].tolist()
 
     return order_ids
 
