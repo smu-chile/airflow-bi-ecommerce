@@ -6,7 +6,6 @@ from airflow.operators.python import PythonOperator
 # from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_utils import load_custom_query_to_s3
-# from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
@@ -15,7 +14,7 @@ def _get_new_order_ids_from_s3(ts):
     import pandas as pd
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"/janis/replica/wms_orders/{curr_datetime}_wms_orders.csv",
+    orders_file = f"/janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -33,6 +32,7 @@ def _get_new_order_ids_from_s3(ts):
 
 def _get_order_items_from_janis(ts, ti):
     order_ids = ti.xcom_pull(key="return_value", task_ids=["incremental_load_table_to_s3"])[0]
+    print(len(order_ids))
     return
 
 default_args = {
@@ -69,4 +69,9 @@ with DAG(
         python_callable = _get_new_order_ids_from_s3
     )
 
-    t0 >> t1
+    t2 = PythonOperator(
+        task_id = "get_order_items_from_janis",
+        python_callable = _get_order_items_from_janis
+    )
+
+    t0 >> t1 >> t2
