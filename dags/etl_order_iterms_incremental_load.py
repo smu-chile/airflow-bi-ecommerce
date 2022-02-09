@@ -200,7 +200,7 @@ with DAG(
     t0 = S3KeySensor(
         task_id = "wait_for_orders_s3_file",
         bucket_key = "janis/replica/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
-        bucket_name = "s3-bi-ecommerce-develop",
+        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
         timeout = 1800
     )
