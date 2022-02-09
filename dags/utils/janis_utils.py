@@ -32,12 +32,14 @@ def _execute_mariadb_query(query):
     return results, columns
 
 
-def load_full_table_to_s3(table_name):
+def load_full_table_to_s3(table_name, where=None):
     curr_datetime = datetime.utcnow()
     prefix = BASE_S3_PATH+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
     file_name = prefix+table_name+".csv"
 
-    query = f"SELECT * FROM janis_jackie.{table_name} ;"
+    query = f"SELECT * FROM janis_jackie.{table_name} "
+    if where is not None:
+        query = query + f"WHERE {where} ;"
 
     results, columns = _execute_mariadb_query(query)
 
@@ -62,9 +64,12 @@ def load_full_table_to_s3(table_name):
 
     return file_name
 
-def load_custom_query_to_s3(ts, query, query_name):
-    curr_datetime = datetime.utcnow()
-    prefix = BASE_S3_PATH+query_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
+def load_custom_query_to_s3(ts, query, query_name, extra_prefix=None):
+    print("Execution datetime: " + ts)
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+query_name+"/"+curr_datetime+"_"
+    if extra_prefix is not None:
+        prefix = prefix+extra_prefix+"_"
     file_name = prefix+query_name+".csv"
 
     results, columns = _execute_mariadb_query(query)
@@ -119,22 +124,22 @@ def incremental_load_table_s3(ti,
         print("created_date:")
         print(created_date)
         if created_date is None:
-            created_date = "1999-01-01"
+            created_date = 0
         if from_unixtime:
             created_query = f"FROM_UNIXTIME({created_column}) > '{created_date}'"
         else:
-            created_query = f"{created_column} > '{created_date}'"
+            created_query = f"{created_column} > {created_date}"
         date_query_strings.append(created_query)
     if updated_column is not None:
         updated_date = ti.xcom_pull(key="return_value", task_ids=[xcom_updated_date_task_id])[0]
         print("updated_date:")
         print(updated_date)
         if updated_date is None:
-            updated_date = "1999-01-01"
+            updated_date = 0
         if from_unixtime:
             updated_query = f"FROM_UNIXTIME({updated_column}) > '{updated_date}'"
         else:
-            updated_query = f"{updated_column} > '{updated_date}'"
+            updated_query = f"{updated_column} > {updated_date}"
         date_query_strings.append(updated_query)
     
     sql_str = sql_str + " AND ".join(date_query_strings)

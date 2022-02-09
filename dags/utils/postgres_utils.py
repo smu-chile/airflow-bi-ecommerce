@@ -13,4 +13,4 @@ def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn
     updated_at_date = results[0][0]
     if updated_at_date is None:
         return None
-    return updated_at_date.strftime("%Y-%m-%d %H:%M:%S")
+    return updated_at_date

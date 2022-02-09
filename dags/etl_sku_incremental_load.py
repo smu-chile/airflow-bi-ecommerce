@@ -127,7 +127,7 @@ with DAG(
     'etl_skus_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla skus desde Janis Replica hasta Workspace.",
-    schedule_interval="30 * * * *",
+    schedule_interval="0 7 * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "skus"],
