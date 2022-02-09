@@ -124,22 +124,22 @@ def incremental_load_table_s3(ti,
         print("created_date:")
         print(created_date)
         if created_date is None:
-            created_date = "1999-01-01"
+            created_date = 0
         if from_unixtime:
             created_query = f"FROM_UNIXTIME({created_column}) > '{created_date}'"
         else:
-            created_query = f"{created_column} > '{created_date}'"
+            created_query = f"{created_column} > {created_date}"
         date_query_strings.append(created_query)
     if updated_column is not None:
         updated_date = ti.xcom_pull(key="return_value", task_ids=[xcom_updated_date_task_id])[0]
         print("updated_date:")
         print(updated_date)
         if updated_date is None:
-            updated_date = "1999-01-01"
+            updated_date = 0
         if from_unixtime:
             updated_query = f"FROM_UNIXTIME({updated_column}) > '{updated_date}'"
         else:
-            updated_query = f"{updated_column} > '{updated_date}'"
+            updated_query = f"{updated_column} > {updated_date}"
         date_query_strings.append(updated_query)
     
     sql_str = sql_str + " AND ".join(date_query_strings)
