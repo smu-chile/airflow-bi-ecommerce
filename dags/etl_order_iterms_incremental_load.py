@@ -3,7 +3,7 @@ from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-# from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_utils import load_custom_query_to_s3
 
@@ -53,6 +53,13 @@ def _delete_records_to_update(ts):
         WHERE id_orden IN {query_order_ids} 
     """
     print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
     return
 
 def _order_items_table_incremental_load(ts, ti):
