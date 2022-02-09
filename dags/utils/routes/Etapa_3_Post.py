@@ -78,7 +78,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
                 response = requests.request("POST", url, headers=headers, data=df_json)
                 stat_code = response.status_code
 
-                print(f'Response Print: {response}')
+                print(f'Response Print: {response.content}')
                 print(f'Status Code: {stat_code}')
 
                 digit = int(stat_code/100)
