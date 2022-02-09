@@ -111,6 +111,7 @@ def _incremental_load_ordes_table(ti):
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_facturacion"] = pd.to_datetime(df["fecha_facturacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_picking"] = pd.to_datetime(df["fecha_picking"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
     # Cast numeric values to int
@@ -176,7 +177,8 @@ def _incremental_load_ordes_table(ti):
         "cobro_despacho_neto",
         "nombre_picker",
         "rut_picker",
-        "empresa_picker"
+        "empresa_picker",
+        "fecha_modificacion_unixtime"
     ]
 
     columns_query = ",".join(columns)
@@ -235,7 +237,7 @@ with DAG(
 
     dag.doc_md = """
     Extracción y carga de tabla de ordenes de Janis a Workspace. \n
-    UPSERT incremental basado en fecha_modificacion.
+    UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
     t0 = PythonOperator(
         task_id = "get_max_updated_at_date",
@@ -243,7 +245,7 @@ with DAG(
         op_kwargs = {
             "schema": "ecommdata",
             "table_name": "ordenes", 
-            "updated_at_field": "fecha_modificacion"
+            "updated_at_field": "fecha_modificacion_unixtime"
         }
     )
 
@@ -253,8 +255,7 @@ with DAG(
         op_kwargs = {
             "table_name": "wms_orders", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_modified",
-            "from_unixtime": True
+            "updated_column": "date_modified"
         }
     )
 
