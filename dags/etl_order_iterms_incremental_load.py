@@ -65,7 +65,7 @@ def _order_items_table_incremental_load(ts, ti):
     df_orders = df_orders[["id", "seq_id"]]
     df_orders = df_orders.rename(columns={"id": "original_id"})
 
-    order_items_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+    order_items_file = ti.xcom_pull(key="return_value", task_ids=["get_order_items_from_janis"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
