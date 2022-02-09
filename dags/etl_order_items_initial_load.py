@@ -140,22 +140,7 @@ with DAG(
     dag.doc_md = """
     Extracción y carga inicial de tabla de orden_productos de Janis.
     """ 
-    t_hist = PythonOperator(
-        task_id = "load_hist_table_to_s3",
-        python_callable = load_custom_query_to_s3,
-        op_kwargs = {
-            "query": """
-                SELECT woi.*, wo.seq_id
-                FROM janis_jackie.wms_order_items AS woi
-                JOIN janis_jackie.wms_orders AS wo
-                ON woi.order_id = wo.id
-                WHERE wo.id < 168886
-            """,
-            "query_name": "wms_order_items",
-            "extra_prefix": "hist"
-        }
-    )
-    
+
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_custom_query_to_s3,
@@ -176,4 +161,4 @@ with DAG(
         python_callable = _create_initial_order_items_table
     )
 
-    [t_hist, t0 >> t1]
+    t0 >> t1
