@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import incremental_load_table_s3
+from utils.janis_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
@@ -251,13 +251,12 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "incremental_load_table_to_s3",
-        python_callable = incremental_load_table_s3,
+        task_id = "incremental_unixtime_load_table_to_s3",
+        python_callable = incremental_unixtime_load_table_s3,
         op_kwargs = {
             "table_name": "wms_orders", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_modified",
-            "from_unixtime": True
+            "updated_column": "date_modified"
         }
     )
 
