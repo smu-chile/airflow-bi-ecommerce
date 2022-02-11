@@ -123,27 +123,93 @@ def incremental_load_table_s3(ti,
         created_date = ti.xcom_pull(key="return_value", task_ids=[xcom_created_date_task_id])[0]
         print("created_date:")
         print(created_date)
-        if from_unixtime:
-            if created_date is None:
-                created_date = 0
-            created_query = f"{created_column} > {created_date}"
-        else:
-            if created_date is None:
+        if created_date is None:
                 created_date = '1970-01-01'
+        if from_unixtime:
+            created_query = f"FROM_UNIXTIME({created_column}) > '{created_date}'"
+        else:
             created_query = f"{created_column} > '{created_date}'"
         date_query_strings.append(created_query)
     if updated_column is not None:
         updated_date = ti.xcom_pull(key="return_value", task_ids=[xcom_updated_date_task_id])[0]
         print("updated_date:")
         print(updated_date)
-        if from_unixtime:
-            if updated_date is None:
-                updated_date = 0
-            updated_query = f"{updated_column} > {updated_date}"
+        if updated_date is None:
+            updated_date = '1970-01-01'
+        if from_unixtime:  
+            updated_query = f"FROM_UNIXTIME({updated_column}) > '{updated_date}'"
         else:
-            if updated_date is None:
-                updated_date = '1970-01-01'
             updated_query = f"{updated_column} > '{updated_date}'"
+        date_query_strings.append(updated_query)
+    
+    sql_str = sql_str + " AND ".join(date_query_strings)
+
+    if where is not None:
+        sql_str = sql_str + " AND " + where
+    
+    print(sql_str)
+
+    results, columns = _execute_mariadb_query(sql_str)
+
+    df = pd.DataFrame(results, columns=columns)
+    buffer = StringIO()
+
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    response = s3_client.put_object(
+        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+    )
+
+    return file_name
+
+def incremental_unixtime_load_table_s3(ti,
+                              ts,
+                              table_name, 
+                              xcom_created_date_task_id=None, 
+                              created_column=None,
+                              xcom_updated_date_task_id=None, 
+                              updated_column=None, 
+                              where=None, 
+                              extra_prefix=None):
+    # Verify if there is enough incremental parameters:
+    if created_column is None and updated_column is None:
+        print("ERROR: No incremental column given.")
+        raise(Exception("No incremental columns found."))
+    
+    print("Execution datetime: " + ts)
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+table_name+"/"+curr_datetime+"_"
+    if extra_prefix is not None:
+        prefix = prefix+extra_prefix+"_"
+    file_name = prefix+table_name+".csv"
+
+    sql_str = f"SELECT * FROM janis_jackie.{table_name} WHERE "
+    date_query_strings = []
+    if created_column is not None:
+        created_date = ti.xcom_pull(key="return_value", task_ids=[xcom_created_date_task_id])[0]
+        print("created_date:")
+        print(created_date)
+        if created_date is None:
+            created_date = 0
+        created_query = f"{created_column} > {created_date}"
+        date_query_strings.append(created_query)
+    if updated_column is not None:
+        updated_date = ti.xcom_pull(key="return_value", task_ids=[xcom_updated_date_task_id])[0]
+        print("updated_date:")
+        print(updated_date)
+        if updated_date is None:
+            updated_date = 0
+        updated_query = f"{updated_column} > {updated_date}"
         date_query_strings.append(updated_query)
     
     sql_str = sql_str + " AND ".join(date_query_strings)
