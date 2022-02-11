@@ -245,7 +245,8 @@ with DAG(
         op_kwargs = {
             "schema": "ecommdata",
             "table_name": "ordenes", 
-            "updated_at_field": "fecha_modificacion_unixtime"
+            "updated_at_field": "fecha_modificacion_unixtime",
+            "is_unixtime": True
         }
     )
 
