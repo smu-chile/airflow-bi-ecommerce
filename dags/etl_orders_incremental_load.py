@@ -256,7 +256,8 @@ with DAG(
         op_kwargs = {
             "table_name": "wms_orders", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_modified"
+            "updated_column": "date_modified",
+            "from_unixtime": True
         }
     )
 
