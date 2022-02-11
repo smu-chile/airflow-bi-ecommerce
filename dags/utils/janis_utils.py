@@ -124,7 +124,7 @@ def incremental_load_table_s3(ti,
         print("created_date:")
         print(created_date)
         if created_date is None:
-                created_date = '1970-01-01'
+            created_date = '1970-01-01'
         if from_unixtime:
             created_query = f"FROM_UNIXTIME({created_column}) > '{created_date}'"
         else:
