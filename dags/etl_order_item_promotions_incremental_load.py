@@ -138,7 +138,7 @@ with DAG(
     description="Extracción y carga de tabla orden_producto_promociones desde Janis Replica hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 2, 1),
-    catchup=True,
+    catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "orden_producto_promociones"],
 ) as dag:
