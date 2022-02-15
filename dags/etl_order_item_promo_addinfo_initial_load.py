@@ -100,7 +100,7 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT woip.*
+                SELECT woipai.*
                 FROM janis_jackie.wms_orders AS wo
                 JOIN janis_jackie.wms_order_items AS woi
                 ON woi.order_id = wo.id
