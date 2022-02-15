@@ -86,7 +86,7 @@ def _order_item_promotions_table_incremental_load(ts, ti):
 
     df = df.rename(columns=columns_rename)
 
-    columns = ["order_producto", "nombre", "cantidad", "valor"]
+    columns = ["orden_producto", "nombre", "cantidad", "valor"]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
