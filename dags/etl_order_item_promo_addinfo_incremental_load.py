@@ -45,7 +45,7 @@ def _get_order_item_promotion_additional_info_from_janis(ts):
         WHERE wo.id IN {query_order_ids} 
     """
     print(query)
-    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_item_promotion_extrainfo")
+    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_item_promotions_additional_info")
     return s3_object_name
 
 def _order_item_promo_additional_info_incremental_load(ts, ti):
