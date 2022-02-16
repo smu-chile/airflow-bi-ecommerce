@@ -28,7 +28,7 @@ def _get_new_orders_from_s3(ts):
 
     return df
 
-def _get_order_items_from_janis(ts):
+def _get_order_item_promotion_additional_info_from_janis(ts):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
     order_ids = df["id"].tolist()
@@ -45,7 +45,7 @@ def _get_order_items_from_janis(ts):
         WHERE wo.id IN {query_order_ids} 
     """
     print(query)
-    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_items")
+    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_item_promotion_extrainfo")
     return s3_object_name
 
 def _order_item_promo_additional_info_incremental_load(ts, ti):
@@ -156,7 +156,7 @@ with DAG(
 
     t1 = PythonOperator(
         task_id = "get_order_item_promotions_from_janis",
-        python_callable = _get_order_items_from_janis
+        python_callable = _get_order_item_promotion_additional_info_from_janis
     )
 
     t2 = PythonOperator(
