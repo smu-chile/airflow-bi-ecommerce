@@ -52,7 +52,7 @@ def _order_item_promo_additional_info_incremental_load(ts, ti):
     import numpy as np
     import pandas as pd
     
-    order_item_prom_add_info_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+    order_item_prom_add_info_file = ti.xcom_pull(key="return_value", task_ids=["get_order_item_promotions_from_janis"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
