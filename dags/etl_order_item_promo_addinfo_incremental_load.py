@@ -28,65 +28,64 @@ def _get_new_orders_from_s3(ts):
 
     return df
 
-def _get_order_item_promotions_from_janis(ts):
+def _get_order_item_promotion_additional_info_from_janis(ts):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
     order_ids = df["id"].tolist()
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
-        SELECT woip.*
+        SELECT woipai.*
         FROM janis_jackie.wms_orders AS wo
-        INNER JOIN janis_jackie.wms_order_items AS woi
-        ON wo.id = woi.order_id
-        INNER JOIN janis_jackie.wms_order_item_promotions AS woip
-        ON woi.id = woip.order_item
+        JOIN janis_jackie.wms_order_items AS woi
+        ON woi.order_id = wo.id
+        JOIN janis_jackie.wms_order_item_promotions AS woip
+        ON woip.order_item = woi.id
+        JOIN janis_jackie.wms_order_item_promotions_additional_info woipai
+        ON woipai.order_item_promotion = woip.id
         WHERE wo.id IN {query_order_ids} 
     """
     print(query)
-    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_item_promotions")
+    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_item_promotions_additional_info")
     return s3_object_name
 
-def _order_item_promotions_table_incremental_load(ts, ti):
+def _order_item_promo_additional_info_incremental_load(ts, ti):
     import numpy as np
     import pandas as pd
     
-    order_item_proms_file = ti.xcom_pull(key="return_value", task_ids=["get_order_item_promotions_from_janis"])[0]
+    order_item_prom_add_info_file = ti.xcom_pull(key="return_value", task_ids=["get_order_item_promotions_from_janis"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+order_item_proms_file)
-    if not s3_hook.check_for_key(order_item_proms_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % order_item_proms_file)
+    print("Searching file: "+order_item_prom_add_info_file)
+    if not s3_hook.check_for_key(order_item_prom_add_info_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % order_item_prom_add_info_file)
 
-    order_item_proms_object = s3_hook.get_key(order_item_proms_file, bucket_name=s3_bucket)
+    order_item_prom_add_info_object = s3_hook.get_key(order_item_prom_add_info_file, bucket_name=s3_bucket)
 
-    df = pd.read_csv(order_item_proms_object.get()["Body"])
+    df = pd.read_csv(order_item_prom_add_info_object.get()["Body"])
     df = df[[
         "id", 
-        "order_item", 
-        "name", 
-        "quantity", 
+        "order_item_promotion", 
+        "field",  
         "value" 
     ]]  
 
     # # Ensure correct datatypes:
     df["id"] = df["id"].astype("int")
-    df["order_item"] = df["order_item"].astype("int")
-    df["name"] = df["name"].astype("str", errors="ignore")
-    df["quantity"] = df["quantity"].astype("int", errors="ignore")
-    df["value"] = df["value"].astype("float", errors="ignore")
+    df["order_item_promotion"] = df["order_item_promotion"].astype("int")
+    df["field"] = df["field"].astype("str", errors="ignore")
+    df["value"] = df["value"].astype("str", errors="ignore")
 
     columns_rename = {
-        "order_item": "orden_producto",
-        "name": "nombre",
-        "quantity": "cantidad",
+        "order_item_promotion": "orden_producto_promocion",
+        "field": "campo",
         "value": "valor"
     }
 
     df = df.rename(columns=columns_rename)
 
-    columns = ["orden_producto", "nombre", "cantidad", "valor"]
+    columns = ["orden_producto_promocion", "campo", "valor"]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
@@ -108,7 +107,7 @@ def _order_item_promotions_table_incremental_load(ts, ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.orden_producto_promociones (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.orden_producto_promocion_extrainfo (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -121,7 +120,7 @@ def _order_item_promotions_table_incremental_load(ts, ti):
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Data loaded to Postgres")
+    print("Data loaded to Postgres: ecommdata.orden_producto_promocion_extrainfo")
 
     return
 
@@ -133,18 +132,18 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_orden_producto_promociones_incremental_load',
+    'etl_orden_producto_promocion_extrainfo_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla orden_producto_promociones desde Janis Replica hasta Workspace.",
+    description="Extracción y carga de tabla orden_producto_promocion_extrainfo desde Janis Replica hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata", "orden_producto_promociones"],
+    tags=["DATA", "Janis", "ecommdata", "orden_producto_promocion_extrainfo"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de orden_producto_promociones de Janis a Workspace. \n
+    Extracción y carga de tabla de orden_producto_promocion_extrainfo de Janis a Workspace. \n
     UPSERT incremental basado registros creados por el etl de la tabla ordenes.
     """ 
     t0 = S3KeySensor(
@@ -157,12 +156,12 @@ with DAG(
 
     t1 = PythonOperator(
         task_id = "get_order_item_promotions_from_janis",
-        python_callable = _get_order_item_promotions_from_janis
+        python_callable = _get_order_item_promotion_additional_info_from_janis
     )
 
     t2 = PythonOperator(
-        task_id = "orden_producto_promociones_incremental_load",
-        python_callable = _order_item_promotions_table_incremental_load
+        task_id = "order_item_promo_additional_info_incremental_load",
+        python_callable = _order_item_promo_additional_info_incremental_load
     )
 
     t0 >> t1 >> t2
