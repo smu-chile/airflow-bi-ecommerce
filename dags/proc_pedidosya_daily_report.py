@@ -148,7 +148,7 @@ with DAG(
     'proc_pedidosya_reporte_diario',
     default_args=default_args,
     description="Reporte diario de precios a SFTP de Pedidos Ya",
-    schedule_interval="12 * * * *",
+    schedule_interval="0 12 * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     tags=["DW", "OPS", "SFTP", "PedidosYa"],
