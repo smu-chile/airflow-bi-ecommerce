@@ -71,7 +71,7 @@ def _load_lista8(ts):
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
-    df.to_sql(name="lista8",
+    df_full.to_sql(name="lista8",
                 con=engine,         
                 schema="ecommdata",         
                 if_exists='append',         
