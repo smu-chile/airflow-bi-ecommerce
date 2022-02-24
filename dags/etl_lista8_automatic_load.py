@@ -46,8 +46,11 @@ def _load_lista8(ts):
 
     dataframe_list = []
     for s3_file in s3_file_list:
+        if s3_file == prefix:
+            # Skip empty 'folder' file
+            continue
         print(f"Loading file: {s3_file}")
-        lista8_object = s3_hook.get_key(prefix+s3_file, bucket_name=s3_bucket)
+        lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
         df = pd.read_csv(lista8_object.get()["Body"], sep=";")
         df = df.astype(column_types)
         dataframe_list.append(df)
@@ -88,7 +91,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'proc_lista8_carga_automatica',
+    'etl_lista8_incremental_load',
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
     schedule_interval="0 12 * * *",
