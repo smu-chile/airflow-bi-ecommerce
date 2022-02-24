@@ -95,8 +95,8 @@ with DAG(
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
     schedule_interval="0 12 * * *",
-    start_date=datetime(2022, 2, 1),
-    catchup=False,
+    start_date=datetime(2022, 2, 20),
+    catchup=True,
     max_active_runs = 1,
     tags=["DATA", "SAP", "ecommdata", "lista8"],
 ) as dag:
