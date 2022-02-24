@@ -11,8 +11,8 @@ def _load_lista8(ts):
     import pandas as pd
     import sqlalchemy
 
-    curr_datetime = ts[:10].replace("-", "/")
-    prefix = f"sap/lista8/{curr_datetime}/"
+    exec_date = ts[:10].replace("-", "/")
+    prefix = f"sap/lista8/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -56,7 +56,7 @@ def _load_lista8(ts):
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
     df_full = df_full.rename(columns=column_names)
-    df_full["fecha"] = curr_datetime
+    df_full["fecha"] = exec_date
     df_full["id_tienda"] = df_full["id_tienda"].str.zfill(4)
     df_full["material"] = df_full["material"].str.zfill(18)
 
@@ -95,8 +95,8 @@ with DAG(
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
     schedule_interval="0 12 * * *",
-    start_date=datetime(2022, 2, 1),
-    catchup=False,
+    start_date=datetime(2022, 2, 20),
+    catchup=True,
     max_active_runs = 1,
     tags=["DATA", "SAP", "ecommdata", "lista8"],
 ) as dag:
