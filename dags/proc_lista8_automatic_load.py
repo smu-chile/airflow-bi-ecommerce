@@ -17,6 +17,7 @@ def _load_lista8(ts):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    print(f"Files detected: {s3_file_list}")
     column_types = {
         "CENTRO": "str",
         "MATERIAL":	"str",
@@ -45,10 +46,10 @@ def _load_lista8(ts):
 
     dataframe_list = []
     for s3_file in s3_file_list:
-        lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
-        df = pd.read_csv(lista8_object.get()["Body"])
+        print(f"Loading file: {s3_file}")
+        lista8_object = s3_hook.get_key(prefix+s3_file, bucket_name=s3_bucket)
+        df = pd.read_csv(lista8_object.get()["Body"], sep=";")
         df = df.astype(column_types)
-        print(f"File loaded: {s3_file}")
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
     df_full = df_full.rename(columns=column_names)
