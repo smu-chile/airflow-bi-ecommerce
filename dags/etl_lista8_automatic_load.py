@@ -46,8 +46,8 @@ def _load_lista8(ts):
 
     dataframe_list = []
     for s3_file in s3_file_list:
-        if s3_file == prefix:
-            # Skip empty 'folder' file
+        if s3_file in [prefix, prefix+"flag.txt"]:
+            # Skip empty 'folder' file and flag flie
             continue
         print(f"Loading file: {s3_file}")
         lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
