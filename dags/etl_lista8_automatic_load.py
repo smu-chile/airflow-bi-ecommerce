@@ -5,13 +5,14 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def _load_lista8(ts):
     import pandas as pd
     import sqlalchemy
 
-    exec_date = ts[:10].replace("-", "/")
+    exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
+    exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"sap/lista8/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
