@@ -5,15 +5,15 @@ from airflow.operators.python import PythonOperator
 
 from utils.janis_utils import load_custom_query_to_s3
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
-def _create_initial_order_items_table(ti):
+def _create_initial_order_items_table(ti, xcom_name, truncate=True):
     import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
     
-    order_items_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+    order_items_file = ti.xcom_pull(key="return_value", task_ids=[xcom_name])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -102,10 +102,11 @@ def _create_initial_order_items_table(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdata.orden_productos"
-    connection.execute(text(truncate_query))
-    connection.close()
+    if truncate:
+        connection = engine.connect()
+        truncate_query = "TRUNCATE TABLE ecommdata.orden_productos"
+        connection.execute(text(truncate_query))
+        connection.close()
 
     # Save to PostgreSQL:
     df.to_sql(name="orden_productos",
@@ -151,6 +152,7 @@ with DAG(
                 JOIN janis_jackie.wms_orders AS wo
                 ON woi.order_id = wo.id
                 WHERE wo.id >= 168886
+                AND wo.id < 215977;
             """,
             "query_name": "wms_order_items",
         }
@@ -158,7 +160,33 @@ with DAG(
 
     t1 = PythonOperator(
         task_id = "create_initial_orden_productos_table",
-        python_callable = _create_initial_order_items_table
+        python_callable = _create_initial_order_items_table,
+        op_kwargs = {"truncate": True, "xcom_name": "load_full_table_to_s3"},
+        retries = 2,
+        retry_delay = timedelta(minutes=1)
     )
 
-    t0 >> t1
+    t2 = PythonOperator(
+        task_id = "load_full_table_to_s3_2",
+        python_callable = load_custom_query_to_s3,
+        op_kwargs = {
+            "query": """
+                SELECT woi.*, wo.seq_id
+                FROM janis_jackie.wms_order_items AS woi
+                JOIN janis_jackie.wms_orders AS wo
+                ON woi.order_id = wo.id
+                WHERE wo.id >= 215977;
+            """,
+            "query_name": "wms_order_items",
+        }
+    )
+
+    t3 = PythonOperator(
+        task_id = "create_initial_orden_productos_table_2",
+        python_callable = _create_initial_order_items_table,
+        op_kwargs = {"truncate": False, "xcom_name": "load_full_table_to_s3_2"},
+        retries = 2,
+        retry_delay = timedelta(minutes=1)
+    )
+
+    t0 >> t1 >> t2 >> t3
