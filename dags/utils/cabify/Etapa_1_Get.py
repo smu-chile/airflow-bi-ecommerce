@@ -55,15 +55,19 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     if dtt.time(8, 30, 0) <= current <= dtt.time(9, 0, 0):
         inicio_ventana = str(fecha_hoy) + 'T09:00:00-03:00'
         fin_ventana = str(fecha_hoy) + 'T12:00:59-03:00'
+
     elif dtt.time(11, 30, 0) <= current <= dtt.time(12, 0, 0):
         inicio_ventana = str(fecha_hoy) + 'T12:00:00-03:00'
         fin_ventana = str(fecha_hoy) + 'T15:00:59-03:00'
+
     elif dtt.time(14, 30, 0) <= current <= dtt.time(15, 0, 0):
         inicio_ventana = str(fecha_hoy) + 'T15:00:00-03:00'
         fin_ventana = str(fecha_hoy) + 'T18:00:59-03:00'
-    elif dtt.time(17, 30, 0) <= current <= dtt.time(18, 0, 0):
+
+    elif dtt.time(16, 00, 0) <= current <= dtt.time(18, 0, 0):
         inicio_ventana = str(fecha_hoy) + 'T18:00:00-03:00'
         fin_ventana = str(fecha_hoy) + 'T21:00:59-03:00'
+
     else:
         print('La consulta esta fuera de rango horario')
         return False
@@ -84,7 +88,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
         while indicador == True: 
 
-            url0 = Variable.get('CAPACITY_JANIS_GET')
+            url0 = Variable.get('CAPACITY_JANIS_GET_2')
             
             url = url0.format(id_transportadora, stat, str(contador), shipping_date)
             
