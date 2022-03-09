@@ -88,7 +88,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
         while indicador == True: 
 
-            url0 = Variable.get('CAPACITY_JANIS_GET')
+            url0 = Variable.get('CAPACITY_JANIS_GET_2')
             
             url = url0.format(id_transportadora, stat, str(contador), shipping_date)
             
