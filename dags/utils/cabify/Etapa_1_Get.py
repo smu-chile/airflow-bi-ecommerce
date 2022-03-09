@@ -65,7 +65,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
         fin_ventana = str(fecha_hoy) + 'T18:00:59-03:00'
 
     elif dtt.time(16, 00, 0) <= current <= dtt.time(18, 0, 0):
-        inicio_ventana = str(fecha_hoy) + 'T18:00:00-03:00'
+        inicio_ventana = str(fecha_hoy) + 'T19:00:00-03:00'
         fin_ventana = str(fecha_hoy) + 'T21:00:59-03:00'
 
     else:
