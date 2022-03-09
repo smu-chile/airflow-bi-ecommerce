@@ -88,8 +88,9 @@ def _promotions_table_incremental_load(ti, ts):
 		    "TIPO_FINANCIAMIENTO", "IMPORTE_NEGOCIADO", "PORCENTAJE_FINANCIAMIENTO", "COSTO_NETO_UMP",
 		    "PORCENTAJE_COSTO_PROMOCIONAL", "DESDE_SELL_IN", "HASTA_SELL_IN", "FECHA_INICIO_DE_PROMOCION",
 		    "FECHA_FIN_DE_PROMOCION", "PORCENTAJE_DE_DESCUENTO", "PROMOEVENTMECHANISM", "DESCUENTOFINAL",
-		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT"]]
+		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT", "FACTOR"]]
     df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
+    df["FACTOR"] = df["FACTOR"].astype("int", errors="ignore")
     
     # Fix date types:
     print("Fixing date datatype columns...")
@@ -164,7 +165,8 @@ def _promotions_table_incremental_load(ti, ts):
 		"FECHA_MODIFICACION": "fecha_modificacion",
         "REGISTRO_VALIDO": "registro_valido",
         "NOMBRE_DEL_PROVEEDOR_SELL_OUT": "nombre_proveedor_sell_out",
-        "PROVEEDOR_SELL_OUT": "proveedor_sell_out"
+        "PROVEEDOR_SELL_OUT": "proveedor_sell_out",
+        "FACTOR": "factor"
     }
 
     df = df.rename(columns=columns_rename)
