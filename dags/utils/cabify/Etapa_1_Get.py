@@ -1,0 +1,192 @@
+import requests
+import datetime as dtt
+from datetime import timedelta, datetime
+import pandas as pd
+from io import StringIO
+import boto3
+import smtplib
+import pytz
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from airflow.models import Variable
+
+def send_email(email_recipient,
+               email_subject,
+               email_message,
+               attachment_location = ''):
+    
+    host = "smtprelay.unimarc.local"
+    port = 25
+    sender = "reportes_ecommerce@smu.cl"
+    receiver = email_recipient
+    mail_body = email_message
+
+    message = MIMEMultipart()
+    message['From'] = sender
+    message['To'] = ", ".join(receiver)
+    message['Subject'] = email_subject
+    body = MIMEText(mail_body, 'plain')
+    #The body and the attachments for the mail
+    message.attach(body)
+
+    #server = smtplib.SMTP(host, port=port)
+    server = smtplib.SMTP_SSL(host, port=port)
+    server.send_message(message, from_addr=sender, to_addrs=receiver)   
+    print("Se envio correctamente el mail de fallas")
+    
+    return True
+
+def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_key, aws_secret_key, aws_bucket_name):
+    
+    headers = {
+            'Janis-Api-Secret': janis_api_secret,
+            'Janis-Client': janis_api_client,
+            'Janis-Api-Key': janis_api_key,
+            'Content-Type': 'application/json' }
+
+    #parametros
+
+    id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA")
+    #fecha_mañana = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=1)).strftime('%Y-%m-%d')
+    fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
+    lista_estados = ['picking_pending','picking','picked','invoiced','ready_for_shipping']
+    current = datetime.now(pytz.timezone('Chile/Continental')).time()
+
+    if dtt.time(8, 30, 0) <= current <= dtt.time(9, 0, 0):
+        inicio_ventana = str(fecha_hoy) + 'T09:00:00-03:00'
+        fin_ventana = str(fecha_hoy) + 'T12:00:59-03:00'
+
+    elif dtt.time(11, 30, 0) <= current <= dtt.time(12, 0, 0):
+        inicio_ventana = str(fecha_hoy) + 'T12:00:00-03:00'
+        fin_ventana = str(fecha_hoy) + 'T15:00:59-03:00'
+
+    elif dtt.time(14, 30, 0) <= current <= dtt.time(15, 0, 0):
+        inicio_ventana = str(fecha_hoy) + 'T15:00:00-03:00'
+        fin_ventana = str(fecha_hoy) + 'T18:00:59-03:00'
+
+    elif dtt.time(16, 00, 0) <= current <= dtt.time(18, 0, 0):
+        inicio_ventana = str(fecha_hoy) + 'T19:00:00-03:00'
+        fin_ventana = str(fecha_hoy) + 'T21:00:00-03:00'
+
+    else:
+        print('La consulta esta fuera de rango horario')
+        return False
+
+    shipping_date = str(fecha_hoy) + 'T00:01:00-03:00'
+
+    lista_ordenes = []
+
+    indicador = True
+    contador = 1
+
+    lista_error_nulo = []
+    lista_error_ruta = []
+
+    df2 = pd.DataFrame()
+
+    for stat in lista_estados:
+
+        while indicador == True: 
+
+            url0 = Variable.get('CAPACITY_JANIS_GET_2')
+            
+            url = url0.format(id_transportadora, stat, str(contador), shipping_date)
+            
+            payload={}
+            response = requests.request("GET", url, headers=headers, data=payload)
+            response = response.json()
+            response_list = []
+            
+            try:
+                for x in response['data']:
+
+                    if x['shipping'][0]['logistic']['shippingWindowStart'] == inicio_ventana and x['shipping'][0]['logistic']['shippingWindowEnd'] == fin_ventana:
+
+                        response_list.append(x)
+                    
+                        if x['route'] == None:
+
+                            for reg in range(len(x['shipping'])):
+
+                                if x['shipping'][reg]['main'] == True:
+
+                                    #print(x['shipping'][reg]['main'])
+                                    id_orden = x['id']
+                                    lat = x['shipping'][reg]['address']['lat']
+                                    lng = x['shipping'][reg]['address']['lng']
+                                    lista_ordenes.append([id_transportadora, id_orden, lat, lng])
+
+                                else:
+                                    pass
+                        else:
+                            lista_error_ruta.append(x['id'])
+                            pass
+
+                if response['data'] == list():
+                    indicador = False
+                else:
+                    indicador = True
+                
+                contador = contador + 1
+                
+                #x = json.dumps(x, indent=4)
+                #print(x)
+
+            # import pickle
+            # with open('saved_dictionary.', 'wb') as f:
+                #    pickle.dump(x, f)
+
+            except Exception as e:
+                print(f'Error: {e}')
+                return False
+
+        df2 = pd.concat([df2, pd.DataFrame(lista_ordenes, columns=['transportadora','Orden','lat','lng'])], ignore_index=True)
+
+    df2 = df2.drop_duplicates(subset=['Orden'])
+
+    print(f'Etapa 1. Input Janis: Se extrajeron {len(df2)} ordenes')
+
+    buffer = StringIO()
+    
+    for row in df2.itertuples():
+        if (pd.isnull(row.lat) or row.lat == '') or (pd.isnull(row.lat) or row.lng == ''):
+        #if (row.lat is None or row.lat == '') or (row.lat is None or row.lng == '') == True:
+            lista_error_nulo.append(row.Orden)
+
+    total_lista_error = lista_error_ruta + lista_error_nulo
+
+    if len(total_lista_error) != 0:
+        print(f'Etapa 1. Se excluyeron {len(total_lista_error)} ordenes ya sea por estar ruteada o por falta de coordenadas')
+        body = 'Estimados: \n\n Debido a que algunas ordenes se encuentran con problemas, se han excluido del proceso automático de generación de rutas las siguientes ordenes: \n\n                        Ordenes con Ruta: {}  \n\n                                         Ordenes sin Latitud y Longitud  : {}      \n\n Quedamos atento a cualquier consulta. \n\n Saludos'.format(lista_error_ruta, lista_error_nulo)
+        #send_email(lista_enviar,'Optimizacion de Ruta: Mensaje de Error por Ordenes No Asignadas', body)
+
+        print(f'Las ordenes que NO se ejecutaron, fueron: {total_lista_error}')
+
+        df2_error = df2[df2['Orden'].isin(total_lista_error)]
+        df2_error.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
+
+        prefix = "ecommops/capacity/rutas/" + fecha_hoy + '/'
+        name = 'Etapa_1_' + id_transportadora + '_cabify_' + '_ERRORS' + '.csv'
+        file_name = prefix+name
+
+        s3_client = boto3.client("s3", aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name = "us-east-1")
+        response = s3_client.put_object(Bucket=aws_bucket_name, Key=file_name, Body=buffer.getvalue())
+        df2 = df2[~df2['Orden'].isin(total_lista_error)]
+    
+    df2.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    prefix = "ecommops/capacity/rutas/" + fecha_hoy + '/'
+    name = 'Etapa_1_' + id_transportadora + '_cabify' + '.csv'
+    file_name = prefix+name
+
+    s3_client = boto3.client("s3", aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name = "us-east-1")
+    response = s3_client.put_object(Bucket=aws_bucket_name, Key=file_name, Body=buffer.getvalue())
+
+    if len(df2) != 0:
+        print('Etapa 1. Se ha finalizado exitosamente la ejecucion de la primera etapa.')
+    else:
+        print('Etapa 1. El dataframe no tiene registros, repetir operacion')
+     
+    return True

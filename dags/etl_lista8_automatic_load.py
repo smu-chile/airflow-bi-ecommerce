@@ -61,6 +61,9 @@ def _load_lista8(ts):
     df_full["id_tienda"] = df_full["id_tienda"].str.zfill(4)
     df_full["material"] = df_full["material"].str.zfill(18)
 
+    # Drop duplicates
+    df_full = df_full.drop_duplicates()
+
     print("Number of records to be loaded: "+str(len(df_full.index)))
 
     host = Variable.get("POSTGRESQL_HOST")
