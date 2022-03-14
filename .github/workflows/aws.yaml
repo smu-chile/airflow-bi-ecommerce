@@ -9,9 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: UnicornGlobal/trufflehog-actions-scan@master
-        with:
-          branch: ${{ github.head_ref }}
+      # - uses: UnicornGlobal/trufflehog-actions-scan@master
+      #   with:
+      #     branch: ${{ github.head_ref }}
 
   Scan-PR:
     name: Scan PR
