@@ -30,6 +30,7 @@ def _load_lista8(ts):
         "GRUPO ARTICULO": "str",
         "PRECIO REGULAR": "int",
         "PRECIO PROMOCIONAL": "int",
+        "DESCRIPCION": "str",
     }
 
     column_names = {
@@ -43,6 +44,7 @@ def _load_lista8(ts):
         "GRUPO ARTICULO": "grupo_articulo",
         "PRECIO REGULAR": "precio_regular",
         "PRECIO PROMOCIONAL": "precio_promocional",
+        "DESCRIPCION": "descripcion",
     }
 
     dataframe_list = []
