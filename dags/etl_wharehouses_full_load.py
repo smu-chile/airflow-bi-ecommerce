@@ -37,7 +37,7 @@ def _full_load_bodegas_table(ti):
     df["dock"] = df["dock"].astype("int", errors="ignore")
     df["id_tienda"] = df["id_tienda"].astype("int", errors="ignore").astype("str", errors="ignore")
 
-    df["id_tienda"] = df["id_tienda"].str.pad(4, "left", '0')
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: "{:04}".format(int(x)) if pd.notnull(x) else x) 
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
