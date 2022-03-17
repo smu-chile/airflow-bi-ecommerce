@@ -35,7 +35,7 @@ def _full_load_bodegas_table(ti):
     df["id"] = df["id"].astype("str")
     df["nombre"] = df["nombre"].astype("str")
     df["dock"] = df["dock"].astype("int", errors="ignore")
-    df["id_tienda"] = df["id_tienda"].astype("str", errors="ignore")
+    df["id_tienda"] = df["id_tienda"].astype("int", errors="ignore").astype("str", errors="ignore")
 
     df["id_tienda"] = df["id_tienda"].str.pad(4, "left", '0')
 
@@ -78,7 +78,7 @@ with DAG(
     'etl_bodegas_full_load',
     default_args=default_args,
     description="Extracción y carga tabla bodegas y su relación con la tabla tiendas desde Janis Replica hasta Workspace.",
-    schedule_interval=None,
+    schedule_interval="0 9 * * *",
     start_date=datetime(2022, 3, 15),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "bodegas"],
