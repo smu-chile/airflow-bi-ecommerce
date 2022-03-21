@@ -164,3 +164,56 @@ def netezza_incremental_load_to_s3(ti,
                   encrypt=False)
 
     return file_name
+
+def load_custom_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connection", extra_prefix=None):
+
+    print("Execution datetime: " + ts)
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+query_name+"/"+curr_datetime+"_"
+    if extra_prefix is not None:
+        prefix = prefix+extra_prefix+"_"
+    file_name = prefix+query_name+".csv"    
+
+    print("SQL Query:\n"+query)
+    print("File to be created: "+file_name)
+
+    dsn_database = Variable.get("DW_SECRET_DATABASE") 
+    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
+    dsn_port = "5480" 
+    dsn_uid = Variable.get("DW_SECRET_USER")
+    dsn_pwd = Variable.get("DW_PASSWORD")
+    jdbc_driver_name = "org.netezza.Driver" 
+    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+
+    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
+    
+    conn = jaydebeapi.connect(jdbc_driver_name, 
+                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
+                                jars=jdbc_driver_loc)
+
+    cur = conn.cursor()
+    cur.execute(query)
+    results = cur.fetchall()
+    columns = [i[0] for i in cur.description]
+
+    print(columns)
+    cur.close()
+    conn.close()
+
+    df = pd.DataFrame(results, columns=columns)
+    buffer = StringIO()
+
+    print("Number of records:")
+    print(len(df.index))
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+    s3_hook.load_string(buffer.getvalue(),
+                  key=file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
+
+    return file_name
