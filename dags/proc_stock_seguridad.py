@@ -104,10 +104,10 @@ with DAG(
                 JOIN DWC_SMU.SMU.VW_DIM_STORE STORE ON STORE.STORE_KEY = VENTAC.STORE_KEY
                 JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
                 JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SKUATTR ON VENTAC.SKU_KEY = SKUATTR.SKU_KEY
-                WHERE (FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY-MM-DD') - '7 days'::"INTERVAL"
-                    OR FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY-MM-DD') - '14 days'::"INTERVAL"
-                    OR FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY-MM-DD') - '21 days'::"INTERVAL"
-                    OR FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY-MM-DD') - '28 days'::"INTERVAL")
+                WHERE (FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY/MM/DD') - '7 days'::"INTERVAL"
+                    OR FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY/MM/DD') - '14 days'::"INTERVAL"
+                    OR FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY/MM/DD') - '21 days'::"INTERVAL"
+                    OR FECHA.DATE_VALUE = TO_DATE('{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}', 'YYYY/MM/DD') - '28 days'::"INTERVAL")
                     AND STORE_H.ORG_IP_ID = '01'
                 GROUP BY STORE.STORE_ID, STORE_H.ORG_IP, SKUATTR.BRAND_DESC, SKUATTR.NM, SKUATTR.SKU_PRODUCT
                 ORDER BY SUM(VENTAC.VENTA_UMV)/4 DESC;
