@@ -9,6 +9,8 @@ from datetime import datetime
 def _load_sales_analysis_to_workspace(ti):
     # Prefer local import at Task level for better DAG run time.
     import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
 
     dw_file_name = ti.xcom_pull(key="return_value", task_ids=["load_sales_analysis_from_dw"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -22,6 +24,42 @@ def _load_sales_analysis_to_workspace(ti):
 
     print("Sales DW:")
     print(len(df.index))
+
+    # # Ensure correct datatypes:
+    df["ORG_IP"] = df["ORG_IP"].astype("str")
+    df["BRAND_DESC"] = df["BRAND_DESC"].astype("str")
+    df["NM"] = df["NM"].astype("str")
+    df["SKU_PRODUCT"] = df["SKU_PRODUCT"].astype("str")
+    df["VENTA_NETA_PROMEDIO"] = df["VENTA_NETA_PROMEDIO"].astype("int", errors="ignore")
+    df["VENTA_UMV_PROMEDIO"] = df["VENTA_UMV_PROMEDIO"].astype("int", errors="ignore")
+
+    df["STORE_ID"] = df["STORE_ID"].apply(lambda x: "{:04}".format(int(x)) if pd.notnull(x) else x) 
+
+    print("Number of records to be loaded: "+str(len(df.index)))
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE ecommops.stock_seguridad_ventas"
+    connection.execute(text(truncate_query))
+    connection.close()
+
+    # Save to PostgreSQL:
+    df.to_sql(name="stock_seguridad_ventas",
+                con=engine,         
+                schema="ecommops",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+
+    print("Data saved to PostgreSQL. Table: ecommdata.bodegas")
 
     return
 
@@ -74,6 +112,11 @@ with DAG(
                 GROUP BY STORE.STORE_ID, STORE_H.ORG_IP, SKUATTR.BRAND_DESC, SKUATTR.NM, SKUATTR.SKU_PRODUCT
                 ORDER BY SUM(VENTAC.VENTA_UMV)/4 DESC;
             """,
-            "query_name": ""
+            "query_name": "ventas_dias_comparables"
         }
+    )
+
+    t1 = PythonOperator(
+        task_id = "load_sales_analysis_to_workspace",
+        python_callable = _load_sales_analysis_to_workspace
     )
