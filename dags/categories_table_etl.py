@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 
 from utils.janis_utils import load_full_table_to_s3
@@ -24,7 +25,6 @@ def process_categories_table(ti):
     df0 = pd.read_csv(s3_object.get()["Body"])
 
     df = df0[["id", "ref_id", "name", "ref_parent", "status"]]
-    # -----
 
     df1 = df[df["ref_parent"].isnull()].rename(columns={"id":"id1", "ref_id":"ref_id1", "name":"name1", "ref_parent":"ref_parent1", "status": "status1"})
     df2 = pd.merge(df1, df[df["ref_parent"].notnull()], left_on="ref_id1", right_on="ref_parent", how="inner").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2", "status": "status2"})
@@ -63,29 +63,41 @@ def process_categories_table(ti):
     df = df[["id", "name1", "name2", "name3", "status"]]
     df = df.rename(columns={"name1": "n1", "name2": "n2", "name3": "n3"})
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    columns = ["n1", "n2", "n3", "status"]
+
+    columns_query = ",".join(columns)
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdata.categorias"
-    connection.execute(text(truncate_query))
-    connection.close()
-
-    # Save to PostgreSQL:
-    df.to_sql(name="categorias",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL.")
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.categorias (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO NOTHING; 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
 
     return
 
