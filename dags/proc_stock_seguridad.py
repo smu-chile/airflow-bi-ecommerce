@@ -37,6 +37,16 @@ def _load_sales_analysis_to_workspace(ti):
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
+    column_names = {
+        "STORE_ID": "id_tienda",
+        "ORG_IP": "org_ip",
+        "BRAND_DESC": "marca",
+        "NM": "nombre",
+        "SKU_PRODUCT": "material",
+        "VENTA_NETA_PROMEDIO": "venta_neta_promedio",
+        "VENTA_UMV_PROMEDIO": "venta_umv_promedio"
+    }
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
