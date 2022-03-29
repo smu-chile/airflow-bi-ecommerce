@@ -6,7 +6,7 @@ from airflow.models import Variable
 import pytz
 import random
 import boto3
-# import pymongo
+#import pymongo
 import time
 
 
@@ -110,7 +110,6 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
         # mongo_collection = mongo_client[db]["routes"]
         # #mongo_metadata = mongo_client.get_colletion("routes")
         # mongo_collection.insert_one(respuesta_response)
-
         print(respuesta_response)
 
     except Exception as e:
