@@ -1,6 +1,6 @@
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn_id="postgresql_conn"):
+def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn_id="postgresql_conn", is_unixtime=False):
     query = f"SELECT MAX({updated_at_field}) FROM {schema}.{table_name};"
     pg_hook = PostgresHook(postgres_conn_id=postgres_conn_id)
     pg_connection = pg_hook.get_conn()
@@ -10,4 +10,9 @@ def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn
     print(results)
     cursor.close()
     pg_connection.close()
-    return results
+    updated_at_date = results[0][0]
+    if updated_at_date is None:
+        return None
+    if is_unixtime:
+        return updated_at_date
+    return updated_at_date.strftime("%Y-%m-%d %H:%M:%S")

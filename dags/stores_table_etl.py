@@ -138,6 +138,8 @@ def _create_final_store_table(ti):
         for value in record:
             if isinstance(value, np.generic):
                 fixed_record.append(value.item())
+            elif value in ["NULL", "NaT"]:
+                fixed_record.append(None)
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
