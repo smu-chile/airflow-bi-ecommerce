@@ -37,7 +37,7 @@ with DAG(
     'optimizador_de_rutas_cabify',
     default_args=default_args,
     description="Generación y optimización de rutas.",
-    schedule_interval="0 0 * * 1-4", # TODO : try timezone schedule
+    schedule_interval="0 11,14,17,20 * * 1-4", # 8, 11, 14, 17 (+3)
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["OPS", "Janis", "S3", "Cabify"],

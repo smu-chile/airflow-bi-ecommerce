@@ -75,10 +75,6 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     shipping_date = str(fecha_hoy) + 'T00:01:00-03:00'
 
     lista_ordenes = []
-
-    indicador = True
-    contador = 1
-
     lista_error_nulo = []
     lista_error_ruta = []
 
@@ -86,11 +82,17 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
     for stat in lista_estados:
 
+        indicador = True
+        contador = 1
+        lista_temp = []
+
         while indicador == True: 
 
             url0 = Variable.get('CAPACITY_JANIS_GET_2')
             
             url = url0.format(id_transportadora, stat, str(contador), shipping_date)
+
+            print(url)
             
             payload={}
             response = requests.request("GET", url, headers=headers, data=payload)
@@ -115,6 +117,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
                                     lat = x['shipping'][reg]['address']['lat']
                                     lng = x['shipping'][reg]['address']['lng']
                                     lista_ordenes.append([id_transportadora, id_orden, lat, lng])
+                                    lista_temp.append([id_transportadora, id_orden, lat, lng])
 
                                 else:
                                     pass
@@ -127,6 +130,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
                 else:
                     indicador = True
                 
+                print(f'Se extrageron {len(lista_temp)} ordenes, Estado: {stat}, Page: {contador}')
                 contador = contador + 1
                 
                 #x = json.dumps(x, indent=4)
@@ -145,6 +149,9 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     df2 = df2.drop_duplicates(subset=['Orden'])
 
     print(f'Etapa 1. Input Janis: Se extrajeron {len(df2)} ordenes')
+
+    if len(df2) == 0:
+        return False
 
     buffer = StringIO()
     
