@@ -53,26 +53,26 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     current = datetime.now(pytz.timezone('Chile/Continental')).time()
 
     if dtt.time(7, 30, 0) <= current <= dtt.time(8, 30, 0):
-        inicio_ventana = str(fecha_hoy) + 'T09:00:00-03:00'
-        fin_ventana = str(fecha_hoy) + 'T12:00:59-03:00'
+        inicio_ventana = str(fecha_hoy) + 'T09:00:00-04:00'
+        fin_ventana = str(fecha_hoy) + 'T12:00:59-04:00'
 
     elif dtt.time(10, 30, 0) <= current <= dtt.time(11, 30, 0):
-        inicio_ventana = str(fecha_hoy) + 'T12:00:00-03:00'
-        fin_ventana = str(fecha_hoy) + 'T15:00:59-03:00'
+        inicio_ventana = str(fecha_hoy) + 'T12:00:00-04:00'
+        fin_ventana = str(fecha_hoy) + 'T15:00:59-04:00'
 
     elif dtt.time(13, 30, 0) <= current <= dtt.time(14, 30, 0):
-        inicio_ventana = str(fecha_hoy) + 'T15:00:00-03:00'
-        fin_ventana = str(fecha_hoy) + 'T18:00:59-03:00'
+        inicio_ventana = str(fecha_hoy) + 'T15:00:00-04:00'
+        fin_ventana = str(fecha_hoy) + 'T18:00:59-04:00'
 
     elif dtt.time(16, 30, 0) <= current <= dtt.time(17, 30, 0):
-        inicio_ventana = str(fecha_hoy) + 'T18:00:00-03:00'
-        fin_ventana = str(fecha_hoy) + 'T21:00:59-03:00'
+        inicio_ventana = str(fecha_hoy) + 'T18:00:00-04:00'
+        fin_ventana = str(fecha_hoy) + 'T21:00:59-04:00'
 
     else:
         print('La consulta esta fuera de rango horario')
         return False
 
-    shipping_date = str(fecha_hoy) + 'T00:01:00-03:00'
+    shipping_date = str(fecha_hoy) + 'T00:01:00-04:00'
 
     lista_ordenes = []
     lista_error_nulo = []
