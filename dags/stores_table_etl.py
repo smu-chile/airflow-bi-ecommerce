@@ -61,6 +61,11 @@ def _create_final_store_table(ti):
                                 "street_number": "numero",
                                 "date_modified": "fecha_modificacion",
                                 "date_created": "fecha_creacion"})
+    
+    # Cast datatypes
+    df_j["id_janis"] = df_j["id_janis"].astype("int", errors="ignore")
+    df_j["canal_venta_vtex"] = df_j["canal_venta_vtex"].astype("int", errors="ignore")
+
     # Join Hierarchy table
     df_dw_hierarchy = df_dw_hierarchy[["STORE_KEY", "GERENTE_TIENDA", "GERENTE_ZONA"]]
     df_dw = pd.merge(df_dw_stores, df_dw_hierarchy, left_on="STORE_KEY", right_on="STORE_KEY", how="left")
