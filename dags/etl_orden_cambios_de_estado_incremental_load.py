@@ -52,7 +52,7 @@ def _incremental_load_order_status_changes(ti):
     df = df.rename(columns=columns_rename)
 
     # Calculate extra columns:
-    df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion_unixtime"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion_unixtime"], unit="s")
 
     df = df.astype({
         "id": "int",
