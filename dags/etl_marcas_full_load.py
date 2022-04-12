@@ -90,8 +90,8 @@ with DAG(
     'etl_marcas_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla marcas desde Janis Replica hasta Workspace.",
-    schedule_interval=None,
-    start_date=datetime(2022, 1, 1),
+    schedule_interval="0 9 * * *",
+    start_date=datetime(2022, 4, 12),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "marcas"],
 ) as dag:
