@@ -25,7 +25,6 @@ def _brands_table_full_load(ti):
     brands_object = s3_hook.get_key(brands_file, bucket_name=s3_bucket)
 
     column_types = {
-        "ref_id": "int",
         "erp_id": "string",
         "name": "string",
     } 
