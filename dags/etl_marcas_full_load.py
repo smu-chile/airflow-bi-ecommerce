@@ -74,7 +74,7 @@ def _brands_table_full_load(ti):
                 chunksize=20000,         
                 method='multi')
 
-    print("Data saved to PostgreSQL. Table: ecommdata.productos")
+    print("Data saved to PostgreSQL. Table: ecommdata.marcas")
 
     return
 
@@ -90,7 +90,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla marcas desde Janis Replica hasta Workspace.",
     schedule_interval="0 9 * * *",
-    start_date=datetime(2022, 4, 12),
+    start_date=datetime(2022, 4, 1),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "marcas"],
 ) as dag:
