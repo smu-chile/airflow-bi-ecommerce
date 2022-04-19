@@ -4,10 +4,11 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 
 from utils.janis_utils import load_full_table_to_s3
-from datetime import datetime
+from datetime import datetime, timedelta
 
 def _prices_table_full_load(ts):
     exec_date = ts[:10].replace("-","/")
+    exec_date = datetime.strptime(exec_date, "%Y/%m/%d") + timedelta(days=1)
     prefix = f"janis/replica/price/{exec_date}/"
     print(f"Searching prefix: {prefix}")
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -94,7 +95,7 @@ def _incremental_load_prices_table(ti):
 
     # Calculate extra columns:
     df["valido_desde"] = pd.to_datetime(df["valido_desde"], unit="s")
-    df["valido_hasta"] = pd.to_datetime(df["valido_hasta"], unit="s")
+    df["valido_hasta"] = pd.to_datetime(df["valido_hasta"], unit="s", errors="coerce")
     df["ultimo_intento_publicacion"] = pd.to_datetime(df["ultimo_intento_publicacion"], unit="s")
     df["proximo_intento_publicacion"] = pd.to_datetime(df["proximo_intento_publicacion"], unit="s")
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
