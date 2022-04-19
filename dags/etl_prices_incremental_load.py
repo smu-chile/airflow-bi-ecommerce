@@ -8,8 +8,8 @@ from datetime import datetime
 
 def _prices_table_full_load(ts):
     exec_date = ts[:10].replace("-","/")
-    exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"janis/replica/price/{exec_date}/"
+    print(f"Searching prefix: {prefix}")
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -135,6 +135,9 @@ def _incremental_load_prices_table(ti):
         FROM ecommdata.skus;
     """
     df_skus = pd.read_sql(query_skus, engine)
+
+    print(f"Num records prices: {len(df.index)}")
+    print(f"Num records skus: {len(df_skus.index)}")
 
     df = df.merge(df_skus, how="left", left_on="id_sku", right_on="id")
     print(df.columns)
