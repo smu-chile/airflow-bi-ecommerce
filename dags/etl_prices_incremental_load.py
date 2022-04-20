@@ -76,7 +76,7 @@ def _incremental_load_prices_table(ti, ts):
 
     # Rename columns to match workspace schema:
     columns_rename = {
-        "item_id": "id_sku", # cruzar para quedar con item_id, ref_id y descr
+        "item_id": "id_sku_janis", # cruzar para quedar con item_id, ref_id y descr
         "store_id": "id_tienda_janis", # id_tienda_janis
         "price": "precio",
         "list_price": "precio_lista",
@@ -110,7 +110,7 @@ def _incremental_load_prices_table(ti, ts):
 
     df = df.astype({
         "id": "int",
-        "id_sku": "int",
+        "id_sku_janis": "int",
         "id_tienda_janis": "int",
         "precio": "int",
         "precio_lista": "int",
@@ -149,7 +149,7 @@ def _incremental_load_prices_table(ti, ts):
     print(f"Num records prices: {len(df.index)}")
     print(f"Num records skus: {len(df_skus.index)}")
 
-    df = df.merge(df_skus, how="left", left_on="id_sku", right_on="id_sku_temp")
+    df = df.merge(df_skus, how="left", left_on="id_sku_janis", right_on="id_sku_temp")
     df = df.drop(columns=["id_sku_temp"])
     print(len(df.index))
     print(df.columns)
@@ -211,6 +211,7 @@ with DAG(
     schedule_interval="0 7 * * *",
     start_date=datetime(2022, 3, 1),
     catchup=True,
+    max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "precios"],
 ) as dag:
 
