@@ -25,9 +25,11 @@ def _prices_table_full_load(ts):
         return s3_file_list[0]
     
 
-def _incremental_load_prices_table(ti):
+def _incremental_load_prices_table(ti, ts):
     import pandas as pd
     import sqlalchemy
+    
+    exec_date = ts[:10].replace("-","/")
     
     prices_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     print(f"Searching file: {prices_file}")
@@ -102,7 +104,7 @@ def _incremental_load_prices_table(ti):
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s")
     df["fecha_publicacion"] = pd.to_datetime(df["fecha_publicacion"], unit="s")
-
+    df["fecha_carga"] = exec_date
     df["valido_hasta"] = df["valido_hasta"].fillna("9999-12-31")
 
     df = df.astype({
@@ -124,7 +126,8 @@ def _incremental_load_prices_table(ti):
         "creado_por": "int",
         "fecha_modificacion": "string",
         "fecha_creacion": "string",
-        "fecha_publicacion": "string"
+        "fecha_publicacion": "string",
+        "fecha_carga": "string"
     }, errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -150,6 +153,7 @@ def _incremental_load_prices_table(ti):
     print(len(df.index))
     print(df.columns)
 
+    print("Writing data into PostgreSQL...")
     # Save to PostgreSQL:
     df.to_sql(name="precios",
                 con=engine,         
