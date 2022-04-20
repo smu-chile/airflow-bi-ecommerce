@@ -167,6 +167,27 @@ def _incremental_load_prices_table(ti, ts):
 
     return
 
+def _delete_old_data(ts):
+    import sqlalchemy
+    from sqlalchemy import text
+
+    exec_date = ts[:10]
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    print("Delete 30 days old data from ecommdata.precios...")
+    connection = engine.connect()
+    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga <= {exec_date} - interval '30 days';"
+    connection.execute(text(truncate_query))
+    connection.close()
+    print("Data deleted.")
+
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -201,8 +222,9 @@ with DAG(
         python_callable = _incremental_load_prices_table
     )
 
-    # t2 = PythonOperator(
+    t2 = PythonOperator(
+        task_id = "delete_old_data",
+        python_callable = _delete_old_data
+    )
 
-    # )
-
-    t0 >> t1
+    t0 >> t1 >> t2
