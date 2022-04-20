@@ -25,9 +25,11 @@ def _prices_table_full_load(ts):
         return s3_file_list[0]
     
 
-def _incremental_load_prices_table(ti):
+def _incremental_load_prices_table(ti, ts):
     import pandas as pd
     import sqlalchemy
+    
+    exec_date = ts[:10].replace("-","/")
     
     prices_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     print(f"Searching file: {prices_file}")
@@ -102,7 +104,7 @@ def _incremental_load_prices_table(ti):
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s")
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s")
     df["fecha_publicacion"] = pd.to_datetime(df["fecha_publicacion"], unit="s")
-
+    df["fecha_carga"] = exec_date
     df["valido_hasta"] = df["valido_hasta"].fillna("9999-12-31")
 
     df = df.astype({
@@ -124,7 +126,8 @@ def _incremental_load_prices_table(ti):
         "creado_por": "int",
         "fecha_modificacion": "string",
         "fecha_creacion": "string",
-        "fecha_publicacion": "string"
+        "fecha_publicacion": "string",
+        "fecha_carga": "string"
     }, errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -150,6 +153,7 @@ def _incremental_load_prices_table(ti):
     print(len(df.index))
     print(df.columns)
 
+    print("Writing data into PostgreSQL...")
     # Save to PostgreSQL:
     df.to_sql(name="precios",
                 con=engine,         
@@ -163,6 +167,27 @@ def _incremental_load_prices_table(ti):
 
     return
 
+def _delete_old_data(ts):
+    import sqlalchemy
+    from sqlalchemy import text
+
+    exec_date = ts[:10]
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    print("Delete 30 days old data from ecommdata.precios...")
+    connection = engine.connect()
+    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga <= {exec_date} - interval '30 days';"
+    connection.execute(text(truncate_query))
+    connection.close()
+    print("Data deleted.")
+
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -197,8 +222,9 @@ with DAG(
         python_callable = _incremental_load_prices_table
     )
 
-    # t2 = PythonOperator(
+    t2 = PythonOperator(
+        task_id = "delete_old_data",
+        python_callable = _delete_old_data
+    )
 
-    # )
-
-    t0 >> t1
+    t0 >> t1 >> t2
