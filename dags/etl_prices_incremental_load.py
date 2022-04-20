@@ -28,6 +28,7 @@ def _prices_table_full_load(ts):
 def _incremental_load_prices_table(ti, ts):
     import pandas as pd
     import sqlalchemy
+    from sqlalchemy import text
     
     exec_date = ts[:10].replace("-","/")
     
@@ -153,6 +154,13 @@ def _incremental_load_prices_table(ti, ts):
     print(len(df.index))
     print(df.columns)
 
+    print("Delete exec_date data from ecommdata.precios to avoid duplicates...")
+    connection = engine.connect()
+    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga = '{exec_date}'::date;"
+    connection.execute(text(truncate_query))
+    connection.close()
+    print("Data deleted.")
+
     print("Writing data into PostgreSQL...")
     # Save to PostgreSQL:
     df.to_sql(name="precios",
@@ -182,7 +190,7 @@ def _delete_old_data(ts):
 
     print("Delete 30 days old data from ecommdata.precios...")
     connection = engine.connect()
-    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga <= {exec_date} - interval '30 days';"
+    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga <= '{exec_date}'::date - interval '30 days';"
     connection.execute(text(truncate_query))
     connection.close()
     print("Data deleted.")
