@@ -102,6 +102,8 @@ def _incremental_load_prices_table(ti):
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s")
     df["fecha_publicacion"] = pd.to_datetime(df["fecha_publicacion"], unit="s")
 
+    df["valido_hasta"] = df["valido_hasta"].fillna("9999-12-31")
+
     df = df.astype({
         "id": "int",
         "id_sku": "int",
@@ -137,25 +139,26 @@ def _incremental_load_prices_table(ti):
         FROM ecommdata.skus;
     """
     df_skus = pd.read_sql(query_skus, engine)
+    df_skus = df_skus.rename(columns={"id": "id_sku_temp"})
 
     print(f"Num records prices: {len(df.index)}")
     print(f"Num records skus: {len(df_skus.index)}")
 
-    df = df.merge(df_skus, how="left", left_on="id_sku", right_on="id")
+    df = df.merge(df_skus, how="left", left_on="id_sku", right_on="id_sku_temp")
+    df = df.drop(columns=["id_sku_temp"])
+    print(len(df.index))
     print(df.columns)
 
-    print(df.head(1).to_records[0])
-
     # Save to PostgreSQL:
-    # df.to_sql(name="precios",
-    #             con=engine,         
-    #             schema="ecommdata",         
-    #             if_exists='append',         
-    #             index=False,         
-    #             chunksize=20000,         
-    #             method='multi')
+    df.to_sql(name="precios",
+                con=engine,         
+                schema="ecommdata",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
 
-    # print("Data saved to PostgreSQL.")
+    print("Data saved to PostgreSQL.")
 
     return
 
