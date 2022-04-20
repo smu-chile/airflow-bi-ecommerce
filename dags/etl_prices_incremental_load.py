@@ -182,7 +182,7 @@ def _delete_old_data(ts):
 
     print("Delete 30 days old data from ecommdata.precios...")
     connection = engine.connect()
-    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga <= {exec_date} - interval '30 days';"
+    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga <= '{exec_date}'::date - interval '30 days';"
     connection.execute(text(truncate_query))
     connection.close()
     print("Data deleted.")
