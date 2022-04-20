@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 def _prices_table_full_load(ts):
     exec_date = ts[:10].replace("-","/")
     exec_date = datetime.strptime(exec_date, "%Y/%m/%d") + timedelta(days=1)
+    exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"janis/replica/price/{exec_date}/"
     print(f"Searching prefix: {prefix}")
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -116,7 +117,7 @@ def _incremental_load_prices_table(ti):
         "intentos_publicacion": "int",
         "ultimo_intento_publicacion": "string",
         "proximo_intento_publicacion": "string",
-        "bloqueado_por_auditoria": "int",
+        "bloqueado_por_auditoria": "bool",
         "estado": "int",
         "publicado_por": "int",
         "modificado_por": "int",
