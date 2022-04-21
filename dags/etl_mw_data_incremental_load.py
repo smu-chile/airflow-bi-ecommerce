@@ -87,7 +87,7 @@ def _payments_incremental_load(ts):
         "fecha_creacion"
     ]]
 
-    df = df.astype(column_types, errors="coalece")
+    df = df.astype(column_types, errors="ignore")
 
     psql_host = Variable.get("POSTGRESQL_HOST")
     psql_user = Variable.get("POSTGRESQL_USER")
@@ -179,7 +179,7 @@ def _operations_incremental_load(ts, ti):
         "fecha_creacion"
     ]]
 
-    df = df.astype(column_types, errors="coalece")
+    df = df.astype(column_types, errors="ignore")
 
     id_cobros = []
     id_refunds = []
@@ -398,7 +398,7 @@ def _interactions_incremental_load(ti):
         "tipo_pago": "string"
     }
 
-    df = df.astype(column_types, errors="coalece")
+    df = df.astype(column_types, errors="ignore")
 
     df["codigo_autorizacion"] = df["codigo_autorizacion"].str.zfill(6)
 
