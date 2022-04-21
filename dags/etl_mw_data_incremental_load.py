@@ -431,9 +431,9 @@ with DAG(
     'etl_mw_pagos_tablas_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tablas: pagos; operaciones e interacciones desde Middleware de Pagos hasta el Workspace en Postgresql.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 3, 1),
-    catchup=True,
+    schedule_interval="0 8 * * *",
+    start_date=datetime(2022, 4, 1),
+    catchup=False,
     max_active_runs = 1,
     tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones"],
 ) as dag:
