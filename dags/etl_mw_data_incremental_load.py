@@ -1,0 +1,460 @@
+from airflow import DAG
+from airflow.models import Variable
+from airflow.operators.python import PythonOperator
+from airflow.hooks.S3_hook import S3Hook
+from datetime import datetime, timedelta
+
+def _payments_incremental_load(ts):
+    import pandas as pd
+    import pymongo
+    import pytz
+    from sqlalchemy import create_engine
+
+    mongo_user = Variable.get("MIDDLEWARE_PAGOS_MONGODB_USER")
+    mongo_pass = Variable.get("MIDDLEWARE_PAGOS_MONGODB_PASSWORD")
+    mongo_db = Variable.get("MIDDLEWARE_PAGOS_MONGODB_DATABASE")
+    mongo_host = Variable.get("MIDDLEWARE_PAGOS_MONGODB_HOST")
+    myclient = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_host+"/"+mongo_db+"?authSource=admin&ssl=true")
+    
+    mydb = myclient[mongo_db]
+    mycollection = mydb["payments"]
+
+    execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
+    local_tz = pytz.timezone("America/Santiago")
+    date_from = local_tz.localize(execution_date).astimezone(pytz.utc)
+    date_to = date_to + timedelta(days=1)
+
+    print(date_from)
+    print(date_to)
+
+    x = mycollection.find({"createdAt": {"$gte": date_from, "$lt": date_to}})
+    documents = list(x)
+    print(f"Documentos encontrados {len(documents)}")
+
+    if len(documents) == 0:
+        print("No records found.")
+        return
+
+    df = pd.DataFrame(documents)
+
+    df = df[df["buyOrder"].str.isnumeric()]
+
+    column_names = {
+        "_id": "id",
+        "buyOrder": "pedido",
+        "buyAmount": "monto_venta",
+        "status": "estado",
+        "channel": "canal",
+        "salesChannel": "canal_venta",
+        "balance": "balance",
+        "inscription": "inscripcion",
+        "gateway": "operador",
+        "commerceCode": "codigo_comercio",
+        "createdAt": "fecha_creacion"
+    }
+
+    column_types = {
+        "id": "string",
+        "pedido": "int64",
+        "monto_venta": "int",
+        "estado": "string",
+        "canal": "string",
+        "canal_venta": "int",
+        "balance": "int",
+        "inscripcion": "string",
+        "operador": "string",
+        "codigo_comercio": "string",
+        "fecha_creacion": "string"
+    }
+
+    df = df.rename(columns=column_names)
+
+    for column in column_types.keys():
+        if column not in df.columns:
+            df[column] = None
+
+    df = df[[
+        "id",
+        "pedido",
+        "monto_venta",
+        "estado",
+        "canal",
+        "canal_venta",
+        "balance",
+        "inscripcion",
+        "operador",
+        "codigo_comercio",
+        "fecha_creacion"
+    ]]
+
+    df = df.astype(column_types, errors="ignore")
+
+    psql_host = Variable.get("POSTGRESQL_HOST")
+    psql_user = Variable.get("POSTGRESQL_USER")
+    psql_pass = Variable.get("POSTGRESQL_PASSWORD")
+    psql_db = Variable.get("POSTGRESQL_DB")
+    engine = create_engine("postgresql://"+psql_user+":"+psql_pass+"@"+psql_host+":5432/"+psql_db)
+
+    # Se insertan los datos
+    print(f"Insertando {len(df.index)} registros...")
+    df.to_sql(name='mw_pagos', 
+        con=engine, 
+        schema='ecommdata',
+        if_exists='append', 
+        index=False,
+        chunksize=20000,
+        method='multi')
+
+    return
+
+def _operations_incremental_load(ts, ti):
+    import pandas as pd
+    import pymongo
+    import pytz
+    from sqlalchemy import create_engine
+
+    mongo_user = Variable.get("MIDDLEWARE_PAGOS_MONGODB_USER")
+    mongo_pass = Variable.get("MIDDLEWARE_PAGOS_MONGODB_PASSWORD")
+    mongo_db = Variable.get("MIDDLEWARE_PAGOS_MONGODB_DATABASE")
+    mongo_host = Variable.get("MIDDLEWARE_PAGOS_MONGODB_HOST")
+    myclient = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_host+"/"+mongo_db+"?authSource=admin&ssl=true")
+    
+    mydb = myclient[mongo_db]
+    mycollection = mydb["operations"]
+
+    execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
+    local_tz = pytz.timezone("America/Santiago")
+    date_from = local_tz.localize(execution_date).astimezone(pytz.utc)
+    date_to = date_to + timedelta(days=1)
+
+    print(date_from)
+    print(date_to)
+
+    x = mycollection.find({"createdAt": {"$gte": date_from, "$lt": date_to}})
+    documents = list(x)
+    print(f"Documentos encontrados {len(documents)}")
+
+    if len(documents) == 0:
+        print("No records found.")
+        return
+
+    df = pd.DataFrame(documents)
+
+    column_names = {
+        "_id": "id",
+        "type": "tipo",
+        "status": "estado",
+        "channel": "canal",
+        "errorMsg": "mensaje_error",
+        "inscriptionId": "id_inscripcion",
+        "paymentId": "id_pago",
+        "createdAt": "fecha_creacion"
+    }
+
+    column_types = {
+        "id": "string",
+        "tipo": "string",
+        "estado": "string",
+        "canal": "string",
+        "mensaje_error": "string",
+        "id_inscripcion": "string",
+        "id_pago": "string",
+        "fecha_creacion": "string"
+    }
+
+    df = df.rename(columns=column_names)
+
+    for column in column_types.keys():
+        if column not in df.columns:
+            df[column] = None
+
+    df = df[[
+        "id",
+        "tipo",
+        "estado",
+        "canal",
+        "mensaje_error",
+        "id_inscripcion",
+        "id_pago",
+        "fecha_creacion"
+    ]]
+
+    df = df.astype(column_types, errors="coalece")
+
+    id_cobros = []
+    id_refunds = []
+    for index, row in df.iterrows():
+        if row["tipo"] in ("payment-transaction-authorize", "pos-pre-settlement"):
+            id_cobros.append(row["id"])
+        elif row["tipo"] == "payment-transaction-refund":
+            id_refunds.append(row["id"])
+        else:
+            continue
+
+    psql_host = Variable.get("POSTGRESQL_HOST")
+    psql_user = Variable.get("POSTGRESQL_USER")
+    psql_pass = Variable.get("POSTGRESQL_PASSWORD")
+    psql_db = Variable.get("POSTGRESQL_DB")
+    engine = create_engine("postgresql://"+psql_user+":"+psql_pass+"@"+psql_host+":5432/"+psql_db)
+
+    # Se insertan los datos
+    print(f"Insertando {len(df.index)} registros...")
+    df.to_sql(name='mw_operaciones', 
+        con=engine, 
+        schema='ecommdata',
+        if_exists='append', 
+        index=False,
+        chunksize=20000,
+        method='multi')
+
+    # Send id lists to S3
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    date_path = ts[:10].replace("-","/")
+    s3_path = f"mw_pagos/{date_path}/"
+    charges_key = s3_path+"charges"
+    refunds_key = s3_path+"refunds"
+
+    s3_hook.load_string(str(id_cobros),charges_key,bucket_name=s3_bucket,replace=True)
+    s3_hook.load_string(str(id_refunds),refunds_key,bucket_name=s3_bucket,replace=True)
+
+    ti.xcom_push(key='charges_list_file', value=charges_key)
+    ti.xcom_push(key='refunds_list_file', value=refunds_key)
+
+    return charges_key, refunds_key
+
+def _interactions_incremental_load(ti):
+    from bson.objectid import ObjectId
+    import pandas as pd
+    import pymongo
+    from sqlalchemy import create_engine
+
+    mongo_user = Variable.get("MIDDLEWARE_PAGOS_MONGODB_USER")
+    mongo_pass = Variable.get("MIDDLEWARE_PAGOS_MONGODB_PASSWORD")
+    mongo_db = Variable.get("MIDDLEWARE_PAGOS_MONGODB_DATABASE")
+    mongo_host = Variable.get("MIDDLEWARE_PAGOS_MONGODB_HOST")
+    myclient = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_host+"/"+mongo_db+"?authSource=admin&ssl=true")
+    mydb = myclient[mongo_db]
+    mycollection = mydb["thirdPartyInteractions"]
+
+    charges_file = ti.xcom_pull(key="charges_list_file", task_ids=["operations_incremental_load"])[0]
+    refunds_file = ti.xcom_pull(key="refunds_list_file", task_ids=["operations_incremental_load"])[0]
+    
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+charges_file)
+    if not s3_hook.check_for_key(charges_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % charges_file)
+    print("Searching file: "+refunds_file)
+    if not s3_hook.check_for_key(refunds_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % refunds_file)
+
+    charges_object = s3_hook.get_key(charges_file, bucket_name=s3_bucket)
+    refunds_object = s3_hook.get_key(refunds_file, bucket_name=s3_bucket)
+
+    id_cobros = charges_object.get()["Body"][1:-1].split(",")
+    id_refunds = refunds_object.get()["Body"][1:-1].split(",")
+
+    new_documents = []
+
+    # Cobros:
+    print(f"Cobros: {len(id_cobros)}")
+    count = 0
+    flag = True
+    while(flag):
+        operation_ids_sub = id_cobros[count*1000:(count+1)*1000]
+        print(f"FROM {count*1000}")
+        print(len(operation_ids_sub))
+        if len(operation_ids_sub) == 0:
+            flag = False
+            break
+        
+        operation_objects = [ObjectId(id) for id in operation_ids_sub]
+
+        x = mycollection.find({"operation": {"$in": operation_objects}})
+        documents = list(x)
+        print(len(documents))
+
+        for document in documents:
+            new_document = {}
+            request = document["request"]
+            response = document["response"]
+            if "transbank" in request["url"]:
+                new_document["id"] = str(document["_id"])
+                new_document["id_operacion"] = document["operation"]
+                new_document["api_status_code"] = response.get("code", None)
+                new_document["secuencia"] = document.get("sequence", None)
+                new_document["url"] = request["url"]
+                new_document["metodo"] = request.get("method", None)
+                new_document["fecha_creacion"] = request["createdAt"]
+                try:
+                    if type(response["body"]) is not dict:
+                        new_document["fecha_transaccion"] = response["createdAt"]
+                        new_document["mensaje_error"] = "Invalid response body."
+                        new_document["estado"] = "FAILED"
+                        new_document["monto"] = request["body"]["details"][0]["amount"]
+                        new_document["orden"] = request["body"]["buy_order"]
+                    else:
+                        new_document["fecha_transaccion"] = response["body"].get("transaction_date", None)
+                        new_document["orden"] = request["body"]["buy_order"]
+                        details = response["body"]["details"][0]
+                        new_document["monto"] = details["amount"]
+                        new_document["codigo_comercio"] = details["commerce_code"]
+                        new_document["codigo_respuesta_tbk"] = details["response_code"]
+                        new_document["estado"] = details["status"]
+                        new_document["tipo_pago"] = details["payment_type_code"]
+                        new_document["codigo_autorizacion"] = details.get("authorization_code", None)
+                        new_document["mensaje_error"] = None
+                except KeyError as e:
+                    body = response.get("body", {})
+                    new_document["mensaje_error"] = body.get("error_message", None)
+                new_documents.append(new_document)
+            else:
+                continue
+        count = count + 1 
+
+    # Refunds:
+    print(f"Refunds: {len(id_refunds)}")
+    count = 0
+    flag = True
+    while(flag):
+        operation_ids_sub = id_refunds[count*1000:(count+1)*1000]
+        print(f"FROM {count*1000}")
+        print(len(operation_ids_sub))
+        if len(operation_ids_sub) == 0:
+            flag = False
+            break
+        
+        operation_objects = [ObjectId(id) for id in operation_ids_sub]
+
+        x = mycollection.find({"operation": {"$in": operation_objects}})
+        documents = list(x)
+        print(len(documents))
+
+        for document in documents:
+            new_document = {}
+            request = document["request"]
+            response = document["response"]
+            if "transbank" in request["url"]:
+                new_document["id"] = str(document["_id"])
+                new_document["id_operacion"] = document["operation"]
+                new_document["api_status_code"] = response.get("code", None)
+                new_document["secuencia"] = document.get("sequence", None)
+                new_document["url"] = request["url"]
+                new_document["metodo"] = request.get("method", None)
+                new_document["fecha_creacion"] = request["createdAt"]
+                try:
+                    if type(response["body"]) is not dict:
+                        new_document["fecha_transaccion"] = response["createdAt"]
+                        new_document["mensaje_error"] = "Invalid response body."
+                        new_document["estado"] = "FAILED"
+                        new_document["monto"] = request["body"].get("amount", None)
+                        new_document["orden"] = request["body"].get("detail_buy_order", None)
+                    else:
+                        new_document["orden"] = request["body"]["detail_buy_order"]
+                        new_document["codigo_comercio"] = request["body"]["commerce_code"]
+                        new_document["estado"] = response["body"]["type"]
+                        new_document["monto"] = -response["body"]["nullified_amount"]
+                        new_document["codigo_autorizacion"] = response["body"]["authorization_code"]
+                        new_document["codigo_respuesta_tbk"] = response["body"]["response_code"]
+                        new_document["fecha_transaccion"] = response["body"].get("authorization_date", None)
+                        new_document["mensaje_error"] = None
+                        new_document["tipo_pago"] = None
+                except KeyError as e:
+                    body = response.get("body", {})
+                    new_document["monto"] = -request["body"].get("amount", 0)
+                    new_document["mensaje_error"] = body.get("error_message", None)
+                    new_document["fecha_transaccion"] = request.get("createdAt", None)
+                new_documents.append(new_document)
+            else:
+                continue
+        count = count + 1 
+
+    print("---------------------------------------")
+    print(len(new_documents))
+
+    if len(new_documents) == 0:
+        print("No records found.")
+        return
+
+    df = pd.DataFrame(new_documents)
+
+    column_types = {
+        "id": "string",
+        "id_operacion": "string",
+        "api_status_code": "int",
+        "secuencia": "int",
+        "url": "string",
+        "mensaje_error": "string",
+        "monto": "int",
+        "codigo_autorizacion": "string",
+        "codigo_comercio": "string",
+        "metodo": "string",
+        "orden": "string",
+        "codigo_respuesta_tbk": "int",
+        "estado": "string",
+        "tipo_pago": "string"
+    }
+
+    df = df.astype(column_types, errors="ignore")
+
+    df["codigo_autorizacion"] = df["codigo_autorizacion"].str.zfill(6)
+
+    psql_host = Variable.get("POSTGRESQL_HOST")
+    psql_user = Variable.get("POSTGRESQL_USER")
+    psql_pass = Variable.get("POSTGRESQL_PASSWORD")
+    psql_db = Variable.get("POSTGRESQL_DB")
+    engine = create_engine("postgresql://"+psql_user+":"+psql_pass+"@"+psql_host+":5432/"+psql_db)
+
+    # Se insertan los datos
+    print(f"Insertando {len(df.index)} registros...")
+    df.to_sql(name='mw_interacciones_tbk', 
+        con=engine, 
+        schema='ecommdata',
+        if_exists='append', 
+        index=False,
+        chunksize=20000,
+        method='multi')
+
+    return
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+with DAG(
+    'etl_mw_pagos_tablas_incremental_load',
+    default_args=default_args,
+    description="Extracción y carga de tablas: pagos; operaciones e interacciones desde Middleware de Pagos hasta el Workspace en Postgresql.",
+    schedule_interval="0 8 * * *",
+    start_date=datetime(2022, 4, 1),
+    catchup=False,
+    max_active_runs = 1,
+    tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones"],
+) as dag:
+
+    dag.doc_md = """
+    Extracción y carga de tablas pagos, operaciones e interacciones desde Middleware de Pagos. \n
+    Carga diaria de tablas completas. \n
+    """ 
+    t0 = PythonOperator(
+        task_id = "payments_incremental_load",
+        python_callable = _payments_incremental_load
+    )
+
+    t1 = PythonOperator(
+        task_id = "operations_incremental_load",
+        python_callable = _operations_incremental_load
+    )
+
+    t2 = PythonOperator(
+        task_id = "interactions_incremental_load",
+        python_callable = _interactions_incremental_load
+    )
+
+    t0 >> t1 >> t2
