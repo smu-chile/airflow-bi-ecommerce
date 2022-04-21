@@ -88,6 +88,7 @@ def _payments_incremental_load(ts):
     ]]
 
     df = df.astype(column_types, errors="ignore")
+    df["canal_venta"] = pd.to_numeric(df["canal_venta"], errors="coerce")
 
     psql_host = Variable.get("POSTGRESQL_HOST")
     psql_user = Variable.get("POSTGRESQL_USER")
