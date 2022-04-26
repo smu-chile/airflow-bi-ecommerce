@@ -84,7 +84,7 @@ def _incremental_load_admins_table(ti):
 
     columns = [
         "id",
-        "empleado_id",
+        "id_empleado",
         "nombre",
         "apellido",
         "nombre_usuario",
