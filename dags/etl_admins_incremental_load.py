@@ -53,7 +53,7 @@ def _incremental_load_admins_table(ti):
 
     # Rename columns to match workspace schema:
     columns_rename = {
-        "employee_id": "empleado_id",
+        "employee_id": "id_empleado",
         "firstname": "nombre",
         "lastname": "apellido",
         "username": "nombre_usuario",
@@ -83,7 +83,7 @@ def _incremental_load_admins_table(ti):
     })
 
     columns = [
-        "id"
+        "id",
         "empleado_id",
         "nombre",
         "apellido",
