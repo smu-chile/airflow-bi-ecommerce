@@ -83,7 +83,6 @@ def _incremental_load_admins_table(ti):
     })
 
     columns = [
-        "id",
         "id_empleado",
         "nombre",
         "apellido",
