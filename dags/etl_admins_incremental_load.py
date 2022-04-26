@@ -97,7 +97,8 @@ def _incremental_load_admins_table(ti):
         "fecha_modificacion",
         "creado_por",
         "modificado_por",
-        "estado"
+        "estado",
+        "fecha_modificacion_unixtime"
     ]
 
     columns_query = ",".join(columns)
