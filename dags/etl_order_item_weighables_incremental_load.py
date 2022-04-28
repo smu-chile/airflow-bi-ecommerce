@@ -28,7 +28,7 @@ def _check_empty_table(ti):
     df = pd.read_sql(query_count_weighables, engine)
     count = df["count"][0]
 
-    print(f"Number of records found: {len(df.index)}")
+    print(f"Number of records found: {count}")
 
     if count == 0:
         print("Empty table. Starting full load process...")
