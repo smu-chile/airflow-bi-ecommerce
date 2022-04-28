@@ -37,7 +37,7 @@ def _check_empty_table(ti):
     else:
         print("Table is not empty. Starting incremental load process...")
         ti.xcom_push(key="load_path", value="get_order_item_promotions_from_janis")
-        return "incremental_load_table"
+        return "wait_for_orders_s3_file"
 
 def _get_new_orders_from_s3(ts):
     import pandas as pd
