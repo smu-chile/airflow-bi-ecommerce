@@ -75,7 +75,7 @@ def _generate_ff_profiles_table(ti):
     connection.close()
 
     # Save to PostgreSQL:
-    df.to_sql(name="perfiles",
+    df.to_sql(name="ff_perfiles",
                 con=engine,         
                 schema="ecommdata",         
                 if_exists='append',         
