@@ -207,4 +207,6 @@ with DAG(
         python_callable = _order_item_weighables_table_incremental_load
     )
 
-    t0 >> [t1, t2 >> t3] >> t4
+    t0 >> t1
+    t0 >> t2 >> t3 >> t4
+    t1 >> t4
