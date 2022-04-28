@@ -9,7 +9,7 @@ from utils.janis_utils import load_custom_query_to_s3, load_full_table_to_s3
 
 from datetime import datetime
 
-def _check_empty_table():
+def _check_empty_table(ti):
     import pandas as pd
     import sqlalchemy
 
@@ -32,9 +32,11 @@ def _check_empty_table():
 
     if count == 0:
         print("Empty table. Starting full load process...")
+        ti.xcom_push(key="load_path", value="load_full_table")
         return "load_full_table"
     else:
         print("Table is not empty. Starting incremental load process...")
+        ti.xcom_push(key="load_path", value="get_order_item_promotions_from_janis")
         return "incremental_load_table"
 
 def _get_new_orders_from_s3(ts):
@@ -78,8 +80,8 @@ def _order_item_weighables_table_incremental_load(ts, ti):
     import numpy as np
     import pandas as pd
     
-    xcom_input_task = ti.xcom_pull(key="return_value", task_ids=["check_empty_table"])[0]
-    order_item_weighables_file = ti.xcom_pull(key="return_value", task_ids=["xcom_input_task"])[0]
+    xcom_input_task = ti.xcom_pull(key="load_path", task_ids=["check_empty_table"])[0]
+    order_item_weighables_file = ti.xcom_pull(key="return_value", task_ids=[xcom_input_task])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -204,7 +206,8 @@ with DAG(
 
     t4 = PythonOperator(
         task_id = "orden_producto_promociones_incremental_load",
-        python_callable = _order_item_weighables_table_incremental_load
+        python_callable = _order_item_weighables_table_incremental_load,
+        trigger_rule = "none_failed"
     )
 
     t0 >> t1
