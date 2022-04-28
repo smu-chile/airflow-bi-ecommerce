@@ -64,7 +64,7 @@ def _get_order_item_weighables_from_janis(ts):
     order_ids = df["id"].tolist()
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
-        SELECT woip.*
+        SELECT woiw.*, woi.ref_id
         FROM janis_jackie.wms_orders AS wo
         INNER JOIN janis_jackie.wms_order_items woi
         ON woi.order_id = wo.id
@@ -99,7 +99,8 @@ def _order_item_weighables_table_incremental_load(ts, ti):
         "order_item",
         "ean",
         "weight",
-        "price"
+        "price",
+        "ref_id"
     ]]  
 
     # # Ensure correct datatypes:
@@ -119,7 +120,7 @@ def _order_item_weighables_table_incremental_load(ts, ti):
 
     df = df.rename(columns=columns_rename)
 
-    columns = ["id_orden", "id_orden_producto", "ean", "peso", "precio"]
+    columns = ["id_orden", "id_orden_producto", "ean", "peso", "precio", "ref_id"]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
