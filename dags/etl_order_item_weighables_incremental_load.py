@@ -188,8 +188,18 @@ with DAG(
 
     t1 = PythonOperator(
         task_id = "load_full_table",
-        python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "wms_order_item_weighables"}
+        python_callable = load_custom_query_to_s3,
+        op_kwargs = {
+            "query": """
+                SELECT woiw.*, woi.ref_id
+                FROM janis_jackie.wms_orders AS wo
+                INNER JOIN janis_jackie.wms_order_items woi
+                ON woi.order_id = wo.id
+                INNER JOIN janis_jackie.wms_order_item_weighables AS woiw
+                ON woi.id = woiw.order_item
+            """,
+            "query_name": "wms_order_item_weighables",
+        }
     )
 
     t2 = S3KeySensor(
