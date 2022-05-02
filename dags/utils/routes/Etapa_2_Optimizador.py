@@ -26,8 +26,6 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
     
     #parametros
     id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA")
-    capacity = 25
-    trucks_no = 2
     lng_tienda = -70.6068642
     lat_tienda = -33.5138181
 
@@ -74,7 +72,7 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
         demand = [1 for x in range(len(distance_mtrx))]
         demand[0] = 0
         data['demands'] = demand
-        data['vehicle_capacities'] = [TRUCK_CAPACITY for x in range(trucks_needed)]
+        data['vehicle_capacities'] = [capacity for x in range(trucks_needed)]
         data['num_vehicles'] = trucks_needed
         data['depot'] = 0
         return data
@@ -169,37 +167,61 @@ def report_generator(aws_access_key, aws_secret_key, aws_bucket_name):
 
     try:
 
-        for transp in list(df2['transportadora'].unique()):
+        df_transportadoras2 = df2.copy()
+        capacity = 25
+        centro_distribucion = []
+        centro_distribucion.insert(0, {'orden': 'Origen', 'lat': -33.5138181,'lng': -70.6068642})
+        data_4_matrix = pd.concat([pd.DataFrame(centro_distribucion), df_transportadoras2], ignore_index=True)
+        data_4_matrix.reset_index(inplace=True, drop=True)
 
-            TRUCK_CAPACITY = capacity
-            df2_transportadora = df2.loc[df2['transportadora'] == transp]
-            df2_transportadora = df2_transportadora.reset_index().drop(columns=['index'])
-            trucks_needed = trucks_no #int(math.ceil(df2_transportadora.shape[0] / TRUCK_CAPACITY))
+        ordenes_totales = len(df_transportadoras2)
 
-            # if trucks_needed > 2:
-            #     print('Etapa 2: Se ha excedido el numero maximo de camiones, por lo que se ha creado mas de 2 rutas')
+        trucks_needed = int(math.ceil(ordenes_totales / capacity))
+        remanent = ordenes_totales % capacity
 
-            centro_distribucion = []
-            centro_distribucion.insert(0, {'Orden': 'Origen', 'lat': lat_tienda,'lng': lng_tienda})
-            data_4_matrix = pd.concat([pd.DataFrame(centro_distribucion), df2_transportadora], ignore_index=True)
-            data_4_matrix.reset_index(inplace=True, drop=True)
-            
-            lista_rutas, dista_list, lista_carga = main()        
+        if remanent < (1 * trucks_needed):
+            trucks_needed = int(math.ceil(ordenes_totales / (1 + capacity)))
+            capacity = capacity + 1
 
-            df_resultado_rutas = pd.DataFrame()
+        elif remanent < (2 * trucks_needed):
+            trucks_needed = int(math.ceil(ordenes_totales / (2 + capacity)))
+            capacity = capacity + 2
 
-            for ruta in range(len(lista_rutas)):
+        else:
+            pass
 
-                df_resultado_transportadora_parcial = data_4_matrix[(data_4_matrix.index.isin(lista_rutas[ruta]))]
-                df_resultado_transportadora_parcial = df_resultado_transportadora_parcial.reindex(lista_rutas[ruta])
-                df_resultado_transportadora_parcial = df_resultado_transportadora_parcial.fillna('Mirador')
-                df_resultado_transportadora_parcial['Ruta'] = 'Camion ' + str(ruta)
+        #print(f'Ordenes Totales: {ordenes_totales}, Camiones Necesarios: {ordenes_totales / TRUCK_CAPACITY}, Redondeado: {trucks_needed}')
+        lista_de_rutas, dista_list, lista_carga = main()
 
-                df_resultado_rutas = pd.concat([df_resultado_rutas, df_resultado_transportadora_parcial])
+        df_resultado_rutas = pd.DataFrame()
+        df_resultado_transportadora = pd.DataFrame()
 
-            df_resultado_transportadora = pd.concat([df_resultado_transportadora, df_resultado_rutas])
+            #df_remanentes = pd.DataFrame()
+            #print(lista_de_rutas)
 
-        df_resultado_transportadora = df_resultado_transportadora[df_resultado_transportadora['Orden'] != 'Origen']
+        for ruta in range(len(lista_de_rutas)):
+
+            df_resultado_transportadora_parcial = data_4_matrix[(data_4_matrix.index.isin(lista_de_rutas[ruta]))]
+            df_resultado_transportadora_parcial = df_resultado_transportadora_parcial.reindex(lista_de_rutas[ruta])
+            df_resultado_transportadora_parcial = df_resultado_transportadora_parcial.fillna('Mirador')
+            df_resultado_transportadora_parcial['Ruta'] = 'Camion ' + str(ruta)
+
+            df_resultado_rutas = pd.concat([df_resultado_rutas, df_resultado_transportadora_parcial])
+            #df_resultado_transportadora_parcial.to_csv(f'df_resultado_parcial_de_ruta_{ruta}.csv', sep=';')
+
+            # if (len(df_resultado_transportadora_parcial) <= 14) and (i != '0581-2 Mirador Norte'):
+            #     remanente = True
+            #     df_remanentes = pd.concat([df_remanentes, df_resultado_transportadora_parcial])
+
+            # else:
+            #     df_resultado_rutas = pd.concat([df_resultado_rutas, df_resultado_transportadora_parcial])
+            #     cycle =+ 1
+
+        df_resultado_transportadora = pd.concat([df_resultado_transportadora, df_resultado_rutas])
+
+            # if remanente == True:
+            #     df_remanente_transportadora = pd.concat([df_remanente_transportadora, df_remanentes])
+        df_resultado_transportadora = df_resultado_transportadora[df_resultado_transportadora['orden'] != 'Origen']
 
         buffer = StringIO()
         df_resultado_transportadora.to_csv(buffer, header=True, index=True, encoding="utf-8")
