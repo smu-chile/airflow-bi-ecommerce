@@ -1,5 +1,6 @@
 import requests
-from datetime import timedelta, date, datetime
+import datetime as dtt
+from datetime import timedelta, datetime
 import pandas as pd
 from io import StringIO
 import boto3
@@ -45,15 +46,14 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
     #parametros
 
-    id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA")
-    #id_transportadora = '0469'
-    #id_transportadora = '0581-3'
-    lista_enviar = ['fmacaya@smu.cl','djimenezg@smu.cl']
     fecha_mañana = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=1)).strftime('%Y-%m-%d')
     fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
-    shipping_date = str(fecha_mañana) +'T00:01:00-03:00'
-    capacidad = 25
-    numero_camiones = 2
+
+    #mirador_transp_list = ['0581-1','0581-2','0581-3','0581-4'] 
+    mirador_transp_list_raw = Variable.get("CAPACITY_ID_TRANSPORTADORA") #'0581-1&0581-2&0581-3&0581-4'
+    mirador_transp_list = mirador_transp_list_raw.split('&')
+
+    shipping_date = str(fecha_mañana) + 'T00:01:00-03:00'
 
     lista_ordenes = []
 
@@ -63,72 +63,71 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     lista_error_nulo = []
     lista_error_ruta = []
 
-    while indicador == True: 
+    df2 = pd.DataFrame()
 
-        url0 = Variable.get('CAPACITY_JANIS_GET')
-        
-        url = url0.format(id_transportadora,str(contador),shipping_date)
-        
-        payload={}
-        response = requests.request("GET", url, headers=headers, data=payload)
-        response = response.json()
-        
-        try:
-            for x in response['data']:
-                
-                if x['route'] == None:
+    for id_transportadora in mirador_transp_list:
 
-                    for reg in range(len(x['shipping'])):
+        while indicador == True: 
 
-                        if x['shipping'][reg]['main'] == True:
+            url0 = Variable.get('CAPACITY_JANIS_GET')
+            
+            url = url0.format(id_transportadora, str(contador), shipping_date) #status: ready for shipping
+            
+            payload={}
+            response = requests.request("GET", url, headers=headers, data=payload)
+            response = response.json()
+            
+            try:
+                for x in response['data']:
+                    
+                    if x['route'] == None:
 
-                            #print(x['shipping'][reg]['main'])
-                            id_orden = x['id']
-                            lat = x['shipping'][reg]['address']['lat']
-                            lng = x['shipping'][reg]['address']['lng']
-                            lista_ordenes.append([id_transportadora, id_orden, lat, lng])
+                        for reg in range(len(x['shipping'])):
 
-                        else:
-                            pass
+                            if x['shipping'][reg]['main'] == True:
+
+                                #print(x['shipping'][reg]['main'])
+                                id_orden = x['id']
+                                lat = x['shipping'][reg]['address']['lat']
+                                lng = x['shipping'][reg]['address']['lng']
+                                lista_ordenes.append([id_orden, lat, lng, id_transportadora])
+
+                            else:
+                                pass
+                    else:
+                        lista_error_ruta.append(x['id'])
+                        pass
+
+                if response['data'] == list():
+                    indicador = False
                 else:
-                    lista_error_ruta.append(x['id'])
-                    pass
+                    indicador = True
+                
+                contador = contador + 1
+                
+                #x = json.dumps(x, indent=4)
+                #print(x)
 
-            if response['data'] == list():
-                indicador = False
-            else:
-                indicador = True
-            
-            contador = contador + 1
-            
-            
-            #x = json.dumps(x, indent=4)
-            #print(x)
+            # import pickle
+            # with open('saved_dictionary.', 'wb') as f:
+                #    pickle.dump(x, f)
 
-        # import pickle
-        # with open('saved_dictionary.', 'wb') as f:
-            #    pickle.dump(x, f)
+            except Exception as e:
+                print(f'Error: {e}')
+                return False
 
-        except Exception as e:
-            print(f'Error: {e}')
-            return False
+        df2 = pd.concat([df2, pd.DataFrame(lista_ordenes, columns=['orden','lat','lng','transportadora'])], ignore_index=True)
 
-    df2 = pd.DataFrame(lista_ordenes, columns=['transportadora','Orden','lat','lng'])
+    df2 = df2.drop_duplicates(subset=['orden'])
 
     print(f'Etapa 1. Input Janis: Se extrajeron {len(df2)} ordenes')
 
-    if len(df2) > (capacidad * numero_camiones):
-        print('La Capacidad maxima de la transportadora ha sido excedida. Se generara un error en el proceso')
-    else:
-        print('La Capacidad maxima de la transportadora esta de acuardo a los parametros de entrada del proceso.')
-
     buffer = StringIO()
     
-
     for row in df2.itertuples():
         if (pd.isnull(row.lat) or row.lat == '') or (pd.isnull(row.lat) or row.lng == ''):
         #if (row.lat is None or row.lat == '') or (row.lat is None or row.lng == '') == True:
-            lista_error_nulo.append(row.Orden)
+            lista_error_nulo.append(row.orden)
 
     total_lista_error = lista_error_ruta + lista_error_nulo
 
@@ -139,23 +138,23 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
         print(f'Las ordenes que NO se ejecutaron, fueron: {total_lista_error}')
 
-        df2_error = df2[df2['Orden'].isin(total_lista_error)]
+        df2_error = df2[df2['orden'].isin(total_lista_error)]
         df2_error.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
 
         prefix = "ecommops/capacity/rutas/" + fecha_hoy + '/'
-        name = 'Etapa_1_' + id_transportadora + '_ERRORS' + '.csv'
+        name = 'Etapa_1_' + mirador_transp_list_raw + '_ERRORS' + '.csv'
         file_name = prefix+name
 
         s3_client = boto3.client("s3", aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name = "us-east-1")
         response = s3_client.put_object(Bucket=aws_bucket_name, Key=file_name, Body=buffer.getvalue())
-        df2 = df2[~df2['Orden'].isin(total_lista_error)]
+        df2 = df2[~df2['orden'].isin(total_lista_error)]
     
     df2.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
     prefix = "ecommops/capacity/rutas/" + fecha_hoy + '/'
-    name = 'Etapa_1_' + id_transportadora + '.csv'
+    name = 'Etapa_1_' + mirador_transp_list_raw + '.csv'
     file_name = prefix+name
 
     s3_client = boto3.client("s3", aws_access_key_id=aws_access_key, aws_secret_access_key=aws_secret_key, region_name = "us-east-1")

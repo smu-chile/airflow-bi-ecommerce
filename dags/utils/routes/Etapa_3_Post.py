@@ -6,7 +6,7 @@ from airflow.models import Variable
 import pytz
 import random
 import boto3
-import pymongo
+#import pymongo
 import time
 
 
@@ -50,11 +50,11 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
         for x in list(df['RutaID'].unique()):
             
             df_json = {}
-            df_json['refId'] = id_transportadora + (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
+            df_json['refId'] = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
             df_json['vehicleId'] = dicc_vehiculo
             df_json['initialCash'] = 0
-            lista_ordenes_ruta = [int(x) for x in df.loc[df['RutaID'] == x]['Orden'].values]
-            df_json['orders'] = [{'orderId': int(x)} for x in df.loc[df['RutaID'] == x]['Orden'].values]
+            lista_ordenes_ruta = [int(x) for x in df.loc[df['RutaID'] == x]['orden'].values]
+            df_json['orders'] = [{'orderId': int(x)} for x in df.loc[df['RutaID'] == x]['orden'].values]
             df_json['deliveryAssistantsEmployeeIds'] = [dicc_choferes] 
             df_json['driversEmployeeIds'] = [dicc_choferes] 
             df_json['logisticCompanyId'] = 5 #Traer
@@ -106,10 +106,11 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
         respuesta_response['ruta'] = int(x)
         respuesta_response['refId'] = id_transportadora + (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime("%Y%m%d%H%M%S")
 
-        mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+cluster_name+".lppxi.mongodb.net/"+db+"?retryWrites=true&w=majority&authSource=admin")
-        mongo_collection = mongo_client[db]["routes"]
-        #mongo_metadata = mongo_client.get_colletion("routes")
-        mongo_collection.insert_one(respuesta_response)
+        # mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+cluster_name+".lppxi.mongodb.net/"+db+"?retryWrites=true&w=majority&authSource=admin")
+        # mongo_collection = mongo_client[db]["routes"]
+        # #mongo_metadata = mongo_client.get_colletion("routes")
+        # mongo_collection.insert_one(respuesta_response)
+        print(respuesta_response)
 
     except Exception as e:
         digit = 0
