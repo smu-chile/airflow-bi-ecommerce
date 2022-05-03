@@ -255,9 +255,11 @@ def _interactions_incremental_load(ti):
     charges_object = s3_hook.get_key(charges_file, bucket_name=s3_bucket)
     refunds_object = s3_hook.get_key(refunds_file, bucket_name=s3_bucket)
 
-    id_cobros = charges_object.get()["Body"].read().decode('utf-8')[1:-1].split(",")
+    id_cobros_string = charges_object.get()["Body"].read().decode('utf-8')[1:-1]
+    id_cobros = id_cobros_string.split(",") if id_cobros_string != "" else []
     id_cobros = [id.replace("'", "").strip() for id in id_cobros]
-    id_refunds = refunds_object.get()["Body"].read().decode('utf-8')[1:-1].split(",")
+    id_refunds_string = refunds_object.get()["Body"].read().decode('utf-8')[1:-1]
+    id_refunds = id_refunds_string.split(",") if id_refunds_string != "" else []
     id_refunds = [id.replace("'", "").strip() for id in id_refunds]
 
     new_documents = []
