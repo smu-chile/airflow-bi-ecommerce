@@ -18,7 +18,7 @@ def inyeccion(janis_api_secret, janis_api_client, janis_api_key, aws_access_key,
     fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
 
     #parametros
-    id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA")
+    id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA_2")
 
     dicc_vehiculo = int(Variable.get('CAPACITY_DICC_CAMION'))
     #27
