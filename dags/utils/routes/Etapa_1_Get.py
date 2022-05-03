@@ -56,10 +56,6 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     shipping_date = str(fecha_mañana) + 'T00:01:00-03:00'
 
     lista_ordenes = []
-
-    indicador = True
-    contador = 1
-
     lista_error_nulo = []
     lista_error_ruta = []
 
@@ -67,11 +63,17 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
     for id_transportadora in mirador_transp_list:
 
+        indicador = True
+        contador = 1
+        lista_temp = []
+
         while indicador == True: 
 
             url0 = Variable.get('CAPACITY_JANIS_GET')
             
             url = url0.format(id_transportadora, str(contador), shipping_date) #status: ready for shipping
+
+            print(url)
             
             payload={}
             response = requests.request("GET", url, headers=headers, data=payload)
@@ -91,6 +93,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
                                 lat = x['shipping'][reg]['address']['lat']
                                 lng = x['shipping'][reg]['address']['lng']
                                 lista_ordenes.append([id_orden, lat, lng, id_transportadora])
+                                lista_temp.append([id_orden, lat, lng, id_transportadora])
 
                             else:
                                 pass
@@ -103,6 +106,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
                 else:
                     indicador = True
                 
+                print(f'Se extrageron: {len(lista_temp)} ordenes, Transportadora: {id_transportadora}, Page: {contador}')
                 contador = contador + 1
                 
                 #x = json.dumps(x, indent=4)
@@ -121,6 +125,9 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
     df2 = df2.drop_duplicates(subset=['orden'])
 
     print(f'Etapa 1. Input Janis: Se extrajeron {len(df2)} ordenes')
+
+    if len(df2) == 0:
+        return False
 
     buffer = StringIO()
     
