@@ -46,7 +46,7 @@ def janis_query(janis_api_secret, janis_api_client, janis_api_key, aws_access_ke
 
     #parametros
 
-    id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA")
+    id_transportadora = Variable.get("CAPACITY_ID_TRANSPORTADORA_2")
     #fecha_mañana = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=1)).strftime('%Y-%m-%d')
     fecha_hoy = (datetime.now(pytz.timezone('Chile/Continental')) + timedelta(days=0)).strftime('%Y-%m-%d')
     lista_estados = ['picking_pending','picking','picked','invoiced','ready_for_shipping']
