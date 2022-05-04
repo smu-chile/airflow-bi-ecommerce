@@ -2,12 +2,42 @@ from airflow import DAG
 from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_alvi_utils import load_custom_query_to_s3
 
 from datetime import datetime
+
+def _check_empty_table(ti):
+    import pandas as pd
+    import sqlalchemy
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    query_count_weighables = """
+        SELECT count(1) as count
+        FROM ecommdata_alvi.orden_producto_pesables;
+    """
+    df = pd.read_sql(query_count_weighables, engine)
+    count = df["count"][0]
+
+    print(f"Number of records found: {count}")
+
+    if count == 0:
+        print("Empty table. Starting full load process...")
+        ti.xcom_push(key="load_path", value="load_full_table")
+        return "load_full_table"
+    else:
+        print("Table is not empty. Starting incremental load process...")
+        ti.xcom_push(key="load_path", value="get_order_item_promotions_from_janis")
+        return "wait_for_orders_s3_file"
 
 def _get_new_orders_from_s3(ts):
     import pandas as pd
@@ -63,7 +93,6 @@ def _delete_records_to_update(ts):
     return
 
 def _order_items_table_incremental_load(ts, ti):
-    import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
@@ -186,7 +215,7 @@ default_args = {
 with DAG(
     'etl_orden_productos_alvi_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla orden_productos desde Janis Replica hasta Workspace.",
+    description="Extracción y carga de tabla orden_productos desde Janis Alvi Replica hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
@@ -197,7 +226,28 @@ with DAG(
     Extracción y carga de tabla de orden_productos de Janis Alvi a Workspace. \n
     UPSERT incremental basado registros creados por el etl de la tabla ordenes.
     """ 
-    t0 = S3KeySensor(
+    t0 = BranchPythonOperator(
+        task_id = "check_empty_table",
+        python_callable = _check_empty_table
+    )
+
+    t1 = PythonOperator(
+        task_id = "load_full_table",
+        python_callable = load_custom_query_to_s3,
+        op_kwargs = {
+            "query": """
+                SELECT woiw.*, woi.ref_id
+                FROM janis_alvicl.wms_orders AS wo
+                INNER JOIN janis_alvicl.wms_order_items woi
+                ON woi.order_id = wo.id
+                INNER JOIN janis_alvicl.wms_order_item_weighables AS woiw
+                ON woi.id = woiw.order_item
+            """,
+            "query_name": "wms_order_item_weighables",
+        }
+    )
+
+    t2 = S3KeySensor(
         task_id = "wait_for_orders_s3_file",
         bucket_key = "janis/replica_alvi/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
@@ -205,19 +255,20 @@ with DAG(
         timeout = 1800
     )
 
-    t1 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "get_order_items_from_janis",
         python_callable = _get_order_items_from_janis
     )
 
-    t2 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "delete_records_to_update",
         python_callable = _delete_records_to_update
     )
 
-    t3 = PythonOperator(
+    t5 = PythonOperator(
         task_id = "orden_productos_incremental_load",
         python_callable = _order_items_table_incremental_load
     )
 
-    t0 >> t1 >> t2 >> t3
+    t0 >> t1 >> t5
+    t0 >> t2 >> t3 >> t4 >> t5
