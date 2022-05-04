@@ -23,7 +23,7 @@ def _check_empty_table(ti):
 
     query_count_weighables = """
         SELECT count(1) as count
-        FROM ecommdata_alvi.orden_producto_pesables;
+        FROM ecommdata_alvi.orden_productos;
     """
     df = pd.read_sql(query_count_weighables, engine)
     count = df["count"][0]
