@@ -236,14 +236,12 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT woiw.*, woi.ref_id
+                SELECT woi.*
                 FROM janis_alvicl.wms_orders AS wo
                 INNER JOIN janis_alvicl.wms_order_items woi
                 ON woi.order_id = wo.id
-                INNER JOIN janis_alvicl.wms_order_item_weighables AS woiw
-                ON woi.id = woiw.order_item
             """,
-            "query_name": "wms_order_item_weighables",
+            "query_name": "wms_order_item",
         }
     )
 
