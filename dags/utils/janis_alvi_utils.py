@@ -37,7 +37,7 @@ def load_full_table_to_s3(table_name, where=None):
     prefix = BASE_S3_PATH+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
     file_name = prefix+table_name+".csv"
 
-    query = f"SELECT * FROM janis_jackie.{table_name} "
+    query = f"SELECT * FROM janis_alvicl.{table_name} "
     if where is not None:
         query = query + f"WHERE {where} ;"
 
@@ -117,7 +117,7 @@ def incremental_load_table_s3(ti,
         prefix = prefix+extra_prefix+"_"
     file_name = prefix+table_name+".csv"
 
-    sql_str = f"SELECT * FROM janis_jackie.{table_name} WHERE "
+    sql_str = f"SELECT * FROM janis_alvicl.{table_name} WHERE "
     date_query_strings = []
     if created_column is not None:
         created_date = ti.xcom_pull(key="return_value", task_ids=[xcom_created_date_task_id])[0]
@@ -193,7 +193,7 @@ def incremental_unixtime_load_table_s3(ti,
         prefix = prefix+extra_prefix+"_"
     file_name = prefix+table_name+".csv"
 
-    sql_str = f"SELECT * FROM janis_jackie.{table_name} WHERE "
+    sql_str = f"SELECT * FROM janis_alvicl.{table_name} WHERE "
     date_query_strings = []
     if created_column is not None:
         created_date = ti.xcom_pull(key="return_value", task_ids=[xcom_created_date_task_id])[0]
