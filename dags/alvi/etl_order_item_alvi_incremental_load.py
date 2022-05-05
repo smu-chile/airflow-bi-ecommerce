@@ -364,7 +364,7 @@ with DAG(
         op_kwargs = {"truncate": True, "xcom_name": "load_full_table"},
         retries = 2,
         retry_delay = timedelta(minutes=1)
-    }
+    )
 
     t3 = S3KeySensor(
         task_id = "wait_for_orders_s3_file",
