@@ -310,7 +310,7 @@ def _create_initial_order_items_table(ti, xcom_name, truncate=True):
     # Save to PostgreSQL:
     df.to_sql(name="orden_productos",
                 con=engine,         
-                schema="ecommdata",         
+                schema="ecommdata_alvi",         
                 if_exists='append',         
                 index=False,         
                 chunksize=20000,         
