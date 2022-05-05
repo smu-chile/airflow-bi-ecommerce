@@ -67,7 +67,7 @@ def _order_item_promotions_table_incremental_load(ts, ti):
         "order_item", 
         "name", 
         "quantity", 
-        "value" 
+        "value"
     ]]  
 
     # # Ensure correct datatypes:

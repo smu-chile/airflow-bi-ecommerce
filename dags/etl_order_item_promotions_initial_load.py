@@ -30,7 +30,7 @@ def _create_initial_order_item_promotions_table(ti):
         "order_item", 
         "name", 
         "quantity", 
-        "value" 
+        "value"
     ]]  
 
     # # Ensure correct datatypes:
@@ -95,7 +95,8 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga inicial de tabla de orden_producto_promociones de Janis.
+    Extracción y carga inicial de tabla de orden_producto_promociones de Janis. \n
+    Este proceso realiza un TRUNCATE antes de realizar la nueva carga inicial.
     """ 
 
     t0 = PythonOperator(
