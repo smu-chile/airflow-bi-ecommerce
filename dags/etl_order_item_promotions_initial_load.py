@@ -30,8 +30,7 @@ def _create_initial_order_item_promotions_table(ti):
         "order_item", 
         "name", 
         "quantity", 
-        "value",
-        "flags"
+        "value"
     ]]  
 
     # # Ensure correct datatypes:
@@ -40,14 +39,12 @@ def _create_initial_order_item_promotions_table(ti):
     df["name"] = df["name"].astype("str", errors="ignore")
     df["quantity"] = df["quantity"].astype("int", errors="ignore")
     df["value"] = df["value"].astype("float", errors="ignore")
-    df["flags"] = df["flags"].astype("int", errors="ignore")
 
     columns_rename = {
         "order_item": "orden_producto",
         "name": "nombre",
         "quantity": "cantidad",
-        "value": "valor",
-        "flags": "flag"
+        "value": "valor"
     }
 
     df = df.rename(columns=columns_rename)

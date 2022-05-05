@@ -67,8 +67,7 @@ def _order_item_promotions_table_incremental_load(ts, ti):
         "order_item", 
         "name", 
         "quantity", 
-        "value",
-        "flags" 
+        "value"
     ]]  
 
     # # Ensure correct datatypes:
@@ -77,19 +76,17 @@ def _order_item_promotions_table_incremental_load(ts, ti):
     df["name"] = df["name"].astype("str", errors="ignore")
     df["quantity"] = df["quantity"].astype("int", errors="ignore")
     df["value"] = df["value"].astype("float", errors="ignore")
-    df["flags"] = df["flags"].astype("int", errors="ignore")
 
     columns_rename = {
         "order_item": "orden_producto",
         "name": "nombre",
         "quantity": "cantidad",
-        "value": "valor",
-        "flags": "flag"
+        "value": "valor"
     }
 
     df = df.rename(columns=columns_rename)
 
-    columns = ["orden_producto", "nombre", "cantidad", "valor", "flag"]
+    columns = ["orden_producto", "nombre", "cantidad", "valor"]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
