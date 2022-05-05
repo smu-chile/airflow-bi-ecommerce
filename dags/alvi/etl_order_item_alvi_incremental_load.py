@@ -265,7 +265,8 @@ with DAG(
 
     t5 = PythonOperator(
         task_id = "orden_productos_incremental_load",
-        python_callable = _order_items_table_incremental_load
+        python_callable = _order_items_table_incremental_load,
+        trigger_rule = "none_failed"
     )
 
     t0 >> t1 >> t5
