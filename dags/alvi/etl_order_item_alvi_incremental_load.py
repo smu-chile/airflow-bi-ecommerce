@@ -36,7 +36,7 @@ def _check_empty_table(ti):
         return "load_full_table"
     else:
         print("Table is not empty. Starting incremental load process...")
-        ti.xcom_push(key="load_path", value="get_order_item_promotions_from_janis")
+        ti.xcom_push(key="load_path", value="get_order_items_from_janis")
         return "wait_for_orders_s3_file"
 
 def _get_new_orders_from_s3(ts):
@@ -101,7 +101,8 @@ def _order_items_table_incremental_load(ts, ti):
     df_orders = df_orders[["id", "seq_id"]]
     df_orders = df_orders.rename(columns={"id": "original_id"})
 
-    order_items_file = ti.xcom_pull(key="return_value", task_ids=["get_order_items_from_janis"])[0]
+    xcom_input_task = ti.xcom_pull(key="load_path", task_ids=["check_empty_table"])[0]
+    order_items_file = ti.xcom_pull(key="return_value", task_ids=[xcom_input_task])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
