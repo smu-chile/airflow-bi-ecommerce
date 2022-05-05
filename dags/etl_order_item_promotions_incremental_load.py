@@ -162,7 +162,8 @@ with DAG(
 
     t2 = PythonOperator(
         task_id = "orden_producto_promociones_incremental_load",
-        python_callable = _order_item_promotions_table_incremental_load
+        python_callable = _order_item_promotions_table_incremental_load,
+        trigger_rule = "none_failed"
     )
 
     t0 >> t1 >> t2
