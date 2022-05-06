@@ -303,7 +303,7 @@ def _create_initial_order_items_table(ti, xcom_name, truncate=True):
 
     if truncate:
         connection = engine.connect()
-        truncate_query = "TRUNCATE TABLE ecommdata.orden_productos"
+        truncate_query = "TRUNCATE TABLE ecommdata_alvi.orden_productos"
         connection.execute(text(truncate_query))
         connection.close()
 
