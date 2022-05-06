@@ -128,7 +128,7 @@ def _order_items_table_incremental_load(ts, ti):
     df["substitute_type"] = df["substitute_type"].astype("int", errors="ignore")
     df["brand"] = df["brand"].astype("int", errors="ignore")
     df["category"] = df["category"].astype("int", errors="ignore")
-    df["unit_multiplier"] = df["unit_multiplier"].astype("int", errors="ignore")
+    df["unit_multiplier"] = df["unit_multiplier"].astype("float", errors="ignore")
 
     columns_rename = {
         "seq_id": "id_orden",
