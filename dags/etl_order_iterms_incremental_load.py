@@ -137,7 +137,7 @@ def _order_items_table_incremental_load(ts, ti):
 		"sku": "sku_vtex_id",
 		"product": "producto_vtex_id",
 		"picker": "id_picker",
-		"name": "descipcion",
+		"name": "descripcion",
 		"list_price": "precio_lista",
 		"price": "precio",
 		"selling_price": "precio_venta",
