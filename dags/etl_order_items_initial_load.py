@@ -76,7 +76,7 @@ def _create_initial_order_items_table(ti, xcom_name, truncate=True):
 		"sku": "sku_vtex_id",
 		"product": "producto_vtex_id",
 		"picker": "id_picker",
-		"name": "descipcion",
+		"name": "descripcion",
 		"list_price": "precio_lista",
 		"price": "precio",
 		"selling_price": "precio_venta",
