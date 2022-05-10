@@ -37,7 +37,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql="""
         DELETE from operaciones_unimarc.found_rate
-        WHERE fecha_facturacion <= to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') - interval '5 days'
+        WHERE fecha_facturacion <= to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') - interval '24 months'
         """,
     )
 
