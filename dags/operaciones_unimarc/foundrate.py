@@ -17,7 +17,7 @@ with DAG(
     'foundrate',
     default_args=default_args,
     description="Carga de tabla foundrate",
-    schedule_interval="30 * * * *",
+    schedule_interval="35 * * * *",
     start_date=datetime(2022, 5, 9),
     catchup=True,
     tags=["DATA", "foundrate", "operaciones_unimarc"],
