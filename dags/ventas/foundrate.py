@@ -17,8 +17,8 @@ with DAG(
     'foundrate',
     default_args=default_args,
     description="Carga de tabla foundrate",
-    schedule_interval="0 5 * * *",
-    start_date=datetime(2022, 5, 1),
+    schedule_interval="30 * * * *",
+    start_date=datetime(2022, 5, 9),
     catchup=True,
     tags=["DATA", "foundrate", "operaciones_unimarc"],
 ) as dag:
@@ -37,7 +37,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql="""
         DELETE from operaciones_unimarc.found_rate
-        WHERE fecha_facturacion <= select to_date('{{execution_date.strftime('%Y-%m-%d'}}', '%YYYY-%mm-%dd') - interval '5 days'
+        WHERE fecha_facturacion <= to_date('{{execution_date.strftime('%Y-%m-%d'}}', '%YYYY-%mm-%dd') - interval '5 days'
         """,
     )
 
