@@ -84,7 +84,7 @@ select 	distinct oj.id			as orden
 	        		ON op.id = pesables.id_orden_producto
     left join ecommdata.productos p
         ON p.ref_id = op.ref_id
-    where oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') + interval '1 days' 
+    where oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
 --	and oj.id = 1589798
 	  ) a
 left join ecommdata.administradores admins on a.id_picker = admins.id
