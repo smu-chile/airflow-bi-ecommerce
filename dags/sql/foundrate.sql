@@ -84,11 +84,13 @@ select 	distinct oj.id			as orden
 	        		ON op.id = pesables.id_orden_producto
     left join ecommdata.productos p
         ON p.ref_id = op.ref_id
-    where oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = '{{execution_date.strftime('%Y-%m-%d'}}' 
+    where oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = to_date('{{execution_date.strftime('%Y-%m-%d'}}', '%YYYY-%mm-%dd') + interval '1 days' 
 --	and oj.id = 1589798
 	  ) a
 left join ecommdata.administradores admins on a.id_picker = admins.id
 left join ecommdata.ff_perfiles fp ON admins.perfil = fp.id
 left join ecommdata.categorias c on a.id_categoria = c.id
-left join ecommdata.tiendas t on a.id_tienda = t.id_janis 
+left join ecommdata.tiendas t on a.id_tienda = t.id_janis
+on conflict on constraint found_rate_pk
+do nothing
 --where producto_substituto = false
