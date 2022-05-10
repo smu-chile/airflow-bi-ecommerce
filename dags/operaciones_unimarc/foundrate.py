@@ -29,7 +29,7 @@ with DAG(
     t0 = PostgresOperator(
         task_id = "load_table_foundrate",
         postgres_conn_id="postgresql_conn",
-        sql="dags/sql/foundrate.sql",
+        sql="sql/foundrate.sql",
     )
 
     t1 = PostgresOperator(
