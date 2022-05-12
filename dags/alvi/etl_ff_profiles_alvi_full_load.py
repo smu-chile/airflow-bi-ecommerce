@@ -59,7 +59,7 @@ def _generate_ff_profiles_table(ti):
         "creado_por": "int",
         "modificado_por": "int",
         "estado": "int"
-    })
+    },errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
