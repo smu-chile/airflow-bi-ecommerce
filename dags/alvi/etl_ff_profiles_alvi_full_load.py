@@ -105,7 +105,7 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla ff_perfiles desde Janis Replica hasta Workspace.
+    Extracción y carga de tabla ff_perfiles desde Janis Alvi Replica hasta Workspace.
     """ 
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
@@ -114,7 +114,7 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "load_calendar_table_to_postgres",
+        task_id = "load_ff_profiles_table_to_postgres",
         python_callable = _generate_ff_profiles_table
     )
 
