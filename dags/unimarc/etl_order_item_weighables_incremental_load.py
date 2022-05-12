@@ -36,7 +36,7 @@ def _check_empty_table(ti):
         return "load_full_table"
     else:
         print("Table is not empty. Starting incremental load process...")
-        ti.xcom_push(key="load_path", value="get_order_item_promotions_from_janis")
+        ti.xcom_push(key="load_path", value="get_order_item_weighables_from_janis")
         return "wait_for_orders_s3_file"
 
 def _get_new_orders_from_s3(ts):
