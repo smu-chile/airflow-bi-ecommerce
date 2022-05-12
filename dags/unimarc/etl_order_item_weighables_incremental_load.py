@@ -164,9 +164,7 @@ def _order_item_weighables_table_incremental_load(ts, ti):
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata.orden_producto_pesables (id,"""+columns_query+""") 
-        VALUES ("""+values_query+""")
-        ON CONFLICT (id)
-        DO NOTHING;
+        VALUES ("""+values_query+""");
     """
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
