@@ -68,7 +68,7 @@ def _delete_order_item_weighables_from_postgres(ts):
         WHERE opp.id_orden IN {query_order_ids} 
     """
     print(query)
-    print("Deleting rows...")
+    print("Deleting old rows...")
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -76,7 +76,7 @@ def _delete_order_item_weighables_from_postgres(ts):
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Row deleted.")
+    print("Data deleted.")
     return
 
 def _get_order_item_weighables_from_janis(ts):
