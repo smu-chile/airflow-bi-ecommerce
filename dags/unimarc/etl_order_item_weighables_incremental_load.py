@@ -5,7 +5,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import load_custom_query_to_s3, load_full_table_to_s3
+from utils.janis_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
@@ -36,7 +36,7 @@ def _check_empty_table(ti):
         return "load_full_table"
     else:
         print("Table is not empty. Starting incremental load process...")
-        ti.xcom_push(key="load_path", value="get_order_item_promotions_from_janis")
+        ti.xcom_push(key="load_path", value="get_order_item_weighables_from_janis")
         return "wait_for_orders_s3_file"
 
 def _get_new_orders_from_s3(ts):
@@ -57,6 +57,27 @@ def _get_new_orders_from_s3(ts):
     print(f"Number of records found: {len(df.index)}")
 
     return df
+
+def _delete_order_item_weighables_from_postgres(ts):
+    # Search based on wms_orders.id
+    df = _get_new_orders_from_s3(ts)
+    order_ids = df["id"].tolist()
+    query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
+    query = f"""
+        DELETE FROM ecommdata.orden_producto_pesables AS opp
+        WHERE opp.id_orden IN {query_order_ids} 
+    """
+    print(query)
+    print("Deleting old rows...")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data deleted.")
+    return
 
 def _get_order_item_weighables_from_janis(ts):
     # Search based on wms_orders.id
@@ -143,9 +164,7 @@ def _order_item_weighables_table_incremental_load(ts, ti):
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata.orden_producto_pesables (id,"""+columns_query+""") 
-        VALUES ("""+values_query+""")
-        ON CONFLICT (id)
-        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+        VALUES ("""+values_query+""");
     """
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -169,16 +188,16 @@ default_args = {
 with DAG(
     'etl_orden_producto_pesables_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla orden_producto_pesables desde Janis Replica hasta Workspace.",
+    description="Extracción y carga de tabla orden_producto_pesables desde Janis Replica Unimarc hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata", "orden_producto_pesables"],
+    tags=["DATA", "Janis", "ecommdata", "orden_producto_pesables", "Unimarc"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de orden_producto_pesables de Janis a Workspace. \n
+    Extracción y carga de tabla de orden_producto_pesables de Janis Unimarc a Workspace. \n
     UPSERT incremental basado registros creados por el etl de la tabla ordenes.
     """ 
     t0 = BranchPythonOperator(
@@ -211,16 +230,21 @@ with DAG(
     )
 
     t3 = PythonOperator(
-        task_id = "get_order_item_promotions_from_janis",
+        task_id = "get_order_item_weighables_from_janis",
         python_callable = _get_order_item_weighables_from_janis
     )
 
     t4 = PythonOperator(
-        task_id = "orden_producto_promociones_incremental_load",
+        task_id = "orden_producto_pesables_incremental_load",
         python_callable = _order_item_weighables_table_incremental_load,
         trigger_rule = "none_failed"
     )
 
+    t5 = PythonOperator(
+        task_id = "delete_order_item_weighables_to_overwrite",
+        python_callable = _delete_order_item_weighables_from_postgres
+    )
+
     t0 >> t1
-    t0 >> t2 >> t3 >> t4
+    t0 >> t2 >> [t5, t3] >> t4
     t1 >> t4
