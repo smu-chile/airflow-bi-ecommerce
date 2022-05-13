@@ -59,7 +59,7 @@ select 	distinct oj.id			as orden
 	        else -1
 	       END as unidades_solicitadas
 	    , CASE
-	        when op.unidad_de_medida = 'un' then op.unidades_pickeadas 
+	        when op.unidad_de_medida = 'un' then coalesce(op.unidades_pickeadas, 0) 
 	        when op.unidad_de_medida = 'kg' then round(coalesce((pesables.peso_pickeado / 1000.0)::numeric, 0), 4)
 	        else -1
 	       END as unidades_pickeadas
