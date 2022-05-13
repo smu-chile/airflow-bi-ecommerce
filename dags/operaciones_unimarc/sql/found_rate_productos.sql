@@ -1,4 +1,4 @@
-insert into operaciones_unimarc.found_rate
+insert into operaciones_unimarc.found_rate_productos
 select 
 orden
 , fecha_facturacion 
