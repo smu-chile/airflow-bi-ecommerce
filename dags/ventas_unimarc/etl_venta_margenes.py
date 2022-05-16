@@ -34,7 +34,7 @@ with DAG(
     t1 = PostgresOperator(
         task_id = "load_table_ventas",
         postgres_conn_id="postgresql_conn",
-        sql="sql/ventas_margenes.sql",
+        sql="sql/ventas.sql",
     )
 
     t2 = PostgresOperator(
