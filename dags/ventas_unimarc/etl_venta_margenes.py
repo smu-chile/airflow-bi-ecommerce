@@ -13,7 +13,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_ventas_unimarc',
+    'etl_ventas_unimarc_incremental_load',
     default_args=default_args,
     description="Carga de tabla found_rate_productos",
     schedule_interval="0 10 * * *",
@@ -28,7 +28,7 @@ with DAG(
     t0 = PostgresOperator(
         task_id = "load_table_ventas_staging",
         postgres_conn_id="postgresql_conn",
-        sql="sql/ventas_margenes_staging.sql",
+        sql="sql/ventas_staging.sql",
     )
 
     t1 = PostgresOperator(
