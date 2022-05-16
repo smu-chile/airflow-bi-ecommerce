@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 
@@ -59,11 +60,23 @@ def process_categories_table(ti):
         default=df["status1"]
     )
 
+    df["ref_id"] = np.select(
+        [
+            df["id3"].notnull(),
+            df["id2"].notnull()
+        ],
+        [
+            df["ref_id3"],
+            df["ref_id2"]
+        ],
+        default=df["ref_id1"]
+    )
+
     df["status"] = np.where(df["status_code"].isin([0, 8]), "inactivo", "activo")
-    df = df[["id", "name1", "name2", "name3", "status"]]
+    df = df[["id", "ref_id", "name1", "name2", "name3", "status"]]
     df = df.rename(columns={"name1": "n1", "name2": "n2", "name3": "n3"})
 
-    columns = ["n1", "n2", "n3", "status"]
+    columns = ["ref_id", "n1", "n2", "n3", "status"]
 
     columns_query = ",".join(columns)
     values_query = "%s,"+",".join(["%s" for column in columns])
@@ -121,15 +134,24 @@ with DAG(
     dag.doc_md = """
     Extracción y carga de tabla de categories de Janis.
     """ 
+    
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
         op_kwargs = {"table_name": "categories"}
     )
 
-    t1 = PythonOperator(
+    t1 = PostgresOperator(
+        task_id = "truncate_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        truncate ecommdata.categorias
+        """,
+    )
+
+    t2 = PythonOperator(
         task_id = "process_categories_table",
         python_callable = process_categories_table
     )
 
-    t0 >> t1
+    t0 >> t1 >> t2
