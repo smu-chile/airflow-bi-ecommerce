@@ -37,4 +37,10 @@ with DAG(
         sql="sql/ventas_margenes.sql",
     )
 
-    t0 >> t1
+    t2 = PostgresOperator(
+        task_id = "delete_ventas_staging_data",
+        postgres_conn_id="postgresql_conn",
+        sql="truncate ventas_unimarc.ventas_staging;",
+    )
+
+    t0 >> t1 >> t2
