@@ -59,11 +59,23 @@ def process_categories_table(ti):
         default=df["status1"]
     )
 
+    df["ref_id"] = np.select(
+        [
+            df["id3"].notnull(),
+            df["id2"].notnull()
+        ],
+        [
+            df["ref_id3"],
+            df["ref_id2"]
+        ],
+        default=df["ref_id1"]
+    )
+
     df["status"] = np.where(df["status_code"].isin([0, 8]), "inactivo", "activo")
-    df = df[["id", "name1", "name2", "name3", "status"]]
+    df = df[["id", "ref_id", "name1", "name2", "name3", "status"]]
     df = df.rename(columns={"name1": "n1", "name2": "n2", "name3": "n3"})
 
-    columns = ["n1", "n2", "n3", "status"]
+    columns = ["ref_id", "n1", "n2", "n3", "status"]
 
     columns_query = ",".join(columns)
     values_query = "%s,"+",".join(["%s" for column in columns])
