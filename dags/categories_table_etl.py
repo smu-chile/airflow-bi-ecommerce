@@ -134,18 +134,18 @@ with DAG(
     Extracción y carga de tabla de categories de Janis.
     """ 
     
-    t0 = PostgresOperator(
+    t0 = PythonOperator(
+        task_id = "load_full_table_to_s3",
+        python_callable = load_full_table_to_s3,
+        op_kwargs = {"table_name": "categories"}
+    )
+
+    t1 = PostgresOperator(
         task_id = "truncate_table",
         postgres_conn_id="postgresql_conn",
         sql="""
         truncate ecommdata.categorias
         """,
-    )
-
-    t1 = PythonOperator(
-        task_id = "load_full_table_to_s3",
-        python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "categories"}
     )
 
     t2 = PythonOperator(
