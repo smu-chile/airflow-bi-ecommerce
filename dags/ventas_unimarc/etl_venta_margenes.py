@@ -1,0 +1,47 @@
+from airflow import DAG
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+
+from datetime import datetime
+
+
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+with DAG(
+    'etl_ventas_unimarc_incremental_load',
+    default_args=default_args,
+    description="Carga de tabla found_rate_productos",
+    schedule_interval="0 10 * * *",
+    start_date=datetime(2022, 5, 1),
+    catchup=True,
+    max_active_runs = 1,
+    tags=["DATA", "ventas", "ventas_unimarc", "unimarc"],
+) as dag:
+
+    dag.doc_md = """
+    Carga de tabla ventas. El resultado final queda en datamart ventas_unimarc.
+    """ 
+    t0 = PostgresOperator(
+        task_id = "load_table_ventas_staging",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/ventas_staging.sql",
+    )
+
+    t1 = PostgresOperator(
+        task_id = "load_table_ventas",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/ventas.sql",
+    )
+
+    t2 = PostgresOperator(
+        task_id = "delete_ventas_staging_data",
+        postgres_conn_id="postgresql_conn",
+        sql="truncate staging.ventas_unimarc;",
+    )
+
+    t0 >> t1 >> t2
