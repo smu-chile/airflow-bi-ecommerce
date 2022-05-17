@@ -17,7 +17,7 @@ with DAG(
     default_args=default_args,
     description="Carga de tabla found_rate_productos",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 5, 1),
+    start_date=datetime(2021, 10, 1),
     catchup=True,
     max_active_runs = 1,
     tags=["DATA", "ventas", "ventas_unimarc", "unimarc"],
