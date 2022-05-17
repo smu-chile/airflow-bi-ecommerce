@@ -73,7 +73,7 @@ from (
 			and not vs.wp_promocion2
 			and wp2.tipo_financiamiento = 'SELL OUT'
 			and vs.fecha_facturacion between wp2.fecha_inicio_de_promocion and wp2.fecha_fin_de_promocion
-		where vs.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
+		where vs.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
 	) _t
 	group by _t.fecha_facturacion 
 			, _t.fecha_picking 
