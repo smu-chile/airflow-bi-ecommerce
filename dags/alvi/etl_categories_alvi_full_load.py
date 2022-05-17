@@ -9,12 +9,14 @@ from utils.janis_alvi_utils import load_full_table_to_s3
 
 from datetime import datetime
 
-import numpy as np
-import pandas as pd
-import sqlalchemy
-from sqlalchemy import text
+
 
 def process_categories_table(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+    
     file_name = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -116,7 +118,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'categories_table_etl',
+    'etl_categories_alvi_full_load',
     default_args=default_args,
     description="Extracción, transformación y carga de tabla categories desde Janis Alvi A Replica hasta Workspace.",
     schedule_interval="0 3 * * *",
@@ -149,3 +151,4 @@ with DAG(
     )
 
     t0 >> t1 >> t2
+    
