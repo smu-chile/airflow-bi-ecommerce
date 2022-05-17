@@ -1,4 +1,4 @@
-insert into ventas_unimarc.ventas_staging
+insert into staging.ventas_unimarc
 select _t.fecha_facturacion 
 		,_t.fecha_picking 
 		, _t.id

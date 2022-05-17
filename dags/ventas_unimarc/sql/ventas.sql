@@ -67,7 +67,7 @@ from (
 			, wp2.importe_negociado as importe_negociado_unitario_2 
 			, wp2.importe_negociado * vs.unidades_pickeadas_original as pxq_importe_negociado_2
 			, wp2.n_promocion 
-		from ventas_unimarc.ventas_staging vs 
+		from staging.ventas_unimarc vs 
 		left join ecommdata.workflow_promociones wp2 
 			on split_part(vs.ref_id, '-', 1) = wp2.material 
 			and not vs.wp_promocion2

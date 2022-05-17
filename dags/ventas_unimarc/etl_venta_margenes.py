@@ -19,6 +19,7 @@ with DAG(
     schedule_interval="0 10 * * *",
     start_date=datetime(2022, 5, 1),
     catchup=True,
+    max_active_runs = 1,
     tags=["DATA", "ventas", "ventas_unimarc", "unimarc"],
 ) as dag:
 
@@ -40,7 +41,7 @@ with DAG(
     t2 = PostgresOperator(
         task_id = "delete_ventas_staging_data",
         postgres_conn_id="postgresql_conn",
-        sql="truncate ventas_unimarc.ventas_staging;",
+        sql="truncate staging.ventas_unimarc;",
     )
 
     t0 >> t1 >> t2
