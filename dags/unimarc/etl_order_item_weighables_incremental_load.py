@@ -85,7 +85,7 @@ def _get_order_item_weighables_from_janis(ts):
     order_ids = df["id"].tolist()
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
-        SELECT woiw.*, woi.ref_id
+        SELECT woiw.*, woi.ref_id, wo.seq_id
         FROM janis_jackie.wms_orders AS wo
         INNER JOIN janis_jackie.wms_order_items woi
         ON woi.order_id = wo.id
@@ -116,7 +116,7 @@ def _order_item_weighables_table_incremental_load(ts, ti):
     df = pd.read_csv(order_item_weighables_object.get()["Body"])
     df = df[[
         "id",
-        "order_id",
+        "seq_id",
         "order_item",
         "ean",
         "weight",
@@ -126,14 +126,14 @@ def _order_item_weighables_table_incremental_load(ts, ti):
 
     # # Ensure correct datatypes:
     df["id"] = df["id"].astype("int")
-    df["order_id"] = df["order_id"].astype("int")
+    df["seq_id"] = df["seq_id"].astype("int")
     df["order_item"] = df["order_item"].astype("int")
     df["ean"] = df["ean"].astype("str", errors="ignore")
     df["weight"] = df["weight"].astype("int", errors="ignore")
     df["price"] = df["price"].astype("float", errors="ignore")
 
     columns_rename = {
-        "order_id": "id_orden",
+        "seq_id": "id_orden",
         "order_item": "id_orden_producto",
         "weight": "peso",
         "price": "precio"
@@ -210,7 +210,7 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT woiw.*, woi.ref_id
+                SELECT woiw.*, woi.ref_id, wo.seq_id
                 FROM janis_jackie.wms_orders AS wo
                 INNER JOIN janis_jackie.wms_order_items woi
                 ON woi.order_id = wo.id
