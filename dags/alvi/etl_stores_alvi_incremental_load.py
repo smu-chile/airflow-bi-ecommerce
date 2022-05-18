@@ -20,7 +20,7 @@ def _create_final_store_table(ti):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     dw_stores_files_s3_object = s3_hook.get_key("data_warehouse/flags/etl_stores_datawarehouse_raw_load.txt", bucket_name=s3_bucket)
-    dw_stores_files_string = dw_stores_files_s3_object.get()["Body"].read().split(',')
+    dw_stores_files_string = dw_stores_files_s3_object.get()["Body"].read().decode("utf-8").split(',')
 
     dw_stores_file_name = dw_stores_files_string[0]
     dw_hierarchy_file_name = dw_stores_files_string[1]
