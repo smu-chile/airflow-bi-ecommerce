@@ -1,4 +1,6 @@
 from airflow import DAG
+from airflow.hooks.S3_hook import S3Hook
+from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
@@ -7,6 +9,16 @@ from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
+def write_s3_file():
+    dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
+    dw_hierarchy_file_name = ti.xcom_pull(key="return_value" ,task_ids=["netezza_vm_dim_store_hierarchy_full_load_to_s3"])[0]
+    s3_string = f"{dw_stores_file_name},{dw_hierarchy_file_name}"
+    prefix = "data_warehouse/flags/"
+    filename = "etl_stores_datawarehouse_raw_load.txt"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    s3_hook.load_string(str(s3_string),prefix + filename,bucket_name=s3_bucket,replace=True)
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -45,8 +57,9 @@ with DAG(
         retry_delay = timedelta(minutes=1)
     )
 
-    td = DummyOperator(
-        task_id = "Dummy"
+    td = PythonOperator(
+        task_id = "Write_s3_file",
+        python_callable = write_s3_file
     )
 
     t2 = TriggerDagRunOperator(
@@ -60,7 +73,6 @@ with DAG(
         trigger_dag_id="etl_tiendas_alvi_incremental_load",
         wait_for_completion=False
     )
-
 
     [t0, t1] >> td >> [t2, t3]
     
