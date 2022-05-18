@@ -3,7 +3,7 @@ select
 orden
 , fecha_facturacion 
 , id_producto_orden
-, ref_id
+, a.ref_id
 , descripcion
 , c.n1 as categoria_n1
 , c.n2 as categoria_n2
