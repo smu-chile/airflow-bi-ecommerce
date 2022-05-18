@@ -9,7 +9,7 @@ from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
-def write_s3_file():
+def write_s3_file(ti):
     dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
     dw_hierarchy_file_name = ti.xcom_pull(key="return_value" ,task_ids=["netezza_vm_dim_store_hierarchy_full_load_to_s3"])[0]
     s3_string = f"{dw_stores_file_name},{dw_hierarchy_file_name}"
