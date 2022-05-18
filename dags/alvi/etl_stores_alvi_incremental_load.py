@@ -17,11 +17,14 @@ def _create_final_store_table(ti):
     import numpy as np
     import pandas as pd
 
-    dw_stores_file_name = ti.xcom_pull(key="return_value", dag_id="etl_stores_datawarehouse" ,task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
-    dw_hierarchy_file_name = ti.xcom_pull(key="return_value", dag_id="etl_stores_datawarehouse" ,task_ids=["netezza_vm_dim_store_hierarchy_full_load_to_s3"])[0]
-    janis_file_name = ti.xcom_pull(key="return_value", task_ids=["janis_stores_full_load_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    dw_stores_files_s3_object = s3_hook.get_key("data_warehouse/flags/etl_stores_datawarehouse_raw_load.txt", bucket_name=s3_bucket)
+    dw_stores_files_string = dw_stores_files_s3_object.get()["Body"].split(',')
+
+    dw_stores_file_name = dw_stores_files_string[0]
+    dw_hierarchy_file_name = dw_stores_files_string[1]
+    janis_file_name = ti.xcom_pull(key="return_value", task_ids=["janis_stores_full_load_to_s3"])[0]
 
     if not s3_hook.check_for_key(dw_stores_file_name, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % dw_stores_file_name)
