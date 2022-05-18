@@ -43,7 +43,7 @@ def _get_new_orders_from_s3(ts):
     import pandas as pd
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
+    orders_file = f"janis/replica_alvi/wms_orders/{curr_datetime}_wms_orders.csv"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -86,10 +86,10 @@ def _get_order_item_weighables_from_janis(ts):
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         SELECT woiw.*, woi.ref_id, wo.seq_id
-        FROM janis_jackie.wms_orders AS wo
-        INNER JOIN janis_jackie.wms_order_items woi
+        FROM janis_alvicl.wms_orders AS wo
+        INNER JOIN janis_alvicl.wms_order_items woi
         ON woi.order_id = wo.id
-        INNER JOIN janis_jackie.wms_order_item_weighables AS woiw
+        INNER JOIN janis_alvicl.wms_order_item_weighables AS woiw
         ON woi.id = woiw.order_item
         WHERE wo.id IN {query_order_ids} 
     """
@@ -186,7 +186,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_orden_producto_pesables_incremental_load',
+    'etl_orden_producto_pesables_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_pesables desde Janis Replica Alvi hasta Workspace.",
     schedule_interval="30 * * * *",
@@ -211,8 +211,8 @@ with DAG(
         op_kwargs = {
             "query": """
                 SELECT woiw.*, woi.ref_id, wo.seq_id
-                FROM janis_jackie.wms_orders AS wo
-                INNER JOIN janis_jackie.wms_order_items woi
+                FROM janis_alvicl.wms_orders AS wo
+                INNER JOIN janis_alvicl.wms_order_items woi
                 ON woi.order_id = wo.id
                 INNER JOIN janis_jackie.wms_order_item_weighables AS woiw
                 ON woi.id = woiw.order_item
@@ -223,7 +223,7 @@ with DAG(
 
     t2 = S3KeySensor(
         task_id = "wait_for_orders_s3_file",
-        bucket_key = "janis/replica/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
+        bucket_key = "janis/replica_alvi/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
         timeout = 1800
