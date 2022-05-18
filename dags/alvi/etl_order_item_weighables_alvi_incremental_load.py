@@ -214,7 +214,7 @@ with DAG(
                 FROM janis_alvicl.wms_orders AS wo
                 INNER JOIN janis_alvicl.wms_order_items woi
                 ON woi.order_id = wo.id
-                INNER JOIN janis_jackie.wms_order_item_weighables AS woiw
+                INNER JOIN janis_alvicl.wms_order_item_weighables AS woiw
                 ON woi.id = woiw.order_item
             """,
             "query_name": "wms_order_item_weighables",
