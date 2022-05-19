@@ -23,7 +23,7 @@ def _load_products_store_data(ti):
 
     products_store_object = s3_hook.get_key(products_store_file, bucket_name=s3_bucket)
 
-    df = pd.read_csv(products_store_object.get()["Body"])
+    df = pd.read_csv(products_store_object.get()["Body"], dtype={"ref_id": "string"})
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
