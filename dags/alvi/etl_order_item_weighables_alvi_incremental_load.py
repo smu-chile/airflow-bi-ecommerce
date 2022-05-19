@@ -5,7 +5,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import load_custom_query_to_s3
+from utils.janis_alvi_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
@@ -23,7 +23,7 @@ def _check_empty_table(ti):
 
     query_count_weighables = """
         SELECT count(1) as count
-        FROM ecommdata.orden_producto_pesables;
+        FROM ecommdata_alvi.orden_producto_pesables;
     """
     df = pd.read_sql(query_count_weighables, engine)
     count = df["count"][0]
@@ -43,7 +43,7 @@ def _get_new_orders_from_s3(ts):
     import pandas as pd
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
+    orders_file = f"janis/replica_alvi/wms_orders/{curr_datetime}_wms_orders.csv"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -64,7 +64,7 @@ def _delete_order_item_weighables_from_postgres(ts):
     order_ids = df["id"].tolist()
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
-        DELETE FROM ecommdata.orden_producto_pesables AS opp
+        DELETE FROM ecommdata_alvi.orden_producto_pesables AS opp
         WHERE opp.id_orden IN {query_order_ids} 
     """
     print(query)
@@ -86,10 +86,10 @@ def _get_order_item_weighables_from_janis(ts):
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         SELECT woiw.*, woi.ref_id, wo.seq_id
-        FROM janis_jackie.wms_orders AS wo
-        INNER JOIN janis_jackie.wms_order_items woi
+        FROM janis_alvicl.wms_orders AS wo
+        INNER JOIN janis_alvicl.wms_order_items woi
         ON woi.order_id = wo.id
-        INNER JOIN janis_jackie.wms_order_item_weighables AS woiw
+        INNER JOIN janis_alvicl.wms_order_item_weighables AS woiw
         ON woi.id = woiw.order_item
         WHERE wo.id IN {query_order_ids} 
     """
@@ -163,7 +163,7 @@ def _order_item_weighables_table_incremental_load(ts, ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.orden_producto_pesables (id,"""+columns_query+""") 
+        INSERT INTO ecommdata_alvi.orden_producto_pesables (id,"""+columns_query+""") 
         VALUES ("""+values_query+""");
     """
     print(incremental_query)
@@ -186,18 +186,18 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_orden_producto_pesables_incremental_load',
+    'etl_orden_producto_pesables_alvi_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla orden_producto_pesables desde Janis Replica Unimarc hasta Workspace.",
+    description="Extracción y carga de tabla orden_producto_pesables desde Janis Replica Alvi hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata", "orden_producto_pesables", "Unimarc"],
+    tags=["DATA", "Janis", "ecommdata_alvi", "orden_producto_pesables", "Alvi"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de orden_producto_pesables de Janis Unimarc a Workspace. \n
+    Extracción y carga de tabla de orden_producto_pesables de Janis Alvi a Workspace. \n
     UPSERT incremental basado registros creados por el etl de la tabla ordenes.
     """ 
     t0 = BranchPythonOperator(
@@ -211,10 +211,10 @@ with DAG(
         op_kwargs = {
             "query": """
                 SELECT woiw.*, woi.ref_id, wo.seq_id
-                FROM janis_jackie.wms_orders AS wo
-                INNER JOIN janis_jackie.wms_order_items woi
+                FROM janis_alvicl.wms_orders AS wo
+                INNER JOIN janis_alvicl.wms_order_items woi
                 ON woi.order_id = wo.id
-                INNER JOIN janis_jackie.wms_order_item_weighables AS woiw
+                INNER JOIN janis_alvicl.wms_order_item_weighables AS woiw
                 ON woi.id = woiw.order_item
             """,
             "query_name": "wms_order_item_weighables",
@@ -223,7 +223,7 @@ with DAG(
 
     t2 = S3KeySensor(
         task_id = "wait_for_orders_s3_file",
-        bucket_key = "janis/replica/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
+        bucket_key = "janis/replica_alvi/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
         timeout = 1800
