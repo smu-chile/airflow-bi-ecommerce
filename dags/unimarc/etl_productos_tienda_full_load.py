@@ -68,7 +68,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_productos_tienda_full_load',
+    'etl_productos_tienda_unimarc_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla productos_tienda desde Janis Replica hasta Workspace.",
     schedule_interval="0 7 * * *",
