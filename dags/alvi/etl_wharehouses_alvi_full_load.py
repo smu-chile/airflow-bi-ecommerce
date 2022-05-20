@@ -97,7 +97,7 @@ with DAG(
             "query": """
                 SELECT wlw.ref_id as id
                     , wlw.name as nombre
-                    , wlwd.dock as muelle
+                    , wlwd.dock
                     , ws.ref_id as id_tienda 
                     from wms_logistic_warehouses wlw 
                     left join wms_logistic_warehouse_docks wlwd 
