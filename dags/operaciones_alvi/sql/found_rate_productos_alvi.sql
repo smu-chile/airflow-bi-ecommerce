@@ -7,7 +7,6 @@ orden
 , descripcion
 , c.n1 as categoria_n1
 , c.n2 as categoria_n2
-, c.n3 as categoria_n3
 , producto_substituto
 , producto_substituido
 , unidades_solicitadas
