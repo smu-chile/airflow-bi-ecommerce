@@ -99,13 +99,15 @@ with DAG(
                     , wlw.name as nombre
                     , wlwd.dock
                     , ws.ref_id as id_tienda 
-                from wms_logistic_warehouses wlw 
-                left join wms_logistic_warehouse_docks wlwd 
-                    on wlwd.warehouse = wlw.id 
-                left join wms_logistic_dock_stores wlds 
-                    on wlds.dock = wlwd.dock 
-                left join wms_stores ws 
-                    on wlds.sales_channel = ws.sales_channel;
+                    from wms_logistic_warehouses wlw 
+                    left join wms_logistic_warehouse_docks wlwd 
+                        on wlwd.warehouse = wlw.id 
+                    left join wms_logistic_docks wlds 
+                        on wlds.id = wlwd.dock 
+                    left join ecommerce_accounts ea 
+                        on ea.id = wlds.ecommerce_account
+                    left join wms_stores ws
+                	    on ws.ecommerce_account_id = ea.id;
             """,
             "query_name": "wms_logistic_warehouses",
         }
