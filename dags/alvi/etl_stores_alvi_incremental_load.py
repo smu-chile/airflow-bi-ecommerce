@@ -83,7 +83,7 @@ def _create_final_store_table(ti):
     
     # df_dw["STORE_ID_x"] = df_dw["STORE_ID_x"].str.lstrip("0")
     df_j["id"] = df_j["id"].astype("string").str.pad(4, "left", '0')
-    df["id"] = df["id"].astype("string").str.replace(".0", "", regex=False)
+    df_j["id"] = df_j["id"].astype("string").str.replace(".0", "", regex=False)
     df = pd.merge(df_j, df_dw, left_on="id", right_on="STORE_ID", how="left")
     df = df[["id",
             "nombre_tienda_janis",
