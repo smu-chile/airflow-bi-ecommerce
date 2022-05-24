@@ -106,7 +106,6 @@ def _create_final_store_table(ti):
     # Fix date formats
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").astype("str")
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").astype("str")
-    df["id"].fillna(df["id_janis"].astype("string"), inplace=True)
 
     # Extra column
     df["glosa"] = df["id"].astype(str) + " - " + df["nombre_tienda"]
@@ -114,6 +113,8 @@ def _create_final_store_table(ti):
     # Fix columns
     df["numero"] = df["numero"].astype("string").str.replace(".0", "", regex=False)
     df["region"] = df["region"].astype("string").str.replace(".0", "", regex=False)
+    df["id"].fillna(df["id_janis"].astype("string"), inplace=True)
+    df["id"] = df["id"].astype("string").str.replace(".0", "", regex=False)
 
     columns = ["nombre_tienda_janis",
                 "nombre_tienda",
