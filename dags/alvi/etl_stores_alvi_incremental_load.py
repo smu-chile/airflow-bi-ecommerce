@@ -106,7 +106,7 @@ def _create_final_store_table(ti):
     # Fix date formats
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").astype("str")
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").astype("str")
-    df["id"].fillna(df["id_janis"], inplace=True)
+    df["id"].fillna(df["id_janis"].astype("string"), inplace=True)
 
     # Extra column
     df["glosa"] = df["id"].astype(str) + " - " + df["nombre_tienda"]
