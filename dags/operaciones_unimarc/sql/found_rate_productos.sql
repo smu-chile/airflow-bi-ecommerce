@@ -85,12 +85,30 @@ select 	distinct oj.id			as orden
     left join ecommdata.productos p
         ON p.ref_id = op.ref_id
     where oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
---	and oj.id = 1589798
 	  ) a
 left join ecommdata.administradores admins on a.id_picker = admins.id
 left join ecommdata.ff_perfiles fp ON admins.perfil = fp.id
 left join ecommdata.categorias c on a.id_categoria = c.id
 left join ecommdata.tiendas t on a.id_tienda = t.id_janis
 on conflict on constraint found_rate_pk
-do nothing
---where producto_substituto = false
+do
+update set orden = excluded.orden
+, fecha_facturacion = excluded.fecha_facturacion
+, ref_id = excluded.ref_id
+, descripcion = excluded.descripcion
+, categoria_n1 = excluded.categoria_n1
+, categoria_n2 = excluded.categoria_n2
+, categoria_n3 = excluded.categoria_n3
+, producto_substituto = excluded.producto_substituto
+, producto_substituido = excluded.producto_substituido
+, unidades_solicitadas = excluded.unidades_solicitadas
+, unidades_pickeadas = excluded.unidades_pickeadas
+, umv = excluded.umv
+, multiplicador_umv = excluded.multiplicador_umv
+, ref_id_producto_substituido = excluded.ref_id_producto_substituido
+, estado_foundrate = excluded.estado_foundrate
+, id_tienda = excluded.id_tienda
+, glosa = excluded.glosa
+, fecha_picking = excluded.fecha_picking
+, pickeador = excluded.pickeador
+, perfil_picker = excluded.perfil_picker
