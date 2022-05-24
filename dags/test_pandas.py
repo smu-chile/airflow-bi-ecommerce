@@ -113,7 +113,7 @@ def _create_final_store_table(ti):
     # Fix columns
     df["numero"] = df["numero"].astype("string").str.replace(".0", "", regex=False)
     df["region"] = df["region"].astype("string").str.replace(".0", "", regex=False)
-    df["id"].fillna(df["id_janis"].astype("string"), inplace=True)
+    df["id"] = df["id"].fillna(df["id_janis"].astype("string"))
     df["id"] = df["id"].astype("string").str.replace(".0", "", regex=False)
 
     columns = ["nombre_tienda_janis",
