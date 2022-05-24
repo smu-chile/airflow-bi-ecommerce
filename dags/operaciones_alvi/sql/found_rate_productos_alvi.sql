@@ -90,4 +90,23 @@ left join ecommdata_alvi.ff_perfiles fp ON admins.perfil = fp.id
 left join ecommdata_alvi.categorias c on a.id_categoria = c.id
 left join ecommdata_alvi.tiendas t on a.id_tienda = t.id_janis
 on conflict on constraint found_rate_pk
-do nothing
+do
+update set orden = excluded.orden
+, fecha_facturacion = excluded.fecha_facturacion
+, ref_id = excluded.ref_id
+, descripcion = excluded.descripcion
+, categoria_n1 = excluded.categoria_n1
+, categoria_n2 = excluded.categoria_n2
+, producto_substituto = excluded.producto_substituto
+, producto_substituido = excluded.producto_substituido
+, unidades_solicitadas = excluded.unidades_solicitadas
+, unidades_pickeadas = excluded.unidades_pickeadas
+, umv = excluded.umv
+, multiplicador_umv = excluded.multiplicador_umv
+, ref_id_producto_substituido = excluded.ref_id_producto_substituido
+, estado_foundrate = excluded.estado_foundrate
+, id_tienda = excluded.id_tienda
+, glosa = excluded.glosa
+, fecha_picking = excluded.fecha_picking
+, pickeador = excluded.pickeador
+, perfil_picker = excluded.perfil_picker
