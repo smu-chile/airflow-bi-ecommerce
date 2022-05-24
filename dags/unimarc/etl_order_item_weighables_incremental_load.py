@@ -61,7 +61,7 @@ def _get_new_orders_from_s3(ts):
 def _delete_order_item_weighables_from_postgres(ts):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
-    order_ids = df["id"].tolist()
+    order_ids = df["seq_id"].tolist()
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         DELETE FROM ecommdata.orden_producto_pesables AS opp
