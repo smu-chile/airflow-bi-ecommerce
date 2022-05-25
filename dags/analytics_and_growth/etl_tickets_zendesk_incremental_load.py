@@ -7,44 +7,48 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime, timedelta
 
-def no_nan_join(list):
-    no_nan_list = [element for element in list if element != ""]
-    return "|".join(no_nan_list)
-
-def _load_reclamos_zendesk(ts):
+def _load_tickets_zendesk(ts):
     import io
     import numpy as np
     import pandas as pd
+    import zipfile
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
-    exec_date = exec_date.strftime("%Y/%m/%d")
-    prefix = f"zendesk/manual/reclamos/{exec_date}/"
-    file_name = prefix+"reclamos.xlsx"
+    exec_date = exec_date.strftime("%Y%m%d")
+    prefix = f"zendesk/manual/tickets/{exec_date}_"
+    zip_file_name = prefix+"tickets.zip"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+file_name)
-    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % file_name)
+    print("Searching file: "+zip_file_name)
+    if not s3_hook.check_for_key(zip_file_name, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % zip_file_name)
     
-    reclamos_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
-    df = pd.read_excel(io.BytesIO(reclamos_object.get()["Body"]), encoding="utf-8")
+    tickets_zip_object = s3_hook.get_key(zip_file_name, bucket_name=s3_bucket)
+    tickets_dataframes = []
+    with io.BytesIO(tickets_zip_object.get()["Body"].read()) as tf:
 
-    # tipo 1
-    df["tipo1"] = df[[col for col in df.columns if col.startswith("tipo1_")]].fillna("").agg(no_nan_join, axis=1)
-    df["tipo2"] = df[[col for col in df.columns if col.startswith("tipo2_")]].fillna("").agg(no_nan_join, axis=1)
-    df["tipo3"] = df[[col for col in df.columns if col.startswith("tipo3_")]].fillna("").agg(no_nan_join, axis=1)
+        # rewind the file
+        tf.seek(0)
 
-    df = df.drop(columns=[col for col in df.columns if col.startswith("tipo1_")])
-    df = df.drop(columns=[col for col in df.columns if col.startswith("tipo2_")])
-    df = df.drop(columns=[col for col in df.columns if col.startswith("tipo3_")])
-    df = df.drop(columns=["no_pescar"])
+        # Read the file as a zipfile and process the members
+        with zipfile.ZipFile(tf, mode='r') as zipf:
+            for subfile in zipf.namelist():
+                print(subfile)
+                df_temp = pd.read_excel(io.BytesIO(zipf.read(subfile)))
+                tickets_dataframes.append(df_temp)
 
-    df = df.rename(columns={"ticket_id": "id_ticket"})
+    df = pd.concat(tickets_dataframes)
+
+    df = df.rename(columns={
+        "ticket_id": "id_ticket",
+        "Estado del ticket": "estado"
+    })
     print(df.columns)
 
     column_types = {
         "id_ticket": "int", 
+        "estado": "string",
         "fecha_actualizacion": "string", 
         "fecha_creacion": "string", 
         "fecha_cierre": "string",
@@ -63,36 +67,39 @@ def _load_reclamos_zendesk(ts):
         "monto_devolucion": "int",
         "tipo1": "string", 
         "tipo2": "string", 
-        "tipo3": "string"
+        "tipo3": "string",
+        "total_dias_hasta_resolucion": "float"
     }
 
     df = df.astype(column_types, errors="ignore")
-
-    # Drop duplicates
-    df_full = df.drop_duplicates()
+    df["id_tienda"] = np.where(df["tienda"].fillna("").str[:4].str.isnumeric(), df["tienda"].str[:4],None)
 
     columns = [
+        "estado",
         "fecha_actualizacion",
-        "fecha_creacion", 
+        "fecha_creacion",
         "fecha_cierre",
-        "motivo", 
-        "via_devolucion", 
-        "motivo_devolucion", 
+        "motivo",
+        "motivo_devolucion",
+        "via_devolucion",
         "estado_devolucion",
-        "fecha_devolucion", 
-        "tienda", 
-        "gestion", 
-        "canal", 
+        "fecha_devolucion",
+        "tienda",
+        "id_tienda",
+        "gestion",
+        "canal",
         "id_reclamo_sernac",
-        "numero_pedido", 
-        "numero_boleta", 
-        "id_caso_janis", 
+        "numero_pedido",
+        "numero_boleta",
+        "id_caso_janis",
         "monto_devolucion",
-        "tipo1", 
-        "tipo2", 
-        "tipo3"
+        "tipo1",
+        "tipo2",
+        "tipo3",
+        "total_dias_hasta_resolucion" 
     ]
 
+    df = df[["id_ticket"]+columns]
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
@@ -113,7 +120,7 @@ def _load_reclamos_zendesk(ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO analytics_and_growth.reclamos_zendesk (id_ticket,"""+columns_query+""") 
+        INSERT INTO analytics_and_growth.tickets_zendesk (id_ticket,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id_ticket)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -128,7 +135,7 @@ def _load_reclamos_zendesk(ts):
     pg_connection.close()
     print("Data loaded to Postgres")
 
-    print("Data saved to PostgreSQL. Table: analytics_and_growth.reclamos_zendesk")
+    print("Data saved to PostgreSQL. Table: analytics_and_growth.tickets_zendesk")
 
     return
 
@@ -140,31 +147,31 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_reclamos_zendesk_incremental_load',
+    'etl_tickets_zendesk_incremental_load',
     default_args=default_args,
-    description="Carga de datos de reclamos zendesk desde bucket de S3 al workspace de Postgresql.",
+    description="Carga de datos de tickets zendesk desde bucket de S3 al workspace de Postgresql.",
     schedule_interval="0 12 * * *",
-    start_date=datetime(2022, 5, 1),
+    start_date=datetime(2022, 5, 24),
     catchup=True,
     max_active_runs = 1,
-    tags=["DATA", "Zendesk", "analytics_and_growth", "reclamos_zendesk"],
+    tags=["DATA", "Zendesk", "analytics_and_growth", "tickets_zendesk"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción de archivos csv de reclamos zendesk desde bucket de S3, transformación y carga de datos en tabla analytics_and_growth.reclamos_zendesk. \n
-    Un sensor espera por 3 horas la presencia de un archivo bandera que indique que la carga de los csv de datos está completa.
+    Extracción de archivo zip que incluye N archivos xlsx de tickets zendesk desde bucket de S3, transformación y carga de datos en tabla analytics_and_growth.reclamos_zendesk. \n
+    Un sensor espera por 3 horas la presencia de un archivo bandera que indique que la carga del zip de datos está completa.
     """ 
     t0 = S3KeySensor(
-        task_id = "wait_for_reclamos_zendesk_flag_file",
-        bucket_key = "zendesk/manual/reclamos/{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}/flag.txt",
+        task_id = "wait_for_tickets_zendesk_flag_file",
+        bucket_key = "zendesk/manual/tickets/{{(execution_date + macros.timedelta(days=1)).strftime('%Y%m%d')}}_flag.txt",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*60*3
     )
 
     t1 = PythonOperator(
-        task_id = "load_reclamos_zendesk",
-        python_callable = _load_reclamos_zendesk
+        task_id = "load_tickets_zendesk",
+        python_callable = _load_tickets_zendesk
     )
 
     t0 >> t1 
