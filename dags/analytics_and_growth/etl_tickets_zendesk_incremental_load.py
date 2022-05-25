@@ -35,7 +35,7 @@ def _load_tickets_zendesk(ts):
         with zipfile.ZipFile(tf, mode='r') as zipf:
             for subfile in zipf.namelist():
                 print(subfile)
-                df_temp = pd.read_excel(io.BytesIO(zipf.read(subfile)), encoding="utf-8")
+                df_temp = pd.read_excel(io.BytesIO(zipf.read(subfile)))
                 tickets_dataframes.append(df_temp)
 
     df = pd.concat(tickets_dataframes)
