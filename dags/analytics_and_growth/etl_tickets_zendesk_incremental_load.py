@@ -16,7 +16,7 @@ def _load_tickets_zendesk(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y%m%d")
     prefix = f"zendesk/manual/tickets/{exec_date}_"
-    zip_file_name = prefix+"tickets.xlsx"
+    zip_file_name = prefix+"tickets.zip"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
