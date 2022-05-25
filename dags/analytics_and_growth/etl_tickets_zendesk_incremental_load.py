@@ -151,7 +151,7 @@ with DAG(
     default_args=default_args,
     description="Carga de datos de tickets zendesk desde bucket de S3 al workspace de Postgresql.",
     schedule_interval="0 12 * * *",
-    start_date=datetime(2022, 5, 1),
+    start_date=datetime(2022, 5, 24),
     catchup=True,
     max_active_runs = 1,
     tags=["DATA", "Zendesk", "analytics_and_growth", "tickets_zendesk"],
