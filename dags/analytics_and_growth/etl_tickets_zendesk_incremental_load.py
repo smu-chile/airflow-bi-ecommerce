@@ -72,7 +72,7 @@ def _load_tickets_zendesk(ts):
     }
 
     df = df.astype(column_types, errors="ignore")
-    df["id_tienda"] = np.where(df["tienda"].str[:4].str.isnumeric(), df["tienda"].str[:4], None)
+    df["id_tienda"] = np.where(df["tienda"].fillna().str[:4].str.isnumeric(), df["tienda"].str[:4],None)
 
     columns = [
         "estado",
