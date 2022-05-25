@@ -99,6 +99,7 @@ def _load_tickets_zendesk(ts):
         "total_dias_hasta_resolucion" 
     ]
 
+    df = df[columns]
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
