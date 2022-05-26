@@ -32,7 +32,7 @@ with DAG(
         external_dag_id='etl_ordenes_janis_alvi_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
-        failed_states=['failed', 'skipped']
+        failed_states=['failed']
     )
 
     t1 = ExternalTaskSensor(
@@ -40,7 +40,7 @@ with DAG(
         external_dag_id='etl_orden_productos_alvi_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
-        failed_states=['failed', 'skipped']
+        failed_states=['failed']
     )
 
     t2 = ExternalTaskSensor(
