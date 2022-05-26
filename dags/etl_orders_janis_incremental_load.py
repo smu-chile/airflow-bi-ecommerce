@@ -265,7 +265,7 @@ def _order_custom_data_field_incremental_load(ti, ts):
 
     janis_query = f"""
         SELECT *
-        FROM janis_jackie.wms_orders_custom_data_fields AS wocdf
+        FROM janis_jackie.wms_order_custom_data_fields AS wocdf
         WHERE wocdf.order_id IN {str(tuple(new_order_ids))};
     """
     print(janis_query)
@@ -317,7 +317,7 @@ with DAG(
     )
 
     t2 = PythonOperator(
-        task_id = "incremental_load_ordes_table",
+        task_id = "incremental_load_orders_table",
         python_callable = _incremental_load_ordes_table,
         trigger_rule = "none_failed"
     )
@@ -330,7 +330,7 @@ with DAG(
     t4 = PythonOperator(
         task_id = "order_custom_data_field_full_load",
         python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "wms_orders_custom_data_fields"}
+        op_kwargs = {"table_name": "wms_order_custom_data_fields"}
 
     )
 
