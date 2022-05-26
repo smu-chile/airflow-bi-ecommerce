@@ -341,7 +341,7 @@ with DAG(
         python_callable = _order_custom_data_field_incremental_load
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1
     t1 >> t3 >> [t4, t5]
     t4 >> t2
     t5 >> t2
