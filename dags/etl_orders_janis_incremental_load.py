@@ -202,6 +202,8 @@ def _incremental_load_ordes_table(ti):
         "fecha_modificacion_unixtime"
     ]
 
+    df = df[["id"]+columns]
+
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
