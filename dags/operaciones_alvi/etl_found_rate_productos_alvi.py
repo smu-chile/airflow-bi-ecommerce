@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.sensors.external_task import ExternalTaskSensor
 
 from datetime import datetime
 
