@@ -154,7 +154,7 @@ def _incremental_load_ordes_table(ti):
 
     df = df.merge(df_cdf, left_on="janis_id", right_on="order_id", how="left")
     df["canal_venta"] = np.where(df["value"] == 1, "app",
-                  np.where((df["call_center_operator_id"].isna()) | (df["call_center_operator_id"] == 0), "sitio"), "callcenter")
+                  np.where((df["call_center_operator_id"].isna()) | (df["call_center_operator_id"] == 0), "sitio", "callcenter"))
     
     df = df.drop(columns=["order_id", "call_center_operator_id", "value"])
 
