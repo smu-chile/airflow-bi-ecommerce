@@ -48,7 +48,7 @@ with DAG(
         external_dag_id='etl_orden_producto_pesables_alvi_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
-        failed_states=['failed', 'skipped']
+        failed_states=['failed']
     )
     
     t3 = PostgresOperator(
