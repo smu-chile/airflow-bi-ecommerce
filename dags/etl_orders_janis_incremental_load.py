@@ -1,10 +1,10 @@
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import incremental_unixtime_load_table_s3
+from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3, load_custom_query_to_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
@@ -23,7 +23,6 @@ def _incremental_load_ordes_table(ti):
         raise Exception("Key %s does not exist." % orders_file)
 
     orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
-
     df = pd.read_csv(orders_object.get()["Body"])
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
@@ -60,7 +59,8 @@ def _incremental_load_ordes_table(ti):
             "date_created",
             "invoice_date",
             "date_picked",
-            "date_modified"
+            "date_modified",
+            "call_center_operator_id"
             ]]
 
     # Rename columns to match workspace schema:
@@ -96,7 +96,6 @@ def _incremental_load_ordes_table(ti):
     df = df.rename(columns=columns_rename)
 
     # Calculate extra columns:
-    df["canal_venta"] = ""
     df["id_cliente_vtex"] = ""
     df["cod_tienda"] = ""
     df["nombre_tienda"] = ""
@@ -136,6 +135,28 @@ def _incremental_load_ordes_table(ti):
         "venta_facturada_neta": "int",
         "cobro_despacho_neto": "int"
     })
+
+    custom_data_fields_full = ti.xcom_pull(key="return_value", task_ids=["order_custom_data_field_full_load"])[0] 
+    custom_data_fields_incremental = ti.xcom_pull(key="return_value", task_ids=["order_custom_data_field_incremental_load"])[0]
+
+    custom_data_fields_file = custom_data_fields_full if custom_data_fields_full is not None else custom_data_fields_incremental
+
+    print("Searching file: "+custom_data_fields_file)
+    if not s3_hook.check_for_key(custom_data_fields_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % custom_data_fields_file)
+
+    custom_data_fields_object = s3_hook.get_key(custom_data_fields_file, bucket_name=s3_bucket)
+    df_cdf = pd.read_csv(custom_data_fields_object.get()["Body"])
+
+    # Filter custom_data_fields_dataframe
+    df_cdf = df_cdf[df_cdf["field"] == "sourceApp"]
+    df_cdf = df_cdf[["order_id", "value"]]
+
+    df = df.merge(df_cdf, left_on="janis_id", right_on="order_id", how="left")
+    df["canal_venta"] = np.where(df["value"] == 1, "app",
+                  np.where((df["call_center_operator_id"].isna()) | (df["call_center_operator_id"] == 0), "sitio"), "callcenter")
+    
+    df = df.drop(columns=["order_id", "call_center_operator_id", "value"])
 
     columns = [
         "janis_id",
@@ -218,6 +239,41 @@ def _incremental_load_ordes_table(ti):
 
     return
 
+def _evaluate_full_or_incremental_load(ti):
+    max_updated_at_value = ti.xcom_pull(key="return_value", task_ids=["get_max_updated_at_date"])[0]
+    if max_updated_at_value is None:
+        return "order_custom_data_field_full_load"
+    else:
+        return "order_custom_data_field_incremental_load"
+
+def _order_custom_data_field_incremental_load(ti, ts):
+    import pandas as pd
+    new_orders_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+new_orders_file)
+    if not s3_hook.check_for_key(new_orders_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % new_orders_file)
+
+    new_orders_object = s3_hook.get_key(new_orders_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(new_orders_object.get()["Body"])
+    print(f"Number of records found: {len(df.index)}")
+
+    new_order_ids = df["id"].tolist()
+
+    janis_query = f"""
+        SELECT *
+        FROM janis_jackie.wms_orders_custom_data_fields AS wocdf
+        WHERE wocdf.order_id IN {str(tuple(new_order_ids))};
+    """
+    print(janis_query)
+
+    file_name = load_custom_query_to_s3(ts, query=janis_query, query_name="wms_orders_custom_data_fields")
+
+    return file_name
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -262,7 +318,28 @@ with DAG(
 
     t2 = PythonOperator(
         task_id = "incremental_load_ordes_table",
-        python_callable = _incremental_load_ordes_table
+        python_callable = _incremental_load_ordes_table,
+        trigger_rule = "none_failed"
+    )
+
+    t3 = BranchPythonOperator(
+        task_id = "evaluate_full_or_incremental_load",
+        python_callable = _evaluate_full_or_incremental_load
+    )
+
+    t4 = PythonOperator(
+        task_id = "order_custom_data_field_full_load",
+        python_callable = load_full_table_to_s3,
+        op_kwargs = {"table_name": "wms_orders_custom_data_fields"}
+
+    )
+
+    t5 = PythonOperator(
+        task_id = "order_custom_data_field_incremental_load",
+        python_callable = _order_custom_data_field_incremental_load
     )
 
     t0 >> t1 >> t2
+    t1 >> t3 >> [t4, t5]
+    t4 >> t2
+    t5 >> t2
