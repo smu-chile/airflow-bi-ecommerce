@@ -62,9 +62,9 @@ def _get_order_items_from_janis(ts):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
     order_ids = df["id"].tolist()
-        if len(order_ids) == 0:
-            s3_object_name = "empty"
-            return
+    if len(order_ids) == 0:
+        s3_object_name = "empty"
+        return
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         SELECT *
