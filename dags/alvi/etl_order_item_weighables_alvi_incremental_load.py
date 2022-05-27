@@ -108,8 +108,10 @@ def _order_item_weighables_table_incremental_load(ts, ti):
     
     xcom_input_task = ti.xcom_pull(key="load_path", task_ids=["check_empty_table"])[0]
     order_item_weighables_file = ti.xcom_pull(key="return_value", task_ids=[xcom_input_task])[0]
-    if ti.xcom_pull(task_ids='get_order_items_from_janis') == "empty":
+    
+    if order_item_weighables_file is None:
         return
+    
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
