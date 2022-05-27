@@ -70,7 +70,7 @@ def _load_tickets_zendesk(ts):
         "tipo2": "string", 
         "tipo3": "string",
         "total_dias_hasta_resolucion": "float",
-        "cerrado_por_merge": "boolean"
+        "cerrado_por_merge": "string"
     }
 
     df = df.astype(column_types, errors="ignore")
