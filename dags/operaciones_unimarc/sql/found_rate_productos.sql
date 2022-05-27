@@ -66,8 +66,8 @@ select 	distinct oj.id			as orden
 	    , op.unidad_de_medida	as umv
 	    , op.multiplicador_unidad as multiplicador_umv
 	    , oj.id_tienda_janis as id_tienda
-	    , oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' as fecha_facturacion
-	    , oj.fecha_picking at time zone 'UTC' at time zone 'America/Santiago' as fecha_picking
+	    , oj.fecha_facturacion as fecha_facturacion
+	    , oj.fecha_picking as fecha_picking
 	    , op.id_picker
 	    , p.id_categoria  
     from ecommdata.ordenes_janis oj 
@@ -84,7 +84,7 @@ select 	distinct oj.id			as orden
 	        		ON op.id = pesables.id_orden_producto
     left join ecommdata.productos p
         ON p.ref_id = op.ref_id
-    where oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
+    where oj.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
 	  ) a
 left join ecommdata.administradores admins on a.id_picker = admins.id
 left join ecommdata.ff_perfiles fp ON admins.perfil = fp.id
