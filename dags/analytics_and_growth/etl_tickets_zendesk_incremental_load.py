@@ -42,7 +42,7 @@ def _load_tickets_zendesk(ts):
 
     df = df.rename(columns={
         "ticket_id": "id_ticket",
-        "Estado del ticket": "estado",
+        "estado_del_ticket": "estado",
         "closed_by_merge": "cerrado_por_merge"
     })
     print(df.columns)
