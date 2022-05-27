@@ -35,14 +35,15 @@ def _load_tickets_zendesk(ts):
         with zipfile.ZipFile(tf, mode='r') as zipf:
             for subfile in zipf.namelist():
                 print(subfile)
-                df_temp = pd.read_excel(io.BytesIO(zipf.read(subfile)))
+                df_temp = pd.read_csv(io.BytesIO(zipf.read(subfile)), encoding="utf-8")
                 tickets_dataframes.append(df_temp)
 
     df = pd.concat(tickets_dataframes)
 
     df = df.rename(columns={
         "ticket_id": "id_ticket",
-        "Estado del ticket": "estado"
+        "estado_del_ticket": "estado",
+        "closed_by_merge": "cerrado_por_merge"
     })
     print(df.columns)
 
@@ -68,7 +69,8 @@ def _load_tickets_zendesk(ts):
         "tipo1": "string", 
         "tipo2": "string", 
         "tipo3": "string",
-        "total_dias_hasta_resolucion": "float"
+        "total_dias_hasta_resolucion": "float",
+        "cerrado_por_merge": "string"
     }
 
     df = df.astype(column_types, errors="ignore")
@@ -96,7 +98,8 @@ def _load_tickets_zendesk(ts):
         "tipo1",
         "tipo2",
         "tipo3",
-        "total_dias_hasta_resolucion" 
+        "total_dias_hasta_resolucion",
+        "cerrado_por_merge"
     ]
 
     df = df[["id_ticket"]+columns]
