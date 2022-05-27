@@ -133,8 +133,12 @@ def _incremental_load_ordes_table(ti):
         "total_descuento_neto": "int",
         "total_cambios_neto": "int",
         "venta_facturada_neta": "int",
-        "cobro_despacho_neto": "int"
-    })
+        "cobro_despacho_neto": "int",
+        "fecha_creacion": "string",
+        "fecha_facturacion": "string",
+        "fecha_picking": "string",
+        "fecha_modificacion": "string"
+    }, errors="ignore")
 
     custom_data_fields_full = ti.xcom_pull(key="return_value", task_ids=["order_custom_data_field_full_load"])[0] 
     custom_data_fields_incremental = ti.xcom_pull(key="return_value", task_ids=["order_custom_data_field_incremental_load"])[0]
