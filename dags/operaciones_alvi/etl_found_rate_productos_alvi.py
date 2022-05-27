@@ -20,7 +20,7 @@ with DAG(
     description="Carga de tabla found_rate_productos de Alvi",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 5, 1),
-    catchup=False,
+    catchup=True,
     max_active_runs=1,
     tags=["DATA", "found_rate_productos", "operaciones_alvi", "Alvi"],
 ) as dag:
