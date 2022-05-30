@@ -17,10 +17,10 @@ with DAG(
     'etl_found_rate_productos_unimarc',
     default_args=default_args,
     description="Carga de tabla found_rate_productos",
-    schedule_interval="35 * * * *",
+    schedule_interval="5,35 * * * *",
     start_date=datetime(2021, 9, 1),
     catchup=True,
-    tags=["DATA", "found_rate_productos", "operaciones_unimarc", "unimarc"],
+    tags=["DATA", "found_rate_productos", "operaciones_unimarc", "unimarc", "cyber"],
 ) as dag:
 
     dag.doc_md = """
