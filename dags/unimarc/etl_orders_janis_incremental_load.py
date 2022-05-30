@@ -293,10 +293,10 @@ with DAG(
     'etl_ordenes_janis_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla ordenes desde Janis Replica hasta Workspace.",
-    schedule_interval="30 * * * *",
+    schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata", "ordenes_janis"],
+    tags=["DATA", "Janis", "ecommdata", "ordenes_janis", "unimarc", "cyber"],
 ) as dag:
 
     dag.doc_md = """
