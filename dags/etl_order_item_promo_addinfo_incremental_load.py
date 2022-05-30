@@ -135,11 +135,11 @@ with DAG(
     'etl_orden_producto_promocion_extrainfo_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promocion_extrainfo desde Janis Replica hasta Workspace.",
-    schedule_interval="30 * * * *",
+    schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata", "orden_producto_promocion_extrainfo"],
+    tags=["DATA", "Janis", "ecommdata", "orden_producto_promocion_extrainfo", "unimarc", "cyber"],
 ) as dag:
 
     dag.doc_md = """
