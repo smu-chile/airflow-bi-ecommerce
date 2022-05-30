@@ -101,7 +101,7 @@ with DAG(
     schedule_interval="0 7 * * *",
     start_date=datetime(2022, 4, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata_avli", "ff_perfiles", "Alvi"],
+    tags=["DATA", "Janis", "ecommdata_alvi", "ff_perfiles", "Alvi"],
 ) as dag:
 
     dag.doc_md = """
