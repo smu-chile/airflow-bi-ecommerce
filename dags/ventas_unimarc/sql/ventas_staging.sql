@@ -60,8 +60,8 @@ from 	(
 						, tipo_financiamiento
 						, every(n_promocion is not null) as wp_promocion
 from 
-		(select 	 oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' as fecha_facturacion 
-						,  oj.fecha_picking at time zone 'UTC' at time zone 'America/Santiago' as fecha_picking 
+		(select 	 oj.fecha_facturacion
+						,  oj.fecha_picking
 						, oj.id
 						, oj.janis_id 
 						, t.glosa 
@@ -127,14 +127,14 @@ from
 				left join ecommdata.productos p on op.producto_vtex_id = p.vtex_id 
 				left join ecommdata.categorias c on p.id_categoria = c.id
 				left join ecommdata.costos costo 
-							on costo.fecha = (oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago')::DATE
+							on costo.fecha = oj.fecha_facturacion::DATE
 							and costo.material =  p.material
 							and costo.id_tienda = t.id
 				left join ecommdata.skus s on op.sku_vtex_id = s.vtex_id
 				left join ecommdata.orden_producto_promociones promo on op.id = promo.orden_producto 
 				left join ecommdata.orden_producto_promocion_extrainfo promoextra on promo.id = promoextra.orden_producto_promocion and promoextra.campo = 'ID'
 				left join ecommdata.workflow_promociones wp on promoextra.valor::int8 =  wp.n_promocion and p.material = wp.material 
-				where oj.fecha_facturacion at time zone 'UTC' at time zone 'America/Santiago' = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
+				where oj.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
 				) _h
 group by fecha_facturacion 
 						,  fecha_picking 
