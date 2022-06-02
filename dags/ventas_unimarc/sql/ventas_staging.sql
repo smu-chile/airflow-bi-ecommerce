@@ -23,11 +23,14 @@ select _t.fecha_facturacion
 		, coalesce(_t.costo_unitario_neto,0) as costo_unitario_neto 
 		, coalesce(_t.unidades_pickeadas_original * _t.costo_unitario_neto,0) as cxq_neto
 		, coalesce(_t.pxq_neto - (_t.unidades_pickeadas_original * _t.costo_unitario_neto),0) as contribucion_neta_1
-		, coalesce(sum(ahorro_promocion),0) as ahorro_promocion
-		, coalesce(sum(_t.importe_negociado_unitario),0) as importe_negociado_unitario
+		, coalesce(sum(case when _t.id_evento <> 400 then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_cadena
+		, coalesce(sum(case when _t.id_evento = 400 then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_ecommerce
+		, coalesce(sum(_t.ahorro_promocion),0) as ahorro_promocion_total
+		, coalesce(sum(case when _t.id_evento <> 400 then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_cadena
+		, coalesce(sum(case when _t.id_evento = 400 then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_ecommerce
+		, sum(case when _t.tipo_financiamiento = 'SELL OUT' and _t.id_evento <> 400 then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout_cadena
+		, sum(case when _t.tipo_financiamiento = 'SELL OUT' and _t.id_evento = 400 then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout_ecommerce
 		, coalesce(sum(_t.pxq_importe_negociado),0) as pxq_importe_negociado_total
-		, sum(case when _t.tipo_financiamiento = 'SELL OUT' then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout
-		, sum(case when _t.tipo_financiamiento = 'SELL IN' then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellin
 		, coalesce ((_t.pxq_neto - (_t.unidades_pickeadas_original * _t.costo_unitario_neto) + sum(_t.pxq_importe_negociado)), _t.pxq_neto - (_t.unidades_pickeadas_original * _t.costo_unitario_neto),0)  as contribucion_neta_2
 		, bool_or(wp_promocion) as wp_promocion2
 from 	(
@@ -59,13 +62,14 @@ from 	(
 						, min(pxq_importe_negociado) as pxq_importe_negociado
 						, tipo_financiamiento
 						, every(n_promocion is not null) as wp_promocion
+						, id_evento
 from 
 		(select 	 oj.fecha_facturacion
 						,  oj.fecha_picking
 						, oj.id
 						, oj.janis_id 
 						, t.glosa 
-						, '' as canal_venta
+						, oj.canal_venta as canal_venta
 						, oj.venta_facturada_bruta
 						, oj.cobro_despacho_bruto 
 						, op.ref_id
@@ -119,6 +123,7 @@ from
 						, wp.importe_negociado * coalesce(opp.peso/1000.0, op.unidades_pickeadas) as pxq_importe_negociado
 						, wp.tipo_financiamiento 
 						, wp.n_promocion 
+						, wp.id_evento
 				from ecommdata.ordenes_janis oj
 				left join ecommdata.tiendas t on oj.id_tienda_janis = t.id_janis 
 				left join ecommdata.orden_productos op on oj.id= op.id_orden
@@ -159,6 +164,7 @@ group by fecha_facturacion
 						, costo_unitario_neto
 						, ahorro_despacho
 						, tipo_financiamiento 
+						, id_evento
 				) _t
 group by _t.fecha_facturacion 
 		,_t.fecha_picking 
