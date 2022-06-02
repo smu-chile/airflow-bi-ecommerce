@@ -83,7 +83,8 @@ select 	distinct oj.id			as orden
 	        		ON op.id = pesables.id_orden_producto
     left join ecommdata_alvi.productos p
         ON p.ref_id = op.ref_id
-    where oj.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
+    where oj.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd')
+	and oj.id in {ti.xcom_pull(key="return_value", task_ids=['get_query_order_ids_from_s3'])[0]}
 	  ) a
 left join ecommdata_alvi.administradores admins on a.id_picker = admins.id
 left join ecommdata_alvi.ff_perfiles fp ON admins.perfil = fp.id
