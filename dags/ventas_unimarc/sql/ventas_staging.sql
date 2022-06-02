@@ -143,6 +143,7 @@ from
 				left join ecommdata.orden_producto_promocion_extrainfo promoextra on promo.id = promoextra.orden_producto_promocion and promoextra.campo = 'ID'
 				left join ecommdata.workflow_promociones wp on promoextra.valor::int8 =  wp.n_promocion and p.material = wp.material 
 				where oj.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
+				and wp.id_evento not in (102)
 				) _h
 group by fecha_facturacion 
 						,  fecha_picking 
