@@ -79,7 +79,7 @@ def _order_items_table_incremental_load(ts, ti):
 
     order_items_file = ti.xcom_pull(key="return_value", task_ids=["get_order_items_from_janis"])[0]
 
-    if ti.xcom_pull(key="return_value", task_ids=['get_order_item_weighables_from_janis'])[0] == "empty":
+    if ti.xcom_pull(key="return_value", task_ids=['get_order_items_from_janis'])[0] == "empty":
         return
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
