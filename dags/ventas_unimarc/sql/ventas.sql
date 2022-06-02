@@ -59,9 +59,11 @@ from (
 			, _t.contribucion_neta_1
 			, _t.ahorro_promocion_cadena
 			, _t.ahorro_promocion_ecommerce
+			, _t.ahorro_promocion_personalizado
 			, _t.ahorro_promocion_total
 			, _t.importe_negociado_unitario_cadena
 			, _t.importe_negociado_unitario_ecommerce
+			, _t.importe_negociado_unitario_personalizado
 			, _t.pxq_importe_negociado_total
 			, _t.contribucion_neta_2
 			, min(importe_negociado_unitario_2) as importe_negociado_unitario_2
@@ -80,6 +82,7 @@ from (
 			and wp2.tipo_financiamiento = 'SELL OUT'
 			and vs.fecha_facturacion between wp2.fecha_inicio_de_promocion and wp2.fecha_fin_de_promocion
 		where vs.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
+		and wp2.id_evento not in (102)
 	) _t
 	group by _t.fecha_facturacion 
 			, _t.fecha_picking 
@@ -105,11 +108,17 @@ from (
 			, _t.costo_unitario_neto 
 			, _t.cxq_neto
 			, _t.contribucion_neta_1
-			, _t.ahorro_promocion
-			, _t.importe_negociado_unitario
+			, _t.ahorro_promocion_cadena
+			, _t.ahorro_promocion_ecommerce
+			, _t.ahorro_promocion_personalizado
+			, _t.ahorro_promocion_total
+			, _t.importe_negociado_unitario_cadena
+			, _t.importe_negociado_unitario_ecommerce
+			, _t.importe_negociado_unitario_persinalizado
 			, _t.pxq_importe_negociado_total
-			, _t.pxq_importe_negociado_sellout
-			, _t.pxq_importe_negociado_sellin
+			, _t.pxq_importe_negociado_sellout_cadena
+			, _t.pxq_importe_negociado_sellout_ecommerce
+			, _t.pxq_importe_negociado_sellout_personalizado
 			, _t.contribucion_neta_2
 			, _t.n_promocion
 			, _t.id_evento
@@ -140,9 +149,11 @@ group by fecha_facturacion
 			, contribucion_neta_1
 			, ahorro_promocion_cadena
 			, ahorro_promocion_ecommerce
+			, ahorro_promocion_personalizado
 			, ahorro_promocion_total
 			, importe_negociado_unitario_cadena
 			, importe_negociado_unitario_ecommerce
+			, importe_negociado_unitario_personalizado
 			, pxq_importe_negociado_total
 			, pxq_importe_negociado_sellout
 			, contribucion_neta_2;
