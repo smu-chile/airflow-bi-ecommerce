@@ -80,9 +80,8 @@ from (
 			on split_part(vs.ref_id, '-', 1) = wp2.material 
 			and not vs.wp_promocion2
 			and wp2.tipo_financiamiento = 'SELL OUT'
-			and vs.fecha_facturacion between wp2.fecha_inicio_de_promocion and wp2.fecha_fin_de_promocion
+			and vs.fecha_facturacion between wp2.fecha_inicio_de_promocion and wp2.fecha_fin_de_promocion and wp2.id_evento not in (102)
 		where vs.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
-		and wp2.id_evento not in (102)
 	) _t
 	group by _t.fecha_facturacion 
 			, _t.fecha_picking 
