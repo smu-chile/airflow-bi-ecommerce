@@ -44,6 +44,7 @@ with DAG(
     schedule_interval="30 * * * *",
     start_date=datetime(2021, 9, 1),
     catchup=False,
+    max_active_runs=1,
     tags=["DATA", "found_rate_productos", "operaciones_unimarc", "unimarc", "cyber"],
 ) as dag:
 
