@@ -114,7 +114,7 @@ from (
 			, _t.ahorro_promocion_total
 			, _t.importe_negociado_unitario_cadena
 			, _t.importe_negociado_unitario_ecommerce
-			, _t.importe_negociado_unitario_persinalizado
+			, _t.importe_negociado_unitario_personalizado
 			, _t.pxq_importe_negociado_total
 			, _t.pxq_importe_negociado_sellout_cadena
 			, _t.pxq_importe_negociado_sellout_ecommerce
