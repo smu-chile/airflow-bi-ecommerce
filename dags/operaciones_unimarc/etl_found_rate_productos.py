@@ -43,7 +43,7 @@ with DAG(
     description="Carga de tabla found_rate_productos",
     schedule_interval="30 * * * *",
     start_date=datetime(2021, 9, 1),
-    catchup=True,
+    catchup=False,
     tags=["DATA", "found_rate_productos", "operaciones_unimarc", "unimarc", "cyber"],
 ) as dag:
 
