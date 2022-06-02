@@ -1,5 +1,4 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
