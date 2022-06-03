@@ -41,7 +41,7 @@ def _select_table_from_ecommdata(ti):
     , m.nombre
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
-    left join ecommdata.producto p on frp.ref_id = p.ref_id
+    left join ecommdata.productos p on frp.ref_id = p.ref_id
     left join ecommdata.marcas m on p.id_marca = m.id
     where frp.estado_foundrate = 1 and frp.orden in {ti.xcom_pull(key="return_value", task_ids=['get_query_order_ids_from_s3'])[0]};
     """
