@@ -12,7 +12,7 @@ def _get_query_order_ids_from_s3(ts):
     import pandas as pd
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"janis/replica_alvi/wms_orders/{curr_datetime}_wms_orders.csv"
+    orders_file = f"janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
