@@ -62,6 +62,8 @@ def _delete_order_item_weighables_from_postgres(ts):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
     order_ids = df["seq_id"].tolist()
+    if len(order_ids) == 0:
+        return
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         DELETE FROM ecommdata.orden_producto_pesables AS opp
@@ -83,6 +85,9 @@ def _get_order_item_weighables_from_janis(ts):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
     order_ids = df["id"].tolist()
+    if len(order_ids) == 0:
+        s3_object_name = "empty"
+        return s3_object_name
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         SELECT woiw.*, woi.ref_id, wo.seq_id
@@ -103,6 +108,9 @@ def _order_item_weighables_table_incremental_load(ts, ti):
     
     xcom_input_task = ti.xcom_pull(key="load_path", task_ids=["check_empty_table"])[0]
     order_item_weighables_file = ti.xcom_pull(key="return_value", task_ids=[xcom_input_task])[0]
+
+    if ti.xcom_pull(key="return_value", task_ids=['get_order_item_weighables_from_janis'])[0] == "empty":
+        return
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")

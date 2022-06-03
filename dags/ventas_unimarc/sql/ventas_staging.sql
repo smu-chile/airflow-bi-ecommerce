@@ -23,11 +23,17 @@ select _t.fecha_facturacion
 		, coalesce(_t.costo_unitario_neto,0) as costo_unitario_neto 
 		, coalesce(_t.unidades_pickeadas_original * _t.costo_unitario_neto,0) as cxq_neto
 		, coalesce(_t.pxq_neto - (_t.unidades_pickeadas_original * _t.costo_unitario_neto),0) as contribucion_neta_1
-		, coalesce(sum(ahorro_promocion),0) as ahorro_promocion
-		, coalesce(sum(_t.importe_negociado_unitario),0) as importe_negociado_unitario
+		, coalesce(sum(case when (_t.canal_distribucion <> '70') or (_t.canal_distribucion is null) then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_cadena
+		, coalesce(sum(case when _t.canal_distribucion = '70' then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_ecommerce
+		, 0 as ahorro_promocion_personalizado
+		, coalesce(sum(_t.ahorro_promocion),0) as ahorro_promocion_total
+		, coalesce(sum(case when (_t.canal_distribucion <> '70') or (_t.canal_distribucion is null) then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_cadena
+		, coalesce(sum(case when _t.canal_distribucion = '70' then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_ecommerce
+		, 0 as importe_negociado_unitario_personalizado
+		, sum(case when _t.tipo_financiamiento = 'SELL OUT' and ((_t.canal_distribucion <> '70') or (_t.canal_distribucion is null)) then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout_cadena
+		, sum(case when _t.tipo_financiamiento = 'SELL OUT' and _t.canal_distribucion = '70' then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout_ecommerce
+		, 0 as pxq_importe_negociado_sellout_personalizado
 		, coalesce(sum(_t.pxq_importe_negociado),0) as pxq_importe_negociado_total
-		, sum(case when _t.tipo_financiamiento = 'SELL OUT' then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout
-		, sum(case when _t.tipo_financiamiento = 'SELL IN' then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellin
 		, coalesce ((_t.pxq_neto - (_t.unidades_pickeadas_original * _t.costo_unitario_neto) + sum(_t.pxq_importe_negociado)), _t.pxq_neto - (_t.unidades_pickeadas_original * _t.costo_unitario_neto),0)  as contribucion_neta_2
 		, bool_or(wp_promocion) as wp_promocion2
 from 	(
@@ -59,13 +65,14 @@ from 	(
 						, min(pxq_importe_negociado) as pxq_importe_negociado
 						, tipo_financiamiento
 						, every(n_promocion is not null) as wp_promocion
+						, canal_distribucion
 from 
 		(select 	 oj.fecha_facturacion
 						,  oj.fecha_picking
 						, oj.id
 						, oj.janis_id 
 						, t.glosa 
-						, '' as canal_venta
+						, oj.canal_venta as canal_venta
 						, oj.venta_facturada_bruta
 						, oj.cobro_despacho_bruto 
 						, op.ref_id
@@ -119,6 +126,7 @@ from
 						, wp.importe_negociado * coalesce(opp.peso/1000.0, op.unidades_pickeadas) as pxq_importe_negociado
 						, wp.tipo_financiamiento 
 						, wp.n_promocion 
+						, wp.canal_distribucion
 				from ecommdata.ordenes_janis oj
 				left join ecommdata.tiendas t on oj.id_tienda_janis = t.id_janis 
 				left join ecommdata.orden_productos op on oj.id= op.id_orden
@@ -132,8 +140,8 @@ from
 							and costo.id_tienda = t.id
 				left join ecommdata.skus s on op.sku_vtex_id = s.vtex_id
 				left join ecommdata.orden_producto_promociones promo on op.id = promo.orden_producto 
-				left join ecommdata.orden_producto_promocion_extrainfo promoextra on promo.id = promoextra.orden_producto_promocion and promoextra.campo = 'ID'
-				left join ecommdata.workflow_promociones wp on promoextra.valor::int8 =  wp.n_promocion and p.material = wp.material 
+				left join ecommdata.orden_producto_promocion_extrainfo promoextra on promo.id = promoextra.orden_producto_promocion and promoextra.campo in ('ID', 'WORKFLOWID')
+				left join ecommdata.workflow_promociones wp on promoextra.valor::int8 =  wp.n_promocion and p.material = wp.material and wp.id_evento not in (102)
 				where oj.fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
 				) _h
 group by fecha_facturacion 
@@ -159,6 +167,7 @@ group by fecha_facturacion
 						, costo_unitario_neto
 						, ahorro_despacho
 						, tipo_financiamiento 
+						, canal_distribucion
 				) _t
 group by _t.fecha_facturacion 
 		,_t.fecha_picking 
