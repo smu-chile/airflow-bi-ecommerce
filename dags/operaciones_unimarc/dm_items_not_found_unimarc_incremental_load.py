@@ -73,7 +73,7 @@ with DAG(
     """ 
     t0 = ExternalTaskSensor(
         task_id="wait_for_found_rate_productos",
-        external_dag_id='etl_found_rate_productos',
+        external_dag_id='etl_found_rate_productos_unimarc',
         external_task_id=None,
         allowed_states=['success'],
         failed_states=['failed']
