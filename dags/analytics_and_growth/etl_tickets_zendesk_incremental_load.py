@@ -117,7 +117,7 @@ def _load_tickets_zendesk(ts):
         for value in record:
             if isinstance(value, np.generic):
                 fixed_record.append(value.item())
-            elif value == "NULL":
+            elif value in ["NULL", "nan"]:
                 fixed_record.append(None)
             else:
                 fixed_record.append(value)
