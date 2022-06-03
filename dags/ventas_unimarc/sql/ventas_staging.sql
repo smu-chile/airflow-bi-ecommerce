@@ -167,7 +167,7 @@ group by fecha_facturacion
 						, costo_unitario_neto
 						, ahorro_despacho
 						, tipo_financiamiento 
-						, id_evento
+						, canal_distribucion
 				) _t
 group by _t.fecha_facturacion 
 		,_t.fecha_picking 
