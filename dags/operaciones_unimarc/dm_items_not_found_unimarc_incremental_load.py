@@ -33,14 +33,14 @@ def _get_query_order_ids_from_s3(ts):
     return query_order_ids
 
 def _select_table_from_ecommdata(ts):
-    query = """
+    query = f"""
     select frp.ref_id
     , s.ean_primario as ean
     , frp.id_tienda
     , frp.fecha_picking
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id 
-    where frp.estado_foundrate = 1 and frp.orden in {{ti.xcom_pull(key="return_value", task_ids=['get_query_order_ids_from_s3'])[0]}};
+    where frp.estado_foundrate = 1 and frp.orden in {ti.xcom_pull(key="return_value", task_ids=['get_query_order_ids_from_s3'])[0]};
     """
     pg_hook = PostgresHook("postgresql_conn")
     pg_connection = pg_hook.get_conn()
