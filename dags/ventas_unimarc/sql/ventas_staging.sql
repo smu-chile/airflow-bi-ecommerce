@@ -23,12 +23,12 @@ select _t.fecha_facturacion
 		, coalesce(_t.costo_unitario_neto,0) as costo_unitario_neto 
 		, coalesce(_t.unidades_pickeadas_original * _t.costo_unitario_neto,0) as cxq_neto
 		, coalesce(_t.pxq_neto - (_t.unidades_pickeadas_original * _t.costo_unitario_neto),0) as contribucion_neta_1
-		, coalesce(sum(case when (_t.canal_distribucion <> 70) or (_t.canal_distribucion is null) then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_cadena
-		, coalesce(sum(case when _t.canal_distribucion = 70 then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_ecommerce
+		, coalesce(sum(case when (_t.canal_distribucion <> '70') or (_t.canal_distribucion is null) then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_cadena
+		, coalesce(sum(case when _t.canal_distribucion = '70' then _t.ahorro_promocion else 0 end),0) as ahorro_promocion_ecommerce
 		, 0 as ahorro_promocion_personalizado
 		, coalesce(sum(_t.ahorro_promocion),0) as ahorro_promocion_total
-		, coalesce(sum(case when (_t.canal_distribucion <> 70) or (_t.canal_distribucion is null) then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_cadena
-		, coalesce(sum(case when _t.canal_distribucion = 70 then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_ecommerce
+		, coalesce(sum(case when (_t.canal_distribucion <> '70') or (_t.canal_distribucion is null) then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_cadena
+		, coalesce(sum(case when _t.canal_distribucion = '70' then _t.importe_negociado_unitario else 0 end),0) as importe_negociado_unitario_ecommerce
 		, 0 as importe_negociado_unitario_personalizado
 		, sum(case when _t.tipo_financiamiento = 'SELL OUT' and ((_t.canal_distribucion <> 70) or (_t.canal_distribucion is null)) then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout_cadena
 		, sum(case when _t.tipo_financiamiento = 'SELL OUT' and _t.canal_distribucion = 70 then _t.pxq_importe_negociado else 0 end) as pxq_importe_negociado_sellout_ecommerce
