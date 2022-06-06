@@ -23,7 +23,7 @@ def _get_query_order_ids_from_s3(ts):
 
     df = pd.read_csv(orders_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
-    order_ids = df["id"].tolist()
+    order_ids = df["seq_id"].tolist()
     if len(order_ids) == 0:
         s3_object_name = "(0)"
         return s3_object_name
