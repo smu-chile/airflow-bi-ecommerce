@@ -25,35 +25,69 @@ def _get_query_order_ids_from_s3(ts):
 
     df = pd.read_csv(orders_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
-    order_ids = df["id"].tolist()
+    order_ids = df["seq_id"].tolist()
     if len(order_ids) == 0:
         s3_object_name = "(0)"
         return s3_object_name
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     return query_order_ids
 
-def _select_table_from_ecommdata(ti):
+def _insert_table_from_ecommdata_into_DM(ti):
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
     query = f"""
     select frp.ref_id
     , s.ean_primario as ean
     , frp.id_tienda
     , frp.fecha_picking
-    , m.nombre
+    , m.nombre as marca
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p on frp.ref_id = p.ref_id
     left join ecommdata.marcas m on p.id_marca = m.id
-    where frp.estado_foundrate = 1 and frp.orden in {ti.xcom_pull(key="return_value", task_ids=['get_query_order_ids_from_s3'])[0]};
+    where frp.estado_foundrate = 1 and frp.orden in {ti.xcom_pull(key="return_value", task_ids=['get_query_order_ids_from_s3'])[0]} and m.nombre 'SOPROLE';
     """
     pg_hook = PostgresHook("postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
-    print(results)
     cursor.close()
     pg_connection.close()
-    return results
+    
+    df = pd.DataFrame(
+        data = results,
+        columns = ['ref_id', 'ean', 'id_tienda', 'fecha_picking', 'marca']
+    )
+
+    print("Number of records to be loaded: "+str(len(df.index)))
+
+    host = Variable.get("DM_HOST")
+    database = Variable.get("DM_DB")
+    username = Variable.get("DM_USER")
+    password = Variable.get("DM_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE datamind.alerta_found_rate"
+    connection.execute(text(truncate_query))
+    connection.close()
+
+    # Save to PostgreSQL:
+    df.to_sql(name="alerta_found_rate",
+                con=engine,         
+                schema="datamind",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+
+    print("Data saved to PostgreSQL. Table: datamind.alerta_found_rate")
+
+    
 
 default_args = {
     "owner": "ecommerce_data",
@@ -89,8 +123,9 @@ with DAG(
     )
 
     t2 = PythonOperator(
-        task_id = "select_table_from_ecommdata",
-        python_callable = _select_table_from_ecommdata
+        task_id = "insert_table_from_ecommdata_into_DM",
+        python_callable = _insert_table_from_ecommdata_into_DM
     )
+    
 
     t0 >> t1 >> t2
