@@ -270,11 +270,15 @@ def _order_custom_data_field_incremental_load(ti, ts):
     print(f"Number of records found: {len(df.index)}")
 
     new_order_ids = df["id"].tolist()
+    if len(new_order_ids) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    new_order_ids_string = "("+",".join([str(order_id) for order_id in new_order_ids])+")"
 
     janis_query = f"""
         SELECT *
         FROM janis_jackie.wms_order_custom_data_fields AS wocdf
-        WHERE wocdf.order_id IN {str(tuple(new_order_ids))};
+        WHERE wocdf.order_id IN {new_order_ids_string};
     """
     print(janis_query)
 
