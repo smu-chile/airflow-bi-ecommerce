@@ -23,7 +23,7 @@ def _get_query_order_ids_from_s3(ts):
 
     df = pd.read_csv(orders_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
-    order_ids = df["id"].tolist()
+    order_ids = df["seq_id"].tolist()
     if len(order_ids) == 0:
         s3_object_name = "(0)"
         return s3_object_name
@@ -41,7 +41,7 @@ with DAG(
     'etl_found_rate_productos_unimarc',
     default_args=default_args,
     description="Carga de tabla found_rate_productos",
-    schedule_interval="30 * * * *",
+    schedule_interval="*/30 * * * *",
     start_date=datetime(2021, 9, 1),
     catchup=False,
     max_active_runs=1,
