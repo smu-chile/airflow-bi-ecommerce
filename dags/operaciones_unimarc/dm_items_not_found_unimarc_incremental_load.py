@@ -34,6 +34,8 @@ def _get_query_order_ids_from_s3(ts):
 
 def _insert_table_from_ecommdata_into_DM(ti):
     import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
     query = f"""
     select frp.ref_id
     , s.ean_primario as ean
