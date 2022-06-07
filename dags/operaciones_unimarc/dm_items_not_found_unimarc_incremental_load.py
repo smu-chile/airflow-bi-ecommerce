@@ -50,7 +50,7 @@ def _upsert_table_from_ecommdata_into_DM(ti):
         columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion']
     )
 
-    df['unidades_faltantes'] = df['unidades_faltantes'] * 1.0
+    df['unidades_faltantes'] = df['unidades_faltantes'].astype(float)
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
