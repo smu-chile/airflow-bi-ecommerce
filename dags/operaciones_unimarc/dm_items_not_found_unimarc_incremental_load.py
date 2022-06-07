@@ -52,8 +52,8 @@ def _upsert_table_from_ecommdata_into_DM(ti):
 
     df['unidades_faltantes'] = df['unidades_faltantes'].astype(float)
     df['fecha_proceso'] = df['fecha_proceso'].astype(str)
-    df['inicio_bloque'] = df['fecha_proceso'].astype(str)
-    df['fin_bloque'] = df['fecha_proceso'].astype(str)
+    df['inicio_bloque'] = df['inicio_bloque'].astype(str)
+    df['fin_bloque'] = df['fin_bloque'].astype(str)
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
