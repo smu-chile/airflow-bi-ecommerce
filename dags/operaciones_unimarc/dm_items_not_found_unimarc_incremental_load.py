@@ -29,7 +29,7 @@ def _upsert_table_from_ecommdata_into_DM(ti):
         when date_part('minute', frp.fecha_picking::time) < 30 then date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval
         else date_trunc('hour', frp.fecha_picking::time)::interval + ('01:00:00')::interval
     end as fin_bloque
-    , now() as fecha_modificacion
+    , now()::timestamp as fecha_modificacion
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p  on frp.ref_id = p.ref_id
