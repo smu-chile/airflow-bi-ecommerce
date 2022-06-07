@@ -51,7 +51,7 @@ def _upsert_table_from_ecommdata_into_DM(ti):
     )
 
     df['unidades_faltantes'] = df['unidades_faltantes'].astype(float)
-    df['fecha_proceso'] = df['fecha_proceso'].strftime("%H:%M:%S")
+    df['fecha_proceso'] = df['fecha_proceso'].dt.strftime("%H:%M:%S")
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
