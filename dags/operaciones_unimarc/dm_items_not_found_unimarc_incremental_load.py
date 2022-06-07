@@ -9,44 +9,33 @@ from airflow.hooks.postgres_hook import PostgresHook
 
 from datetime import datetime
 
-def _get_query_order_ids_from_s3(ts):
-    import pandas as pd
-
-    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    print("Searching file: "+orders_file)
-    if not s3_hook.check_for_key(orders_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % orders_file)
-
-    orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
-
-    df = pd.read_csv(orders_object.get()["Body"])
-    print(f"Number of records found: {len(df.index)}")
-    order_ids = df["seq_id"].tolist()
-    if len(order_ids) == 0:
-        s3_object_name = "(0)"
-        return s3_object_name
-    query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
-    return query_order_ids
-
-def _insert_table_from_ecommdata_into_DM(ti):
+def _upsert_table_from_ecommdata_into_DM(ti):
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
     query = f"""
-    select frp.ref_id
+    select date(frp.fecha_picking) as fecha_proceso
+    , frp.ref_id
     , s.ean_primario as ean
     , frp.id_tienda
-    , frp.fecha_picking
     , m.nombre as marca
+    , COUNT(distinct frp.orden) as ordenes_afectadas
+    , SUM(frp.unidades_solicitadas - frp.unidades_pickeadas) as unidades_faltantes
+    , case
+        when date_part('minute', frp.fecha_picking::time) < 30 then date_trunc('hour', frp.fecha_picking::time)
+        else date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval
+    end as inicio_bloque
+    , case
+        when date_part('minute', frp.fecha_picking::time) < 30 then date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval
+        else date_trunc('hour', frp.fecha_picking::time)::interval + ('01:00:00')::interval
+    end as fin_bloque
+    , now() as fecha_modificacion
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
-    left join ecommdata.productos p on frp.ref_id = p.ref_id
+    left join ecommdata.productos p  on frp.ref_id = p.ref_id
     left join ecommdata.marcas m on p.id_marca = m.id
-    where frp.estado_foundrate = 1 and frp.orden in {ti.xcom_pull(key="return_value", task_ids=['get_query_order_ids_from_s3'])[0]} and m.nombre = 'SOPROLE';
+    where frp.estado_foundrate = 1 and date(frp.fecha_picking) = current_date and m.nombre in ('SOPROLE', 'NEXT', 'UNO', 'MANJARATE', 'QUILQUE')
+    group by frp.ref_id, s.ean_primario,date(frp.fecha_picking), frp.id_tienda, m.nombre, date_trunc('hour', frp.fecha_picking::time), inicio_bloque, fin_bloque;
     """
     pg_hook = PostgresHook("postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -58,7 +47,7 @@ def _insert_table_from_ecommdata_into_DM(ti):
     
     df = pd.DataFrame(
         data = results,
-        columns = ['ref_id', 'ean', 'id_tienda', 'fecha_picking', 'marca']
+        columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion']
     )
 
     print("Number of records to be loaded: "+str(len(df.index)))
@@ -72,20 +61,18 @@ def _insert_table_from_ecommdata_into_DM(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE datamind.alerta_found_rate"
-    connection.execute(text(truncate_query))
+    upsert_query = f""" 
+                    INSERT INTO soprole.alerta_found_rate
+                    VALUES {','.join([str(i) for i in list(df.to_records(index=False))])}
+                    ON CONFLICT ON CONSTRAINT alerta_found_rate_pk
+                    DO UPDATE SET ordenes_afectadas = excluded.ordenes_afectadas,
+                    unidades_faltantes = excluded.unidades_faltantes,
+                    fecha_modificacion = excluded.fecha_modificacion
+            """
+    connection.execute(text(upsert_query))
     connection.close()
 
-    # Save to PostgreSQL:
-    df.to_sql(name="alerta_found_rate",
-                con=engine,         
-                schema="datamind",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL. Table: datamind.alerta_found_rate")
+    print("Data saved to PostgreSQL. Table: soprole.alerta_found_rate")
 
     
 
@@ -118,14 +105,9 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "get_query_order_ids_from_s3",
-        python_callable = _get_query_order_ids_from_s3
-    )
-
-    t2 = PythonOperator(
-        task_id = "insert_table_from_ecommdata_into_DM",
-        python_callable = _insert_table_from_ecommdata_into_DM
+        task_id = "upsert_table_from_ecommdata_into_DM",
+        python_callable = _upsert_table_from_ecommdata_into_DM
     )
     
 
-    t0 >> t1 >> t2
+    t0 >> t1
