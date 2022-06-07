@@ -22,12 +22,12 @@ def _upsert_table_from_ecommdata_into_DM(ti):
     , COUNT(distinct frp.orden) as ordenes_afectadas
     , SUM(frp.unidades_solicitadas - frp.unidades_pickeadas) as unidades_faltantes
     , case
-        when date_part('minute', frp.fecha_picking::time) < 30 then date_trunc('hour', frp.fecha_picking::time)
-        else date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval
+        when date_part('minute', frp.fecha_picking::time) < 30 then (date_trunc('hour', frp.fecha_picking::time))::time
+        else (date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval)::time
     end as inicio_bloque
     , case
-        when date_part('minute', frp.fecha_picking::time) < 30 then date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval
-        else date_trunc('hour', frp.fecha_picking::time)::interval + ('01:00:00')::interval
+        when date_part('minute', frp.fecha_picking::time) < 30 then (date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval)::time
+        else (date_trunc('hour', frp.fecha_picking::time)::interval + ('01:00:00')::interval)::time
     end as fin_bloque
     , now()::timestamp as fecha_modificacion
     from operaciones_unimarc.found_rate_productos frp
