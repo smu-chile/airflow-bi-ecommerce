@@ -149,7 +149,7 @@ with DAG(
         python_callable = netezza_full_table_load_to_s3,
         op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
                     "where": """ NBR_ITM_SOLD > 0
-                                AND OU_KEY IN ({{ti.xcom_pull(key="ou_key_list", task_ids=["get_ou_key_list_from_datawarehouse"][0])}})
+                                AND OU_KEY IN {{ti.xcom_pull(key="ou_key_list", task_ids=["get_ou_key_list_from_datawarehouse"][0])}}
                                 AND DATE_VALUE = TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
                             """ 
         },
