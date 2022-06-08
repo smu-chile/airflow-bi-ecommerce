@@ -1,8 +1,7 @@
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
-from airflow.operators.python import PythonOperator, ShortCircuitOperator
+from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.netezza_utils import netezza_full_table_load_to_s3
@@ -42,7 +41,8 @@ def _get_ou_key_list(ti, ts):
 
     df_stores = df_stores[df_stores["STORE_ID"].isin(store_ids)]
     ou_key_list = df_stores["OU_KEY"].to_list()
-    Variable.set(key="ou_key_list", value=ou_key_list)
+    ou_key_list_string = "(" + ",".join([str(ou_key) for ou_key in ou_key_list]) + ")"
+    ti.xcom_push(key="ou_key_list", value=ou_key_list_string)
 
     store_ou_key_list = list(zip(df_stores["OU_KEY"], df_stores["STORE_ID"]))
 
@@ -144,17 +144,14 @@ with DAG(
         python_callable = _get_ou_key_list
     )
 
-    ou_key_list = Variable.get(key="ou_key_list", deserialize_json=True)
-    ou_key_list_query = "("+",".join([str(i) for i in ou_key_list])+")"
-
     t2 = PythonOperator(
         task_id = "netezza_vm_fact_ou_logt_smy_filtered_load",
         python_callable = netezza_full_table_load_to_s3,
         op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
-                    "where": """ ACTIVO = 1
-                                AND CATALOGADO = 1
-                                AND OU_KEY IN """ + ou_key_list_query,
-                    "date_query": "date_value = TO_DATE('%s', 'YYYY-MM-DD') "
+                    "where": """ NBR_ITM_SOLD > 0
+                                AND OU_KEY IN ({{ti.xcom_pull(key="ou_key_list", tasks_id=["get_ou_key_list_from_datawarehouse"][0])}})
+                                AND DATE_VALUE = TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
+                            """ 
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
