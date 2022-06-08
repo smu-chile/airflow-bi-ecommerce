@@ -120,14 +120,14 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'costs_table_etl',
+    'etl_costs_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="0 12 * * *",
+    schedule_interval="0 9 * * *",
     start_date=datetime(2022, 1, 1),
     catchup=True,
     max_active_runs=1,
-    tags=["DATA", "DW", "S3", "Workspace", "Costos"],
+    tags=["DATA", "DW", "S3", "workspace", "costos", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
