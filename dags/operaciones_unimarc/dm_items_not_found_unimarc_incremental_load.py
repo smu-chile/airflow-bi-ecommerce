@@ -34,7 +34,7 @@ def _upsert_table_from_ecommdata_into_DM(ti):
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p  on frp.ref_id = p.ref_id
     left join ecommdata.marcas m on p.id_marca = m.id
-    where frp.estado_foundrate = 1 and date(frp.fecha_picking) = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') and m.nombre in ('SOPROLE', 'NEXT', 'UNO', 'MANJARATE', 'QUILQUE')
+    where frp.estado_foundrate = 1 and date(frp.fecha_picking) = to_date('{execution_date.strftime('%Y-%m-%d')}', '%YYYY-%mm-%dd') and m.nombre in ('SOPROLE', 'NEXT', 'UNO', 'MANJARATE', 'QUILQUE')
     group by frp.ref_id, s.ean_primario,date(frp.fecha_picking), frp.id_tienda, m.nombre, date_trunc('hour', frp.fecha_picking::time), inicio_bloque, fin_bloque;
     """
     pg_hook = PostgresHook("postgresql_conn")
