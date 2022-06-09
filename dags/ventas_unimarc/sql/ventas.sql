@@ -39,6 +39,5 @@ left join (
 	group by material
 	) as _cs
 on v.ref_id like concat(_cs.material,'%') and v.costo_unitario_neto = 0
-where fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') 
-and v.costo_unitario_neto = 0
+where fecha_facturacion = to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd')
 ;
