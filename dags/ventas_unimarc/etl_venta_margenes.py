@@ -4,7 +4,6 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from datetime import datetime
 
 
-
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -33,15 +32,27 @@ with DAG(
     )
 
     t1 = PostgresOperator(
+        task_id = "load_table_ventas_contr2_staging",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/ventas_contr2_staging.sql",
+    )
+
+    t2 = PostgresOperator(
         task_id = "load_table_ventas",
         postgres_conn_id="postgresql_conn",
         sql="sql/ventas.sql",
     )
 
-    t2 = PostgresOperator(
+    t3 = PostgresOperator(
         task_id = "delete_ventas_staging_data",
         postgres_conn_id="postgresql_conn",
         sql="truncate staging.ventas_unimarc;",
     )
 
-    t0 >> t1 >> t2
+    t4 = PostgresOperator(
+        task_id = "delete_ventas_contr2_staging_data",
+        postgres_conn_id="postgresql_conn",
+        sql="truncate staging.ventas_unimarc_contr2;",
+    )
+
+    t0 >> t1 >> t2 >> [t3, t4]
