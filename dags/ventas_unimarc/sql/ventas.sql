@@ -1,3 +1,4 @@
+insert into ventas_unimarc.ventas
 select 
 		v.fecha_facturacion 
 		, v.fecha_picking 
