@@ -124,7 +124,7 @@ with DAG(
     default_args=default_args,
     description="Extraction and transformation of costs data.",
     schedule_interval="0 9 * * *",
-    start_date=datetime(2022, 1, 1),
+    start_date=datetime(2022, 5, 1),
     catchup=True,
     max_active_runs=1,
     tags=["DATA", "DW", "S3", "workspace", "costos", "unimarc"],
