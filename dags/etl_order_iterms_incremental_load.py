@@ -154,7 +154,7 @@ def _order_items_table_incremental_load(ts, ti):
 		"quantity_picked": "unidades_pickeadas",
 		"substitute_type": "id_tipo_substitucion",
 		"brand": "id_marca",
-		"category": "id_categoria",
+		"category": "ref_id_categoria",
 		"measurement_unit": "unidad_de_medida",
 		"unit_multiplier": "multiplicador_unidad"
     }
