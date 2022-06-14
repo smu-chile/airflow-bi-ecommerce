@@ -44,7 +44,7 @@ def _ventas_dw_incremental_load(ti):
         print("There are no new records to load. Task will exit as successfull.")
         return
 
-    df = df[
+    df = df[[
         "DATE_KEY",
         "PRODUCT_KEY",
         "CENTRO",
@@ -57,7 +57,7 @@ def _ventas_dw_incremental_load(ti):
         "VENTA_UMV",
         "VENTA_BRUTA",
         "VENTA_NETA"
-    ]
+    ]]
 
     df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["NUM_TRXN"]
 
