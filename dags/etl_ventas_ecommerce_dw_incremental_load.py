@@ -34,7 +34,8 @@ def _ventas_dw_incremental_load(ti):
         "PEDIDO": "str",
         "VENTA_UMV": "str",
         "VENTA_BRUTA": "int",
-        "VENTA_NETA": "int"
+        "VENTA_NETA": "int",
+        "SKU_PRODUCT": "str"
     }
 
     df = pd.read_csv(ventas_dw_object.get()["Body"], dtype=column_types)
@@ -56,10 +57,11 @@ def _ventas_dw_incremental_load(ti):
         "PEDIDO",
         "VENTA_UMV",
         "VENTA_BRUTA",
-        "VENTA_NETA"
+        "VENTA_NETA",
+        "SKU_PRODUCT"
     ]]
 
-    df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["NUM_TRXN"]
+    df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["PRODUCT_KEY"] + df["NUM_TRXN"]
 
     df = df.drop(columns=["DATE_KEY"])
 
@@ -113,8 +115,10 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT *
-                FROM NZ_BU.ECOMERCE.VW_FACT_VENTA_E_COMMERCE
+                SELECT v.*, s.SKU_PRODUCT 
+                FROM NZ_BU.ECOMERCE.VW_FACT_VENTA_E_COMMERCE AS v
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT AS p ON v.PRODUCT_KEY = p.PRODUCT_KEY 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR s ON s.SKU_KEY  = p.SKU_KEY 
                 WHERE FECHA BETWEEN TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days'
                                     AND TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
             """,
