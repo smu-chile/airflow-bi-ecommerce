@@ -129,3 +129,5 @@ with DAG(
         task_id = "ventas_dw_staging_load",
         python_callable = _ventas_dw_incremental_load
     )
+
+    t0 >> t1
