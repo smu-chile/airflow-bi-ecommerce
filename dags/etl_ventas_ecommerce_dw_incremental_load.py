@@ -78,6 +78,28 @@ def _ventas_dw_incremental_load(ti):
         "NEG_DSC": "negocio" 
     }
 
+
+    df = df[[
+        "id",
+        "ref_id_producto",
+        "centro",
+        "fecha",
+        "ean",
+        "canal_venta",
+        "num_trxn",
+        "pos",
+        "id_orden",
+        "venta_umv",
+        "venta_bruta",
+        "venta_neta", 
+        "marca", 
+        "grupo", 
+        "categoria", 
+        "linea", 
+        "seccion", 
+        "negocio"
+    ]]
+
     columns = [
         "ref_id_producto",
         "centro",
@@ -95,11 +117,8 @@ def _ventas_dw_incremental_load(ti):
         "categoria", 
         "linea", 
         "seccion", 
-        "negocio"  
+        "negocio"
     ]
-
-    df = df[["id"]+columns]
-
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
