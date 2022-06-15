@@ -14,7 +14,7 @@ def _send_report_to_sftp():
 
     ## FTP parameters
     ftp_host = Variable.get("PEYA_SFTP_HOST")
-    ftp_port = 60
+    ftp_port = 22
     ftp_user = Variable.get("PEYA_SFTP_USER")
     ftp_rsa_key = Variable.get("PEYA_SFTP_SECRET_RSA_KEY")
 
