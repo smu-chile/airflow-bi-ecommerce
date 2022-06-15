@@ -18,7 +18,7 @@ def _send_report_to_sftp():
     ftp_user = Variable.get("PEYA_SFTP_USER")
     ftp_rsa_key = Variable.get("PEYA_SFTP_SECRET_RSA_KEY")
 
-    with open("temp/peya_sftp_rsa_key", "w") as key_file:
+    with open("temp_peya_sftp_rsa_key", "w") as key_file:
         key_file.write(ftp_rsa_key)
 
     dic_tiendas = {
@@ -130,7 +130,7 @@ def _send_report_to_sftp():
         df["PRECIO"]=df["PRECIO"].astype("int")
         df.to_csv(tiendapeya + ".csv", header=True, index=False, encoding="utf-8")
 
-        with pysftp.Connection(host=ftp_host, username=ftp_user, port=ftp_port, private_key="temp/peya_sftp_rsa_key") as sftp:
+        with pysftp.Connection(host=ftp_host, username=ftp_user, port=ftp_port, private_key="temp_peya_sftp_rsa_key") as sftp:
             localFile = f"{tiendapeya}.csv"
             remotePath = f"/upload/{tiendapeya}.csv"
             sftp.put(localFile, remotePath)
@@ -142,7 +142,7 @@ def _send_report_to_sftp():
     cur.close()
     conn.close()
 
-    os.remove("temp/peya_sftp_rsa_key")
+    os.remove("temp_peya_sftp_rsa_key")
 
     print("OK")
     return
