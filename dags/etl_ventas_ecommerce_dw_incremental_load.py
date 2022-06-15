@@ -78,7 +78,7 @@ def _ventas_dw_incremental_load(ti):
         "NEG_DSC": "negocio" 
     }
 
-
+    df = df.rename(columns=column_names)
     df = df[[
         "id",
         "ref_id_producto",
