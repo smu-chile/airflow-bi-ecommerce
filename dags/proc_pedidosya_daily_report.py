@@ -6,15 +6,20 @@ from datetime import datetime
 
 def _send_report_to_sftp():
     import jaydebeapi
+    import io
     import os
     import pandas as pd
     import pysftp
+    import paramiko
 
     ## FTP parameters
     ftp_host = Variable.get("PEYA_SFTP_HOST")
     ftp_port = 60
     ftp_user = Variable.get("PEYA_SFTP_USER")
-    ftp_pass = Variable.get("PEYA_SFTP_PASSWORD")
+    ftp_rsa_key = Variable.get("PEYA_SFTP_SECRET_RSA_KEY")
+
+    private_key = io.StringIO(ftp_rsa_key)
+    private_key_object = paramiko.RSAKey.from_private_key(private_key)
 
     dic_tiendas = {
         "277728":"0028",
@@ -125,7 +130,7 @@ def _send_report_to_sftp():
         df["PRECIO"]=df["PRECIO"].astype("int")
         df.to_csv(tiendapeya + ".csv", header=True, index=False, encoding="utf-8")
 
-        with pysftp.Connection(host=ftp_host, username=ftp_user, password=ftp_pass, port=ftp_port) as sftp:
+        with pysftp.Connection(host=ftp_host, username=ftp_user, port=ftp_port, private_key=private_key_object) as sftp:
             localFile = f"{tiendapeya}.csv"
             remotePath = f"/upload/{tiendapeya}.csv"
             sftp.put(localFile, remotePath)
