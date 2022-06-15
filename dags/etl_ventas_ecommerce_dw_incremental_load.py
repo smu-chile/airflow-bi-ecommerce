@@ -56,7 +56,7 @@ def _ventas_dw_incremental_load(ti):
     df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["NUM_TRXN"] + df["PRODUCT_KEY"]
     df["ref_id_producto"] = np.where((df["SKU_PRODUCT"].isnull()) | (df["UNIDAD_DE_MEDIDA"].isnull()), 
                                         "NULL", 
-                                        df["SKU_PRODUCT"].isnan() + "-" + df["UNIDAD_DE_MEDIDA"])
+                                        df["SKU_PRODUCT"] + "-" + df["UNIDAD_DE_MEDIDA"])
     df = df.drop(columns=["DATE_KEY", "PRODUCT_KEY", "SKU_PRODUCT", "UNIDAD_DE_MEDIDA"])
 
     column_names = {
