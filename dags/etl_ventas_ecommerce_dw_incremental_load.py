@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.netezza_utils import load_custom_query_to_s3
 
@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 
 def _ventas_dw_incremental_load(ti):
     import pandas as pd
+    import numpy as np
     import sqlalchemy
 
     ventas_dw_file = ti.xcom_pull(key="return_value", task_ids=["extract_last_7_days_from_dw"])[0]
@@ -35,7 +36,14 @@ def _ventas_dw_incremental_load(ti):
         "VENTA_UMV": "str",
         "VENTA_BRUTA": "int",
         "VENTA_NETA": "int",
-        "SKU_PRODUCT": "str"
+        "UNIDAD_DE_MEDIDA": "str", 
+        "SKU_PRODUCT": "str", 
+        "BRAND_DESC": "str", 
+        "GRUPO_DSC": "str", 
+        "CAT_DSC": "str", 
+        "LIN_DESC": "str", 
+        "SEC_DSC": "str", 
+        "NEG_DSC": "str" 
     }
 
     df = pd.read_csv(ventas_dw_object.get()["Body"], dtype=column_types)
@@ -45,46 +53,87 @@ def _ventas_dw_incremental_load(ti):
         print("There are no new records to load. Task will exit as successfull.")
         return
 
-    df = df[[
-        "DATE_KEY",
-        "PRODUCT_KEY",
-        "CENTRO",
-        "FECHA",
-        "PTR_CODPROD",
-        "CANAL_VENTA",
-        "NUM_TRXN",
-        "POS",
-        "PEDIDO",
-        "VENTA_UMV",
-        "VENTA_BRUTA",
-        "VENTA_NETA",
-        "SKU_PRODUCT"
-    ]]
+    df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["NUM_TRXN"] + df["PRODUCT_KEY"]
+    df["ref_id_producto"] = np.where((df["SKU_PRODUCT"].isnan()) | (df["UNIDAD_DE_MEDIDA"].isnan()), 
+                                        np.nan, 
+                                        df["SKU_PRODUCT"].isnan() + "-" + df["UNIDAD_DE_MEDIDA"])
+    df = df.drop(columns=["DATE_KEY", "PRODUCT_KEY", "SKU_PRODUCT", "UNIDAD_DE_MEDIDA"])
 
-    df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["PRODUCT_KEY"] + df["NUM_TRXN"]
+    column_names = {
+        "CENTRO": "centro",
+        "FECHA": "fecha",
+        "PTR_CODPROD": "ean",
+        "CANAL_VENTA": "canal_venta",
+        "NUM_TRXN": "num_trxn",
+        "POS": "pos",
+        "PEDIDO": "id_orden",
+        "VENTA_UMV": "venta_umv",
+        "VENTA_BRUTA": "venta_bruta",
+        "VENTA_NETA": "venta_neta", 
+        "BRAND_DESC": "marca", 
+        "GRUPO_DSC": "grupo", 
+        "CAT_DSC": "categoria", 
+        "LIN_DESC": "linea", 
+        "SEC_DSC": "seccion", 
+        "NEG_DSC": "negocio" 
+    }
 
-    df = df.drop(columns=["DATE_KEY"])
+    columns = [
+        "ref_id_producto",
+        "centro",
+        "fecha",
+        "ean",
+        "canal_venta",
+        "num_trxn",
+        "pos",
+        "id_orden",
+        "venta_umv",
+        "venta_bruta",
+        "venta_neta", 
+        "marca", 
+        "grupo", 
+        "categoria", 
+        "linea", 
+        "seccion", 
+        "negocio"  
+    ]
 
-    print("Number of records to be loaded: "+str(len(df.index)))
+    df = df[["id"]+columns]
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    # Save to PostgreSQL:
-    df.to_sql(name="ventas_datawarehouse",
-                con=engine,         
-                schema="staging",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL. Table: staging.ventas_datawarehouse")
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.ventas_datawarehouse (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data saved to PostgreSQL. Table: ecommdata.ventas_datawarehouse")
     
     return
 
@@ -103,7 +152,7 @@ with DAG(
     start_date=datetime(2020, 8, 1),
     catchup=True,
     max_active_runs=1,
-    tags=["DATA", "DW", "S3", "workspace", "ventas_datawarehouse"],
+    tags=["DATA", "DW", "S3", "workspace", "ventas_datawarehouse", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
@@ -115,10 +164,11 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT v.*, s.SKU_PRODUCT 
-                FROM NZ_BU.ECOMERCE.VW_FACT_VENTA_E_COMMERCE AS v
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT AS p ON v.PRODUCT_KEY = p.PRODUCT_KEY 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR s ON s.SKU_KEY  = p.SKU_KEY 
+                SELECT VE.*, P.UNIDAD_DE_MEDIDA , S.SKU_PRODUCT, S.BRAND_DESC, SH.GRUPO_DSC, SH.CAT_DSC, SH.LIN_DESC, SH.SEC_DSC, SH.NEG_DSC 
+                FROM NZ_BU.ECOMERCE.VW_FACT_VENTA_E_COMMERCE VE
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VE.PRODUCT_KEY = P.PRODUCT_KEY
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON P.SKU_KEY = S.SKU_KEY 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON SH.SKU_KEY = S.SKU_KEY 
                 WHERE FECHA BETWEEN TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days'
                                     AND TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
             """,
@@ -130,7 +180,7 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "ventas_dw_staging_load",
+        task_id = "ventas_dw_incremental_load",
         python_callable = _ventas_dw_incremental_load
     )
 
