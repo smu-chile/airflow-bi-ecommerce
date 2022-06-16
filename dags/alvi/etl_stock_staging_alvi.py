@@ -77,7 +77,7 @@ with DAG(
     )
 
     t1 = PostgresOperator(
-        task_id = "truncate_staging_table"
+        task_id = "truncate_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
         TRUNCATE staging.stock_alvi
