@@ -11,7 +11,6 @@ from datetime import datetime
 def _get_table_price_from_S3(ts, ti):
     import pandas as pd
 
-    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     price_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -20,9 +19,9 @@ def _get_table_price_from_S3(ts, ti):
     if not s3_hook.check_for_key(price_file, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % price_file)
 
-    orders_object = s3_hook.get_key(price_file, bucket_name=s3_bucket)
+    price_object = s3_hook.get_key(price_file, bucket_name=s3_bucket)
 
-    df = pd.read_csv(orders_object.get()["Body"])
+    df = pd.read_csv(price_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
 
     return df
@@ -43,8 +42,8 @@ def _save_table_price(ts, ti):
     # Select only relevant columns:
     df = df[[
         "id",
-        "item_id", # cruzar para quedar con item_id, ref_id y descr
-        "store_id", # id_tienda_janis
+        "item_id", 
+        "store_id", 
         "price",
         "list_price",
         "cost_price",
@@ -65,8 +64,8 @@ def _save_table_price(ts, ti):
 
     # Rename columns to match workspace schema:
     columns_rename = {
-        "item_id": "id_sku_janis", # cruzar para quedar con item_id, ref_id y descr
-        "store_id": "id_tienda_janis", # id_tienda_janis
+        "item_id": "id_sku_janis",
+        "store_id": "id_tienda_janis",
         "price": "precio",
         "list_price": "precio_lista",
         "cost_price": "costo",
@@ -95,6 +94,7 @@ def _save_table_price(ts, ti):
     df["fecha_publicacion"] = pd.to_datetime(df["fecha_publicacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["valido_hasta"] = pd.to_datetime(df["valido_hasta"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
+    df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
     df = df.astype({
         "id": "int",
@@ -116,7 +116,7 @@ def _save_table_price(ts, ti):
         "fecha_modificacion": "string",
         "fecha_creacion": "string",
         "fecha_publicacion": "string",
-        "fecha_modificacion_unixtime": "string"
+        "fecha_modificacion_unixtime": "int"
     }, errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -163,7 +163,10 @@ def _save_table_price(ts, ti):
         "fecha_modificacion",
         "fecha_creacion",
         "fecha_publicacion"
+        "fecha_modificacion_unixtime"
     ]
+
+    df = df[["id"] + columns]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
