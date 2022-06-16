@@ -174,6 +174,7 @@ with DAG(
     start_date=datetime(2020, 8, 1),
     catchup=True,
     max_active_runs=1,
+    concurrency=2,
     tags=["DATA", "DW", "S3", "workspace", "ventas_datawarehouse", "unimarc"],
 ) as dag:
 
