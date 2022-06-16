@@ -29,7 +29,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
         when date_part('minute', frp.fecha_picking::time) < 30 then (date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval)::time
         else (date_trunc('hour', frp.fecha_picking::time)::interval + ('01:00:00')::interval)::time
     end as fin_bloque
-    , now()::timestamp as fecha_modificacion
+    , (now() AT TIME ZONE 'America/Santiago')::timestamp as fecha_modificacion
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p  on frp.ref_id = p.ref_id
@@ -49,6 +49,10 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
         data = results,
         columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion']
     )
+
+    if len(df) == 0:
+        print("No new data to save")
+        return
 
     df['unidades_faltantes'] = df['unidades_faltantes'].astype(float)
     df['fecha_proceso'] = df['fecha_proceso'].astype(str)
@@ -73,12 +77,14 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
                     DO UPDATE SET ordenes_afectadas = excluded.ordenes_afectadas,
                     unidades_faltantes = excluded.unidades_faltantes,
                     fecha_modificacion = excluded.fecha_modificacion
+                    WHERE unidades_faltantes <> excluded.unidades_faltantes AND ordenes_afectadas <> excluded.ordenes_afectadas
             """
     connection.execute(text(upsert_query))
     connection.close()
 
     print("Data saved to PostgreSQL. Table: soprole.alerta_found_rate")
 
+    return
     
 
 default_args = {
