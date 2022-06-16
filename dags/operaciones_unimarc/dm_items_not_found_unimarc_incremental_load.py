@@ -73,6 +73,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
                     DO UPDATE SET ordenes_afectadas = excluded.ordenes_afectadas,
                     unidades_faltantes = excluded.unidades_faltantes,
                     fecha_modificacion = excluded.fecha_modificacion
+                    WHERE unidades_faltantes <> excluded.unidades_faltantes AND ordenes_afectadas <> excluded.ordenes_afectadas
             """
     connection.execute(text(upsert_query))
     connection.close()
