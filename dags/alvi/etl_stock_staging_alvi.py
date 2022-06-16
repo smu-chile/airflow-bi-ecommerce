@@ -7,13 +7,12 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from utils.janis_alvi_utils import load_full_table_to_s3
 
 from datetime import datetime
-from io import StringIO
 
-def _get_table_stock_from_S3(ts):
+def _get_table_stock_from_S3(ts, ti):
     import pandas as pd
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    stock_file = f"janis/replica_alvi/stock_alvi/{curr_datetime}_stock_alvi.csv"
+    stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -28,11 +27,11 @@ def _get_table_stock_from_S3(ts):
 
     return df
 
-def _save_table_stock(ts):
+def _save_table_stock(ts, ti):
     import pandas as pd
     import sqlalchemy
 
-    df = _get_table_stock_from_S3(ts)
+    df = _get_table_stock_from_S3(ts, ti)
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
