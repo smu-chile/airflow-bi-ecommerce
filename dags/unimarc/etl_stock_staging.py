@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
-from utils.janis_alvi_utils import load_full_table_to_s3
+from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
@@ -40,7 +40,7 @@ def _save_table_stock(ts, ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    df.to_sql(name="stock_alvi",
+    df.to_sql(name="stock_unimarc",
                 con=engine,         
                 schema="staging",         
                 if_exists='append',         
@@ -58,17 +58,17 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_staging_alvi',
+    'etl_stock_staging_unimarc',
     default_args=default_args,
-    description="Extracción y carga de tabla stock desde Janis Alvi a S3 y staging.",
+    description="Extracción y carga de tabla stock desde Janis Unimarc a S3 y staging.",
     schedule_interval="0 */4 * * *",
     start_date=datetime(2022, 6, 16),
     catchup=False,
-    tags=["DATA", "Janis", "stock", "alvi"],
+    tags=["DATA", "Janis", "stock", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla stock desde Janis Alvi a S3 y staging.
+    Extracción y carga de tabla stock desde Janis Unimarc a S3 y staging.
     """ 
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
@@ -80,7 +80,7 @@ with DAG(
         task_id = "truncate_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
-        TRUNCATE staging.stock_alvi
+        TRUNCATE staging.stock_unimarc
         """,
     )
 
