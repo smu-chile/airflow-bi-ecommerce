@@ -50,6 +50,10 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
         columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion']
     )
 
+    if len(df) == 0:
+        print("No new data to save")
+        return
+
     df['unidades_faltantes'] = df['unidades_faltantes'].astype(float)
     df['fecha_proceso'] = df['fecha_proceso'].astype(str)
     df['inicio_bloque'] = df['inicio_bloque'].astype(str)
@@ -80,6 +84,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
 
     print("Data saved to PostgreSQL. Table: soprole.alerta_found_rate")
 
+    return
     
 
 default_args = {
