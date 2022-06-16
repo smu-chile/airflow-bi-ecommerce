@@ -198,6 +198,8 @@ with DAG(
     schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
+    max_active_runs=1,
+    concurrency=2,
     tags=["DATA", "Janis", "ecommdata", "orden_productos", "unimarc", "cyber"],
 ) as dag:
 
