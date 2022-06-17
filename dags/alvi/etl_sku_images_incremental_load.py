@@ -18,7 +18,7 @@ def _incremental_unixtime_custom_query_load_to_s3(ti, ts):
         FROM janis_alvicl.sku_images AS si 
         LEFT JOIN janis_alvicl.skus AS s
         ON si.sku = s.id
-        WHERE date_modified > {max_date_modified_unixtime};
+        WHERE si.date_modified > {max_date_modified_unixtime};
     """
     file_name = load_custom_query_to_s3(ts, custom_query, query_name)
     return file_name
