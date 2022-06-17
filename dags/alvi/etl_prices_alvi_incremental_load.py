@@ -6,7 +6,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from utils.postgres_utils import get_max_updated_at_value
 from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 def _get_table_price_from_S3(ts, ti):
     import pandas as pd
@@ -87,13 +87,15 @@ def _save_table_price(ts, ti):
 
     # Calculate extra columns:
     df["valido_desde"] = pd.to_datetime(df["valido_desde"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-    df["valido_hasta"] = pd.to_datetime(df["valido_hasta"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["valido_hasta"] = pd.to_datetime(df["valido_hasta"], unit="s", errors="coerce").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["ultimo_intento_publicacion"] = pd.to_datetime(df["ultimo_intento_publicacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["proximo_intento_publicacion"] = pd.to_datetime(df["proximo_intento_publicacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_publicacion"] = pd.to_datetime(df["fecha_publicacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["valido_hasta"] = df["valido_hasta"].fillna(datetime(9999,12,31,0,0,0,tzinfo=timezone.utc))
+
 
     df = df.astype({
         "id": "int",
