@@ -175,7 +175,6 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     concurrency=2,
-    wait_for_downstream=True,
     tags=["DATA", "DW", "S3", "workspace", "ventas_datawarehouse", "unimarc"],
 ) as dag:
 
