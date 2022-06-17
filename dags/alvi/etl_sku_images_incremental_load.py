@@ -59,7 +59,7 @@ def _sku_images_incremental_load(ti):
     columns_rename = {
         "id": "id",
         "vtex_id": "sku_vtex_id",
-        "ref_id": "ref_id",
+        "ref_id": "sku_ref_id",
         "image": "imagen",
         "ord": "ord",
         "date_modified": "fecha_modificacion",
@@ -75,7 +75,7 @@ def _sku_images_incremental_load(ti):
     df = df.astype({
         "id": "int",
         "sku_vtex_id": "int",
-        "ref_id": "str",
+        "sku_ref_id": "str",
         "imagen": "str",
         "ord": "int",
         "fecha_modificacion": "str",
@@ -85,7 +85,7 @@ def _sku_images_incremental_load(ti):
 
     columns = [
         "sku_vtex_id",
-        "ref_id",
+        "sku_ref_id",
         "imagen",
         "ord",
         "fecha_modificacion",
