@@ -193,7 +193,7 @@ def _save_table_price(ts, ti):
     connection = engine.connect()
     upsert_query = f""" 
                     INSERT INTO ecommdata_alvi.precios
-                    VALUES {','.join([str(i) for i in list(df.to_records(index=False))])}
+                    VALUES ("""+values_query+""")
                     ON CONFLICT ON CONSTRAINT precios_pk
                     DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""")
                     """
@@ -219,7 +219,7 @@ default_args = {
 with DAG(
     'etl_precios_alvi_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla precios desde Janis Alvi a S3 y staging.",
+    description="Extracción y carga de tabla precios desde Janis Alvi a S3 y ecommdata_alvi.",
     schedule_interval="0 7 * * *",
     start_date=datetime(2022, 6, 16),
     catchup=False,
@@ -227,7 +227,7 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla precios desde Janis Alvi a S3 y staging.
+    Extracción y carga de tabla precios desde Janis Alvi a S3 y ecommdata_alvi.
     """ 
     
     t0 = PythonOperator(
