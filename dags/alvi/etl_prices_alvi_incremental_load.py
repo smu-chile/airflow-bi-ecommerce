@@ -196,11 +196,11 @@ def _save_table_price(ts, ti):
                     ON CONFLICT ON CONSTRAINT precios_pk
                     DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""")
                     """
-    print(incremental_query)
+    print(upsert_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.executemany(incremental_query, fixed_records)
+    cursor.executemany(upsert_query, fixed_records)
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
