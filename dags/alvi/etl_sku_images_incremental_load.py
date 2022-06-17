@@ -144,7 +144,7 @@ with DAG(
     'etl_sku_imagenes_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla sku_imagenes desde Janis Alvi Replica hasta Workspace.",
-    schedule_interval="* */4 * * *",
+    schedule_interval="0 * * * *",
     start_date=datetime(2022, 6, 16),
     max_active_runs=1,
     catchup=False,
