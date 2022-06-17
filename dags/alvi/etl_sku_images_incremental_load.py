@@ -146,6 +146,7 @@ with DAG(
     description="Extracción y carga de tabla sku_imagenes desde Janis Alvi Replica hasta Workspace.",
     schedule_interval="* */4 * * *",
     start_date=datetime(2022, 6, 16),
+    max_active_runs=1
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "sku_imagenes", "alvi"],
 ) as dag:
