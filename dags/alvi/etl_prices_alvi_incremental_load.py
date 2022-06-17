@@ -92,7 +92,6 @@ def _save_table_price(ts, ti):
     df["proximo_intento_publicacion"] = pd.to_datetime(df["proximo_intento_publicacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_publicacion"] = pd.to_datetime(df["fecha_publicacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-    df["valido_hasta"] = pd.to_datetime(df["valido_hasta"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
