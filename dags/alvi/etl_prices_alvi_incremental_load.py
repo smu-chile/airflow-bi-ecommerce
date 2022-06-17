@@ -163,7 +163,7 @@ def _save_table_price(ts, ti):
         "creado_por",
         "fecha_modificacion",
         "fecha_creacion",
-        "fecha_publicacion"
+        "fecha_publicacion",
         "fecha_modificacion_unixtime"
     ]
 
