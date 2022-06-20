@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from utils.postgres_utils import get_max_updated_at_value
-from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3
+from utils.janis_alvi_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3
 
 from datetime import datetime, timezone
 
