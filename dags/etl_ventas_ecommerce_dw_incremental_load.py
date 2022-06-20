@@ -201,14 +201,14 @@ with DAG(
         retry_delay = timedelta(minutes=1),
         execution_timeout = timedelta(minutes=60),
         depends_on_past = True,
-        pool = "base_five_slots_pool"
+        pool = "backfill_pool"
     )
 
     t1 = PythonOperator(
         task_id = "ventas_dw_incremental_load",
         python_callable = _ventas_dw_incremental_load,
         depends_on_past = True,
-        pool = "base_five_slots_pool"
+        pool = "backfill_pool"
     )
 
     t0 >> t1
