@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 def _ventas_dw_incremental_load(ti):
     import pandas as pd
     import numpy as np
-    import sqlalchemy
 
     ventas_dw_file = ti.xcom_pull(key="return_value", task_ids=["extract_last_7_days_from_dw"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -55,7 +54,7 @@ def _ventas_dw_incremental_load(ti):
 
     df["UNIDAD_DE_MEDIDA"] = np.where(df["UNIDAD_DE_MEDIDA"] == "ST", "UN", df["UNIDAD_DE_MEDIDA"])
     df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["NUM_TRXN"] + df["PRODUCT_KEY"]
-    df["ref_id_producto"] = np.where((df["SKU_PRODUCT"].isnull()) | (df["UNIDAD_DE_MEDIDA"].isnull()), 
+    df["ref_id_sku"] = np.where((df["SKU_PRODUCT"].isnull()) | (df["UNIDAD_DE_MEDIDA"].isnull()), 
                                         "NULL", 
                                         df["SKU_PRODUCT"] + "-" + df["UNIDAD_DE_MEDIDA"])
     df["PEDIDO"] = np.where(df["PEDIDO"].isnull(), "NULL", df["PEDIDO"].str[1:])
@@ -63,8 +62,8 @@ def _ventas_dw_incremental_load(ti):
     df = df.drop(columns=["DATE_KEY", "PRODUCT_KEY", "SKU_PRODUCT", "UNIDAD_DE_MEDIDA"])
 
     column_names = {
-        "CENTRO": "centro",
-        "FECHA": "fecha",
+        "CENTRO": "id_tienda",
+        "FECHA": "fecha_facturacion",
         "PTR_CODPROD": "ean",
         "CANAL_VENTA": "canal_venta",
         "NUM_TRXN": "num_trxn",
@@ -84,9 +83,9 @@ def _ventas_dw_incremental_load(ti):
     df = df.rename(columns=column_names)
     df = df[[
         "id",
-        "ref_id_producto",
-        "centro",
-        "fecha",
+        "ref_id_sku",
+        "id_tienda",
+        "fecha_facturacion",
         "ean",
         "canal_venta",
         "num_trxn",
@@ -104,9 +103,9 @@ def _ventas_dw_incremental_load(ti):
     ]]
 
     columns = [
-        "ref_id_producto",
-        "centro",
-        "fecha",
+        "ref_id_sku",
+        "id_tienda",
+        "fecha_facturacion",
         "ean",
         "canal_venta",
         "num_trxn",
@@ -142,7 +141,7 @@ def _ventas_dw_incremental_load(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.ventas_datawarehouse (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.ventas_ecommerce_datawarehouse (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -155,7 +154,7 @@ def _ventas_dw_incremental_load(ti):
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Data saved to PostgreSQL. Table: ecommdata.ventas_datawarehouse")
+    print("Data saved to PostgreSQL. Table: ecommdata.ventas_ecommerce_datawarehouse")
     
     return
 
@@ -175,12 +174,11 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     concurrency=2,
-    tags=["DATA", "DW", "S3", "workspace", "ventas_datawarehouse", "unimarc"],
+    tags=["DATA", "DW", "S3", "workspace", "ventas_ecommerce_datawarehouse", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
-    Extract costs data from Datawarehouse to consolidate
-    a single costs table on Postgres workspace.
+    Extract ecommerce's sales data from Datawarehouse with last millers sales.
     """ 
     t0 = PythonOperator(
         task_id = "extract_last_7_days_from_dw",
