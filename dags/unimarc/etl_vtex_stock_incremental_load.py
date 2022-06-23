@@ -155,7 +155,7 @@ def _save_vtex_stock_in_ecommdata(ti):
     print(f"Number of records to load: {str(len(fixed_records))}")
     
     incremental_query = """
-        INSERT INTO ecommdata.administradores (vtex_id,"""+columns_query+""") 
+        INSERT INTO ecommdata.vtex_stock (vtex_id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT ON CONSTRAINT vtex_stock_pk
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
