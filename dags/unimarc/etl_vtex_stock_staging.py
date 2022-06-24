@@ -44,7 +44,7 @@ def _save_vtex_stock_in_ecommdata(ti):
     import sqlalchemy
     
     l_vtex_id = ti.xcom_pull(key="return_value", task_ids=["load_vtex_id_list"])[0]
-    l_vtex_id = l_vtex_id[0]
+    l_vtex_id = l_vtex_id
 
     if len(l_vtex_id) == 0:
         print('the list of vtex id was empty')
