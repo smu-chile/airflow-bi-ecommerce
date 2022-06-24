@@ -133,10 +133,9 @@ def _send_report_to_sftp():
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port, 
-                                private_key="temp_peya_sftp_rsa_key",
-                                default_path="/peya.live.sftp-catalogue/transfer-files/cl_unimarc/upload") as sftp:
+                                private_key="temp_peya_sftp_rsa_key") as sftp:
             localFile = f"{tiendapeya}.csv"
-            remotePath = f"{tiendapeya}.csv"
+            remotePath = f"/peya.live.sftp-catalogue/transfer-files/cl_unimarc/upload/{tiendapeya}.csv"
             sftp.put(localFile, remotePath)
 
         print(f"Archivo {tiendapeya}.csv cargado")
