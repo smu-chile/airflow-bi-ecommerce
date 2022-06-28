@@ -15,7 +15,6 @@ import pandas as pd
 from datetime import datetime
 
 def get(url, responses, session):
-    print(url)
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
@@ -27,7 +26,22 @@ def bulk_get(url_sublist, responses, session):
     return
 
 def _load_vtex_id_list():
-    query = "SELECT id FROM staging.stock_unimarc"
+    query = """
+        select s.vtex_id
+        from ( select CONCAT(l.material, '-', l.umv) as ref_id, l.material, l.umv
+            from ecommdata.lista8 l
+            where l.fecha = (select max(l.fecha)
+            from ecommdata.lista8 l)
+            group by CONCAT(l.material, '-', l.umv), l.material, l.umv) _t
+        inner join ecommdata.skus s on _t.ref_id = s.ref_id
+        left join catalogo.productos_excluidos pe on _t.material = pe.material and _t.umv = pe.umv
+        where pe.material is null and s.vtex_id is not null
+        UNION
+        select distinct s.vtex_id  
+        from staging.stock_unimarc sa
+        inner join ecommdata.skus s on s.id = sa.item_id
+        where sa.stock > 0;
+        """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
