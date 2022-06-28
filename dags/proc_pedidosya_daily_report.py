@@ -130,9 +130,12 @@ def _send_report_to_sftp():
         df["PRECIO"]=df["PRECIO"].astype("int")
         df.to_csv(tiendapeya + ".csv", header=True, index=False, encoding="utf-8")
 
-        with pysftp.Connection(host=ftp_host, username=ftp_user, port=ftp_port, private_key="temp_peya_sftp_rsa_key") as sftp:
+        with pysftp.Connection(host=ftp_host, 
+                                username=ftp_user, 
+                                port=ftp_port, 
+                                private_key="temp_peya_sftp_rsa_key") as sftp:
             localFile = f"{tiendapeya}.csv"
-            remotePath = f"/upload/{tiendapeya}.csv"
+            remotePath = f"/peya.live.sftp-catalogue/transfer-files/cl_unimarc/upload/{tiendapeya}.csv"
             sftp.put(localFile, remotePath)
 
         print(f"Archivo {tiendapeya}.csv cargado")
