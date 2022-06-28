@@ -88,6 +88,7 @@ def _save_vtex_stock_in_ecommdata(ti):
         task.join()
         thread_tasks = []
     
+    print(responses)
     final_responses = []
     
     for i in range(len(responses)):
