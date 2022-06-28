@@ -43,7 +43,6 @@ def load_full_table_from_staging_to_s3(table_name, df, ts):
     return file_name
 
 def get(url, responses, session):
-    print(url)
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
@@ -117,7 +116,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         task.join()
         thread_tasks = []
     
-    print(responses)
+    
     final_responses = []
     
     for i in range(len(responses)):
