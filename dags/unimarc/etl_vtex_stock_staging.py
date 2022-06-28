@@ -14,6 +14,34 @@ import pandas as pd
 
 from datetime import datetime
 
+def load_full_table_from_staging_to_s3(table_name, df, ts):
+    from io import StringIO
+    import boto3
+    
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = "staging/"+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
+    file_name = prefix+table_name+".csv"
+
+    buffer = StringIO()
+
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    response = s3_client.put_object(
+        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+    )
+
+    return file_name
+
 def get(url, responses, session):
     print(url)
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
@@ -52,7 +80,7 @@ def _load_vtex_id_list():
     pg_connection.close()
     return results
 
-def _save_vtex_stock_in_ecommdata(ti):
+def _save_vtex_stock_in_ecommdata(ti, ts):
     import requests
     from threading import Thread
     import pandas as pd
@@ -139,6 +167,8 @@ def _save_vtex_stock_in_ecommdata(ti):
                 index=False,         
                 chunksize=20000,         
                 method='multi')
+
+    load_full_table_from_staging_to_s3('stock_vtex', df, ts)
 
     return
 
