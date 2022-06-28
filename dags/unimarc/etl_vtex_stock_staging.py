@@ -19,7 +19,7 @@ def load_full_table_from_staging_to_s3(table_name, df, ts):
     import boto3
     
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    prefix = "staging/"+table_name+"/"+curr_datetime.strftime("%Y/%m/%d/%H%M_")
+    prefix = "staging/"+table_name+"/"+curr_datetime
     file_name = prefix+table_name+".csv"
 
     buffer = StringIO()
