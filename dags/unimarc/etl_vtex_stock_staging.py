@@ -65,7 +65,7 @@ def _save_vtex_stock_in_ecommdata(ti):
 
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
-    url_list = [f"https://{accountName}.{env}.com.br/api/logistics/pvt/inventory/skus/{i}" for i in l_vtex_id]
+    url_list = [f"https://{accountName}.{env}.com.br/api/logistics/pvt/inventory/skus/{i[0]}" for i in l_vtex_id]
     
     session = requests.session()
     thread_num = 40
