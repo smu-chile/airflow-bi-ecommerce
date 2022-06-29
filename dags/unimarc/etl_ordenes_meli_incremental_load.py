@@ -1,0 +1,67 @@
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.providers.mongo.hooks.mongo import MongoHook
+
+from utils.postgres_utils import get_max_updated_at_value
+
+from datetime import datetime, timedelta
+
+def _get_orders_meli_documents(ti):
+    max_updated_at_value = ti.xcom_pull(key="return_value", task_ids=["get_max_updated_at_date"])[0]
+    if max_updated_at_value is None:
+        max_updated_at_value = "1970-01-01T00:00:00"
+    mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
+    order_documents = mongo_hook.find(
+        mongo_collection="orders",
+        query={"last_updated": {"$gt": max_updated_at_value}} 
+    )
+    print(len(list(order_documents)))
+    return
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+with DAG(
+    "etl_ordenes_mercado_libre_incremental_load",
+    default_args=default_args,
+    description="Extracción periodica de ordenes de Unimarc a través de MercadoLibre.",
+    schedule_interval="0 */4 * * *",
+    start_date=datetime(2021, 9, 21),
+    catchup=True,
+    max_active_runs=1,
+    concurrency=2,
+    tags=["DATA", "S3", "mongodb", "workspace", "ecommdata_unimarc", "ordenes_meli", "unimarc"],
+) as dag:
+
+    dag.doc_md = """
+    Extracción periodica de ordenes de Unimarc a través de MercadoLibre. \n
+    Método de carga incremental: UPSERT sobre campo last_updated \n
+    MongoDB -> S3 -> Workspace (Postgresql)
+    """ 
+    t0 = PythonOperator(
+        task_id = "get_max_updated_at_date",
+        python_callable = get_max_updated_at_value,
+        op_kwargs = {
+            "schema": "ecommdata_unimarc",
+            "table_name": "ordenes_meli", 
+            "updated_at_field": "fecha_modificacion"
+        },
+        depends_on_past = True,
+        pool = "backfill_pool"
+    )
+    
+    t1 = PythonOperator(
+        task_id = "extract_orders_last_7_days_from_mongodb",
+        python_callable = _get_orders_meli_documents,
+        retries = 2,
+        retry_delay = timedelta(minutes=1),
+        execution_timeout = timedelta(minutes=60),
+        depends_on_past = True,
+        pool = "backfill_pool"
+    )
+
+    t0 >> t1
