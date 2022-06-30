@@ -13,7 +13,6 @@ def _get_table_stock_from_S3(ts, ti):
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
-    print(stock_file)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
