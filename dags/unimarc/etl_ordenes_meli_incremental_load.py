@@ -155,7 +155,7 @@ with DAG(
     default_args=default_args,
     description="Extracción periodica de ordenes de Unimarc a través de MercadoLibre.",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 6, 30),
+    start_date=datetime(2022, 6, 29),
     catchup=True,
     max_active_runs=1,
     concurrency=2,
