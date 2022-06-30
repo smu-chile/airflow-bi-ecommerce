@@ -6,13 +6,52 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 
-from queue import Queue
-import requests
-from threading import Thread
-import time
-import pandas as pd
+from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
+
+def _get_table_stock_janis_from_S3(ts, ti):
+    import pandas as pd
+
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+    print(stock_file)
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+stock_file)
+    if not s3_hook.check_for_key(stock_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % stock_file)
+
+    orders_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(orders_object.get()["Body"])
+    print(f"Number of records found: {len(df.index)}")
+
+    return df
+
+def _save_table_stock_janis(ts, ti):
+    import pandas as pd
+    import sqlalchemy
+
+    df = _get_table_stock_janis_from_S3(ts, ti)
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    df.to_sql(name="stock_unimarc",
+                con=engine,         
+                schema="staging",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+    
+    return
 
 def load_full_table_from_staging_to_s3(table_name, df, ts):
     from io import StringIO
@@ -194,20 +233,32 @@ with DAG(
     Extracción y carga de tabla vtex_stock desde Vtex hasta Workspace.
     """ 
 
-    t0 = ExternalTaskSensor(
-        task_id="wait_for_stock_staging",
-        external_dag_id='etl_stock_staging',
-        external_task_id=None,
-        allowed_states=['success'],
-        failed_states=['failed']
+    t0 = PythonOperator(
+        task_id = "load_full_table_to_s3",
+        python_callable = load_full_table_to_s3,
+        op_kwargs = {"table_name": "stock"}
     )
 
-    t1 = PythonOperator(
+    t1 = PostgresOperator(
+        task_id = "truncate_staging_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE staging.stock_unimarc
+        """,
+    )
+
+
+    t2 = PythonOperator(
+        task_id = "save_table_stock",
+        python_callable = _save_table_stock_janis,
+    )
+
+    t3 = PythonOperator(
         task_id = "load_vtex_id_list",
         python_callable = _load_vtex_id_list
     )
 
-    t2 = PostgresOperator(
+    t4 = PostgresOperator(
         task_id = "truncate_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
@@ -215,9 +266,9 @@ with DAG(
         """,
     )
 
-    t3 = PythonOperator(
+    t5 = PythonOperator(
         task_id = "save_vtex_stock_in_ecommdata",
         python_callable = _save_vtex_stock_in_ecommdata
     )
 
-t0 >> t1 >> t2 >> t3
+t0 >> t1 >> t2 >> t3 >> t4 >> t5
