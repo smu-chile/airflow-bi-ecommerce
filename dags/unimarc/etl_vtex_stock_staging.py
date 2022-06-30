@@ -247,7 +247,6 @@ with DAG(
         """,
     )
 
-
     t2 = PythonOperator(
         task_id = "save_table_stock",
         python_callable = _save_table_stock_janis,
@@ -264,14 +263,6 @@ with DAG(
     t4 = PythonOperator(
         task_id = "save_vtex_stock_in_ecommdata",
         python_callable = _save_vtex_stock_in_ecommdata
-    )
-
-    t3 = PostgresOperator(
-        task_id = "truncate_vtex_staging_table",
-        postgres_conn_id="postgresql_conn",
-        sql="""
-        TRUNCATE staging.stock_vtex_unimarc
-        """,
     )
 
 t0 >> t1 >> t2 >> t3 >> t4
