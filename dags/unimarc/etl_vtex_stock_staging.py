@@ -104,7 +104,7 @@ def _load_vtex_id_list():
         left join catalogo.productos_excluidos pe on _t.material = pe.material and _t.umv = pe.umv
         where pe.material is null and s.vtex_id is not null
         UNION
-        select distinct s.vtex_id  
+        select distinct s.vtex_id
         from staging.stock_unimarc sa
         inner join ecommdata.skus s on s.id = sa.item_id
         where sa.stock > 0;
@@ -236,7 +236,7 @@ with DAG(
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "stock"}
+        op_kwargs = {"table_name": "stock", "where": "stock > 0"}
     )
 
     t1 = PostgresOperator(
@@ -264,6 +264,14 @@ with DAG(
     t4 = PythonOperator(
         task_id = "save_vtex_stock_in_ecommdata",
         python_callable = _save_vtex_stock_in_ecommdata
+    )
+
+    t3 = PostgresOperator(
+        task_id = "truncate_vtex_staging_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE staging.stock_vtex_unimarc
+        """,
     )
 
 t0 >> t1 >> t2 >> t3 >> t4
