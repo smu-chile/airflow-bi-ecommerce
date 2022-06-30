@@ -33,8 +33,11 @@ def _get_table_stock_janis_from_S3(ts, ti):
 def _save_table_stock_janis(ts, ti):
     import pandas as pd
     import sqlalchemy
+    import numpy as np
 
     df = _get_table_stock_janis_from_S3(ts, ti)
+    df_array = np.array_split(df,5)
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -43,13 +46,15 @@ def _save_table_stock_janis(ts, ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    df.to_sql(name="stock_unimarc",
-                con=engine,         
-                schema="staging",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    for i in df_array:
+
+        i.to_sql(name="stock_unimarc",
+                    con=engine,         
+                    schema="staging",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
     
     return
 
@@ -189,6 +194,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     }
 
     df = df.rename(columns=columns_rename)
+
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
