@@ -124,7 +124,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     import pandas as pd
     import sqlalchemy
     
-    l_vtex_id = ti.xcom_pull(key="return_value", task_ids=["load_vtex_id_list"])[0]
+    l_vtex_id = _load_vtex_id_list()
 
     if len(l_vtex_id) == 0:
         print('the list of vtex id was empty')
@@ -253,12 +253,7 @@ with DAG(
         python_callable = _save_table_stock_janis,
     )
 
-    t3 = PythonOperator(
-        task_id = "load_vtex_id_list",
-        python_callable = _load_vtex_id_list
-    )
-
-    t4 = PostgresOperator(
+    t3 = PostgresOperator(
         task_id = "truncate_vtex_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
@@ -266,9 +261,9 @@ with DAG(
         """,
     )
 
-    t5 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "save_vtex_stock_in_ecommdata",
         python_callable = _save_vtex_stock_in_ecommdata
     )
 
-t0 >> t1 >> t2 >> t3 >> t4 >> t5
+t0 >> t1 >> t2 >> t3 >> t4
