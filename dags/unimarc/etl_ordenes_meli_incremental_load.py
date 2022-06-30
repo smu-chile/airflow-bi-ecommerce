@@ -85,6 +85,7 @@ def _load_meli_orders_to_workspace(ti, ts):
             new_document["fecha_cancelacion"] = document["cancel_detail"].get("date", None)
 
     df = pd.DataFrame(new_documents)
+    df = df[df["id_meli_producto"].notna()]
     columns = [
         "id_orden",
         "id_pack",
