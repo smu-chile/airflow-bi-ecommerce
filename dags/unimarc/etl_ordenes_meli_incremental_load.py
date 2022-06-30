@@ -102,7 +102,7 @@ with DAG(
 
     t2 = PythonOperator(
         task_id = "load_meli_orders_to_workspace",
-        python_callable = _load_meli_orders_to_workspace
+        python_callable = _load_meli_orders_to_workspace,
         retries = 2,
         retry_delay = timedelta(minutes=1),
         depends_on_past = True,
