@@ -37,6 +37,7 @@ def _get_orders_meli_documents(ti, ts):
     return file_name
 
 def _load_meli_orders_to_workspace(ti, ts):
+    import json
     import pandas as pd
     json_order_documents_key = ti.xcom_pull(key="return_value", task_ids=["extract_orders_from_mongodb"])[0]
 
@@ -49,8 +50,8 @@ def _load_meli_orders_to_workspace(ti, ts):
 
     new_orders_object = s3_hook.get_key(json_order_documents_key, bucket_name=s3_bucket)
 
-    df = pd.read_json(new_orders_object.get()["Body"], orient="records")
-    print(f"Number of records found: {len(df.index)}")
+    list_order_document = json.loads(new_orders_object.get()["Body"].read().decode('utf-8'))
+    print(f"Number of records found: {len(list_order_document)}")
 
     return
 
