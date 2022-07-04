@@ -36,7 +36,7 @@ def _save_table_stock_janis(ts, ti):
     import numpy as np
 
     df = _get_table_stock_janis_from_S3(ts, ti)
-    df = df['id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified']
+    df = df['id',  'store_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified']
     df = df.loc[df['stock'] > 0]
 
     host = Variable.get("POSTGRESQL_HOST")
