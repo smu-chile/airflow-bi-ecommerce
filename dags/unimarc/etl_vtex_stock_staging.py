@@ -112,7 +112,7 @@ def _load_vtex_id_list():
         select distinct s.vtex_id
         from staging.stock_unimarc sa
         inner join ecommdata.skus s on s.id = sa.item_id
-        where sa.stock > 0;
+        where sa.stock > 0 and s.vtex_id is not null;
         """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
