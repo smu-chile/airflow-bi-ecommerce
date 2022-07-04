@@ -36,7 +36,8 @@ def _save_table_stock_janis(ts, ti):
     import numpy as np
 
     df = _get_table_stock_janis_from_S3(ts, ti)
-    df_array = np.array_split(df,5)
+    df = df['stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified']
+    df = df.loc[df['stock'] > 0]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -45,6 +46,8 @@ def _save_table_stock_janis(ts, ti):
     
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
+
+    df_array = np.array_split(df,5)
 
     for i in df_array:
 
@@ -242,7 +245,7 @@ with DAG(
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "stock", "where": "stock > 0"}
+        op_kwargs = {"table_name": "stock"}
     )
 
     t1 = PostgresOperator(
