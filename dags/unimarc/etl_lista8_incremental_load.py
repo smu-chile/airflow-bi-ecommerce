@@ -49,7 +49,7 @@ def _load_lista8(ts):
 
     dataframe_list = []
     for s3_file in s3_file_list:
-        if not s3_file.endswith(".csv"):
+        if not s3_file.endswith((".csv", ".CSV")):
             # Skip empty any non-csv file
             continue
         print(f"Loading file: {s3_file}")
