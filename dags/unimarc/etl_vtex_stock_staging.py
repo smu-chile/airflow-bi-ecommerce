@@ -36,7 +36,8 @@ def _save_table_stock_janis(ts, ti):
     import numpy as np
 
     df = _get_table_stock_janis_from_S3(ts, ti)
-    df_array = np.array_split(df,5)
+    df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified']]
+    df = df.loc[df['stock'] > 0]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -45,6 +46,8 @@ def _save_table_stock_janis(ts, ti):
     
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
+
+    df_array = np.array_split(df,5)
 
     for i in df_array:
 
@@ -112,7 +115,7 @@ def _load_vtex_id_list():
         select distinct s.vtex_id
         from staging.stock_unimarc sa
         inner join ecommdata.skus s on s.id = sa.item_id
-        where sa.stock > 0;
+        where sa.stock > 0 and s.vtex_id is not null;
         """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -242,7 +245,7 @@ with DAG(
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "stock", "where": "stock > 0"}
+        op_kwargs = {"table_name": "stock"}
     )
 
     t1 = PostgresOperator(
