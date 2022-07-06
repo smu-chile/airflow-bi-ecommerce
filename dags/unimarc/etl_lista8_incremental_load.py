@@ -100,7 +100,7 @@ with DAG(
     'etl_lista8_datastage_incremental_load',
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
-    schedule_interval="0 12 * * *",
+    schedule_interval="0 10 * * *",
     start_date=datetime(2022, 7, 3),
     catchup=True,
     max_active_runs = 1,
@@ -108,8 +108,8 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción de archivos csv de lista8 desde bucket de S3, transformación y carga de datos en tabla ecommdata.lista8. \n
-    Un sensor espera por 3 horas la presencia de un archivo bandera que indique que la carga de los csv de datos está completa.
+    Extracción de archivos csv de lista8 desde bucket de S3, transformación y carga de datos en tabla ecommdata_unimarc.lista8. \n
+    Un sensor espera por 3 horas la presencia de un archivo bandera (.TRG) que indique que la carga de los csv de datos está completa.
     """ 
     t0 = S3KeySensor(
         task_id = "wait_for_lista8_flag_file",
