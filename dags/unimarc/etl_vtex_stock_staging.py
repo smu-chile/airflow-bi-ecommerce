@@ -36,7 +36,7 @@ def _save_table_stock_janis(ts, ti):
     import numpy as np
 
     df = _get_table_stock_janis_from_S3(ts, ti)
-    df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified']]
+    df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified', 'operation_type']]
     df = df.loc[df['stock'] > 0]
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -114,7 +114,7 @@ def _load_vtex_id_list():
         UNION
         select distinct s.vtex_id
         from staging.stock_unimarc sa
-        inner join ecommdata.skus s on s.id = sa.item_id
+        inner join ecommdata.skus s on s.id_producto = sa.item_id
         where sa.stock > 0 and s.vtex_id is not null;
         """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -190,7 +190,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
 
     columns_rename = {
         "skuId": "vtex_id",
-        "warehouseId": "id_tienda",
+        "warehouseId": "id_warehouse",
         "totalQuantity": "cantidad_total",
         "reservedQuantity": "cantidad_reservada",
         "hasUnlimitedQuantity": "cantidad_ilimitada"
