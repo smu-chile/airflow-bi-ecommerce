@@ -98,7 +98,8 @@ with DAG(
                 SELECT wlw.ref_id as id
                     , wlw.name as nombre
                     , wlwd.dock
-                    , ws.ref_id as id_tienda 
+                    , ws.ref_id as id_tienda
+                    , wlw.id as id_janis 
                 from wms_logistic_warehouses wlw 
                 left join wms_logistic_warehouse_docks wlwd 
                     on wlwd.warehouse = wlw.id 
