@@ -25,16 +25,25 @@ with DAG(
     Prueba de distintos métodos de conexión con servidor SMTP.
     """ 
     t0 = BashOperator(
+        task_id = "install ip utils",
+        bash_command = "apt-get update && apt-get install iputils-ping"
+    )
+
+    t1 = BashOperator(
         task_id = "ping_local_smtp_server_hostname",
         bash_command = "ping smtprelay.unimarc.local"
     )
 
-    t1 = BashOperator(
+    t2 = BashOperator(
         task_id = "ping_local_smtp_server_ip",
         bash_command = "ping 10.42.31.196"
     )
 
-    t2 = BashOperator(
+    t3 = BashOperator(
         task_id = "ping_outlook_smtp_server",
         bash_command = "ping smtp.office365.com"
     )
+
+t0 >> t1
+t0 >> t2
+t0 >> t3
