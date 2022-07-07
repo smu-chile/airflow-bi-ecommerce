@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.python import PythonOperator
 
 
@@ -126,4 +127,13 @@ with DAG(
         python_callable = _load_lista8
     )
 
-    t0 >> t1 
+    t2 = PostgresOperator(
+        task_id = "delete_records_older_than_7_days",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        DELETE from ecommdata_unimarc.lista8
+        WHERE fecha <= to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') - interval '6 days'
+        """
+    )
+
+    t0 >> t1 >> t2
