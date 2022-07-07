@@ -1,7 +1,35 @@
 from airflow import DAG
-from airflow.operators.bash_operator import BashOperator
+from airflow.operators.python import PythonOperator
+from airflow.models import Variable
 
-from datetime import datetime, timedelta
+from datetime import datetime
+
+def send_test_email(host):
+    from redmail import EmailSender
+    email_sender = EmailSender(
+        host=host,
+        port="25"
+    )
+    email_sender.send(
+        subject="test email subject",
+        sender="reportes_ecommerce@smu.cl",
+        receivers=["iurizar@smu.cl"],
+        text="Hi, this is an email."
+    )
+    return
+
+def send_test_outlook_email():
+    from redmail import outlook
+    outlook.username = Variable.get("TEST_OUTLOOK_USER_SECRET")
+    outlook.password = Variable.get("TEST_OUTLOOK_PASSWORD")
+
+    # And then you can send emails
+    outlook.send(
+        subject="Example email",
+        receivers=['iurizar@smu.cl'],
+        text="Hi, this is an outlook email."
+    )
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -24,26 +52,20 @@ with DAG(
     dag.doc_md = """
     Prueba de distintos métodos de conexión con servidor SMTP.
     """ 
-    t0 = BashOperator(
-        task_id = "install ip utils",
-        bash_command = "apt-get update && apt-get install iputils-ping"
+
+    t0 = PythonOperator(
+        task_id = "test_redmail_with_local_smtp_server_ip",
+        python_callable = send_test_email,
+        op_kwargs = {"host": "10.42.31.222"}
     )
 
-    t1 = BashOperator(
-        task_id = "ping_local_smtp_server_hostname",
-        bash_command = "ping smtprelay.unimarc.local"
+    t1 = PythonOperator(
+        task_id = "test_redmail_with_local_smtp_server_hostname",
+        python_callable = send_test_email,
+        op_kwargs = {"host": "smtprelay.unimarc.local"}
     )
 
-    t2 = BashOperator(
-        task_id = "ping_local_smtp_server_ip",
-        bash_command = "ping 10.42.31.196"
+    t2 = PythonOperator(
+        task_id = "test_redmail_with_outlook_smtp_server",
+        python_callable = send_test_outlook_email
     )
-
-    t3 = BashOperator(
-        task_id = "ping_outlook_smtp_server",
-        bash_command = "ping smtp.office365.com"
-    )
-
-t0 >> t1
-t0 >> t2
-t0 >> t3
