@@ -274,4 +274,10 @@ with DAG(
         python_callable = _save_vtex_stock_in_ecommdata
     )
 
-t0 >> t1 >> t2 >> t3 >> t4
+    t5 = PostgresOperator(
+        task_id = "save_stock_final",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/stock_final.sql"
+    )
+
+t0 >> t1 >> t2 >> t3 >> t4 >> t5
