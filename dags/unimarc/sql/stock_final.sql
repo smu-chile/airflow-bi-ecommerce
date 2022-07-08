@@ -1,6 +1,6 @@
 insert into ecommdata.stock
 select 
-{{ds}} as fecha
+'{{ds}}'::date as fecha
 , t.id as id_tienda
 , t.glosa as glosa_tienda
 , b.id as id_bodega
@@ -23,7 +23,7 @@ select
 , svu.cantidad_ilimitada as stock_infinito_vtex
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
-, {{ts}} as fecha_hora
+, '{{ts}}'::timestamp as fecha_hora
 from staging.stock_vtex_unimarc svu
 left join ecommdata.bodegas b on svu.id_warehouse = b.id 
 left join ecommdata.tiendas t on b.id_tienda = t.id 
