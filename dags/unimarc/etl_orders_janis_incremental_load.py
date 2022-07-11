@@ -9,7 +9,7 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
-def _incremental_load_ordes_table(ti):
+def _incremental_load_orders_table(ti):
     import numpy as np
     import pandas as pd
     
@@ -334,7 +334,7 @@ with DAG(
 
     t2 = PythonOperator(
         task_id = "incremental_load_orders_table",
-        python_callable = _incremental_load_ordes_table,
+        python_callable = _incremental_load_orders_table,
         trigger_rule = "none_failed"
     )
 
