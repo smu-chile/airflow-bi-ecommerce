@@ -60,7 +60,8 @@ def _incremental_load_ordes_table(ti):
             "invoice_date",
             "date_picked",
             "date_modified",
-            "call_center_operator_id"
+            "call_center_operator_id",
+            "invoice_number"
             ]]
 
     # Rename columns to match workspace schema:
@@ -91,7 +92,8 @@ def _incremental_load_ordes_table(ti):
         "date_created": "fecha_creacion",
         "invoice_date": "fecha_facturacion",
         "date_picked": "fecha_picking",
-        "date_modified": "fecha_modificacion"
+        "date_modified": "fecha_modificacion",
+        "invoice_number": "documento_electronico"
     }
     df = df.rename(columns=columns_rename)
 
@@ -137,7 +139,8 @@ def _incremental_load_ordes_table(ti):
         "fecha_creacion": "string",
         "fecha_facturacion": "string",
         "fecha_picking": "string",
-        "fecha_modificacion": "string"
+        "fecha_modificacion": "string",
+        "documento_electronico": "int64"
     }, errors="ignore")
 
     custom_data_fields_full = ti.xcom_pull(key="return_value", task_ids=["order_custom_data_field_full_load"])[0] 
@@ -205,7 +208,8 @@ def _incremental_load_ordes_table(ti):
         "nombre_picker",
         "rut_picker",
         "empresa_picker",
-        "fecha_modificacion_unixtime"
+        "fecha_modificacion_unixtime",
+        "documento_electronico"
     ]
 
     df = df[["id"]+columns]
