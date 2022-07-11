@@ -1,3 +1,4 @@
+BEGIN TRANSACTION;
 insert into ecommdata.stock
 select 
 '{{ds}}'::date as fecha
@@ -23,7 +24,7 @@ select
 , svu.cantidad_ilimitada as stock_infinito_vtex
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
-, '{{ts}}'::timestamp as fecha_hora
+, '{{ts}}'::timestamp as ultima_actualizacion
 from staging.stock_vtex_unimarc svu
 left join ecommdata.bodegas b on svu.id_warehouse = b.id 
 left join ecommdata.tiendas t on b.id_tienda = t.id 
@@ -32,3 +33,6 @@ left join staging.stock_unimarc su on s.id_producto = su.item_id and t.id_janis 
 left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
 where t.status = 1;
+DELETE from ecommdata.stock
+WHERE ultima_actualizacion = '{{ts}}'::timestamp - interval '4 hours' AND fecha = '{{ds}}'::date;
+COMMIT;
