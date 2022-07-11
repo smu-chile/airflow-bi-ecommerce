@@ -36,7 +36,7 @@ def _save_table_stock_janis(ts, ti):
     import numpy as np
 
     df = _get_table_stock_janis_from_S3(ts, ti)
-    df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified']]
+    df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified', 'operation_type']]
     df = df.loc[df['stock'] > 0]
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -114,7 +114,7 @@ def _load_vtex_id_list():
         UNION
         select distinct s.vtex_id
         from staging.stock_unimarc sa
-        inner join ecommdata.skus s on s.id = sa.item_id
+        inner join ecommdata.skus s on s.id_producto = sa.item_id
         where sa.stock > 0 and s.vtex_id is not null;
         """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -190,7 +190,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
 
     columns_rename = {
         "skuId": "vtex_id",
-        "warehouseId": "id_tienda",
+        "warehouseId": "id_warehouse",
         "totalQuantity": "cantidad_total",
         "reservedQuantity": "cantidad_reservada",
         "hasUnlimitedQuantity": "cantidad_ilimitada"
@@ -228,18 +228,18 @@ default_args = {
 }
 
 with DAG(
-    'etl_vtex_stock_staging',
+    'etl_stock_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla vtex_stock desde Vtex hasta Workspace.",
+    description="Extracción y carga de tabla stock desde Vtex y Janis.",
     schedule_interval="0 */4 * * *",
-    start_date=datetime(2022, 6, 23),
+    start_date=datetime(2022, 7, 11),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "vtex", "staging", "unimarc", "vtex_stock"],
+    tags=["DATA", "vtex", "janis", "staging", "unimarc", "vtex_stock", "janis_stock", "stock"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla vtex_stock desde Vtex hasta Workspace.
+    Extracción y carga de tabla stock desde Vtex y Janis.
     """ 
 
     t0 = PythonOperator(
@@ -248,7 +248,23 @@ with DAG(
         op_kwargs = {"table_name": "stock"}
     )
 
-    t1 = PostgresOperator(
+    t1 = PythonOperator(
+        task_id = "save_table_stock",
+        python_callable = _save_table_stock_janis,
+    )
+
+    t2 = PythonOperator(
+        task_id = "save_vtex_stock_in_ecommdata",
+        python_callable = _save_vtex_stock_in_ecommdata
+    )
+
+    t3 = PostgresOperator(
+        task_id = "save_stock_final",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/stock_final.sql"
+    )
+
+    t4 = PostgresOperator(
         task_id = "truncate_janis_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
@@ -256,12 +272,7 @@ with DAG(
         """,
     )
 
-    t2 = PythonOperator(
-        task_id = "save_table_stock",
-        python_callable = _save_table_stock_janis,
-    )
-
-    t3 = PostgresOperator(
+    t5 = PostgresOperator(
         task_id = "truncate_vtex_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
@@ -269,9 +280,5 @@ with DAG(
         """,
     )
 
-    t4 = PythonOperator(
-        task_id = "save_vtex_stock_in_ecommdata",
-        python_callable = _save_vtex_stock_in_ecommdata
-    )
 
-t0 >> t1 >> t2 >> t3 >> t4
+t0 >> t1 >> t2 >> t3 >> t4 >> t5
