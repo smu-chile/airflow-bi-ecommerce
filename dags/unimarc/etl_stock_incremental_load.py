@@ -4,7 +4,6 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.sensors.external_task import ExternalTaskSensor
 
 from utils.janis_utils import load_full_table_to_s3
 
@@ -13,7 +12,6 @@ from datetime import datetime
 def _get_table_stock_janis_from_S3(ts, ti):
     import pandas as pd
 
-    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     print(stock_file)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -104,9 +102,9 @@ def _load_vtex_id_list():
     query = """
         select s.vtex_id
         from ( select CONCAT(l.material, '-', l.umv) as ref_id, l.material, l.umv
-            from ecommdata.lista8 l
+            from ecommdata_unimarc.lista8 l
             where l.fecha = (select max(l.fecha)
-            from ecommdata.lista8 l)
+            from ecommdata_unimarc.lista8 l)
             group by CONCAT(l.material, '-', l.umv), l.material, l.umv) _t
         inner join ecommdata.skus s on _t.ref_id = s.ref_id
         left join catalogo.productos_excluidos pe on _t.material = pe.material and _t.umv = pe.umv
