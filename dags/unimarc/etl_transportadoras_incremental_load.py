@@ -44,7 +44,7 @@ def _staging_transportadoras_table(ti):
     print(f"Number of records extracted: {len(df_dock_carriers.index)}")
 
     # Select only relevant columns:
-    df_carriers = df[[
+    df_carriers = df_carriers[[
             "id",
             "ref_id",
             "name",
