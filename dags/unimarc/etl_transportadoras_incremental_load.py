@@ -1,8 +1,9 @@
 from airflow import DAG
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.hooks.postgres import PostgresHook
+
 
 from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3, load_custom_query_to_s3
 from utils.postgres_utils import get_max_updated_at_value
@@ -179,7 +180,20 @@ with DAG(
         python_callable = _staging_transportadoras_table
     )
 
+    t4 = PostgresOperator(
+        task_id = "upsert_transportadoras",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/upsert_transportadoras.sql",
+    )
+
+    t5 = PostgresOperator(
+        task_id = "clear_staging_table",
+        postgres_conn_id="postgresql_conn",
+        sql="TRUNCATE staging.transportadoras_unimarc;",
+    )
+
 
 
     t1 >> t2 >> t3
     t0 >> t3
+    t3 >> t4 >> t5
