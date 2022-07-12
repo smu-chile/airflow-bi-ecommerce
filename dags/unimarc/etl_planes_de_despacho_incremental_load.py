@@ -1,6 +1,6 @@
 from airflow import DAG
 from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
@@ -153,7 +153,7 @@ with DAG(
     Extracción y carga de tabla de planes_de_despacho de Janis a Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
-    t0 = PythonOperator(
+    t0 = BranchPythonOperator(
         task_id = "evaluate_full_load",
         python_callable = _evaluate_full_load,
         op_kwargs = {
@@ -191,7 +191,8 @@ with DAG(
 
     t4 = PythonOperator(
         task_id = "planes_de_despacho_incremental_load",
-        python_callable = _staging_planes_de_despacho_table
+        python_callable = _staging_planes_de_despacho_table,
+        trigger_rule = "none_failed"
     )
 
     t0 >> t1 >> t2
