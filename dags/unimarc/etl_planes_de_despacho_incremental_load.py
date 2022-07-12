@@ -190,12 +190,24 @@ with DAG(
     )
 
     t4 = PythonOperator(
-        task_id = "planes_de_despacho_incremental_load",
+        task_id = "staging_planes_de_despacho_table",
         python_callable = _staging_planes_de_despacho_table,
         trigger_rule = "none_failed"
+    )
+
+    t5 = PostgresOperator(
+        task_id = "planes_de_despacho_incremental_load",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/upsert_planes_de_despacho.sql",
+    )
+
+    t6 = PostgresOperator(
+        task_id = "clear_staging_table",
+        postgres_conn_id="postgresql_conn",
+        sql="TRUNCATE staging.planes_de_despacho_unimarc;",
     )
 
     t0 >> t1 >> t2
     t0 >> t3
     t2 >> t4  
-    t3 >> t4
+    t3 >> t4 >> t5 >> t6
