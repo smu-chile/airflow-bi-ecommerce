@@ -13,7 +13,7 @@ from datetime import datetime
 def _evaluate_full_load(ti, schema, table_name):
     if is_empty_table(schema, table_name):
         ti.xcom_push(key="load_method", value="full_load")
-        return "load_full_table"
+        return "load_full_table_to_s3"
     else:
         ti.xcom_push(key="load_method", value="incremental_load")
         return "get_max_updated_at_date"
