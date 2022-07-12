@@ -16,3 +16,17 @@ def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn
     if is_unixtime:
         return updated_at_date
     return updated_at_date.strftime("%Y-%m-%d %H:%M:%S")
+
+def is_empty_table(schema, table_name, postgres_conn_id="postgresql_conn"):
+    query = f"""
+        SELECT COUNT(1)
+        FROM {schema}.{table_name};
+    """
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id=postgres_conn_id)
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    result = cursor.fetchone()
+    count = result[0]
+    return count == 0
