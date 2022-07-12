@@ -97,6 +97,10 @@ def _staging_transportadoras_table(ti):
         "fecha_modificacion": "string",
     }, errors="ignore")
 
+    # Filter null ref_ids
+    print("Filtering null ref_ids:")
+    df = df[df["id"].notnull()]
+
     print("Number of records to be staged: "+str(len(df.index)))
 
     host = Variable.get("POSTGRESQL_HOST")
