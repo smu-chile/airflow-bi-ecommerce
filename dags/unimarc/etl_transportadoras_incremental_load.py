@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3, load_custom_query_to_s3
@@ -59,7 +59,7 @@ def _staging_transportadoras_table(ti):
             "date_modified",
             "user_modified",
             "description",
-            "integration_loc"
+            "integration_lock"
             ]]
 
     df = df_carriers.merge(df_dock_carriers, how="left", left_on="id", right_on="carrier").drop(columns=["carrier"])
