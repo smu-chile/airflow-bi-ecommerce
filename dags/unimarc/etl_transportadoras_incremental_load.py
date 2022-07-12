@@ -92,6 +92,7 @@ def _staging_transportadoras_table(ti):
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
     df = df.astype({
+        "agendado": "bool",
         "fecha_creacion": "string",
         "fecha_modificacion": "string",
     }, errors="ignore")
