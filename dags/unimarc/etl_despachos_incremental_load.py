@@ -146,6 +146,21 @@ def _order_shipping_table_incremental_load(ts, ti):
 
     df = df.rename(columns=columns_rename)
 
+    # Cast date columns:
+    df["fecha_despacho"] = pd.to_datetime(df["fecha_despacho"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["fecha_original_despacho"] = pd.to_datetime(df["fecha_original_despacho"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["inicio_ventana"] = pd.to_datetime(df["inicio_ventana"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["termino_ventana"] = pd.to_datetime(df["termino_ventana"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["fecha_inicio_despacho"] = pd.to_datetime(df["fecha_inicio_despacho"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["fecha_termino_despacho"] = pd.to_datetime(df["fecha_termino_despacho"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+
+    df["fecha_despacho"] = df["fecha_despacho"].astype("string")
+    df["fecha_original_despacho"] = df["fecha_original_despacho"].astype("string")
+    df["inicio_ventana"] = df["inicio_ventana"].astype("string")
+    df["termino_ventana"] = df["termino_ventana"].astype("string")
+    df["fecha_inicio_despacho"] = df["fecha_inicio_despacho"].astype("string")
+    df["fecha_termino_despacho"] = df["fecha_termino_despacho"].astype("string")
+
     columns = [
         "id_orden",
         "ciudad",
