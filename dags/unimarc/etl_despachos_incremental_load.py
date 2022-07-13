@@ -5,7 +5,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import load_custom_query_to_s3, load_full_table_to_s3
+from utils.janis_utils import load_custom_query_to_s3
 from utils.postgres_utils import is_empty_table
 
 from datetime import datetime, timedelta
@@ -50,8 +50,10 @@ def _get_order_shipping_from_janis(ts):
         raise Exception("ERROR: id list is too long. Rec: TRUNCATE and performe a full load.")
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
-        SELECT *
-        FROM janis_jackie.wms_order_shipping as wos
+        SELECT wo.seq_id, wos.*
+        FROM janis_jackie.wms_orders wo
+        LEFT JOIN janis_jackie.wms_order_shipping as wos
+        ON wo.id = wos.order_id
         WHERE wos.order_id IN {query_order_ids} 
     """
     print(query)
@@ -80,7 +82,7 @@ def _order_shipping_table_incremental_load(ts, ti):
     df = pd.read_csv(shipping_object.get()["Body"])
     df = df[[
         "id",
-        "order_id",
+        "seq_id",
         "city",
         "state",
         "country",
@@ -99,7 +101,7 @@ def _order_shipping_table_incremental_load(ts, ti):
 
     column_types = {
         "id": "int",
-        "order_id": "int",
+        "seq_id": "int",
         "city": "string",
         "state": "string",
         "country": "string",
@@ -121,7 +123,7 @@ def _order_shipping_table_incremental_load(ts, ti):
 
     columns_rename = {
         "id": "id",
-        "order_id": "id_orden",
+        "seq_id": "id_orden",
         "city": "ciudad",
         "state": "region",
         "country": "pais",
@@ -227,10 +229,16 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "load_full_table_to_s3",
-        python_callable = load_full_table_to_s3,
+        task_id = "load_full_table",
+        python_callable = load_custom_query_to_s3,
         op_kwargs = {
-            "table_name": "wms_order_shipping",
+            "query": """
+                SELECT wo.seq_id, wos.*
+                FROM janis_jackie.wms_orders wo
+                LEFT JOIN janis_jackie.wms_order_shipping as wos
+                ON wo.id = wos.order_id ;
+            """,
+            "query_name": "wms_order_shipping",
         }
     )
 
