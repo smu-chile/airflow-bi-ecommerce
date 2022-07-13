@@ -64,10 +64,14 @@ def _order_shipping_table_incremental_load(ts, ti):
     import numpy as np
     import pandas as pd
     
-    xcom_input_task = ti.xcom_pull(key="load_path", task_ids=["check_empty_table"])[0]
-    shipping_file = ti.xcom_pull(key="return_value", task_ids=[xcom_input_task])[0]
+    load_method = ti.xcom_pull(key="load_method", task_ids=["evaluate_full_load"])[0]
+    print(f"Load method: {load_method}")
+    if load_method == "full_load":
+        shipping_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+    else:
+        shipping_file = ti.xcom_pull(key="return_value", task_ids=["get_order_shipping_from_janis"])[0]
 
-    if ti.xcom_pull(key="return_value", task_ids=['get_order_shipping_from_janis'])[0] == "empty":
+    if shipping_file == "empty":
         return
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
