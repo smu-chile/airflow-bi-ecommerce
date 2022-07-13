@@ -16,7 +16,7 @@ def _evaluate_full_load(ti, schema, table_name):
         return "load_full_table_to_s3"
     else:
         ti.xcom_push(key="load_method", value="incremental_load")
-        return "get_max_updated_at_date"
+        return "wait_for_orders_s3_file"
 
 def _get_new_orders_from_s3(ts):
     import pandas as pd
@@ -227,7 +227,7 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "load_full_table",
+        task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
         op_kwargs = {
             "table_name": "wms_order_shipping",
