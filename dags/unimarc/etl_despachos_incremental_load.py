@@ -51,8 +51,8 @@ def _get_order_shipping_from_janis(ts):
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         SELECT wo.seq_id, wos.*
-        FROM janis_jackie.wms_orders wo
-        LEFT JOIN janis_jackie.wms_order_shipping as wos
+        FROM janis_jackie.wms_order_shipping as wos 
+        LEFT JOIN janis_jackie.wms_orders wo
         ON wo.id = wos.order_id
         WHERE wos.order_id IN {query_order_ids} 
     """
@@ -178,6 +178,8 @@ def _order_shipping_table_incremental_load(ts, ti):
         "fecha_inicio_despacho",
         "fecha_termino_despacho"
     ]
+    
+    df = df[["id"] + columns]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
@@ -253,8 +255,8 @@ with DAG(
         op_kwargs = {
             "query": """
                 SELECT wo.seq_id, wos.*
-                FROM janis_jackie.wms_orders wo
-                LEFT JOIN janis_jackie.wms_order_shipping as wos
+                FROM janis_jackie.wms_order_shipping as wos 
+                LEFT JOIN janis_jackie.wms_orders wo
                 ON wo.id = wos.order_id ;
             """,
             "query_name": "wms_order_shipping",
