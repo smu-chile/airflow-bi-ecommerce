@@ -147,21 +147,21 @@ def _order_shipping_table_incremental_load(ts, ti):
     df = df.rename(columns=columns_rename)
 
     columns = [
-        "order_id",
-        "city",
-        "state",
-        "country",
-        "neighborhood",
+        "id_orden",
+        "ciudad",
+        "region",
+        "pais",
+        "comuna",
         "lat",
         "lng",
-        "carrier_id",
-        "shipping_estimate",
-        "shipping_date",
-        "original_shipping_date",
-        "shipping_window_start",
-        "shipping_window_end",
-        "shipped_date_start",
-        "shipped_date_end"
+        "id_transportadora",
+        "estimado",
+        "fecha_despacho",
+        "fecha_original_despacho",
+        "inicio_ventana",
+        "termino_ventana",
+        "fecha_inicio_despacho",
+        "fecha_termino_despacho"
     ]
 
     columns_query = ",".join(columns)
