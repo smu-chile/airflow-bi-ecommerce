@@ -229,7 +229,7 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "load_full_table",
+        task_id = "load_full_table_to_s3",
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
