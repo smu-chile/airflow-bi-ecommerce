@@ -219,7 +219,11 @@ with DAG(
     """ 
     t0 = BranchPythonOperator(
         task_id = "evaluate_full_load",
-        python_callable = _evaluate_full_load
+        python_callable = _evaluate_full_load,
+        op_kwargs = {
+            "schema": "ecommdata_unimarc",
+            "table_name": "despachos"
+        }
     )
 
     t1 = PythonOperator(
