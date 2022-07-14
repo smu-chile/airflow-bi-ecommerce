@@ -132,7 +132,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql="""
         DELETE from ecommdata_unimarc.lista8
-        WHERE fecha <= to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') - interval '6 days'
+        WHERE fecha <= to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') - interval '10 days'
         """
     )
 
