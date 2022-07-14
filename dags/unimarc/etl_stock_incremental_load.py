@@ -93,7 +93,14 @@ def get(url, responses, session):
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
-    responses.append(r.json())
+    try:
+        responses.append(r.json())
+    except Exception as e:
+        print(e)
+        print(url)
+        print(r)
+        print(r.status_code)
+
 
 def bulk_get(url_sublist, responses, session):
     for url in url_sublist:
@@ -145,6 +152,8 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     session = requests.session()
     thread_num = 40
     task_num = len(url_list)//thread_num # division entera
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    session.mount('http://', adapter)
     thread_tasks = []
     count = 0
     responses = []
