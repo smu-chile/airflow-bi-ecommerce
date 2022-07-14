@@ -1,4 +1,4 @@
-insert into ecommdata_unimarc.planes_de_despacho 
+insert into ecommdata_unimarc.ventanas_de_despacho 
 select pddu.id
 	, t.id as id_tienda
 	, t.glosa as glosa_tienda
@@ -7,7 +7,7 @@ select pddu.id
 	, pddu.cantidad
 	, pddu.cuota 
 	, pddu.cantidad_nuevo 
-	, pddu.cantidad_solicitada
+	, pddu.cantidad_en_picking
 	, pddu.cantidad_pickeada 
 	, pddu.cantidad_facturada 
 	, pddu.cantidad_despachada 
@@ -34,7 +34,7 @@ set id_tienda = EXCLUDED.id_tienda
 	, cantidad = EXCLUDED.cantidad
 	, cuota = EXCLUDED.cuota 
 	, cantidad_nuevo = EXCLUDED.cantidad_nuevo 
-	, cantidad_solicitada = EXCLUDED.cantidad_solicitada
+	, cantidad_en_picking = EXCLUDED.cantidad_en_picking
 	, cantidad_pickeada = EXCLUDED.cantidad_pickeada 
 	, cantidad_facturada = EXCLUDED.cantidad_facturada 
 	, cantidad_despachada = EXCLUDED.cantidad_despachada 
