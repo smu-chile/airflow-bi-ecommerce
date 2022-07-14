@@ -11,7 +11,7 @@ def _insert_table_from_ecommdata_into_DM(ti, ds):
     import sqlalchemy
     from sqlalchemy import text
     query = f"""
-    SELECT s.*
+    SELECT s.*, m.nombre as marca
     FROM ecommdata.stock s
     inner join ecommdata.productos p on s.ref_id = p.ref_id
     inner join ecommdata.marcas m on p.id_marca = m.id
@@ -27,7 +27,7 @@ def _insert_table_from_ecommdata_into_DM(ti, ds):
     
     df = pd.DataFrame(
         data = results,
-        columns = ['fecha', 'id_tienda', 'glosa_tienda', 'id_bodega', 'nombre_bodega', 'ref_id', 'material', 'descripcion', 'c1', 'c2', 'c3', 'multiplicador_unidad_medida', 'unidades_pack', 'stock_janis', 'stock_seguridad_janis', 'stock_infinito_janis', 'tipo_operacion_janis', 'stock_vtex', 'stock_reservado_vtex', 'stock_disponible_vtex', 'stock_infinito_vtex', 'fecha_publicacion_janis', 'fecha_modificacion_janis', 'ultima_actualizacion']
+        columns = ['fecha', 'id_tienda', 'glosa_tienda', 'id_bodega', 'nombre_bodega', 'ref_id', 'material', 'descripcion', 'c1', 'c2', 'c3', 'multiplicador_unidad_medida', 'unidades_pack', 'stock_janis', 'stock_seguridad_janis', 'stock_infinito_janis', 'tipo_operacion_janis', 'stock_vtex', 'stock_reservado_vtex', 'stock_disponible_vtex', 'stock_infinito_vtex', 'fecha_publicacion_janis', 'fecha_modificacion_janis', 'ultima_actualizacion', 'marca']
     )
 
     if len(df) == 0:
