@@ -1,31 +1,31 @@
 insert into ecommdata_unimarc.ventanas_de_despacho 
-select pddu.id
+select vddu.id
 	, t.id as id_tienda
 	, t.glosa as glosa_tienda
 	, t2.id  as id_transportadora
 	, t2.nombre as glosa_transportadora
-	, pddu.cantidad
-	, pddu.cuota 
-	, pddu.cantidad_nuevo 
-	, pddu.cantidad_en_picking
-	, pddu.cantidad_pickeada 
-	, pddu.cantidad_facturada 
-	, pddu.cantidad_despachada 
-	, pddu.cantidad_entregada 
-	, pddu.fecha_inicio
-	, pddu.fecha_fin 
-	, pddu.editado 
-	, pddu.bloqueado
-	, pddu.fecha_bloqueo
-	, pddu.estado 
-	, pddu.fecha_creacion
-	, pddu.fecha_modificacion
-	, pddu.fecha_modificacion_unixtime 
-from staging.planes_de_despacho_unimarc pddu
+	, vddu.cantidad
+	, vddu.cuota 
+	, vddu.cantidad_nuevo 
+	, vddu.cantidad_en_picking
+	, vddu.cantidad_pickeada 
+	, vddu.cantidad_facturada 
+	, vddu.cantidad_despachada 
+	, vddu.cantidad_entregada 
+	, vddu.fecha_inicio
+	, vddu.fecha_fin 
+	, vddu.editado 
+	, vddu.bloqueado
+	, vddu.fecha_bloqueo
+	, vddu.estado 
+	, vddu.fecha_creacion
+	, vddu.fecha_modificacion
+	, vddu.fecha_modificacion_unixtime 
+from staging.ventanas_de_despacho_unimarc vddu
 left join ecommdata.tiendas t
-	on pddu.id_janis_tienda = t.id_janis 
+	on vddu.id_janis_tienda = t.id_janis 
 left join ecommdata_unimarc.transportadoras t2 
-	on pddu.id_transportadora = t2.id_janis  
+	on vddu.id_transportadora = t2.id_janis  
 on conflict (id) do update
 set id_tienda = EXCLUDED.id_tienda
 	, glosa_tienda = EXCLUDED.glosa_tienda
