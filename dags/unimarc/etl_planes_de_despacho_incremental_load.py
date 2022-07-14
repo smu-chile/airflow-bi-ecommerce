@@ -18,7 +18,7 @@ def _evaluate_full_load(ti, schema, table_name):
         ti.xcom_push(key="load_method", value="incremental_load")
         return "get_max_updated_at_date"
 
-def _staging_planes_de_despacho_table(ti):
+def _staging_ventanas_de_despacho_table(ti):
     import pandas as pd
     import sqlalchemy
     
@@ -75,7 +75,7 @@ def _staging_planes_de_despacho_table(ti):
         "quantity": "cantidad",
         "quota": "cuota",
         "quantity_new": "cantidad_nuevo",
-        "quantity_picking": "cantidad_solicitada",
+        "quantity_picking": "cantidad_en_picking",
         "quantity_picked": "cantidad_pickeada",
         "quantity_invoiced": "cantidad_facturada",
         "quantity_shipped": "cantidad_despachada",
@@ -120,7 +120,7 @@ def _staging_planes_de_despacho_table(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
-    df.to_sql(name="planes_de_despacho_unimarc",
+    df.to_sql(name="ventanas_de_despacho_unimarc",
                 con=engine,         
                 schema="staging",         
                 if_exists='append',         
@@ -128,7 +128,7 @@ def _staging_planes_de_despacho_table(ti):
                 chunksize=20000,         
                 method='multi')
 
-    print("Data saved to PostgreSQL. Table: staging.planes_de_despacho")
+    print("Data saved to PostgreSQL. Table: staging.ventanas_de_despacho_unimarc")
 
     return
 
@@ -140,17 +140,17 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_planes_de_despacho_unimarc_incremental_load',
+    'etl_ventanas_de_despacho_unimarc_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla planes_de_despacho desde Janis Replica hasta Workspace.",
-    schedule_interval="30 7 * * *",
+    description="Extracción y carga de tabla ventanas_de_despacho desde Janis Replica hasta Workspace.",
+    schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 7, 10),
     catchup=False,
-    tags=["DATA", "janis", "ecommdata_unimarc", "planes_de_despacho", "unimarc"],
+    tags=["DATA", "janis", "ecommdata_unimarc", "ventanas_de_despacho", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de planes_de_despacho de Janis a Workspace. \n
+    Extracción y carga de tabla de ventanas_de_despacho de Janis a Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
     t0 = BranchPythonOperator(
@@ -158,7 +158,7 @@ with DAG(
         python_callable = _evaluate_full_load,
         op_kwargs = {
             "schema": "ecommdata_unimarc",
-            "table_name": "planes_de_despacho"
+            "table_name": "ventanas_de_despacho"
         }
     )
 
@@ -167,7 +167,7 @@ with DAG(
         python_callable = get_max_updated_at_value,
         op_kwargs = {
             "schema": "ecommdata_unimarc",
-            "table_name": "planes_de_despacho", 
+            "table_name": "ventanas_de_despacho", 
             "updated_at_field": "fecha_modificacion_unixtime",
             "is_unixtime": True
         }
@@ -190,12 +190,24 @@ with DAG(
     )
 
     t4 = PythonOperator(
-        task_id = "planes_de_despacho_incremental_load",
-        python_callable = _staging_planes_de_despacho_table,
+        task_id = "staging_ventanas_de_despacho_table",
+        python_callable = _staging_ventanas_de_despacho_table,
         trigger_rule = "none_failed"
+    )
+
+    t5 = PostgresOperator(
+        task_id = "ventanas_de_despacho_incremental_load",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/upsert_ventanas_de_despacho.sql",
+    )
+
+    t6 = PostgresOperator(
+        task_id = "clear_staging_table",
+        postgres_conn_id="postgresql_conn",
+        sql="TRUNCATE staging.ventanas_de_despacho_unimarc;",
     )
 
     t0 >> t1 >> t2
     t0 >> t3
     t2 >> t4  
-    t3 >> t4
+    t3 >> t4 >> t5 >> t6
