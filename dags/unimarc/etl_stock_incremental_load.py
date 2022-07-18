@@ -174,7 +174,8 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     
     
     final_responses = []
-    
+    exception_cases = []
+
     for i in range(len(responses)):
         try:
             for j in range(len(responses[i]['balance'])):
@@ -184,6 +185,13 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         except Exception as e:
             print(e)
             print(responses[i])
+            exception_cases.append(i)
+    
+    for i in exception_cases:
+        for j in range(len(responses[i]['balance'])):
+                aux = responses[i]['balance'][j]
+                aux['skuId'] = responses[i]['skuId']
+                final_responses.append(aux)
     
     df = pd.DataFrame(final_responses)
     
@@ -255,29 +263,7 @@ with DAG(
     Extracción y carga de tabla stock desde Vtex y Janis.
     """ 
 
-    t0 = PythonOperator(
-        task_id = "load_full_table_to_s3",
-        python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "stock"}
-    )
-
-    t1 = PythonOperator(
-        task_id = "save_table_stock",
-        python_callable = _save_table_stock_janis,
-    )
-
-    t2 = PythonOperator(
-        task_id = "save_vtex_stock_in_ecommdata",
-        python_callable = _save_vtex_stock_in_ecommdata
-    )
-
-    t3 = PostgresOperator(
-        task_id = "save_stock_final",
-        postgres_conn_id = "postgresql_conn",
-        sql = "sql/stock_final.sql"
-    )
-
-    t4 = PostgresOperator(
+    t0 = PostgresOperator(
         task_id = "truncate_janis_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
@@ -285,12 +271,34 @@ with DAG(
         """,
     )
 
-    t5 = PostgresOperator(
+    t1 = PostgresOperator(
         task_id = "truncate_vtex_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
         TRUNCATE staging.stock_vtex_unimarc
         """,
+    )
+
+    t2 = PythonOperator(
+        task_id = "load_full_table_to_s3",
+        python_callable = load_full_table_to_s3,
+        op_kwargs = {"table_name": "stock"}
+    )
+
+    t3 = PythonOperator(
+        task_id = "save_table_stock",
+        python_callable = _save_table_stock_janis,
+    )
+
+    t4 = PythonOperator(
+        task_id = "save_vtex_stock_in_ecommdata",
+        python_callable = _save_vtex_stock_in_ecommdata
+    )
+
+    t5 = PostgresOperator(
+        task_id = "save_stock_final",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/stock_final.sql"
     )
 
 
