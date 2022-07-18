@@ -82,7 +82,8 @@ with DAG(
         external_dag_id='etl_stock_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
-        failed_states=['failed']
+        failed_states=['failed'],
+        timeout = 60
     )
 
     t1 = PythonOperator(
