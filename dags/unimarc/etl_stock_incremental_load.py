@@ -153,7 +153,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     thread_num = 40
     task_num = len(url_list)//thread_num # division entera
     adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
-    session.mount('http://', adapter)
+    session.mount('https://', adapter)
     thread_tasks = []
     count = 0
     responses = []
@@ -176,10 +176,14 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     final_responses = []
     
     for i in range(len(responses)):
-        for j in range(len(responses[i]['balance'])):
-            aux = responses[i]['balance'][j]
-            aux['skuId'] = responses[i]['skuId']
-            final_responses.append(aux)
+        try:
+            for j in range(len(responses[i]['balance'])):
+                aux = responses[i]['balance'][j]
+                aux['skuId'] = responses[i]['skuId']
+                final_responses.append(aux)
+        except Exception as e:
+            print(e)
+            print(responses[i])
     
     df = pd.DataFrame(final_responses)
     
