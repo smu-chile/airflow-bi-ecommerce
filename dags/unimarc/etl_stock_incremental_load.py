@@ -89,22 +89,23 @@ def load_full_table_from_staging_to_s3(table_name, df, ts):
 
     return file_name
 
-def get(url, responses, session):
+def get(url, responses, session, exception_cases):
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
     try:
-        responses.append(r.json())
+        responses.append({'json':r.json(), 'url':url})
     except Exception as e:
         print(e)
         print(url)
         print(r)
         print(r.status_code)
+        exception_cases.append(url)
 
 
-def bulk_get(url_sublist, responses, session):
+def bulk_get(url_sublist, responses, session, exception_cases):
     for url in url_sublist:
-        get(url, responses, session)
+        get(url, responses, session, exception_cases)
     return
 
 def _load_vtex_id_list():
@@ -133,62 +134,10 @@ def _load_vtex_id_list():
     pg_connection.close()
     return results
 
-def _save_vtex_stock_in_ecommdata(ti, ts):
-    import requests
-    from threading import Thread
+def _load_final_responses_to_postgres(final_responses, ts, file_name):
     import pandas as pd
     import sqlalchemy
-    
-    l_vtex_id = _load_vtex_id_list()
 
-    if len(l_vtex_id) == 0:
-        print('the list of vtex id was empty')
-        return
-
-    accountName = Variable.get("VTEX_ACCOUNT_NAME")
-    env = Variable.get("VTEX_ENV")
-    url_list = [f"https://{accountName}.{env}.com.br/api/logistics/pvt/inventory/skus/{i[0]}" for i in l_vtex_id]
-    
-    session = requests.session()
-    thread_num = 40
-    task_num = len(url_list)//thread_num # division entera
-    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
-    session.mount('https://', adapter)
-    thread_tasks = []
-    count = 0
-    responses = []
-
-    for thr in range(thread_num):
-        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-        count = count + 1
-    # tareas resagadas:
-    if task_num*thread_num != len(url_list):
-        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-    for task in thread_tasks:
-        task.join()
-        thread_tasks = []
-    
-    
-    final_responses = []
-    exception_cases = []
-
-    for i in range(len(responses)):
-        try:
-            for j in range(len(responses[i]['balance'])):
-                aux = responses[i]['balance'][j]
-                aux['skuId'] = responses[i]['skuId']
-                final_responses.append(aux)
-        except Exception as e:
-            print(e)
-            print(responses[i])
-            exception_cases.append(i)
-    
-
-    
     df = pd.DataFrame(final_responses)
     
     df = df[[
@@ -232,9 +181,119 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
                 chunksize=20000,         
                 method='multi')
 
-    load_full_table_from_staging_to_s3('stock_vtex', df, ts)
+    load_full_table_from_staging_to_s3(file_name, df, ts)
 
     return
+
+def _save_vtex_stock_in_ecommdata(ti, ts):
+    import requests
+    from threading import Thread
+    import pandas as pd
+    import sqlalchemy
+    
+    l_vtex_id = _load_vtex_id_list()
+
+    if len(l_vtex_id) == 0:
+        print('the list of vtex id was empty')
+        return
+
+    accountName = Variable.get("VTEX_ACCOUNT_NAME")
+    env = Variable.get("VTEX_ENV")
+    url_list = [f"https://{accountName}.{env}.com.br/api/logistics/pvt/inventory/skus/{i[0]}" for i in l_vtex_id]
+    
+    session = requests.session()
+    thread_num = 40
+    task_num = len(url_list)//thread_num # division entera
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    session.mount('https://', adapter)
+    thread_tasks = []
+    count = 0
+    responses = []
+    exception_cases = []
+
+    for thr in range(thread_num):
+        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+        count = count + 1
+    # tareas resagadas:
+    if task_num*thread_num != len(url_list):
+        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+    for task in thread_tasks:
+        task.join()
+        thread_tasks = []
+    
+    final_responses = []
+
+    for response in responses:
+        try:
+            for balance in response['json']['balance']:
+                aux = balance
+                aux['skuId'] = response['json']['skuId']
+                final_responses.append(aux)
+        except KeyError as e:
+            print(e)
+            print(response)
+            exception_cases.append(response['url'])
+    
+    _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    date_path = ts[:10].replace("-","/")
+    s3_path = f"vtex/api/get_stock_url_retries/{date_path}/"
+    retries = s3_path+"retries"
+
+    s3_hook.load_string(str(exception_cases),retries,bucket_name=s3_bucket,replace=True)
+    ti.xcom_push(key = 'vtex_retries', value = retries)
+
+    return
+
+def _vtex_get_stock_retries(ti, ts):
+    import requests
+
+    retries_file = ti.xcom_pull(key="vtex_retries", task_ids=["save_vtex_stock_in_ecommdata"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+retries_file)
+    if not s3_hook.check_for_key(retries_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % retries_file)
+
+    retries_object = s3_hook.get_key(retries_file, bucket_name=s3_bucket)
+    retries_string = retries_object.get()["Body"].read().decode('utf-8')[1:-1]
+    retries = retries_string.split(",") if retries_string != "" else []
+
+    session = requests.session()
+    responses = []
+    exception_cases = []
+    
+    if len(retries) == 0:
+        return
+    
+    bulk_get(retries, responses, session, exception_cases)
+    final_responses = []
+
+    for response in responses:
+        try:
+            for balance in response['json']['balance']:
+                aux = balance
+                aux['skuId'] = response['json']['skuId']
+                final_responses.append(aux)
+        except KeyError as e:
+            print(e)
+            print(response)
+            exception_cases.append(response['url'])
+
+    if len(exception_cases) > 0:
+        raise Exception('exception cases found during retry.')
+    
+    _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
+
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -291,11 +350,16 @@ with DAG(
         python_callable = _save_vtex_stock_in_ecommdata
     )
 
-    t5 = PostgresOperator(
+    t5 = PythonOperator(
+        task_id = "vtex_get_stock_retries",
+        python_callable = _vtex_get_stock_retries
+    )
+
+    t6 = PostgresOperator(
         task_id = "save_stock_final",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/stock_final.sql"
     )
 
 
-t0 >> t1 >> t2 >> t3 >> t4 >> t5
+t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
