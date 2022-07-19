@@ -121,7 +121,7 @@ def _load_vtex_id_list():
         UNION
         select distinct s.vtex_id
         from staging.stock_unimarc sa
-        inner join ecommdata.skus s on s.id_producto = sa.item_id
+        inner join ecommdata.skus s on s.id = sa.item_id
         where sa.stock > 0 and s.vtex_id is not null;
         """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -187,11 +187,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
             print(responses[i])
             exception_cases.append(i)
     
-    for i in exception_cases:
-        for j in range(len(responses[i]['balance'])):
-                aux = responses[i]['balance'][j]
-                aux['skuId'] = responses[i]['skuId']
-                final_responses.append(aux)
+
     
     df = pd.DataFrame(final_responses)
     
