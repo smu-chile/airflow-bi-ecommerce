@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 def _get_orders_meli_documents(ti, ts):
     from bson.json_util import dumps
     max_updated_at_value = ti.xcom_pull(key="return_value", task_ids=["get_max_updated_at_date"])[0]
+    max_updated_at_value = max_updated_at_value.replace(" ", "T")
     if max_updated_at_value is None:
         max_updated_at_value = "1970-01-01T00:00:00"
     mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
@@ -60,12 +61,7 @@ def _load_meli_orders_to_workspace(ti, ts):
         new_document = {}
         new_document["id"] = document["_id"]["$oid"]
         new_document["id_orden"] = document["id"]
-        # try:
         new_document["id_pack"] = document.get("pack_id", None)
-        # except Exception as e:
-        #     print(e)
-        #     pprint(document)
-        #     raise Exception("CHAO")
         if document.get("order_items", False):
             new_document["ref_id_sku"] = document["order_items"][0]["item"]["seller_sku"]
             new_document["id_meli_producto"] = document["order_items"][0]["item"]["id"]
@@ -126,7 +122,7 @@ def _load_meli_orders_to_workspace(ti, ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata_unimarc.ordenes_meli (id,"""+columns_query+""") 
+        INSERT INTO ecommdata_meli.ordenes (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -159,7 +155,7 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     concurrency=2,
-    tags=["DATA", "mongodb", "workspace", "ecommdata_unimarc", "ordenes_meli", "unimarc"],
+    tags=["DATA", "mongodb", "workspace", "ecommdata_meli", "ordenes", "mercadolibre"],
 ) as dag:
 
     dag.doc_md = """
@@ -171,12 +167,11 @@ with DAG(
         task_id = "get_max_updated_at_date",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
-            "table_name": "ordenes_meli", 
+            "schema": "ecommdata_meli",
+            "table_name": "ordenes", 
             "updated_at_field": "fecha_modificacion"
         },
-        depends_on_past = True,
-        pool = "backfill_pool"
+        depends_on_past = True
     )
     
     t1 = PythonOperator(
@@ -184,8 +179,7 @@ with DAG(
         python_callable = _get_orders_meli_documents,
         retries = 2,
         retry_delay = timedelta(minutes=1),
-        depends_on_past = True,
-        pool = "backfill_pool"
+        depends_on_past = True
     )
 
     t2 = PythonOperator(
@@ -193,8 +187,7 @@ with DAG(
         python_callable = _load_meli_orders_to_workspace,
         retries = 2,
         retry_delay = timedelta(minutes=1),
-        depends_on_past = True,
-        pool = "backfill_pool"
+        depends_on_past = True
     )
 
     t0 >> t1 >> t2
