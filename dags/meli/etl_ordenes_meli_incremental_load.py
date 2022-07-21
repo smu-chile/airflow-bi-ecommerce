@@ -152,7 +152,7 @@ with DAG(
     description="Extracción periodica de ordenes de Unimarc a través de MercadoLibre.",
     schedule_interval="0 10 * * *",
     start_date=datetime(2022, 6, 29),
-    catchup=True,
+    catchup=False,
     max_active_runs=1,
     concurrency=2,
     tags=["DATA", "mongodb", "workspace", "ecommdata_meli", "ordenes", "mercadolibre"],
