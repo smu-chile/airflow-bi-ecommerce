@@ -295,7 +295,7 @@ with DAG(
     default_args=default_args,
     description="Extracción periodica de pagos de MercadoPago a SMU a través de API Rest.",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 7, 21),
+    start_date=datetime(2022, 7, 20),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
