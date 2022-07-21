@@ -12,9 +12,9 @@ from datetime import datetime, timedelta
 def _get_orders_meli_documents(ti, ts):
     from bson.json_util import dumps
     max_updated_at_value = ti.xcom_pull(key="return_value", task_ids=["get_max_updated_at_date"])[0]
-    max_updated_at_value = max_updated_at_value.replace(" ", "T")
     if max_updated_at_value is None:
         max_updated_at_value = "1970-01-01T00:00:00"
+    max_updated_at_value = max_updated_at_value.replace(" ", "T")
     mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
     order_documents = mongo_hook.find(
         mongo_collection="orders",
