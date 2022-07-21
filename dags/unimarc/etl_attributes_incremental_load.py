@@ -91,6 +91,7 @@ def _incremental_load_attributes_table(ti):
     df = df[["id",
         "nombre",
         "id_categoria",
+        "nombre_categoria",
         "actualizacion_pendiente",
         "error_actualizacion",
         "creacion_usuario",
