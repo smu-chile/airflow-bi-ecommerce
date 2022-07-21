@@ -29,7 +29,8 @@ def _get_pagos_from_mepa_api(ti, ts):
 
     id_list = []
     for document in list_order_document:
-        id_list.append(document["id"])
+        if not (document["id"] == "" or document["id"] is None):
+            id_list.append(document["id"])
     
     responses = []
     failed_request_attempts = []
