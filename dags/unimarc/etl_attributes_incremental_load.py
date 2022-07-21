@@ -108,11 +108,11 @@ def _incremental_load_attributes_table(ti):
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
         BEGIN TRANSACTION;
-        INSERT INTO ecommdata.attributes (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.atributos (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
-        UPDATE ecommdata.attributes a
+        UPDATE ecommdata.atributos a
         SET a.nombre_categoria = c.n1
         FROM ecommdata.categorias c
         WHERE a.id_categoria = c.id;
