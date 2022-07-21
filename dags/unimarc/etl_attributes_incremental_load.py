@@ -66,7 +66,7 @@ def _incremental_load_attributes_table(ti):
     # Cast numeric values to int
 
     df = df.astype({
-        "id": "int",
+        "id_categoria": "int",
         "fecha_creacion": "string",
         "fecha_modificacion": "string",
         "actualizacion_pendiente": "bool",
