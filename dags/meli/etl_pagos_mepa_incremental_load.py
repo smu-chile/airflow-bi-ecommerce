@@ -294,11 +294,11 @@ with DAG(
     default_args=default_args,
     description="Extracción periodica de pagos de MercadoPago a SMU a través de API Rest.",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 6, 29),
-    catchup=True,
+    start_date=datetime(2022, 7, 21),
+    catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["DATA", "apirest", "workspace", "ecommdata_meli", "pagos"],
+    tags=["DATA", "api", "workspace", "ecommdata_meli", "pagos"],
 ) as dag:
 
     dag.doc_md = """
