@@ -58,7 +58,7 @@ def _incremental_load_attributes_table(ti):
     df = df.rename(columns=columns_rename)
 
     # Calculate extra columns:
-    df["nombre_categoria"] = "x"
+    df["nombre_categoria"] = ""
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
@@ -88,6 +88,16 @@ def _incremental_load_attributes_table(ti):
         "fecha_modificacion_unixtime"
     ]
 
+    df = df[["id",
+        "nombre",
+        "id_categoria",
+        "actualizacion_pendiente",
+        "error_actualizacion",
+        "creacion_usuario",
+        "modificacion_usuario",
+        "fecha_creacion",
+        "fecha_modificacion",
+        "fecha_modificacion_unixtime"]]
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
