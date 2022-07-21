@@ -58,7 +58,7 @@ def _incremental_load_attributes_table(ti):
     df = df.rename(columns=columns_rename)
 
     # Calculate extra columns:
-    df["nombre_categoria"] = ""
+    df["nombre_categoria"] = "x"
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
