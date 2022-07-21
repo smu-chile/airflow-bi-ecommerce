@@ -122,7 +122,7 @@ def _load_meli_orders_to_workspace(ti, ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata_unimarc.ordenes_meli (id,"""+columns_query+""") 
+        INSERT INTO ecommdata_meli.ordenes (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -155,7 +155,7 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     concurrency=2,
-    tags=["DATA", "mongodb", "workspace", "ecommdata_unimarc", "ordenes_meli", "unimarc"],
+    tags=["DATA", "mongodb", "workspace", "ecommdata_meli", "ordenes", "mercadolibre"],
 ) as dag:
 
     dag.doc_md = """
@@ -167,8 +167,8 @@ with DAG(
         task_id = "get_max_updated_at_date",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
-            "table_name": "ordenes_meli", 
+            "schema": "ecommdata_meli",
+            "table_name": "ordenes", 
             "updated_at_field": "fecha_modificacion"
         },
         depends_on_past = True
