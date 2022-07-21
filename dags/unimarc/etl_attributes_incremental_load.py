@@ -125,7 +125,7 @@ def _incremental_load_attributes_table(ti):
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
         UPDATE ecommdata.atributos a
-        SET a.nombre_categoria = c.n1
+        SET nombre_categoria = c.n1
         FROM ecommdata.categorias c
         WHERE a.id_categoria = c.id;
         COMMIT;
