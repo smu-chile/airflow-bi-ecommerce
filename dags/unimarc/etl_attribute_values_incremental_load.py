@@ -150,7 +150,7 @@ with DAG(
         python_callable = get_max_updated_at_value,
         op_kwargs = {
             "schema": "ecommdata",
-            "table_name": "atributos", 
+            "table_name": "valores_atributo", 
             "updated_at_field": "fecha_modificacion_unixtime",
             "is_unixtime": True
         }
@@ -160,7 +160,7 @@ with DAG(
         task_id = "incremental_unixtime_load_table_to_s3",
         python_callable = incremental_unixtime_load_table_s3,
         op_kwargs = {
-            "table_name": "attributes", 
+            "table_name": "attribute_values", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
             "updated_column": "date_modified"
         }
