@@ -67,7 +67,11 @@ def _incremental_load_attributes_table(ti):
 
     df = df.astype({
         "fecha_creacion": "string",
-        "fecha_modificacion": "string"
+        "fecha_modificacion": "string",
+        "actualizacion_pendiente": "bool",
+        "error_actualizacion": "bool",
+        "creacion_usuario": "bool",
+        "modificacion_usuario": "bool"
     }, errors="ignore")
 
     columns = [
