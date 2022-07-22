@@ -75,7 +75,6 @@ def _incremental_load_attribute_values_table(ti):
     }, errors="ignore")
 
     columns = [
-        "nombre",
         "atributo",
         "valor",
         "actualizacion_pendiente",
