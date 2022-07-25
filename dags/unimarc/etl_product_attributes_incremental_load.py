@@ -137,8 +137,6 @@ def _incremental_load_product_attributes_table(ti):
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
         BEGIN TRANSACTION;
-        ALTER TABLE ecommdata.atributos_producto
-        ADD id_producto_janis int8;
         INSERT INTO ecommdata.atributos_producto (id,"""+columns_query+""")
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
@@ -156,8 +154,6 @@ def _incremental_load_product_attributes_table(ti):
         SET valor_atributo = va.valor
         FROM ecommdata.valores_atributo va
         WHERE ap.valor_atributo_id = va.id;
-        ALTER TABLE ecommdata.atributos_producto
-        DROP COLUMN id_producto_janis;
         COMMIT;
     """
     print(incremental_query)
