@@ -59,8 +59,11 @@ def _get_pagos_from_mepa_api(ti, ts):
     id_list = []
     for document in list_order_document:
         if not (document["id"] == "" or document["id"] is None):
-            id_list.append(document["id"])
+            id_list.append(int(float(document["id"])))
+        else:
+            print(f"Skipping unsuable id: {document['id']} from mongo ObjectId: {document['_id']}")
     
+    print(f"Number of ids to request: {len(id_list)}")
     responses = []
     failed_request_attempts = []
     s = requests.Session()
@@ -73,7 +76,7 @@ def _get_pagos_from_mepa_api(ti, ts):
     thread_num = 20
     task_num = len(id_list)//thread_num # division entera
     adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
-    session.mount('https:////api.mercadopago.com/v1/payments/search', adapter)
+    session.mount(api_url, adapter)
     thread_tasks = []
     count = 0
 
