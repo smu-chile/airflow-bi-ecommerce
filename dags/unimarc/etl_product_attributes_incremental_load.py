@@ -50,7 +50,7 @@ def _incremental_load_product_attributes_table(ti):
         "id": "id",
         "product": "id_producto_janis",
         "attribute": "id_atributo",
-        "attribute_value": "valor_atributo",
+        "attribute_value": "valor_atributo_id",
         "value": "valor",
         "publish_attempts": "intentos_publicacion",
         "publish_last_attempt": "ultimo_intento_publicacion",
@@ -64,6 +64,8 @@ def _incremental_load_product_attributes_table(ti):
     # Calculate extra columns:
     df["ref_id"] = ""
     df["nombre_producto"] = ""
+    df["nombre_atributo"] = ""
+    df["valor_atributo"] = ""
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
@@ -85,6 +87,8 @@ def _incremental_load_product_attributes_table(ti):
         "ref_id",
         "nombre_producto",
         "id_atributo",
+        "nombre_atributo",
+        "valor_atributo_id",
         "valor_atributo",
         "valor",
         "intentos_publicacion",
@@ -100,6 +104,8 @@ def _incremental_load_product_attributes_table(ti):
         "ref_id",
         "nombre_producto",
         "id_atributo",
+        "nombre_atributo",
+        "valor_atributo_id",
         "valor_atributo",
         "valor",
         "intentos_publicacion",
@@ -136,10 +142,18 @@ def _incremental_load_product_attributes_table(ti):
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
         UPDATE ecommdata.atributos_producto ap
-        SET ap.ref_id = s.ref_id and ap.nombre_producto = p.nombre
+        SET ap.ref_id = s.ref_id, ap.nombre_producto = p.nombre
         FROM ecommdata.skus s
         LEFT JOIN ecommdata.productos p on s.ref_id = p.ref_id
-        WHERE a.id_producto_janis = s.id;
+        WHERE ap.id_producto_janis = s.id;
+        UPDATE ecommdata.atributos_producto ap
+        SET ap.nombre_atributo = a.nombre
+        FROM ecommdata.atributos a
+        WHERE ap.id_atributo = a.id;
+        UPDATE ecommdata.atributos_producto ap
+        SET ap.valor_atributo = va.valor
+        FROM ecommdata.valores_atributo va
+        WHERE ap.valor_atributo_id = va.id;
         ALTER TABLE ecommdata.atributos_producto
         DROP COLUMN id_producto_janis;
         COMMIT;
