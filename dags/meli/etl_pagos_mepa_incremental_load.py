@@ -231,11 +231,9 @@ def _load_mepa_pagos_to_workspace(ti):
             new_document_header.update({"moneda": element["currency_id"]})
             new_document_header.update({"costo_despacho": element["shipping_cost"]})
             charges_detail = element["charges_details"]
-            print(f"charges_details: {len(charges_detail)}")
             for charge in charges_detail:
                 new_document = {}
                 refund_charges = charge.get("refund_charges", [])
-                print(f"refund_charges: {len(refund_charges)}")
                 refund_amount = 0
                 refund_last_date = None
                 for refund in refund_charges:
