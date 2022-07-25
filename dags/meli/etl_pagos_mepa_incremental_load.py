@@ -8,9 +8,38 @@ from airflow.models import Variable
 
 from datetime import datetime, timedelta
 
+def get(order_id, responses, failed_request_attempts, session, headers):
+    params = {
+            "sort": "date_created",
+            "criteria": "desc",
+            "external_reference": order_id
+        }
+    api_url = "https://api.mercadopago.com/v1/payments/search"
+    response = session.get(api_url, params=params, headers=headers)
+
+    if response.status_code != 200:
+        print(f"Status code: {response.status_code}")
+        print(f"Meli Order id: {order_id}")
+        print(f"Response: {response}")
+        failed_request_attempts.append(order_id)
+    else:
+        try:
+            response_json = response.json()
+            responses.append(response_json["results"])
+        except Exception as e:
+            print(e)
+            print(f"Meli Order id: {order_id}")
+            failed_request_attempts.append(order_id)
+
+def bulk_get(order_id_sublist, responses, failed_request_attempts, session, headers):
+    for order_id in order_id_sublist:
+        get(order_id, responses, failed_request_attempts, session, headers)
+    return
+
 def _get_pagos_from_mepa_api(ti, ts):
     import json
     import requests
+    from threading import Thread
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     file_name = "meli/mongodb/orders/"+curr_datetime+".json"
@@ -34,31 +63,33 @@ def _get_pagos_from_mepa_api(ti, ts):
     
     responses = []
     failed_request_attempts = []
+    s = requests.Session()
 
     api_url = "https://api.mercadopago.com/v1/payments/search"
     bearer_token = Variable.get("MERCADOPAGO_API_TOKEN_SECRET")
     headers = {"Authorization": f"Bearer {bearer_token}"}
-    s = requests.Session()
 
-    for order_id in id_list:
-        params = {
-            "sort": "date_created",
-            "criteria": "desc",
-            "external_reference": order_id
-        }
-        response = s.get(api_url, params=params, headers=headers)
-        if response.status_code != 200:
-            print(f"Status code: {response.status_code}")
-            print(f"Meli Order id: {order_id}")
-            failed_request_attempts.append(order_id)
-        else:
-            try:
-                results = response.json()["results"]
-                responses.append(results)
-            except Exception as e:
-                print(e)
-                print(f"Meli Order id: {order_id}")
-                failed_request_attempts.append(order_id)
+    session = requests.session()
+    thread_num = 20
+    task_num = len(id_list)//thread_num # division entera
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    session.mount('https:////api.mercadopago.com/v1/payments/search', adapter)
+    thread_tasks = []
+    count = 0
+
+    for thr in range(thread_num):
+        new_task = Thread(target=bulk_get, args=[id_list[task_num*count:task_num*(count+1)], responses, failed_request_attempts, session, headers], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+        count = count + 1
+    # tareas resagadas:
+    if task_num*thread_num != len(id_list):
+        new_task = new_task = Thread(target=bulk_get, args=[id_list[task_num*thread_num:], responses, failed_request_attempts, session, headers], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+    for task in thread_tasks:
+        task.join()
+        thread_tasks = []
 
     json_pagos = json.dumps(responses)
     json_retries = json.dumps(failed_request_attempts)
