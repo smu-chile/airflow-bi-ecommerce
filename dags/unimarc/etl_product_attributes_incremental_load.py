@@ -62,6 +62,8 @@ def _incremental_load_product_attributes_table(ti):
     df = df.rename(columns=columns_rename)
 
     # Calculate extra columns:
+    df["ref_id"] = ""
+    df["nombre_producto"] = ""
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
@@ -80,6 +82,8 @@ def _incremental_load_product_attributes_table(ti):
 
     columns = [
         "id_producto_janis",
+        "ref_id",
+        "nombre_producto",
         "id_atributo",
         "valor_atributo",
         "valor",
@@ -93,6 +97,8 @@ def _incremental_load_product_attributes_table(ti):
 
     df = df[["id",
         "id_producto_janis",
+        "ref_id",
+        "nombre_producto",
         "id_atributo",
         "valor_atributo",
         "valor",
@@ -130,8 +136,9 @@ def _incremental_load_product_attributes_table(ti):
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
         UPDATE ecommdata.atributos_producto ap
-        SET ap.ref_id_producto = s.ref_id
+        SET ap.ref_id = s.ref_id and ap.nombre_producto = p.nombre
         FROM ecommdata.skus s
+        LEFT JOIN ecommdata.productos p on s.ref_id = p.ref_id
         WHERE a.id_producto_janis = s.id;
         ALTER TABLE ecommdata.atributos_producto
         DROP COLUMN id_producto_janis;
