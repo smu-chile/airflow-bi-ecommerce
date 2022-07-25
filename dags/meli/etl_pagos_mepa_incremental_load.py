@@ -211,7 +211,7 @@ def _load_mepa_pagos_to_workspace(ti):
     new_documents = []
     for pago_response in full_pagos_list:
         if len(pago_response["results"]) != 0:
-            element = pago_response[0]
+            element = pago_response["results"][0]
             new_document_header = {}
             new_document_header.update({"tipo_operacion": element["operation_type"]})
             new_document_header.update({"fecha_aprobacion": element["date_approved"]})
