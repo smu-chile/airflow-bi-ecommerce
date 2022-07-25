@@ -25,7 +25,7 @@ def get(order_id, responses, failed_request_attempts, session, headers):
     else:
         try:
             response_json = response.json()
-            responses.append(response_json["results"])
+            responses.append({"order_id": order_id, "results": response_json["results"]})
         except Exception as e:
             print(e)
             print(f"Meli Order id: {order_id}")
