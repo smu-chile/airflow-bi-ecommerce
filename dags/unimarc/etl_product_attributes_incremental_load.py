@@ -144,7 +144,7 @@ def _incremental_load_product_attributes_table(ti):
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
         UPDATE ecommdata.atributos_producto ap
-        SET ap.ref_id = s.ref_id, ap.nombre_producto = p.nombre
+        SET ref_id = s.ref_id, ap.nombre_producto = p.nombre
         FROM ecommdata.skus s
         LEFT JOIN ecommdata.productos p on s.ref_id = p.ref_id
         WHERE ap.id_producto_janis = s.id;
