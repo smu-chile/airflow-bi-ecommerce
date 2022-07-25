@@ -157,7 +157,7 @@ def _retry_get_request(ti, ts):
         else:
             try:
                 results = response.json()["results"]
-                responses.append(results)
+                responses.append({"order_id": order_id, "results": results})
             except Exception as e:
                 print(e)
                 print(f"Meli Order id: {order_id}")
@@ -209,47 +209,51 @@ def _load_mepa_pagos_to_workspace(ti):
     print(f"Total number of records found: {len(full_pagos_list)}")
 
     new_documents = []
-    for element in full_pagos_list:
-        new_document_header = {}
-        new_document_header.update({"tipo_operacion": element["operation_type"]})
-        new_document_header.update({"fecha_aprobacion": element["date_approved"]})
-        new_document_header.update({"total_pagado_cliente": element["transaction_details"]["total_paid_amount"]})
-        new_document_header.update({"monto_neto_recibido": element["transaction_details"]["net_received_amount"]})
-        new_document_header.update({"id_orden_meli": element["external_reference"]})
-        new_document_header.update({"id_cargo": element["id"]})
-        new_document_header.update({"detalle_estado": element["status_detail"]})
-        new_document_header.update({"estado": element["status"]})
-        new_document_header.update({"monto_devolucion_cliente": element["transaction_amount_refunded"]})
-        new_document_header.update({"monto_original_transaccion": element["transaction_amount"]})
-        new_document_header.update({"fecha_liberacion": element["money_release_date"]})
-        new_document_header.update({"fecha_modificacion": element["date_last_updated"]})
-        new_document_header.update({"fecha_creacion": element["date_created"]})
-        new_document_header.update({"monto_despacho": element["shipping_amount"]})
-        new_document_header.update({"modo_procesamiento": element["processing_mode"]})
-        new_document_header.update({"moneda": element["currency_id"]})
-        new_document_header.update({"costo_despacho": element["shipping_cost"]})
-        charges_detail = element["charges_details"]
-        print(f"charges_details: {len(charges_detail)}")
-        for charge in charges_detail:
-            new_document = {}
-            refund_charges = charge.get("refund_charges", [])
-            print(f"refund_charges: {len(refund_charges)}")
-            refund_amount = 0
-            refund_last_date = None
-            for refund in refund_charges:
-                refund_amount = refund_amount + refund["amount"]
-                if refund_last_date is None or refund["date_created"] > refund_last_date:
-                    refund_last_date = refund["date_created"] 
-            
-            new_document.update({"monto_devolucion_comision": refund_amount})
-            new_document.update({"fecha_ultima_devolucion_comision": refund_last_date})
-            new_document.update({"monto_comision": element["charges_details"][0]["amounts"]["original"]})
-            new_document.update({"nombre_cargo": element["charges_details"][0]["name"]})
-            new_document.update({"id": element["charges_details"][0]["id"]})
-            new_document.update({"tipo_cargo": element["charges_details"][0]["type"]})
-            new_document.update(new_document_header)
+    for pago_response in full_pagos_list:
+        if len(pago_response["results"]) != 0:
+            element = pago_response["results"][0]
+            new_document_header = {}
+            new_document_header.update({"tipo_operacion": element["operation_type"]})
+            new_document_header.update({"fecha_aprobacion": element["date_approved"]})
+            new_document_header.update({"total_pagado_cliente": element["transaction_details"]["total_paid_amount"]})
+            new_document_header.update({"monto_neto_recibido": element["transaction_details"]["net_received_amount"]})
+            new_document_header.update({"id_orden_meli": element["external_reference"]})
+            new_document_header.update({"id_cargo": element["id"]})
+            new_document_header.update({"detalle_estado": element["status_detail"]})
+            new_document_header.update({"estado": element["status"]})
+            new_document_header.update({"monto_devolucion_cliente": element["transaction_amount_refunded"]})
+            new_document_header.update({"monto_original_transaccion": element["transaction_amount"]})
+            new_document_header.update({"fecha_liberacion": element["money_release_date"]})
+            new_document_header.update({"fecha_modificacion": element["date_last_updated"]})
+            new_document_header.update({"fecha_creacion": element["date_created"]})
+            new_document_header.update({"monto_despacho": element["shipping_amount"]})
+            new_document_header.update({"modo_procesamiento": element["processing_mode"]})
+            new_document_header.update({"moneda": element["currency_id"]})
+            new_document_header.update({"costo_despacho": element["shipping_cost"]})
+            charges_detail = element["charges_details"]
+            print(f"charges_details: {len(charges_detail)}")
+            for charge in charges_detail:
+                new_document = {}
+                refund_charges = charge.get("refund_charges", [])
+                print(f"refund_charges: {len(refund_charges)}")
+                refund_amount = 0
+                refund_last_date = None
+                for refund in refund_charges:
+                    refund_amount = refund_amount + refund["amount"]
+                    if refund_last_date is None or refund["date_created"] > refund_last_date:
+                        refund_last_date = refund["date_created"] 
+                
+                new_document.update({"monto_devolucion_comision": refund_amount})
+                new_document.update({"fecha_ultima_devolucion_comision": refund_last_date})
+                new_document.update({"monto_comision": element["charges_details"][0]["amounts"]["original"]})
+                new_document.update({"nombre_cargo": element["charges_details"][0]["name"]})
+                new_document.update({"id": element["charges_details"][0]["id"]})
+                new_document.update({"tipo_cargo": element["charges_details"][0]["type"]})
+                new_document.update(new_document_header)
 
-            new_documents.append(new_document)
+                new_documents.append(new_document)
+        else:
+            print(f"Empty response for Order ID: {pago_response['order_id']}")
 
     df = pd.DataFrame(new_documents)
 
