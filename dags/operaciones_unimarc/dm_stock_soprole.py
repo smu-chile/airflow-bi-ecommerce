@@ -6,10 +6,12 @@ from airflow.hooks.postgres_hook import PostgresHook
 
 from datetime import datetime
 
-def _insert_table_from_ecommdata_into_DM(ti, ds):
+def _insert_table_from_ecommdata_into_DM(ts, ds):
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
+    import numpy as np
+
     query = f"""
     SELECT s.fecha, s.id_tienda, s.glosa_tienda, s.id_bodega, s.nombre_bodega, s.ref_id, s.material, s.descripcion, s.c1, s.c2, s.c3, s.multiplicador_unidad_medida, s.unidades_pack, s.stock_janis, s.stock_seguridad_janis, s.stock_infinito_janis, s.tipo_operacion_janis, s.stock_vtex, s.stock_reservado_vtex, s.stock_disponible_vtex, s.stock_infinito_vtex, s.fecha_publicacion_janis, s.fecha_modificacion_janis, s.ultima_actualizacion, m.nombre as marca
     FROM ecommdata.stock s
@@ -44,15 +46,67 @@ def _insert_table_from_ecommdata_into_DM(ti, ds):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    df.to_sql(name="stock",
-                    con=engine,         
-                    schema="soprole",         
-                    if_exists='append',
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
+    columns = [
+        'fecha',
+        'id_tienda',
+        'glosa_tienda',
+        'id_bodega',
+        'nombre_bodega',
+        'ref_id',
+        'material',
+        'descripcion',
+        'c1',
+        'c2',
+        'c3',
+        'multiplicador_unidad_medida',
+        'unidades_pack',
+        'stock_janis',
+        'stock_seguridad_janis',
+        'stock_infinito_janis',
+        'tipo_operacion_janis',
+        'stock_vtex',
+        'stock_reservado_vtex',
+        'stock_disponible_vtex',
+        'stock_infinito_vtex',
+        'fecha_publicacion_janis',
+        'fecha_modificacion_janis',
+        'ultima_actualizacion',
+        'marca'
+    ]
 
-    print("Data saved to PostgreSQL. Table: soprole.stock")
+    columns_query = ",".join(columns)
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        BEGIN TRANSACTION;
+        TRUNCATE TABLE soprole.stock;
+        INSERT INTO soprole.stock ("""+columns_query+""") 
+        VALUES ("""+values_query+""");
+        COMMIT;
+    """
+    print(incremental_query)
+    pg_connection = engine.raw_connection()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
 
     return
     
