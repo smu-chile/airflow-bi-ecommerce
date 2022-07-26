@@ -94,10 +94,9 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
         BEGIN TRANSACTION;
-        INSERT INTO ecommdata.valores_atributo ("""+columns_query+""") 
+        TRUNCATE TABLE soprole.stock;
+        INSERT INTO soprole.stock ("""+columns_query+""") 
         VALUES ("""+values_query+""");
-        DELETE FROM ecommdata.valores_atributo va
-        WHERE ultima_actualizacion = """+ts+"""::timestamp - interval '4 hours' AND fecha = """+ds+"""::date;
         COMMIT;
     """
     print(incremental_query)
