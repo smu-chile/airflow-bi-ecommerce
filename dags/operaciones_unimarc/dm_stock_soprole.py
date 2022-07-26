@@ -91,7 +91,7 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
-    print(f"Number of records to lo.ad: {str(len(fixed_records))}")
+    print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         BEGIN TRANSACTION;
         TRUNCATE TABLE soprole.stock;
