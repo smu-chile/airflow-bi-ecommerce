@@ -16,7 +16,7 @@ select
 , s.unidades_pack 
 , su.stock as stock_janis
 , su.min_stock as stock_seguridad_janis
-, su.infinite_stock as stock_infinito_janis
+, su.infinite_stock::int::bool as stock_infinito_janis
 , su.operation_type as tipo_operacion_janis
 , svu.cantidad_total as stock_vtex
 , svu.cantidad_reservada as stock_reservado_vtex
