@@ -38,13 +38,11 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
-    host = Variable.get("DM_HOST")
-    database = Variable.get("DM_DB")
-    username = Variable.get("DM_USER")
-    password = Variable.get("DM_PASSWORD")
-    
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
+    df = df.astype({
+        'fecha_publicacion_janis' : "string",
+        'fecha_modificacion_janis' : "string",
+        'ultima_actualizacion' : "string"
+    }, errors="ignore")
 
     columns = [
         'id_tienda',
@@ -99,6 +97,15 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
         COMMIT;
     """
     print(incremental_query)
+
+    host = Variable.get("DM_HOST")
+    database = Variable.get("DM_DB")
+    username = Variable.get("DM_USER")
+    password = Variable.get("DM_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+    
     pg_connection = engine.raw_connection()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
