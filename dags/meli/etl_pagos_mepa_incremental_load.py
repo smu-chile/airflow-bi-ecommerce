@@ -243,10 +243,10 @@ def _load_mepa_pagos_to_workspace(ti):
                     
                     new_document.update({"monto_devolucion_comision": refund_amount})
                     new_document.update({"fecha_ultima_devolucion_comision": refund_last_date})
-                    new_document.update({"monto_comision": element["charges_details"][0]["amounts"]["original"]})
-                    new_document.update({"nombre_cargo": element["charges_details"][0]["name"]})
-                    new_document.update({"id": element["charges_details"][0]["id"]})
-                    new_document.update({"tipo_cargo": element["charges_details"][0]["type"]})
+                    new_document.update({"monto_comision": charge["amounts"]["original"]})
+                    new_document.update({"nombre_cargo": charge["name"]})
+                    new_document.update({"id": charge["id"]})
+                    new_document.update({"tipo_cargo": charge["type"]})
                     new_document.update(new_document_header)
 
                     new_documents.append(new_document)
