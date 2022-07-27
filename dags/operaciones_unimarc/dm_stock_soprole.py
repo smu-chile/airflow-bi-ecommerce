@@ -47,7 +47,6 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
     engine = sqlalchemy.create_engine(conn_url)
 
     columns = [
-        'fecha',
         'id_tienda',
         'glosa_tienda',
         'id_bodega',
@@ -95,7 +94,7 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
     incremental_query = """
         BEGIN TRANSACTION;
         TRUNCATE TABLE soprole.stock;
-        INSERT INTO soprole.stock ("""+columns_query+""") 
+        INSERT INTO soprole.stock (fecha, """+columns_query+""") 
         VALUES ("""+values_query+""");
         COMMIT;
     """
