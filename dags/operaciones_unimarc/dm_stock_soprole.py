@@ -90,12 +90,10 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        BEGIN TRANSACTION;
-        TRUNCATE TABLE soprole.stock;
         INSERT INTO soprole.stock (fecha, """+columns_query+""") 
         VALUES ("""+values_query+""");
-        COMMIT;
     """
+    truncate_query = "TRUNCATE TABLE soprole.stock;"
     print(incremental_query)
 
     host = Variable.get("DM_HOST")
@@ -108,6 +106,7 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
     
     pg_connection = engine.raw_connection()
     cursor = pg_connection.cursor()
+    cursor.execute(truncate_query)
     cursor.executemany(incremental_query, fixed_records)
     pg_connection.commit()
     cursor.close()
