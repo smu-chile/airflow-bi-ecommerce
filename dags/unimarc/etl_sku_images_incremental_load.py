@@ -93,7 +93,8 @@ def _incremental_load_sku_images_table(ti):
         "creacion_usuario",
         "modificacion_usuario",
         "fecha_creacion",
-        "fecha_modificacion"
+        "fecha_modificacion",
+        "fecha_modificacion_unixtime"
     ]
 
     columns_query = ",".join(columns)
@@ -114,7 +115,7 @@ def _incremental_load_sku_images_table(ti):
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
-    print(f"Number of records to lo.ad: {str(len(fixed_records))}")
+    print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata.imagenes_sku (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
