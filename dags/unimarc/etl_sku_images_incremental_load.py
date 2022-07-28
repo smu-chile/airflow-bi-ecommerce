@@ -74,7 +74,7 @@ def _incremental_load_sku_images_table(ti):
         "id_sku_janis": "int",
         "imagen": "string",
         "etiqueta": "string",
-        "orden": "string",
+        "orden": "int",
         "fecha_creacion": "string",
         "fecha_modificacion": "string",
         "fecha_programada": "string",
