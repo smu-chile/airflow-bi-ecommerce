@@ -37,7 +37,7 @@ def _incremental_load_sku_images_table(ti):
             "image",
             "label",
             "ord",
-            "date_scheduled"
+            "date_scheduled",
             "user_created",
             "user_modified",
             "date_created",
