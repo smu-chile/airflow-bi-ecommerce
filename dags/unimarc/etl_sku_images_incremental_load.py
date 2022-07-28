@@ -70,6 +70,11 @@ def _incremental_load_sku_images_table(ti):
     # Cast numeric values to int
 
     df = df.astype({
+        "id": "int",
+        "id_sku_janis": "int",
+        "imagen": "string",
+        "etiqueta": "string",
+        "orden": "string",
         "fecha_creacion": "string",
         "fecha_modificacion": "string",
         "fecha_programada": "string",
