@@ -136,11 +136,14 @@ def _incremental_load_product_attributes_table(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        BEGIN TRANSACTION;
         INSERT INTO ecommdata_alvi.atributos_producto (id,"""+columns_query+""")
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
+    """
+    print(incremental_query)
+    update_query = """
+        BEGIN TRANSACTION;
         UPDATE ecommdata_alvi.atributos_producto ap
         SET ref_id = s.ref_id, nombre_producto = p.nombre
         FROM ecommdata_alvi.skus s
@@ -156,11 +159,11 @@ def _incremental_load_product_attributes_table(ti):
         WHERE ap.valor_atributo_id = va.id;
         COMMIT;
     """
-    print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
+    cursor.execute(update_query)
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
