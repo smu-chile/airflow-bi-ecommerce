@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.sensors.external_task import ExternalTaskSensor
 
-from utils.janis_utils import incremental_unixtime_load_table_s3
+from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
@@ -137,7 +137,7 @@ def _incremental_load_product_attributes_table(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.atributos_producto (id,"""+columns_query+""")
+        INSERT INTO ecommdata_alvi.atributos_producto (id,"""+columns_query+""")
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
@@ -145,18 +145,18 @@ def _incremental_load_product_attributes_table(ti):
     print(incremental_query)
     update_query = """
         BEGIN TRANSACTION;
-        UPDATE ecommdata.atributos_producto ap
+        UPDATE ecommdata_alvi.atributos_producto ap
         SET ref_id = s.ref_id, nombre_producto = p.nombre
         FROM ecommdata_alvi.skus s
-        LEFT JOIN ecommdata.productos p on s.ref_id = p.ref_id
+        LEFT JOIN ecommdata_alvi.productos p on s.ref_id = p.ref_id
         WHERE ap.id_producto_janis = s.id;
-        UPDATE ecommdata.atributos_producto ap
+        UPDATE ecommdata_alvi.atributos_producto ap
         SET nombre_atributo = a.nombre
         FROM ecommdata_alvi.atributos a
         WHERE ap.id_atributo = a.id;
-        UPDATE ecommdata.atributos_producto ap
+        UPDATE ecommdata_alvi.atributos_producto ap
         SET valor_atributo = va.valor
-        FROM ecommdata.valores_atributo va
+        FROM ecommdata_alvi.valores_atributo va
         WHERE ap.valor_atributo_id = va.id;
         COMMIT;
     """
@@ -180,22 +180,23 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_atributos_producto_incremental_load',
+    'etl_atributos_producto_alvi_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla atributos producto desde Janis Unimarc Replica hasta Workspace.",
+    description="Extracción y carga de tabla atributos producto desde Janis Alvi Replica hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 7, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata", "atributos_producto", "Unimarc"],
+    tags=["DATA", "Janis", "ecommdata_alvi", "atributos_producto", "Unimarc"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de atributos producti de Janis Unimarc a Workspace. \n
+    Extracción y carga de tabla de atributos producti de Janis Alvi a Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
+
     t0 = ExternalTaskSensor(
         task_id="wait_for_atributos",
-        external_dag_id='etl_atributos_incremental_load',
+        external_dag_id='etl_atributos_alvi_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
         failed_states=['failed']
@@ -203,17 +204,17 @@ with DAG(
 
     t1 = ExternalTaskSensor(
         task_id="wait_for_valores_atributo",
-        external_dag_id='etl_valores_atributo_incremental_load',
+        external_dag_id='etl_valores_atributo_alvi_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
         failed_states=['failed']
     )
-    
+
     t2 = PythonOperator(
         task_id = "get_max_updated_at_date",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
-            "schema": "ecommdata",
+            "schema": "ecommdata_alvi",
             "table_name": "atributos_producto", 
             "updated_at_field": "fecha_modificacion_unixtime",
             "is_unixtime": True

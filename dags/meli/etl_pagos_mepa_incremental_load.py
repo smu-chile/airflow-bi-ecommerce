@@ -250,6 +250,9 @@ def _load_mepa_pagos_to_workspace(ti):
                     new_document.update(new_document_header)
 
                     new_documents.append(new_document)
+                if len(charges_detail) == 0:
+                    new_document_header.update({"id": element["id"]})
+                    new_documents.append(new_document_header)
         else:
             print(f"Empty response for Order ID: {pago_response['order_id']}")
 
