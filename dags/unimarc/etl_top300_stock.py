@@ -81,15 +81,6 @@ def _save_table_stock_janis(ts, ti):
     
     return
 
-
-
-
-
-
-
-
-
-
 def _save_table_stock_vtex(ts, ti):
     import pandas as pd
     import sqlalchemy
@@ -113,8 +104,6 @@ def _save_table_stock_vtex(ts, ti):
                 method='multi')
 
     return
-
-
 
 default_args = {
     "owner": "ecommerce_data",
