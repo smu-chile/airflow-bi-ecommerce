@@ -66,5 +66,5 @@ SELECT DISTINCT t_top.semana_smu,
   ORDER BY t2.id, t_top.venta_creada_bruta DESC
  LIMIT 12000) tust on s.ref_id = tust.ref_id  and s.id_tienda = tust.tienda
  where s.fecha = '{{ds}}';
-truncate table staging.stock_top300
-COMMIT;
+truncate table staging.stock_top300;
+COMMIT
