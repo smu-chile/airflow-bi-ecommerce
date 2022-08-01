@@ -144,18 +144,18 @@ def _incremental_load_product_attributes_table(ti):
     print(incremental_query)
     update_query = """
         BEGIN TRANSACTION;
-        UPDATE ecommdata_alvi.atributos_producto ap
+        UPDATE ecommdata.atributos_producto ap
         SET ref_id = s.ref_id, nombre_producto = p.nombre
         FROM ecommdata_alvi.skus s
-        LEFT JOIN ecommdata_alvi.productos p on s.ref_id = p.ref_id
+        LEFT JOIN ecommdata.productos p on s.ref_id = p.ref_id
         WHERE ap.id_producto_janis = s.id;
-        UPDATE ecommdata_alvi.atributos_producto ap
+        UPDATE ecommdata.atributos_producto ap
         SET nombre_atributo = a.nombre
         FROM ecommdata_alvi.atributos a
         WHERE ap.id_atributo = a.id;
-        UPDATE ecommdata_alvi.atributos_producto ap
+        UPDATE ecommdata.atributos_producto ap
         SET valor_atributo = va.valor
-        FROM ecommdata_alvi.valores_atributo va
+        FROM ecommdata.valores_atributo va
         WHERE ap.valor_atributo_id = va.id;
         COMMIT;
     """
