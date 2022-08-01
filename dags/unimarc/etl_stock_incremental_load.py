@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
@@ -9,10 +9,25 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+def _check_table_janis_in_s3(ts):
+    
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    stock_file = f"janis/replica/stock/{curr_datetime}_stock.csv"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    if not s3_hook.check_for_key(stock_file, bucket_name=s3_bucket):
+        print("Stock Janis not found in S3")
+        return "load_full_table_to_s3"
+    else:
+        print(f"{stock_file} found in S3")
+        return "save_table_stock"
+
 def _get_table_stock_janis_from_S3(ts, ti):
     import pandas as pd
 
-    stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    stock_file = f"janis/replica/stock/{curr_datetime}_stock.csv"
     print(stock_file)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -334,32 +349,38 @@ with DAG(
         """,
     )
 
-    t2 = PythonOperator(
+    t2 = BranchPythonOperator(
+        task_id = "check_table_janis_in_s3",
+        python_callable = _check_table_janis_in_s3
+    )
+
+    t3 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
         op_kwargs = {"table_name": "stock"}
     )
 
-    t3 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "save_table_stock",
         python_callable = _save_table_stock_janis,
     )
 
-    t4 = PythonOperator(
+    t5 = PythonOperator(
         task_id = "save_vtex_stock_in_ecommdata",
         python_callable = _save_vtex_stock_in_ecommdata
     )
 
-    t5 = PythonOperator(
+    t6 = PythonOperator(
         task_id = "vtex_get_stock_retries",
         python_callable = _vtex_get_stock_retries
     )
 
-    t6 = PostgresOperator(
+    t7 = PostgresOperator(
         task_id = "save_stock_final",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/stock_final.sql"
     )
 
 
-t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
+t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7
+t2 >> t4 
