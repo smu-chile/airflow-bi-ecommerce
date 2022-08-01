@@ -3,6 +3,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.sensors.external_task import ExternalTaskSensor
 
 from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
@@ -192,7 +193,24 @@ with DAG(
     Extracción y carga de tabla de atributos producti de Janis Alvi a Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
-    t0 = PythonOperator(
+
+    t0 = ExternalTaskSensor(
+        task_id="wait_for_atributos",
+        external_dag_id='etl_atributos_alvi_incremental_load',
+        external_task_id=None,
+        allowed_states=['success'],
+        failed_states=['failed']
+    )
+
+    t1 = ExternalTaskSensor(
+        task_id="wait_for_valores_atributo",
+        external_dag_id='etl_valores_atributo_alvi_incremental_load',
+        external_task_id=None,
+        allowed_states=['success'],
+        failed_states=['failed']
+    )
+
+    t2 = PythonOperator(
         task_id = "get_max_updated_at_date",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
@@ -203,7 +221,7 @@ with DAG(
         }
     )
 
-    t1 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "incremental_unixtime_load_table_to_s3",
         python_callable = incremental_unixtime_load_table_s3,
         op_kwargs = {
@@ -213,9 +231,9 @@ with DAG(
         }
     )
 
-    t2 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "incremental_load_product_attributes_table",
         python_callable = _incremental_load_product_attributes_table
     )
 
-    t0 >> t1 >> t2
+    [t0, t1] >> t2 >> t3 >> t4
