@@ -174,7 +174,7 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de valores atributo de Janis Alvi a Workspace. \n
+    Extracción y carga de tabla de imagenes sku de Janis Alvi a Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
     t0 = PythonOperator(
