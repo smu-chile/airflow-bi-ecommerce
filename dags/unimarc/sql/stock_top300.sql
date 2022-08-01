@@ -37,7 +37,7 @@ left join ecommdata_unimarc.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv
 where t.status = 1;
 insert into ecommdata.stock_top300
 select s.*
-from staging.stock_top300
+from staging.stock_top300 s
 inner join (
 SELECT DISTINCT t_top.semana_smu,
     t2.id AS tienda,
