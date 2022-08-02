@@ -36,5 +36,5 @@ left join ecommdata.categorias c on p.id_categoria = c.id
 left join ecommdata_unimarc.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda and '{{ds}}'::date = l.fecha
 where t.status = 1;
 DELETE from ecommdata.stock
-WHERE ultima_actualizacion = '{{ts}}'::timestamp - interval '4 hours' AND fecha = '{{ds}}'::date;
+WHERE ultima_actualizacion < '{{ts}}'::timestamp AND fecha = '{{ds}}'::date;
 COMMIT;
