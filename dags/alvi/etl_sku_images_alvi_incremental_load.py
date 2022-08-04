@@ -97,7 +97,7 @@ def _incremental_load_sku_images_table(ti):
         "fecha_modificacion_unixtime"
     ]
 
-    df = [["id",
+    df = df[["id",
         "ref_id",
         "nombre_producto",
         "id_sku_janis",
