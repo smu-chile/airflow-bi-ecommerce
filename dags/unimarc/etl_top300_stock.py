@@ -169,11 +169,11 @@ with DAG(
         sql = "sql/stock_top300_staging.sql"
     )
 
-    t5 = PostgresOperator(
+    t6 = PostgresOperator(
         task_id = "stock_top300_insert",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/stock_top300.sql"
     )
 
 
-t0 >> t1 >> t2 >> t3 >> t4 >> t5
+t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
