@@ -139,9 +139,9 @@ with DAG(
     )
 
     t3 = PostgresOperator(
-        task_id = "truncate_table",
+        task_id = "upsert_sku_categoria_datawarehouse",
         postgres_conn_id="postgresql_conn",
         sql="sql/upsert_sku_categorias_datawarehouse.sql"
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1 >> t2 >> t3
