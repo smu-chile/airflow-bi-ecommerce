@@ -144,6 +144,15 @@ with DAG(
         """,
     )
 
+    t2 = PostgresOperator(
+        task_id = "truncate_stock_top300_staging",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE staging.stock_top300
+        """,
+    )
+
+
     t2 = PythonOperator(
         task_id = "save_table_stock_janis",
         python_callable = _save_table_stock_janis,
@@ -155,10 +164,16 @@ with DAG(
     )
 
     t4 = PostgresOperator(
-        task_id = "stock_top300",
+        task_id = "stock_top300_staging",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/stock_top300_staging.sql"
+    )
+
+    t5 = PostgresOperator(
+        task_id = "stock_top300_insert",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/stock_top300.sql"
     )
 
 
-t0 >> t1 >> t2 >> t3 >> t4
+t0 >> t1 >> t2 >> t3 >> t4 >> t5
