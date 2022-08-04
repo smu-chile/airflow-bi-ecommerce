@@ -144,4 +144,4 @@ with DAG(
         sql="sql/upsert_sku_categorias_datawarehouse.sql"
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1 >> t2 >> t3
