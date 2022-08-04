@@ -138,4 +138,10 @@ with DAG(
         python_callable = _sku_categorias_datawarehouse_unimarc_incremental_load
     )
 
+    t3 = PostgresOperator(
+        task_id = "truncate_table",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/upsert_sku_categorias_datawarehouse.sql"
+    )
+
     t0 >> t1 >> t2
