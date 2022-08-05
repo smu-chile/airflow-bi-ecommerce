@@ -146,6 +146,7 @@ with DAG(
     schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 7, 10),
     catchup=False,
+    max_active_runs=1,
     tags=["DATA", "janis", "ecommdata_unimarc", "ventanas_de_despacho", "unimarc"],
 ) as dag:
 
