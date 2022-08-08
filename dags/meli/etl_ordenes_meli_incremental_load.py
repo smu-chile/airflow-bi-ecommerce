@@ -79,6 +79,8 @@ def _load_meli_orders_to_workspace(ti, ts):
 
         if document.get("cancel_detail", False):
             new_document["fecha_cancelacion"] = document["cancel_detail"].get("date", None)
+        else:
+            new_document["fecha_cancelacion"] = None
 
     df = pd.DataFrame(new_documents)
     df = df[df["id_meli_producto"].notna()]
