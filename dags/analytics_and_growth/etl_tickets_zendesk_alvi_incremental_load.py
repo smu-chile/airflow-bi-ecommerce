@@ -16,7 +16,7 @@ def _load_tickets_zendesk(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y%m%d")
     prefix = f"zendesk/manual/tickets/{exec_date}_"
-    zip_file_name = prefix+"tickets.zip"
+    zip_file_name = prefix+"tickets_ALVI.zip"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -125,7 +125,7 @@ def _load_tickets_zendesk(ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO analytics_and_growth.tickets_zendesk (id_ticket,"""+columns_query+""") 
+        INSERT INTO analytics_and_growth.tickets_zendesk_alvi (id_ticket,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id_ticket)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -140,7 +140,7 @@ def _load_tickets_zendesk(ts):
     pg_connection.close()
     print("Data loaded to Postgres")
 
-    print("Data saved to PostgreSQL. Table: analytics_and_growth.tickets_zendesk")
+    print("Data saved to PostgreSQL. Table: analytics_and_growth.tickets_zendesk_alvi")
 
     return
 
@@ -152,14 +152,14 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_tickets_zendesk_incremental_load',
+    'etl_tickets_zendesk_alvi_incremental_load',
     default_args=default_args,
-    description="Carga de datos de tickets zendesk desde bucket de S3 al workspace de Postgresql.",
+    description="Carga de datos de tickets zendesk Alvi desde bucket de S3 al workspace de Postgresql.",
     schedule_interval="0 12 * * *",
-    start_date=datetime(2022, 5, 24),
-    catchup=True,
+    start_date=datetime(2022, 8, 8),
+    catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Zendesk", "analytics_and_growth", "tickets_zendesk", "unimarc"],
+    tags=["DATA", "Zendesk", "analytics_and_growth", "tickets_zendesk", "alvi"],
 ) as dag:
 
     dag.doc_md = """
@@ -168,7 +168,7 @@ with DAG(
     """ 
     t0 = S3KeySensor(
         task_id = "wait_for_tickets_zendesk_flag_file",
-        bucket_key = "zendesk/manual/tickets/{{(execution_date + macros.timedelta(days=1)).strftime('%Y%m%d')}}_flag.txt",
+        bucket_key = "zendesk/manual/tickets/{{(execution_date + macros.timedelta(days=1)).strftime('%Y%m%d')}}_flag_ALVI.txt",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*60*3
