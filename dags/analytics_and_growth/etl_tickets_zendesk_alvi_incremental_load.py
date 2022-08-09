@@ -157,7 +157,7 @@ with DAG(
     description="Carga de datos de tickets zendesk Alvi desde bucket de S3 al workspace de Postgresql.",
     schedule_interval="0 12 * * *",
     start_date=datetime(2022, 8, 8),
-    catchup=True,
+    catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Zendesk", "analytics_and_growth", "tickets_zendesk", "alvi"],
 ) as dag:
