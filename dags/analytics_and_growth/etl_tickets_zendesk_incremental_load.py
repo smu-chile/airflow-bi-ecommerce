@@ -159,7 +159,7 @@ with DAG(
     start_date=datetime(2022, 5, 24),
     catchup=True,
     max_active_runs = 1,
-    tags=["DATA", "Zendesk", "analytics_and_growth", "tickets_zendesk"],
+    tags=["DATA", "Zendesk", "analytics_and_growth", "tickets_zendesk", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
