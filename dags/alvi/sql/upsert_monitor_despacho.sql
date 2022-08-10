@@ -19,7 +19,7 @@ select mda.id
 	, mda.fecha_bloqueo
 	, mda.estado 
 	, mda.fecha_creacion
-	, vmda.fecha_modificacion
+	, mda.fecha_modificacion
 	, mda.fecha_modificacion_unixtime 
 from staging.monitor_despacho_alvi mda
 left join ecommdata_alvi.tiendas t
