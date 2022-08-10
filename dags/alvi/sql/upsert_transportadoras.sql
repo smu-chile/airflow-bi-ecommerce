@@ -1,6 +1,7 @@
 insert into ecommdata_alvi.transportadoras 
 select ta.id_janis 
-		, ta.id, tu.nombre 
+		, ta.id
+		, ta.nombre 
 		, ta.tipo 
 		, ta.tipo_despacho 
 		, ta.agendado 
