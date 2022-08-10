@@ -15,14 +15,15 @@ select ta.id_janis
 		, ta.descripcion 
 		, ta.integration_lock 
 		, ta.fecha_modificacion_unixtime
-		, max(case when b.nombre is null then null else tu.dock end) as dock
+		, max(case when b.nombre is null then null else ta.dock end) as dock
 		, max(b.nombre) as nombre_dock
 		, max(b.id_tienda) as id_tienda
 from staging.transportadoras_alvi ta
 left join ecommdata_alvi.bodegas b 
 on ta.dock = b.dock 
 group by ta.id_janis 
-		, ta.id, tu.nombre 
+		, ta.id
+		, ta.nombre 
 		, ta.tipo 
 		, ta.tipo_despacho 
 		, ta.agendado 
