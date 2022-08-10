@@ -140,7 +140,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_ventanas_de_despacho_alvi_incremental_load',
+    'etl_monitor_despacho_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla ventanas_de_despacho desde Janis Replica Alvi hasta Workspace.",
     schedule_interval="*/30 * * * *",
