@@ -143,7 +143,7 @@ with DAG(
     'etl_monitor_despacho_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla ventanas_de_despacho desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="*/30 * * * *",
+    schedule_interval="30 * * * *",
     start_date=datetime(2022, 7, 10),
     catchup=False,
     max_active_runs=1,
