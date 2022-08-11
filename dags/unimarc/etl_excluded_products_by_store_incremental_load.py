@@ -73,6 +73,7 @@ def _incremental_load_excluded_products_by_store_table(ti):
 
     truncate_query = "TRUNCATE ecommdata.productos_excluidos_por_tienda"
     update_query = """
+        BEGIN TRANSACTION;
         UPDATE ecommdata.productos_excluidos_por_tienda pet
         SET ref_id = s.ref_id
         FROM ecommdata_alvi.skus s
@@ -81,6 +82,7 @@ def _incremental_load_excluded_products_by_store_table(ti):
         SET id_tienda = t.id
         FROM ecommdata_alvi.tiendas t
         WHERE pet.id_tienda::int = t.id_janis;
+        COMMIT;
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
