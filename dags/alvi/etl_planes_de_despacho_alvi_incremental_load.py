@@ -208,7 +208,8 @@ with DAG(
         sql="TRUNCATE staging.monitor_despacho_alvi;",
     )
 
+    t6 >> t0
     t0 >> t1 >> t2
     t0 >> t3
     t2 >> t4  
-    t3 >> t4 >> t5 >> t6
+    t3 >> t4 >> t5
