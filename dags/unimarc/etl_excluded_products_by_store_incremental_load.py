@@ -44,12 +44,10 @@ def _incremental_load_excluded_products_by_store_table(ti):
     }, errors="ignore")
 
     columns = [
-        "ref_id",
         "id_tienda",
     ]
 
     columns_query = ",".join(columns)
-    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
@@ -68,13 +66,12 @@ def _incremental_load_excluded_products_by_store_table(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.productos_excluidos_por_tienda (id,"""+columns_query+""")
+        INSERT INTO ecommdata.productos_excluidos_por_tienda (ref_id,"""+columns_query+""")
         VALUES ("""+values_query+""")
-        ON CONFLICT (id)
-        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
     """
     print(incremental_query)
 
+    truncate_query = "TRUNCATE ecommdata.productos_excluidos_por_tienda"
     update_query = """
         UPDATE ecommdata.productos_excluidos_por_tienda pet
         SET ref_id = s.ref_id
@@ -88,6 +85,7 @@ def _incremental_load_excluded_products_by_store_table(ti):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
+    cursor.execute(truncate_query)
     cursor.executemany(incremental_query, fixed_records)
     cursor.execute(update_query)
     pg_connection.commit()
