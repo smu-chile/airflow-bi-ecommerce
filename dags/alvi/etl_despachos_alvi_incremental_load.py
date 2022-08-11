@@ -229,7 +229,7 @@ with DAG(
     'etl_despachos_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla despachos desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="*/30 * * * *",
+    schedule_interval="30 * * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
@@ -244,7 +244,7 @@ with DAG(
         task_id = "evaluate_full_load",
         python_callable = _evaluate_full_load,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
+            "schema": "ecommdata_alvi",
             "table_name": "despachos"
         }
     )
