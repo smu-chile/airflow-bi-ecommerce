@@ -64,7 +64,7 @@ def _incremental_load_excluded_products_by_store_table(ti):
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
-    print(f"Number of records to lo.ad: {str(len(fixed_records))}")
+    print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata.productos_excluidos_por_tienda (ref_id,"""+columns_query+""")
         VALUES ("""+values_query+""")
@@ -76,11 +76,11 @@ def _incremental_load_excluded_products_by_store_table(ti):
         BEGIN TRANSACTION;
         UPDATE ecommdata.productos_excluidos_por_tienda pet
         SET ref_id = s.ref_id
-        FROM ecommdata_alvi.skus s
+        FROM ecommdata.skus s
         WHERE pet.ref_id::int = s.id;
         UPDATE ecommdata.productos_excluidos_por_tienda pet
         SET id_tienda = t.id
-        FROM ecommdata_alvi.tiendas t
+        FROM ecommdata.tiendas t
         WHERE pet.id_tienda::int = t.id_janis;
         COMMIT;
     """
