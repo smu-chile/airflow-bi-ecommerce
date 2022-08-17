@@ -89,9 +89,7 @@ def load_full_table_from_staging_to_s3(table_name, df, ts):
 
     return file_name
 
-def get(url, responses, session, exception_cases):
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
     r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
     try:
         responses.append({'json':r.json(), 'url':url})
@@ -103,9 +101,9 @@ def get(url, responses, session, exception_cases):
         exception_cases.append(url)
 
 
-def bulk_get(url_sublist, responses, session, exception_cases):
+def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
     for url in url_sublist:
-        get(url, responses, session, exception_cases)
+        get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
     return
 
 def _load_vtex_id_list():
@@ -211,14 +209,17 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     responses = []
     exception_cases = []
 
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
     for thr in range(thread_num):
-        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases], daemon=True)
+        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
         new_task.start()
         thread_tasks.append(new_task)
         count = count + 1
     # tareas resagadas:
     if task_num*thread_num != len(url_list):
-        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases], daemon=True)
+        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
         new_task.start()
         thread_tasks.append(new_task)
     for task in thread_tasks:
@@ -274,7 +275,10 @@ def _vtex_get_stock_retries(ti, ts):
     if len(retries) == 0:
         return
     
-    bulk_get(retries, responses, session, exception_cases)
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
+    bulk_get(retries, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
     final_responses = []
 
     for response in responses:
