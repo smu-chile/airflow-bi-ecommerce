@@ -26,6 +26,6 @@ from
     ORDER BY t_inner.id_tienda, t_inner.venta_creada_bruta desc
 ) _t2
 where rank0 <= 300
-order by id_tienda, venta_creada_bruta desc) tust on s.ref_id = tust.ref_id  and s.id_tienda = tust.tienda
+order by id_tienda, venta_creada_bruta desc) tust on s.ref_id = tust.ref_id  and s.id_tienda = tust.id_tienda
 where s.fecha = '{{ds}}';
 
