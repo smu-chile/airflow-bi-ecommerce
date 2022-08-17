@@ -8,7 +8,7 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
-def _incremental_load_excluded_products_by_store_table(ti):
+def _full_load_excluded_products_by_store_table(ti):
     import numpy as np
     import pandas as pd
     
@@ -65,11 +65,11 @@ def _incremental_load_excluded_products_by_store_table(ti):
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
-    incremental_query = """
+    insert_query = """
         INSERT INTO ecommdata.productos_excluidos_por_tienda (ref_id,"""+columns_query+""")
         VALUES ("""+values_query+""")
     """
-    print(incremental_query)
+    print(insert_query)
 
     truncate_query = "TRUNCATE ecommdata.productos_excluidos_por_tienda"
     update_query = """
@@ -88,7 +88,7 @@ def _incremental_load_excluded_products_by_store_table(ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(truncate_query)
-    cursor.executemany(incremental_query, fixed_records)
+    cursor.executemany(insert_query, fixed_records)
     cursor.execute(update_query)
     pg_connection.commit()
     cursor.close()
@@ -105,10 +105,10 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_productos_excluidos_por_tienda_incremental_load',
+    'etl_productos_excluidos_por_tienda_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla productos_excluidos_por_tienda desde Janis Unimarc Replica hasta Workspace.",
-    schedule_interval="30 * * * *",
+    schedule_interval="0 7 * * *",
     start_date=datetime(2022, 8, 11),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "productos_excluidos_por_tienda", "Unimarc"],
@@ -124,8 +124,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "incremental_load_excluded_products_by_store_table",
-        python_callable = _incremental_load_excluded_products_by_store_table
+        task_id = "full_load_excluded_products_by_store_table",
+        python_callable = _full_load_excluded_products_by_store_table
     )
 
     t0 >> t1
