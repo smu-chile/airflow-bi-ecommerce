@@ -31,11 +31,10 @@ def _store_periodic_data(ts):
     pg_connection = pg_hook.get_conn()
     df = pd.read_sql_query(select_query, pg_connection)
 
+    buffer = StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-
-    buffer = StringIO()
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
     bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
