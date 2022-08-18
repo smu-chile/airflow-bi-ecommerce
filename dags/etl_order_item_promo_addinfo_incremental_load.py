@@ -79,7 +79,10 @@ def _order_item_promo_additional_info_incremental_load(ts, ti):
 
     # Ignore invalid (non-numeric) values:
     df["value"] = df["value"].str.strip()
-    df = df[df["value"].str.isnumeric()]
+    df = df[
+        ~(df["field"].isin(["ID", "WORKFLOWID"])) |
+        (df["value"].str.isnumeric())
+    ]
 
     columns_rename = {
         "order_item_promotion": "orden_producto_promocion",
