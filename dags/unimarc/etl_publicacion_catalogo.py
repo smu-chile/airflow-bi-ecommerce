@@ -15,7 +15,7 @@ def _store_periodic_data(ts):
 
     dt_string = ts[:16]
     curr_datetime = dt_string.replace('T',' ')
-    curr_dt_object = datetime.strptime(curr_datetime, "%Y-%d-%m %H:%M")
+    curr_dt_object = datetime.strptime(curr_datetime, "%Y-%m-%d %H:%M")
     past_dt_object = curr_dt_object - timedelta(weeks = 2)
     past_datetime = past_dt_object.strftime("%Y/%d/%m/%H%M")
     prefix = "ecommdata/publicacion_catalogo/"+past_datetime
