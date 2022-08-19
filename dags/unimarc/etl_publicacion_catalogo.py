@@ -2,11 +2,19 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
+from airflow.operators.dummy import DummyOperator
 
 from datetime import datetime, timedelta
+
+def _check_time(ts):
+    time_str = ts[11:16]
+    if (time_str == "00:00") or (time_str == "04:00"):
+        return "task_skip"
+    else:
+        return "load_table_publicacion_catalogo"
 
 def _store_periodic_data(ts):
     from io import StringIO
@@ -156,31 +164,41 @@ with DAG(
         allowed_states=['success'],
         failed_states=['failed']
     )
+
+    t1 = BranchPythonOperator(
+        task_id='check_time',
+        python_callable=_check_time,
+    )
     
-    t1 = PostgresOperator(
+    t_dummy = DummyOperator(
+            task_id='task_skip',
+        )
+
+    t2 = PostgresOperator(
         task_id = "load_table_publicacion_catalogo",
         postgres_conn_id="postgresql_conn",
         sql="sql/publicacion_catalogo.sql",
     )
 
-    t2 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "store_periodic_data",
         python_callable = _store_periodic_data
     )
 
-    t3 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "delete_periodic_data",
         python_callable = _delete_periodic_data
     )
 
-    t4 = PythonOperator(
+    t5 = PythonOperator(
         task_id = "store_daily_data",
         python_callable = _store_daily_data
     )
 
-    t5 = PythonOperator(
+    t6 = PythonOperator(
         task_id = "delete_daily_data",
         python_callable = _delete_daily_data
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
+    t1 >> t_dummy
