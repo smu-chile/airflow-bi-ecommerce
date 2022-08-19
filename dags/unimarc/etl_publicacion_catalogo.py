@@ -68,6 +68,66 @@ def _delete_periodic_data(ts):
 
     return
 
+def _store_daily_data(ts):
+    from io import StringIO
+    import boto3
+    import pandas as pd
+
+    dt_string = ts[:16]
+    curr_datetime = dt_string.replace('T',' ')
+    curr_dt_object = datetime.strptime(curr_datetime, "%Y-%m-%d %H:%M")
+    past_dt_object = curr_dt_object - timedelta(weeks = 2)
+    past_datetime = past_dt_object.strftime("%Y/%d/%m/%H%M")
+    prefix = "ecommdata/publicacion_catalogo/"+past_datetime
+    file_name = prefix+"publicacion_catalogo_diario.csv"
+
+    select_query = f"""
+        select *
+        from ecommdata.publicacion_catalogo pc
+        where pc.fecha_hora < '{ts}'::timestamp - interval '28 days'
+    """
+    print(select_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    df = pd.read_sql_query(select_query, pg_connection)
+
+    buffer = StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    response = s3_client.put_object(
+        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+    )
+
+    return
+
+def _delete_daily_data(ts):
+
+    delete_query = f"""
+        delete
+        from ecommdata.publicacion_catalogo pc
+        where pc.fecha_hora < '{ts}'::timestamp - interval '28 days'
+    """
+
+    print(delete_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(delete_query)
+    pg_connection.commit()
+    cursor.close()
+
+    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -113,4 +173,14 @@ with DAG(
         python_callable = _delete_periodic_data
     )
 
-    t0 >> t1 >> t2 >> t3
+    t4 = PythonOperator(
+        task_id = "store_daily_data",
+        python_callable = _store_daily_data
+    )
+
+    t5 = PythonOperator(
+        task_id = "delete_daily_data",
+        python_callable = _delete_daily_data
+    )
+
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5
