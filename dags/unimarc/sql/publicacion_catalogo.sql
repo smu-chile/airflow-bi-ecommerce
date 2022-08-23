@@ -73,5 +73,5 @@ end as precio_valido
 	when pt.ref_id is null then false
 	else true
 end as tienda_valida) val on true
-where s.fecha = '{{ds}}'::date and (val.foto_valida and val.categoria_valida and val.stock_valido and val.precio_valido and tienda_valida is true)
+where s.fecha = '{{ds}}'::date
 order by s.ultima_actualizacion, s.id_tienda desc;
