@@ -55,4 +55,6 @@ with DAG(
         sql="truncate staging.ventas_unimarc_contr2;",
     )
 
-    t0 >> t1 >> t2 >> [t3, t4]
+    t3 >> t0
+    t4 >> t0
+    t0 >> t1 >> t2
