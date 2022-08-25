@@ -11,7 +11,7 @@ def _get_time_interval(ts):
     # 08:00 -  prev_date at 18:00 to curr_date at 08:00 (+14 hrs)
     # 13:00 -  curr_date at 08:00 to curr_date at 13:00 (+5 hrs)
     # 18:00 -  curr_date at 13:00 to curr_date at 18:00 (+5 hrs)
-    exec_datetime = datetime.strptime(ts[:17], "%Y-%m-%dT%H:%M")
+    exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
