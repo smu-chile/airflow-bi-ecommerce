@@ -20,9 +20,9 @@ def _get_time_interval(ts):
 
     current_exec_hour = exec_datetime_local.split("T")[1][:2]
     if current_exec_hour == "18":
-        return "interval '14 hours'"
+        return exec_datetime_local, "interval '14 hours'"
     else:
-        return "interval '5 hours'"
+        return exec_datetime_local, "interval '5 hours'"
 
 def _pre_payload(id_tienda):
     if Variable.get("FROGMI_ENV") != "prod":
@@ -63,7 +63,8 @@ def _pre_payload(id_tienda):
 def _post_request_to_publish_task_endpoint(ts):
     import pandas as pd
 
-    time_interval = _get_time_interval(ts)
+    
+    exec_date_local, time_interval = _get_time_interval(ts)
     query = f"""
         select *
         from
@@ -82,7 +83,7 @@ def _post_request_to_publish_task_endpoint(ts):
                 from operaciones_unimarc.found_rate_productos frp 
                 join ecommdata.tiendas as t
                     on frp.id_tienda = t.id and t.id_frogmi is not null
-                where fecha_picking between '{ts[:17]}' and '{ts[:17]}' + {time_interval}
+                where fecha_picking between '{exec_date_local}' and '{exec_date_local}' + {time_interval}
                 and estado_foundrate <> 3
                 group by ref_id, id_frogmi
             ) _t
