@@ -83,7 +83,7 @@ def _post_request_to_publish_task_endpoint(ts):
                 from operaciones_unimarc.found_rate_productos frp 
                 join ecommdata.tiendas as t
                     on frp.id_tienda = t.id and t.id_frogmi is not null
-                where fecha_picking between '{exec_date_local}' and '{exec_date_local}' + {time_interval}
+                where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
                 group by ref_id, id_frogmi
             ) _t
