@@ -2,8 +2,9 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
+from airflow.hooks.S3_hook import S3Hook
 
-from datetime import datetime
+from datetime import datetime, timedelta
 import pendulum
 
 def _get_time_interval(ts):
@@ -15,33 +16,41 @@ def _get_time_interval(ts):
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    exec_datetime_local = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
-    print(exec_datetime_local)
+    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+    print(exec_datetime_local_str)
 
-    current_exec_hour = exec_datetime_local.split("T")[1][:2]
+    current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
     if current_exec_hour == "18":
-        return exec_datetime_local, "interval '14 hours'"
+        task_start_date = exec_datetime_local + timedelta(days=1)
+        task_start_date = task_start_date.replace(hour=7, minute=0, second=0)
+        return exec_datetime_local_str, "interval '14 hours'", task_start_date
     else:
-        return exec_datetime_local, "interval '5 hours'"
+        task_start_date = task_start_date.replace(hour=7, minute=0, second=0)
+        return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
-def _pre_payload(id_tienda):
+def _pre_payload(id_tienda, task_start_date, exec_date):
     if Variable.get("FROGMI_ENV") != "prod":
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
 
+    task_end_date = task_start_date.replace(hours=23, minutes=59, seconds=59)
+    task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+    task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+    print(f"start_date: {task_start_date_str}")
+    print(f"end_date: {task_end_date_str}")
     base_payload = {
         "data": [
             {
                 "type": "task_sku",
                 "attributes": {
-                    "name": "FR-Ecomm 2022-08-24_17:00:00",
+                    "name": f"FR-Ecomm {exec_date}",
                     "template_id": "a6dbc4bd-64e6-4628-bb6b-66902cba3a7e",
                     "accountable_area_code": "ADMIN_LOCAL",
                     "stores": [
                         id_tienda
                     ],
-                    "start_date": "2022-08-24T00:00:00-04:00",
-                    "end_date": "2022-08-24T20:00:00-04:00",
+                    "start_date": task_start_date_str,
+                    "end_date": task_end_date_str,
                     "notification":[
                     ],
                     "instructions": "Prueba API desde python",
@@ -62,9 +71,10 @@ def _pre_payload(id_tienda):
 
 def _post_request_to_publish_task_endpoint(ts):
     import pandas as pd
-
+    import json
+    import requests
     
-    exec_date_local, time_interval = _get_time_interval(ts)
+    exec_date_local, time_interval, task_start_date = _get_time_interval(ts)
     query = f"""
         select *
         from
@@ -100,13 +110,16 @@ def _post_request_to_publish_task_endpoint(ts):
     df = pd.read_sql(query, pg_connection)
 
     print(f"Number of rows found: {len(df.index)}")
+    if len(df.index) == 0:
+        print("No records found. Exit.")
+        return
+    
     df["material"] = df["ref_id"].str.split("-").str[0]
     df = df.groupby("id_tienda").head(5).reset_index().drop(columns=["index"])
-    print(df)
-    print(df.to_records(index=False))
     tiendas = df["id_tienda"].drop_duplicates().tolist()
+    print("Frogmi store ids:")
     print(tiendas)
-    payloads = {tienda: _pre_payload(tienda) for tienda in tiendas}
+    payloads = {tienda: _pre_payload(tienda, task_start_date, exec_date_local) for tienda in tiendas}
 
     registros = df.to_records(index=False)
 
@@ -121,6 +134,34 @@ def _post_request_to_publish_task_endpoint(ts):
 
     # Send payloads to S3
     print(payloads)
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    json_payloads_string = json.dumps(payloads)
+
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    payloads_s3_path = "frogmi/api/post_publish_task/"+curr_datetime+".json"
+
+    s3_hook.load_string(json_payloads_string,
+                  key=payloads_s3_path,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
+
+    # POST requests:
+    # frogmi_url = Variable.get("FROGMI_API_URL")
+    # frogmi_publish_task_endpoint = frogmi_url + "api/v3/tasks_management/activities"
+    # headers = {
+    #     "Authorization": "Bearer "+Variable.get("FROGMI_API_TOKEN_SECRET"),
+    #     "X-Company-UUID": Variable.get("FROGMI_COMPANY_UUID_SECRET"),
+    #     "Content-Type": "application/json"
+    # }
+    # jobs_ids = []
+    # for tienda in tiendas:
+    #     payload = payloads[tienda]
+    #     response = requests.post(frogmi_publish_task_endpoint, json=payload, headers=headers)
+    #     print(response.status_code)
+    #     print(response.json())
 
     return
 
