@@ -150,19 +150,19 @@ def _post_request_to_publish_task_endpoint(ts):
                   encrypt=False)
 
     # POST requests:
-    # frogmi_url = Variable.get("FROGMI_API_URL")
-    # frogmi_publish_task_endpoint = frogmi_url + "api/v3/tasks_management/activities"
-    # headers = {
-    #     "Authorization": "Bearer "+Variable.get("FROGMI_API_TOKEN_SECRET"),
-    #     "X-Company-UUID": Variable.get("FROGMI_COMPANY_UUID_SECRET"),
-    #     "Content-Type": "application/json"
-    # }
-    # jobs_ids = []
-    # for tienda in tiendas:
-    #     payload = payloads[tienda]
-    #     response = requests.post(frogmi_publish_task_endpoint, json=payload, headers=headers)
-    #     print(response.status_code)
-    #     print(response.json())
+    frogmi_url = Variable.get("FROGMI_API_URL")
+    frogmi_publish_task_endpoint = frogmi_url + "api/v3/tasks_management/activities"
+    headers = {
+        "Authorization": "Bearer "+Variable.get("FROGMI_API_TOKEN_SECRET"),
+        "X-Company-UUID": Variable.get("FROGMI_COMPANY_UUID_SECRET"),
+        "Content-Type": "application/json"
+    }
+    jobs_ids = []
+    for tienda in tiendas:
+        payload = payloads[tienda]
+        response = requests.post(frogmi_publish_task_endpoint, json=payload, headers=headers)
+        print(response.status_code)
+        print(response.json())
 
     return
 
