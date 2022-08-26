@@ -25,6 +25,7 @@ def _get_time_interval(ts):
         task_start_date = task_start_date.replace(hour=7, minute=0, second=0)
         return exec_datetime_local_str, "interval '14 hours'", task_start_date
     else:
+        task_start_date = exec_datetime_local
         task_start_date = task_start_date.replace(hour=7, minute=0, second=0)
         return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
