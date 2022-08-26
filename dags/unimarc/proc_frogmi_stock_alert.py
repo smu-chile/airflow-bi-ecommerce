@@ -34,7 +34,7 @@ def _pre_payload(id_tienda, task_start_date, exec_date):
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
 
-    task_end_date = task_start_date.replace(hours=23, minutes=59, seconds=59)
+    task_end_date = task_start_date.replace(hour=23, minute=59, second=59)
     task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
     task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
     print(f"start_date: {task_start_date_str}")
