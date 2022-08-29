@@ -154,22 +154,17 @@ def _incremental_load_prices_table(ti, ts):
     print(len(df.index))
     print(df.columns)
 
-    print("Delete exec_date data from ecommdata.precios to avoid duplicates...")
-    connection = engine.connect()
-    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga = '{exec_date}'::date;"
-    connection.execute(text(truncate_query))
-    connection.close()
-    print("Data deleted.")
-
     print("Writing data into PostgreSQL...")
     # Save to PostgreSQL:
-    df.to_sql(name="precios",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.precios")
+        df.to_sql(name="precios",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
 
     print("Data saved to PostgreSQL.")
 
@@ -205,21 +200,19 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_precios_incremental_load',
+    'etl_precios_truncade_and_load',
     default_args=default_args,
-    description="Extracción y carga de tabla price desde Janis Replica hasta el Workspace en Postgresql.",
+    description="Extracción, truncado y carga de tabla price desde Janis Replica hasta el Workspace en Postgresql.",
     schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 3, 1),
-    catchup=True,
+    start_date=datetime(2022, 8, 29),
+    catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "precios"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de price de Janis en la tabla ecommdata.precios. \n
-    Carga diaria de la tabla completa con un identificador adicional basado en la fecha de ejecución con el fin
-    de conservar historial de cambios. \n
-    Incluye una tarea final de limpieza de la tabla, borrando cualquier registro que tenga más de 30 días de antiguedad.
+    Extracción, truncado y carga de tabla de price de Janis en la tabla ecommdata.precios. \n
+    Solo se mantienen los precios cargados en el día y al comienzo del proceso se realiza un truncado de la tabla.
     """ 
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
@@ -231,9 +224,5 @@ with DAG(
         python_callable = _incremental_load_prices_table
     )
 
-    t2 = PythonOperator(
-        task_id = "delete_old_data",
-        python_callable = _delete_old_data
-    )
 
-    t0 >> t1 >> t2
+    t0 >> t1
