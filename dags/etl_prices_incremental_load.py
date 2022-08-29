@@ -154,22 +154,17 @@ def _incremental_load_prices_table(ti, ts):
     print(len(df.index))
     print(df.columns)
 
-    print("Delete exec_date data from ecommdata.precios to avoid duplicates...")
-    connection = engine.connect()
-    truncate_query = f"DELETE FROM ecommdata.precios WHERE fecha_carga = '{exec_date}'::date;"
-    connection.execute(text(truncate_query))
-    connection.close()
-    print("Data deleted.")
-
     print("Writing data into PostgreSQL...")
     # Save to PostgreSQL:
-    df.to_sql(name="precios",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.precios")
+        df.to_sql(name="precios",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
 
     print("Data saved to PostgreSQL.")
 
@@ -231,9 +226,5 @@ with DAG(
         python_callable = _incremental_load_prices_table
     )
 
-    t2 = PythonOperator(
-        task_id = "delete_old_data",
-        python_callable = _delete_old_data
-    )
 
-    t0 >> t1 >> t2
+    t0 >> t1
