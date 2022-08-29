@@ -21,8 +21,8 @@ select s.ultima_actualizacion as fecha_hora
 	else false
 end as publicacion_valida
 , case
-	when t300.ref_id is not null and t300.evento = 'Top300' then false
-	else true
+	when t300.ref_id is not null and t300.evento = 'Top300' then true
+	else false
 end as top300
 , s.stock_janis
 , s.stock_seguridad_janis
