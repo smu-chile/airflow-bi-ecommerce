@@ -54,12 +54,12 @@ def _pre_payload(id_tienda, task_start_date, exec_date):
                     "end_date": task_end_date_str,
                     "notification":[
                     ],
-                    "instructions": "Prueba API desde python",
-                    "external_id": "1234567",
+                    "instructions": "Alerta Found Rate",
+                    "external_id": f"fr_ecomm_{exec_date}",
                     "external_data": [
                         {
-                            "main_text": "Texto tarea de prueba API",
-                            "second_text": "$1",
+                            "main_text": "Alerta Found Rate",
+                            "second_text": "Cuestionario",
                             "icon": "info"
                         }
                     ],
