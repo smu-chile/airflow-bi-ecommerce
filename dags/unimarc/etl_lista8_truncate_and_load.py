@@ -78,15 +78,18 @@ def _load_lista8(ts):
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
-    df_full.to_sql(name="lista8",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
 
-    print("Data saved to PostgreSQL. Table: ecommdata_unimarc.lista8")
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.lista8") 
+        df_full.to_sql(name="lista8",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL. Table: ecommdata.lista8")
 
     return
 
@@ -123,18 +126,11 @@ with DAG(
         retry_delay = timedelta(minutes=1),
     )
 
-    t1 = PostgresOperator(
-        task_id = "truncate_records",
-        postgres_conn_id="postgresql_conn",
-        sql="""
-        TRUNCATE ecommdata.lista8
-        """
-    )
 
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id = "load_lista8",
         python_callable = _load_lista8
     )
 
 
-    t0 >> t1 >> t2
+    t0 >> t1
