@@ -33,7 +33,7 @@ left join ecommdata.skus s on svu.vtex_id = s.vtex_id
 left join staging.stock_unimarc su on s.id = su.item_id and t.id_janis = su.store_id and b.id_janis = su.warehouse_id
 left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
-left join ecommdata_unimarc.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda and '{{ds}}'::date = l.fecha
+left join ecommdata.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
 where t.status = 1;
 DELETE from ecommdata.stock
 WHERE ultima_actualizacion < '{{ts}}'::timestamp AND fecha = '{{ds}}'::date;
