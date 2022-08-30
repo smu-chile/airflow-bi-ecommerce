@@ -17,9 +17,13 @@ select s.ultima_actualizacion as fecha_hora
 , val.precio_valido
 , val.tienda_valida
 , case
-	when val.foto_valida and val.categoria_valida and val.stock_valido and val.precio_valido and tienda_valida is true then true 
+	when val.foto_valida and val.categoria_valida and val.precio_valido and tienda_valida is true then true 
 	else false
 end as publicacion_valida
+, case
+	when val.foto_valida and val.categoria_valida and val.stock_valido and val.precio_valido and tienda_valida is true then true 
+	else false
+end as disponible_web
 , case
 	when t300.ref_id is not null and t300.evento = 'Top300' then true
 	else false
