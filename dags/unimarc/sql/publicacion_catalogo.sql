@@ -48,7 +48,7 @@ on t1.ref_id = t2.ref_id) foto on s.ref_id = foto.ref_id
 left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
 left join ecommdata.tiendas t on s.id_tienda = t.id
-left join ecommdata.precios pr on t.id_janis = pr.id_tienda_janis and s.ref_id = pr.ref_id and pr.fecha_carga::date = '{{ds}}'::date - interval '1 day'
+left join ecommdata.precios pr on t.id_janis = pr.id_tienda_janis and s.ref_id = pr.ref_id
 left join ecommdata.productos_tienda pt on s.ref_id = pt.ref_id and s.id_tienda = pt.id_tienda
 left join ecommdata.marcas m on p.id_marca = m.id
 left join ecommdata.productos_top300 t300 on s.ref_id = t300.ref_id
