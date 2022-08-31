@@ -22,22 +22,20 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'janis_admins_full_table_load',
+    'janis_stock',
     default_args=default_args,
-    description="Extracción y carga de tabla admins desde Janis Replica.",
-    schedule_interval="0 3 * * *",
+    description="Extracción y carga de tabla stock desde Janis Replica.",
+    schedule_interval="0 */4 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["DATA", "Janis", "S3"],
+    tags=["DATA", "Janis"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de admins de Janis.
+    Extracción y carga de tabla de stock de Janis.
     """ 
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "admins"}
+        op_kwargs = {"table_name": "stock"}
     )
-
-    t0

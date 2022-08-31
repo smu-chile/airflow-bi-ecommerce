@@ -22,9 +22,9 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'janis_price_full_table_load',
+    'janis_skus_full_table_load',
     default_args=default_args,
-    description="Extracción y carga de tabla price desde Janis Replica.",
+    description="Extracción y carga de tabla skus desde Janis Replica.",
     schedule_interval="0 7 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -32,12 +32,10 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de price de Janis.
+    Extracción y carga de tabla de sku de Janis.
     """ 
     t0 = PythonOperator(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
-        op_kwargs = {"table_name": "price"}
+        op_kwargs = {"table_name": "skus"}
     )
-
-    t0
