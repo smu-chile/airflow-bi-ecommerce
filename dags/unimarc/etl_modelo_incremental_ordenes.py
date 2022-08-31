@@ -288,6 +288,7 @@ def _get_order_items_from_janis(ts, ti):
 
 
 def _order_items_table_incremental_load(ti):
+    import numpy as np
     import pandas as pd
     
     df_orders = _get_new_orders_from_s3(ti)
