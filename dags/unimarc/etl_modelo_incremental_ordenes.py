@@ -286,27 +286,6 @@ def _get_order_items_from_janis(ts):
     s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_items")
     return s3_object_name
 
-def _delete_records_to_update(ts):
-    # Delete based on wms_orders.seq_id
-    df = _get_new_orders_from_s3(ts)
-    order_ids = df["seq_id"].tolist()
-    if len(order_ids) == 0:
-        return
-    query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
-    query = f"""
-        DELETE
-        FROM ecommdata.orden_productos
-        WHERE id_orden IN {query_order_ids} 
-    """
-    print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(query)
-    pg_connection.commit()
-    cursor.close()
-    pg_connection.close()
-    return
 
 def _order_items_table_incremental_load(ts, ti):
     import pandas as pd
@@ -403,24 +382,63 @@ def _order_items_table_incremental_load(ts, ti):
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    columns = [
+        "id_orden",
+		"indice_item",
+		"id_producto_substituido",
+		"sku_vtex_id",
+		"producto_vtex_id",
+		"id_picker",
+		"descripcion",
+		"precio_lista",
+		"precio",
+		"precio_venta",
+		"precio_venta_original",
+		"unidades_solicitadas",
+		"unidades_pickeadas",
+		"id_tipo_substitucion",
+		"id_marca",
+		"ref_id_categoria",
+		"unidad_de_medida",
+		"multiplicador_unidad"
+    ]
+
+    df = df[["id"]+columns]
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    # Save to PostgreSQL:
-    df.to_sql(name="orden_productos",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL. Table: ecommdata.orden_productos")
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.orden_productos (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres: ecommdata.orden_productos table.")
 
     return
 
@@ -534,11 +552,6 @@ with DAG(
     )
 
     t7 = PythonOperator(
-        task_id = "delete_orden_productos_records_to_update",
-        python_callable = _delete_records_to_update
-    )
-
-    t8 = PythonOperator(
         task_id = "orden_productos_incremental_load",
         python_callable = _order_items_table_incremental_load
     )
@@ -549,4 +562,4 @@ with DAG(
     t4 >> t2
     t5 >> t2
     # Orden productos
-    t1 >> t6 >> t7 >> t8
+    t1 >> t6 >> t7
