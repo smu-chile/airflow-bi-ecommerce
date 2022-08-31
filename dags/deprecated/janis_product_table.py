@@ -30,5 +30,3 @@ with DAG(
         python_callable = load_full_table_to_s3,
         op_kwargs = {"table_name": "products"}
     )
-
-    t0
