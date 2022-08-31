@@ -269,9 +269,9 @@ def _get_new_orders_from_s3(ti):
 
     return df
 
-def _get_order_items_from_janis(ts):
+def _get_order_items_from_janis(ts, ti):
     # Search based on wms_orders.id
-    df = _get_new_orders_from_s3(ts)
+    df = _get_new_orders_from_s3(ti)
     order_ids = df["id"].tolist()
     if len(order_ids) == 0:
         s3_object_name = "empty"
@@ -287,12 +287,10 @@ def _get_order_items_from_janis(ts):
     return s3_object_name
 
 
-def _order_items_table_incremental_load(ts, ti):
+def _order_items_table_incremental_load(ti):
     import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
     
-    df_orders = _get_new_orders_from_s3(ts)
+    df_orders = _get_new_orders_from_s3(ti)
     df_orders = df_orders[["id", "seq_id"]]
     df_orders = df_orders.rename(columns={"id": "original_id"})
 
