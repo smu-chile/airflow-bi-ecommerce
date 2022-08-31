@@ -52,16 +52,8 @@ with DAG(
     Carga de tabla found_rate_productos. El resultado final queda en datamart operaciones_unimarc.
     """ 
     t0 = ExternalTaskSensor(
-        task_id="wait_for_ordenes_janis",
-        external_dag_id='etl_ordenes_janis_incremental_load',
-        external_task_id=None,
-        allowed_states=['success'],
-        failed_states=['failed']
-    )
-
-    t1 = ExternalTaskSensor(
-        task_id="wait_for_orden_productos",
-        external_dag_id='etl_orden_productos_incremental_load',
+        task_id="wait_for_modelo_ordenes",
+        external_dag_id='etl_modelo_incremental_ordenes_unimarc',
         external_task_id=None,
         allowed_states=['success'],
         failed_states=['failed']
@@ -95,4 +87,4 @@ with DAG(
         """,
     )
 
-    [t0, t1, t2] >> t3 >> t4 >> t5
+    [t0, t2] >> t3 >> t4 >> t5
