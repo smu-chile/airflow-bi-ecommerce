@@ -427,17 +427,17 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_atributos_producto_alvi_incremental_load',
+    'etl_proceso_atributos_alvi',
     default_args=default_args,
-    description="Extracción y carga de tabla atributos producto desde Janis Alvi Replica hasta Workspace.",
+    description="Extracción y carga de tabla atributos, valores_atributo y atributos_producto desde Janis Alvi Replica hasta Workspace.",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 7, 1),
+    start_date=datetime(2022, 8, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata_alvi", "atributos_producto", "Unimarc"],
+    tags=["DATA", "Janis", "ecommdata_alvi", "atributos", "alvi"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de atributos producti de Janis Alvi a Workspace. \n
+    Extracción y carga de tabla atributos, valores_atributo y atributos_producto desde Janis Alvi Replica hasta Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
 
@@ -519,4 +519,6 @@ with DAG(
         python_callable = _incremental_load_product_attributes_table
     )
 
-    [t0, t1] >> t2 >> t3 >> t4
+    t0_a >> t1_a >> t2_a >> t3
+    t0_b >> t1_b >> t2_b >> t3
+    t3 >> t4 >> t5
