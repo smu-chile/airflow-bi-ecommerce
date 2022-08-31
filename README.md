@@ -7,3 +7,5 @@ Airflow docker image extension for bi-ecommerce
 * Local Kubernetes cluster
 * helm
 * kind
+
+31-08-2022
