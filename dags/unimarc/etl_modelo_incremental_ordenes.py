@@ -387,6 +387,8 @@ def _order_items_table_incremental_load(ti):
 		"id_producto_substituido",
 		"sku_vtex_id",
 		"producto_vtex_id",
+        "ref_id",
+		"ean",
 		"id_picker",
 		"descripcion",
 		"precio_lista",
