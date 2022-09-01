@@ -20,13 +20,13 @@ def _get_time_interval(ts):
     print(exec_datetime_local_str)
 
     current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
-    if current_exec_hour == "18":
+    if current_exec_hour == "17":
         task_start_date = exec_datetime_local + timedelta(days=1)
-        task_start_date = task_start_date.replace(hour=7, minute=0, second=0)
-        return exec_datetime_local_str, "interval '14 hours'", task_start_date
+        task_start_date = task_start_date.replace(hour=int(current_exec_hour), minute=0, second=0)
+        return exec_datetime_local_str, "interval '15 hours'", task_start_date
     else:
         task_start_date = exec_datetime_local
-        task_start_date = task_start_date.replace(hour=7, minute=0, second=0)
+        task_start_date = task_start_date.replace(hour=int(current_exec_hour), minute=0, second=0)
         return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
 def _pre_payload(id_tienda, task_start_date, exec_date):
@@ -34,7 +34,7 @@ def _pre_payload(id_tienda, task_start_date, exec_date):
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
 
-    task_end_date = task_start_date.replace(hour=23, minute=59, second=59)
+    task_end_date = task_start_date + timedelta(hours=1)
     task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
     task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
     print(f"start_date: {task_start_date_str}")
@@ -177,7 +177,7 @@ with DAG(
     "proc_frogmi_post_alerta_foundrate",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate a Frogmi",
-    schedule_interval="0 8,13,18 * * *",
+    schedule_interval="0 8,13,17 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
