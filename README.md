@@ -8,4 +8,4 @@ Airflow docker image extension for bi-ecommerce
 * helm
 * kind
 
-31-08-2022
+06-09-2022
