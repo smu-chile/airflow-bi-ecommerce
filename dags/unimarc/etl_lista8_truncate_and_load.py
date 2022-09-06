@@ -17,6 +17,7 @@ def _stopper_lista8(ts):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    s3_file_list = list(filter(lambda x: (x[-3:] == 'CSV'), s3_file_list))
     print(f"Files detected: {s3_file_list}")
 
     query = """
@@ -31,7 +32,7 @@ def _stopper_lista8(ts):
     cursor.execute(query)
     results = cursor.fetchall()
     active_stores = results[0][0]
-    stores_found = (len(s3_file_list)-2)/2
+    stores_found = len(s3_file_list)
     print(f"active stores: {results}")
     print(f"stores found: {stores_found}")
 
