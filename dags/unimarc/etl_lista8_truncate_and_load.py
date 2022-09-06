@@ -31,10 +31,11 @@ def _stopper_lista8(ts):
     cursor.execute(query)
     results = cursor.fetchall()
     active_stores = results[0][0]
+    stores_found = (len(s3_file_list)-2)/2
     print(f"active stores: {results}")
-    print(f"stores found: {len(s3_file_list)}")
+    print(f"stores found: {stores_found}")
 
-    if len(s3_file_list) == active_stores:
+    if stores_found == active_stores:
         return
     else:
         raise Exception(f"Not all active stores found")
