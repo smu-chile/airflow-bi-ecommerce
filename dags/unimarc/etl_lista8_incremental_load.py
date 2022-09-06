@@ -8,6 +8,38 @@ from airflow.operators.python import PythonOperator
 
 from datetime import datetime, timedelta
 
+def _stopper_lista8(ts):
+
+    exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
+    exec_date = exec_date.strftime("%Y/%m/%d")
+    prefix = f"datastage/L8/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    print(f"Files detected: {s3_file_list}")
+
+    query = """
+        select count(1) as tiendas_activas
+        from ecommdata.tiendas t
+        where t.status = 1;
+    """
+
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    active_stores = results[0][0]
+    stores_found = (len(s3_file_list)-2)/2
+    print(f"active stores: {results}")
+    print(f"stores found: {stores_found}")
+
+    if stores_found == active_stores:
+        return
+    else:
+        raise Exception(f"Not all active stores found")
+
 def _load_lista8(ts):
     import pandas as pd
     import sqlalchemy
@@ -123,11 +155,16 @@ with DAG(
     )
 
     t1 = PythonOperator(
+        task_id = "stopper_lista8",
+        python_callable = _stopper_lista8
+    )
+
+    t2 = PythonOperator(
         task_id = "load_lista8",
         python_callable = _load_lista8
     )
 
-    t2 = PostgresOperator(
+    t3 = PostgresOperator(
         task_id = "delete_records_older_than_7_days",
         postgres_conn_id="postgresql_conn",
         sql="""
@@ -136,4 +173,4 @@ with DAG(
         """
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1 >> t2 >> t3
