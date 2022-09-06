@@ -1,4 +1,4 @@
-insert into ecommdata_unimarc.ventanas_de_despacho 
+insert into ecommdata.monitor_despacho
 select vddu.id
 	, t.id as id_tienda
 	, t.glosa as glosa_tienda
@@ -21,10 +21,10 @@ select vddu.id
 	, vddu.fecha_creacion
 	, vddu.fecha_modificacion
 	, vddu.fecha_modificacion_unixtime 
-from staging.ventanas_de_despacho_unimarc vddu
+from staging.monitor_despacho_unimarc vddu
 left join ecommdata.tiendas t
 	on vddu.id_janis_tienda = t.id_janis 
-left join ecommdata_unimarc.transportadoras t2 
+left join ecommdata.transportadoras t2 
 	on vddu.id_transportadora = t2.id_janis  
 on conflict (id) do update
 set id_tienda = EXCLUDED.id_tienda

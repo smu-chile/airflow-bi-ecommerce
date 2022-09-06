@@ -201,7 +201,7 @@ def _order_shipping_table_incremental_load(ts, ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata_unimarc.despachos (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.despachos (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
@@ -214,7 +214,7 @@ def _order_shipping_table_incremental_load(ts, ti):
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Data loaded to Postgres. ecommdata_unimarc.despachos")
+    print("Data loaded to Postgres. ecommdata.despachos")
 
     return
 
@@ -233,7 +233,7 @@ with DAG(
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata_unimarc", "despachos", "unimarc"],
+    tags=["DATA", "Janis", "ecommdata", "despachos", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
@@ -244,7 +244,7 @@ with DAG(
         task_id = "evaluate_full_load",
         python_callable = _evaluate_full_load,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
+            "schema": "ecommdata",
             "table_name": "despachos"
         }
     )
