@@ -1,4 +1,4 @@
-insert into ecommdata_unimarc.transportadoras 
+insert into ecommdata.transportadoras 
 select tu.id_janis 
 		, tu.id, tu.nombre 
 		, tu.tipo 

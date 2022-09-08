@@ -4,6 +4,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from utils.janis_utils import load_custom_query_to_s3
 from utils.postgres_utils import is_empty_table
@@ -201,7 +202,7 @@ def _order_shipping_table_incremental_load(ts, ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata_unimarc.despachos (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.despachos (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
@@ -214,7 +215,7 @@ def _order_shipping_table_incremental_load(ts, ti):
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Data loaded to Postgres. ecommdata_unimarc.despachos")
+    print("Data loaded to Postgres. ecommdata.despachos")
 
     return
 
@@ -233,7 +234,7 @@ with DAG(
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata_unimarc", "despachos", "unimarc"],
+    tags=["DATA", "Janis", "ecommdata", "despachos", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
@@ -244,7 +245,7 @@ with DAG(
         task_id = "evaluate_full_load",
         python_callable = _evaluate_full_load,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
+            "schema": "ecommdata",
             "table_name": "despachos"
         }
     )
@@ -284,6 +285,12 @@ with DAG(
         trigger_rule = "none_failed"
     )
 
+    t5 = PostgresOperator(
+        task_id = "set_tipo_despacho",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/update_despachos_tipo.sql"
+    )
+
     t0 >> t1
     t0 >> t2 >> t3 >> t4
-    t1 >> t4
+    t1 >> t4 >> t5
