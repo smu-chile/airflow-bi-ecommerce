@@ -58,8 +58,8 @@ def _pre_payload(id_tienda, product, task_start_date, exec_date):
                     "external_id": f"fr_ecomm_{exec_date}",
                     "external_data": [
                         {
-                            "main_text": "Alerta Found Rate",
-                            "second_text": "Cuestionario",
+                            "main_text": "Producto",
+                            "second_text": f"Código: {product['product_code']}",
                             "icon": "info"
                         }
                     ],
