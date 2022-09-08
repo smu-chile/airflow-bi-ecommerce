@@ -9,9 +9,16 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 08:00 -  prev_date at 18:00 to curr_date at 08:00 (+14 hrs)
+    # 08:00 -  prev_date at 17:00 to curr_date at 08:00 (+14 hrs)
     # 13:00 -  curr_date at 08:00 to curr_date at 13:00 (+5 hrs)
-    # 18:00 -  curr_date at 13:00 to curr_date at 18:00 (+5 hrs)
+    # 17:00 -  curr_date at 13:00 to curr_date at 17:00 (+5 hrs)
+
+    hours_dictionary = {
+        "08": 13,
+        "13": 17,
+        "17": 8
+    }
+
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
@@ -22,11 +29,11 @@ def _get_time_interval(ts):
     current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
     if current_exec_hour == "17":
         task_start_date = exec_datetime_local + timedelta(days=1)
-        task_start_date = task_start_date.replace(hour=int(current_exec_hour), minute=0, second=0)
+        task_start_date = task_start_date.replace(hour=hours_dictionary[current_exec_hour], minute=0, second=0)
         return exec_datetime_local_str, "interval '15 hours'", task_start_date
     else:
         task_start_date = exec_datetime_local
-        task_start_date = task_start_date.replace(hour=int(current_exec_hour), minute=0, second=0)
+        task_start_date = task_start_date.replace(hour=hours_dictionary[current_exec_hour], minute=0, second=0)
         return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
 def _pre_payload(id_tienda, product, task_start_date, exec_date):
@@ -44,7 +51,7 @@ def _pre_payload(id_tienda, product, task_start_date, exec_date):
             {
                 "type": "task_sku",
                 "attributes": {
-                    "name": f"FR-Ecomm {exec_date}",
+                    "name": f"FR-Ecomm {task_start_date_str}",
                     "template_id": "a6dbc4bd-64e6-4628-bb6b-66902cba3a7e",
                     "accountable_area_code": "ADMIN_LOCAL",
                     "stores": [
@@ -55,7 +62,7 @@ def _pre_payload(id_tienda, product, task_start_date, exec_date):
                     "notification":[
                     ],
                     "instructions": "Alerta Found Rate",
-                    "external_id": f"fr_ecomm_{exec_date}",
+                    "external_id": f"fr_ecomm_{task_start_date_str}",
                     "external_data": [
                         {
                             "main_text": "Producto",
