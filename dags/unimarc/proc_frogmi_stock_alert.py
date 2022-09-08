@@ -107,7 +107,7 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = t.id and t.id_frogmi is not null
                 where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
-                group by ref_id, id_frogmi
+                group by ref_id, frp.descripcion, id_frogmi
             ) _t
         ) _resultado
         where _resultado._rank <= 5
