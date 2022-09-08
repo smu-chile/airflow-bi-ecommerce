@@ -42,7 +42,12 @@ def _ventas_dw_incremental_load(ti):
         "CAT_DSC": "str", 
         "LIN_DESC": "str", 
         "SEC_DSC": "str", 
-        "NEG_DSC": "str" 
+        "NEG_DSC": "str",
+        "MARKET_BASKET_KEY": "int",
+        "STORE_KEY": "int",
+        "TIPO_DOC": "str",
+        "MARKET_BASKET_NK": "str",
+        "DS_INSERTION": "str"
     }
 
     df = pd.read_csv(ventas_dw_object.get()["Body"], dtype=column_types)
@@ -77,30 +82,15 @@ def _ventas_dw_incremental_load(ti):
         "CAT_DSC": "categoria", 
         "LIN_DESC": "linea", 
         "SEC_DSC": "seccion", 
-        "NEG_DSC": "negocio" 
+        "NEG_DSC": "negocio",
+        "MARKET_BASKET_KEY": "market_basket_key",
+        "STORE_KEY": "store_key",
+        "TIPO_DOC": "tipo_doc",
+        "MARKET_BASKET_NK": "market_basket_nk",
+        "DS_INSERTION": "ds_insertion"
     }
 
     df = df.rename(columns=column_names)
-    df = df[[
-        "id",
-        "ref_id_sku",
-        "id_tienda",
-        "fecha_facturacion",
-        "ean",
-        "canal_venta",
-        "num_trxn",
-        "pos",
-        "id_orden",
-        "venta_umv",
-        "venta_bruta",
-        "venta_neta", 
-        "marca", 
-        "grupo", 
-        "categoria", 
-        "linea", 
-        "seccion", 
-        "negocio"
-    ]]
 
     columns = [
         "ref_id_sku",
@@ -119,8 +109,16 @@ def _ventas_dw_incremental_load(ti):
         "categoria", 
         "linea", 
         "seccion", 
-        "negocio"
+        "negocio",
+        "market_basket_key",
+        "store_key",
+        "tipo_doc",
+        "market_basket_nk",
+        "ds_insertion"
     ]
+
+    df = df[["id"]+columns]
+
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
