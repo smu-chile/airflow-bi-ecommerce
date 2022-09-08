@@ -120,7 +120,7 @@ def _staging_ventanas_de_despacho_table(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
-    df.to_sql(name="ventanas_de_despacho_unimarc",
+    df.to_sql(name="monitor_despacho_unimarc",
                 con=engine,         
                 schema="staging",         
                 if_exists='append',         
@@ -128,7 +128,7 @@ def _staging_ventanas_de_despacho_table(ti):
                 chunksize=20000,         
                 method='multi')
 
-    print("Data saved to PostgreSQL. Table: staging.ventanas_de_despacho_unimarc")
+    print("Data saved to PostgreSQL. Table: staging.monitor_despacho_unimarc")
 
     return
 
@@ -142,24 +142,24 @@ default_args = {
 with DAG(
     'etl_ventanas_de_despacho_unimarc_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla ventanas_de_despacho desde Janis Replica hasta Workspace.",
+    description="Extracción y carga de tabla monitor_despacho desde Janis Replica hasta Workspace.",
     schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 7, 10),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "janis", "ecommdata_unimarc", "ventanas_de_despacho", "unimarc"],
+    tags=["DATA", "janis", "ecommdata", "monitor_despacho", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla de ventanas_de_despacho de Janis a Workspace. \n
+    Extracción y carga de tabla de monitor_despacho de Janis a Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
     t0 = BranchPythonOperator(
         task_id = "evaluate_full_load",
         python_callable = _evaluate_full_load,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
-            "table_name": "ventanas_de_despacho"
+            "schema": "ecommdata",
+            "table_name": "monitor_despacho"
         }
     )
 
@@ -167,8 +167,8 @@ with DAG(
         task_id = "get_max_updated_at_date",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
-            "table_name": "ventanas_de_despacho", 
+            "schema": "ecommdata",
+            "table_name": "monitor_despacho", 
             "updated_at_field": "fecha_modificacion_unixtime",
             "is_unixtime": True
         }
@@ -205,7 +205,7 @@ with DAG(
     t6 = PostgresOperator(
         task_id = "clear_staging_table",
         postgres_conn_id="postgresql_conn",
-        sql="TRUNCATE staging.ventanas_de_despacho_unimarc;",
+        sql="TRUNCATE staging.monitor_despacho_unimarc;",
     )
 
     t0 >> t1 >> t2

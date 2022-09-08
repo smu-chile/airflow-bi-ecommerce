@@ -5,7 +5,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 
-from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3, load_custom_query_to_s3
+from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
@@ -139,7 +139,7 @@ with DAG(
     schedule_interval="30 7 * * *",
     start_date=datetime(2022, 7, 10),
     catchup=False,
-    tags=["DATA", "janis", "ecommdata_unimarc", "transportadoras", "unimarc"],
+    tags=["DATA", "janis", "ecommdata", "transportadoras", "unimarc"],
 ) as dag:
 
     dag.doc_md = """
@@ -158,7 +158,7 @@ with DAG(
         task_id = "get_max_updated_at_date",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
-            "schema": "ecommdata_unimarc",
+            "schema": "ecommdata",
             "table_name": "transportadoras", 
             "updated_at_field": "fecha_modificacion_unixtime",
             "is_unixtime": True

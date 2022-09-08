@@ -4,6 +4,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from utils.janis_alvi_utils import load_custom_query_to_s3
 from utils.postgres_utils import is_empty_table
@@ -284,6 +285,12 @@ with DAG(
         trigger_rule = "none_failed"
     )
 
+    t5 = PostgresOperator(
+        task_id = "set_tipo_despacho",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/update_despachos_tipo.sql"
+    )
+
     t0 >> t1
     t0 >> t2 >> t3 >> t4
-    t1 >> t4
+    t1 >> t4 >> t5
