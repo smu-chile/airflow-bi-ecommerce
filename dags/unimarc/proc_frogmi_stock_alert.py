@@ -9,9 +9,16 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 08:00 -  prev_date at 18:00 to curr_date at 08:00 (+14 hrs)
+    # 08:00 -  prev_date at 17:00 to curr_date at 08:00 (+14 hrs)
     # 13:00 -  curr_date at 08:00 to curr_date at 13:00 (+5 hrs)
-    # 18:00 -  curr_date at 13:00 to curr_date at 18:00 (+5 hrs)
+    # 17:00 -  curr_date at 13:00 to curr_date at 17:00 (+5 hrs)
+
+    hours_dictionary = {
+        "08": 13,
+        "13": 17,
+        "17": 8
+    }
+
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
@@ -22,21 +29,21 @@ def _get_time_interval(ts):
     current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
     if current_exec_hour == "17":
         task_start_date = exec_datetime_local + timedelta(days=1)
-        task_start_date = task_start_date.replace(hour=int(current_exec_hour), minute=0, second=0)
+        task_start_date = task_start_date.replace(hour=hours_dictionary[current_exec_hour], minute=0, second=0)
         return exec_datetime_local_str, "interval '15 hours'", task_start_date
     else:
         task_start_date = exec_datetime_local
-        task_start_date = task_start_date.replace(hour=int(current_exec_hour), minute=0, second=0)
+        task_start_date = task_start_date.replace(hour=hours_dictionary[current_exec_hour], minute=0, second=0)
         return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
-def _pre_payload(id_tienda, task_start_date, exec_date):
+def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
     if Variable.get("FROGMI_ENV") != "prod":
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
 
-    task_end_date = task_start_date + timedelta(hours=1)
-    task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
-    task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+    task_end_date = task_start_date + timedelta(hours=2)
+    task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S%z")
+    task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S%z")
     print(f"start_date: {task_start_date_str}")
     print(f"end_date: {task_end_date_str}")
     base_payload = {
@@ -44,26 +51,28 @@ def _pre_payload(id_tienda, task_start_date, exec_date):
             {
                 "type": "task_sku",
                 "attributes": {
-                    "name": f"FR-Ecomm {exec_date}",
+                    "name": f"FR-Ecomm {task_start_date_str[:-5]}",
                     "template_id": "a6dbc4bd-64e6-4628-bb6b-66902cba3a7e",
                     "accountable_area_code": "ADMIN_LOCAL",
                     "stores": [
                         id_tienda
                     ],
-                    "start_date": task_start_date_str,
-                    "end_date": task_end_date_str,
+                    "start_date": task_start_date_str[:-2]+":00",
+                    "end_date": task_end_date_str[:-2]+":00",
                     "notification":[
                     ],
                     "instructions": "Alerta Found Rate",
-                    "external_id": f"fr_ecomm_{exec_date}",
+                    "external_id": f"fr_ecomm_{task_start_date_str}",
                     "external_data": [
                         {
-                            "main_text": "Alerta Found Rate",
-                            "second_text": "Cuestionario",
+                            "main_text": f"{descr}",
+                            "second_text": f"Código: {product['product_code']}",
                             "icon": "info"
                         }
                     ],
-                    "products": []
+                    "products": [
+                        product
+                    ]
                 }
             }
         ]
@@ -81,6 +90,7 @@ def _post_request_to_publish_task_endpoint(ts):
         from
         (
             select ref_id
+                , descripcion
                 , id_frogmi as id_tienda
                 , ordenes
                 , unidades_faltantes
@@ -88,6 +98,7 @@ def _post_request_to_publish_task_endpoint(ts):
             from 
             (
                 select ref_id
+                    , frp.descripcion
                     , id_frogmi 
                     , count(1) as ordenes
                     , sum(unidades_solicitadas - unidades_pickeadas) as unidades_faltantes --PAQ y DIS multiplicar por unidades_pack
@@ -96,7 +107,7 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = t.id and t.id_frogmi is not null
                 where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
-                group by ref_id, id_frogmi
+                group by ref_id, frp.descripcion, id_frogmi
             ) _t
         ) _resultado
         where _resultado._rank <= 5
@@ -120,18 +131,24 @@ def _post_request_to_publish_task_endpoint(ts):
     tiendas = df["id_tienda"].drop_duplicates().tolist()
     print("Frogmi store ids:")
     print(tiendas)
-    payloads = {tienda: _pre_payload(tienda, task_start_date, exec_date_local) for tienda in tiendas}
+    payloads = [] #{tienda: _pre_payload(tienda, task_start_date, exec_date_local) for tienda in tiendas}
 
     registros = df.to_records(index=False)
 
     for registro in registros:
-        r_tienda = registro[1]
-        r_material = registro[5]
-        body = {
+        r_tienda = registro[2]
+        r_material = registro[6]
+        r_descripcion = registro[1]
+        product_body = {
             "product_code": r_material,
             "place_code": "alerta_repo"
         }
-        payloads[r_tienda]["data"][0]["attributes"]["products"].append(body)
+        payloads.append(_pre_payload(
+            id_tienda=r_tienda, 
+            product=product_body, 
+            descr=r_descripcion,
+            task_start_date=task_start_date, 
+            exec_date=exec_date_local))
 
     # Send payloads to S3
     print(payloads)
@@ -158,11 +175,16 @@ def _post_request_to_publish_task_endpoint(ts):
         "Content-Type": "application/json"
     }
     jobs_ids = []
-    for tienda in tiendas:
-        payload = payloads[tienda]
+    for payload in payloads:
         response = requests.post(frogmi_publish_task_endpoint, json=payload, headers=headers)
         print(response.status_code)
-        print(response.json())
+        try:
+            response_json = response.json()
+            print(response.json())
+            jobs_ids.append(response_json["data"]["id"])
+        except Exception as e:
+            print(e)
+            print("Error on response. Can not get job id.")
 
     return
 
