@@ -29,7 +29,7 @@ def _get_time_interval(ts):
         task_start_date = task_start_date.replace(hour=int(current_exec_hour), minute=0, second=0)
         return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
-def _pre_payload(id_tienda, task_start_date, exec_date):
+def _pre_payload(id_tienda, product, task_start_date, exec_date):
     if Variable.get("FROGMI_ENV") != "prod":
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
@@ -58,12 +58,14 @@ def _pre_payload(id_tienda, task_start_date, exec_date):
                     "external_id": f"fr_ecomm_{exec_date}",
                     "external_data": [
                         {
-                            "main_text": "Alerta Found Rate",
-                            "second_text": "Cuestionario",
+                            "main_text": "Producto",
+                            "second_text": f"Código: {product['product_code']}",
                             "icon": "info"
                         }
                     ],
-                    "products": []
+                    "products": [
+                        product
+                    ]
                 }
             }
         ]
@@ -120,18 +122,22 @@ def _post_request_to_publish_task_endpoint(ts):
     tiendas = df["id_tienda"].drop_duplicates().tolist()
     print("Frogmi store ids:")
     print(tiendas)
-    payloads = {tienda: _pre_payload(tienda, task_start_date, exec_date_local) for tienda in tiendas}
+    payloads = [] #{tienda: _pre_payload(tienda, task_start_date, exec_date_local) for tienda in tiendas}
 
     registros = df.to_records(index=False)
 
     for registro in registros:
         r_tienda = registro[1]
         r_material = registro[5]
-        body = {
+        product_body = {
             "product_code": r_material,
             "place_code": "alerta_repo"
         }
-        payloads[r_tienda]["data"][0]["attributes"]["products"].append(body)
+        payloads.append(_pre_payload(
+            id_tienda=r_tienda, 
+            product=product_body, 
+            task_start_date=task_start_date, 
+            exec_date=exec_date_local))
 
     # Send payloads to S3
     print(payloads)
@@ -158,11 +164,16 @@ def _post_request_to_publish_task_endpoint(ts):
         "Content-Type": "application/json"
     }
     jobs_ids = []
-    for tienda in tiendas:
-        payload = payloads[tienda]
+    for payload in payloads:
         response = requests.post(frogmi_publish_task_endpoint, json=payload, headers=headers)
         print(response.status_code)
-        print(response.json())
+        try:
+            response_json = response.json()
+            print(response.json())
+            jobs_ids.append(response_json["data"]["id"])
+        except Exception as e:
+            print(e)
+            print("Error on response. Can not get job id.")
 
     return
 
