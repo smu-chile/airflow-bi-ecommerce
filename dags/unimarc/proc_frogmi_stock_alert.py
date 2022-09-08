@@ -41,7 +41,7 @@ def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
 
-    task_end_date = task_start_date + timedelta(hours=1)
+    task_end_date = task_start_date + timedelta(hours=2)
     task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S%z")
     task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S%z")
     print(f"start_date: {task_start_date_str}")
@@ -51,14 +51,14 @@ def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
             {
                 "type": "task_sku",
                 "attributes": {
-                    "name": f"FR-Ecomm {task_start_date_str}",
+                    "name": f"FR-Ecomm {task_start_date_str[:-5]}",
                     "template_id": "a6dbc4bd-64e6-4628-bb6b-66902cba3a7e",
                     "accountable_area_code": "ADMIN_LOCAL",
                     "stores": [
                         id_tienda
                     ],
-                    "start_date": task_start_date_str,
-                    "end_date": task_end_date_str,
+                    "start_date": task_start_date_str[:-2]+":00",
+                    "end_date": task_end_date_str[:-2]+":00",
                     "notification":[
                     ],
                     "instructions": "Alerta Found Rate",
