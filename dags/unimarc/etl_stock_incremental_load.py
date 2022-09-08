@@ -266,7 +266,7 @@ def _vtex_get_stock_retries(ti, ts):
 
     retries_object = s3_hook.get_key(retries_file, bucket_name=s3_bucket)
     retries_string = retries_object.get()["Body"].read().decode('utf-8')[1:-1]
-    retries_string = retries_object.replace("'","")
+    retries_string = retries_string.replace("'","")
     retries = retries_string.split(",") if retries_string != "" else []
 
     session = requests.session()
