@@ -120,7 +120,7 @@ def _staging_ventanas_de_despacho_table(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
-    df.to_sql(name="ventanas_de_despacho_unimarc",
+    df.to_sql(name="monitor_despacho_unimarc",
                 con=engine,         
                 schema="staging",         
                 if_exists='append',         
@@ -128,7 +128,7 @@ def _staging_ventanas_de_despacho_table(ti):
                 chunksize=20000,         
                 method='multi')
 
-    print("Data saved to PostgreSQL. Table: staging.ventanas_de_despacho_unimarc")
+    print("Data saved to PostgreSQL. Table: staging.monitor_despacho_unimarc")
 
     return
 
