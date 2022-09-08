@@ -36,7 +36,7 @@ def _get_time_interval(ts):
         task_start_date = task_start_date.replace(hour=hours_dictionary[current_exec_hour], minute=0, second=0)
         return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
-def _pre_payload(id_tienda, product, task_start_date, exec_date):
+def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
     if Variable.get("FROGMI_ENV") != "prod":
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
@@ -65,7 +65,7 @@ def _pre_payload(id_tienda, product, task_start_date, exec_date):
                     "external_id": f"fr_ecomm_{task_start_date_str}",
                     "external_data": [
                         {
-                            "main_text": "Producto",
+                            "main_text": f"{descr}",
                             "second_text": f"Código: {product['product_code']}",
                             "icon": "info"
                         }
@@ -90,6 +90,7 @@ def _post_request_to_publish_task_endpoint(ts):
         from
         (
             select ref_id
+                , descripcion
                 , id_frogmi as id_tienda
                 , ordenes
                 , unidades_faltantes
@@ -97,6 +98,7 @@ def _post_request_to_publish_task_endpoint(ts):
             from 
             (
                 select ref_id
+                    , frp.descripcion
                     , id_frogmi 
                     , count(1) as ordenes
                     , sum(unidades_solicitadas - unidades_pickeadas) as unidades_faltantes --PAQ y DIS multiplicar por unidades_pack
@@ -105,7 +107,7 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = t.id and t.id_frogmi is not null
                 where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
-                group by ref_id, id_frogmi
+                group by ref_id, frp.descripcion, id_frogmi
             ) _t
         ) _resultado
         where _resultado._rank <= 5
@@ -134,8 +136,9 @@ def _post_request_to_publish_task_endpoint(ts):
     registros = df.to_records(index=False)
 
     for registro in registros:
-        r_tienda = registro[1]
-        r_material = registro[5]
+        r_tienda = registro[2]
+        r_material = registro[6]
+        r_descripcion = registro[1]
         product_body = {
             "product_code": r_material,
             "place_code": "alerta_repo"
@@ -143,6 +146,7 @@ def _post_request_to_publish_task_endpoint(ts):
         payloads.append(_pre_payload(
             id_tienda=r_tienda, 
             product=product_body, 
+            descr=r_descripcion,
             task_start_date=task_start_date, 
             exec_date=exec_date_local))
 
