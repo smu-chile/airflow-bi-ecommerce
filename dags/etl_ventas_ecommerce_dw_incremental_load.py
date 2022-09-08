@@ -118,6 +118,7 @@ def _ventas_dw_incremental_load(ti):
     ]
 
     df = df[["id"]+columns]
+    df = df.replace(r'^\s*$', np.nan, regex=True)
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
