@@ -42,8 +42,8 @@ def _pre_payload(id_tienda, product, task_start_date, exec_date):
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
 
     task_end_date = task_start_date + timedelta(hours=1)
-    task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
-    task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+    task_start_date_str = task_start_date.strftime("%Y-%m-%dT%H:%M:%S%z")
+    task_end_date_str = task_end_date.strftime("%Y-%m-%dT%H:%M:%S%z")
     print(f"start_date: {task_start_date_str}")
     print(f"end_date: {task_end_date_str}")
     base_payload = {
