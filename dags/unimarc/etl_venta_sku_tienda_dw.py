@@ -194,7 +194,34 @@ with DAG(
         task_id = "load_custom_query_to_s3",
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
-            "query": "sql/venta_sku_tienda_dw.sql",
+            "query": """SELECT VENTAC.DATE_VALUE AS fecha
+            , VENTAC.STORE_ID AS id_tienda
+            , STORE_H.ORG_IP_ID AS id_org
+            , STORE_H.ORG_IP AS organizacion
+            , S.SKU_PRODUCT AS material
+            , U.UOM_COD_COM AS umv
+            , VENTAC.VENTA_BRUTA AS venta_bruta
+            , VENTAC.VENTA_NETA AS venta_neta
+            , VENTAC.VENTA_UMV AS venta_umv
+            , SH.GRUPO_DSC AS grupo
+            , SH.CAT_DSC AS categoria
+            , SH.LIN_DESC AS linea
+            , SH.SEC_DSC AS seccion
+            , SH.NEG_DSC AS negocio
+            , SH.SKU_NM AS descripcion
+            , SH.PROCEDENCIA AS procedencia
+            , SH.BRAND_DESC AS marca
+            , SH.MARCA_PROPIA AS marca_propia
+            , SH.DESC_TIPO_MATERIAL AS tipo_material
+            , SH.DESC_CATEGORIA_MATERIAL AS categoria_material
+            FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE VENTAC
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON VENTAC.SKU_KEY = S.SKU_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_UOM U ON P.UOM_BASE_KEY = U.UOM_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON VENTAC.SKU_KEY = SH.SKU_KEY
+            WHERE VENTAC.DATE_VALUE = '{{ds}}' AND STORE_H.ORG_IP_ID IN ('01', '06', '08');
+            """,
             "query_name": "venta_sku_tienda_dw",
         }
     )
