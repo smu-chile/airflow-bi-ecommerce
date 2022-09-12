@@ -227,7 +227,7 @@ with DAG(
     )
 
     t1 = PostgresOperator(
-        task_id = "clean day",
+        task_id = "clean_day",
         postgres_conn_id="postgresql_conn",
         sql="""
         delete from venta_sku_tienda
