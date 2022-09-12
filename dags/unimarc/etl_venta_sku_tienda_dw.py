@@ -194,7 +194,7 @@ with DAG(
         task_id = "load_custom_query_to_s3",
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
-            "query": """SELECT VENTAC.DATE_VALUE AS fecha
+            "query": """SELECT VENTAC.DATE_VALUE
             , VENTAC.STORE_ID
             , STORE_H.ORG_IP_ID
             , STORE_H.ORG_IP
