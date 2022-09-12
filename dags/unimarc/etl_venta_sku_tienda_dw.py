@@ -154,7 +154,7 @@ def _incremental_load_sales_table(ti, ds):
     print(query)
     delete_query = f"""
         DELETE FROM ecommdata.venta_sku_tienda
-        where fecha < {ds}::date - interval '7 days'
+        where fecha < '{ds}'::date - interval '7 days'
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
