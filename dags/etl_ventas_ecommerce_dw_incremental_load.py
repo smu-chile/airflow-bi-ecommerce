@@ -43,11 +43,7 @@ def _ventas_dw_incremental_load(ti):
         "LIN_DESC": "str", 
         "SEC_DSC": "str", 
         "NEG_DSC": "str",
-        "MARKET_BASKET_KEY": "int",
-        "STORE_KEY": "int",
         "TIPO_DOC": "str",
-        "MARKET_BASKET_NK": "str",
-        "DS_INSERTION": "str"
     }
 
     df = pd.read_csv(ventas_dw_object.get()["Body"], dtype=column_types)
@@ -83,11 +79,7 @@ def _ventas_dw_incremental_load(ti):
         "LIN_DESC": "linea", 
         "SEC_DSC": "seccion", 
         "NEG_DSC": "negocio",
-        "MARKET_BASKET_KEY": "market_basket_key",
-        "STORE_KEY": "store_key",
         "TIPO_DOC": "tipo_doc",
-        "MARKET_BASKET_NK": "market_basket_nk",
-        "DS_INSERTION": "ds_insertion"
     }
 
     df = df.rename(columns=column_names)
@@ -110,11 +102,7 @@ def _ventas_dw_incremental_load(ti):
         "linea", 
         "seccion", 
         "negocio",
-        "market_basket_key",
-        "store_key",
-        "tipo_doc",
-        "market_basket_nk",
-        "ds_insertion"
+        "tipo_doc"
     ]
 
     df = df[["id"]+columns]
