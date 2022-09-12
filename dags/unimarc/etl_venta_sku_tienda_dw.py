@@ -226,10 +226,18 @@ with DAG(
         }
     )
 
+    t1 = PostgresOperator(
+        task_id = "clean day",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        delete from venta_sku_tienda
+        where fecha = '{{ds}}'
+        """
+    )
 
-    t1 = PythonOperator(
+    t2 = PythonOperator(
         task_id = "incremental_load_sales_table",
         python_callable = _incremental_load_sales_table
     )
 
-    t0 >> t1
+    t0 >> t1 >> t2
