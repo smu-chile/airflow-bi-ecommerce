@@ -223,7 +223,7 @@ def _upsert_cumplimiento_despacho(ts):
     import os
     curr_working_directory = os.getcwd()
     print(os.getcwd())
-    with open("sql/upsert_cumplimiento_despacho.sql", "r") as query_file:
+    with open(curr_working_directory+"/dags/unimarc/sql/upsert_cumplimiento_despacho.sql", "r") as query_file:
         base_query = query_file.read()
 
     df_new_orders = _get_new_orders_from_s3(ts)
