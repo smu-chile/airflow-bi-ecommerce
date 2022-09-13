@@ -84,7 +84,7 @@ from
 ) _t
 where _t._rank = 1
 on conflict (id_orden) do update
-set fecha_facturacion
+set fecha_facturacion = EXCLUDED.fecha_facturacion
 	, tipo_despacho = EXCLUDED.tipo_despacho
 	, id_tienda = EXCLUDED.id_tienda
 	, glosa_tienda = EXCLUDED.glosa_tienda
