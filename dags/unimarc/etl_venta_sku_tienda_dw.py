@@ -230,7 +230,7 @@ with DAG(
         task_id = "clean_day",
         postgres_conn_id="postgresql_conn",
         sql="""
-        delete from venta_sku_tienda
+        delete from ecommdata.venta_sku_tienda
         where fecha = '{{ds}}'
         """
     )
