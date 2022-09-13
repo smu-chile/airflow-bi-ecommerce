@@ -230,7 +230,7 @@ def _upsert_cumplimiento_despacho(ts):
     order_ids = df_new_orders["seq_id"].tolist()
     chunksize = 500
     iter_range = len(order_ids) // chunksize
-    for i in range(iter_range):
+    for i in range(iter_range+1):
         order_ids_sublist = order_ids[i*chunksize:(i+1)*chunksize]
         if len(order_ids_sublist) == 0:
             break
