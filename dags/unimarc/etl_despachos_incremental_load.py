@@ -220,6 +220,9 @@ def _order_shipping_table_incremental_load(ts, ti):
     return
 
 def _upsert_cumplimiento_despacho(ts):
+    import os
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
     with open("sql/upsert_cumplimiento_despacho.sql", "r") as query_file:
         base_query = query_file.read()
 
