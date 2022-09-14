@@ -117,7 +117,7 @@ def _incremental_load_ordes_table(ti):
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     
     # Replace non-numeric picker's ids with NULL
-    df["id_picker"] = pd.to_numeric(df["id_picker"], errors="coarce")
+    df["id_picker"] = pd.to_numeric(df["id_picker"], errors="coerce")
 
     # Cast numeric values to int
     df = df.round({
