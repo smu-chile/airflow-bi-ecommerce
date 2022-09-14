@@ -212,7 +212,8 @@ def _incremental_load_orders_table(ti):
         "rut_picker",
         "empresa_picker",
         "fecha_modificacion_unixtime",
-        "documento_electronico"
+        "documento_electronico",
+        "id_picker"
     ]
 
     df = df[["id"]+columns]
