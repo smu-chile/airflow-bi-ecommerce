@@ -192,6 +192,8 @@ def _incremental_load_ordes_table(ti):
         "id_picker"
     ]
 
+    df = df[["id"]+columns]
+
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
