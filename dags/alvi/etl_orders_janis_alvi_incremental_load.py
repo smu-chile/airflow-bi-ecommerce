@@ -60,8 +60,7 @@ def _incremental_load_ordes_table(ti):
             "date_created",
             "invoice_date",
             "date_picked",
-            "date_modified",
-            "picker"
+            "date_modified"
             ]]
 
     # Rename columns to match workspace schema:
@@ -92,8 +91,7 @@ def _incremental_load_ordes_table(ti):
         "date_created": "fecha_creacion",
         "invoice_date": "fecha_facturacion",
         "date_picked": "fecha_picking",
-        "date_modified": "fecha_modificacion",
-        "picker": "id_picker"
+        "date_modified": "fecha_modificacion"
     }
     df = df.rename(columns=columns_rename)
 
@@ -115,9 +113,6 @@ def _incremental_load_ordes_table(ti):
     df["fecha_picking"] = pd.to_datetime(df["fecha_picking"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-    
-    # Replace non-numeric picker's ids with NULL
-    df["id_picker"] = pd.to_numeric(df["id_picker"], errors="coerce")
 
     # Cast numeric values to int
     df = df.round({
@@ -143,8 +138,7 @@ def _incremental_load_ordes_table(ti):
         "fecha_creacion": "string",
         "fecha_facturacion": "string",
         "fecha_picking": "string",
-        "fecha_modificacion": "string",
-        "id_picker": "int"
+        "fecha_modificacion": "string"
     }, errors="ignore")
 
     columns = [
@@ -188,11 +182,8 @@ def _incremental_load_ordes_table(ti):
         "nombre_picker",
         "rut_picker",
         "empresa_picker",
-        "fecha_modificacion_unixtime",
-        "id_picker"
+        "fecha_modificacion_unixtime"
     ]
-
-    df = df[["id"]+columns]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
