@@ -61,7 +61,8 @@ def _incremental_load_orders_table(ti):
             "date_picked",
             "date_modified",
             "call_center_operator_id",
-            "invoice_number"
+            "invoice_number",
+            "picker"
             ]]
 
     # Rename columns to match workspace schema:
@@ -93,7 +94,8 @@ def _incremental_load_orders_table(ti):
         "invoice_date": "fecha_facturacion",
         "date_picked": "fecha_picking",
         "date_modified": "fecha_modificacion",
-        "invoice_number": "documento_electronico"
+        "invoice_number": "documento_electronico",
+        "picker": "id_picker"
     }
     df = df.rename(columns=columns_rename)
 
@@ -114,6 +116,9 @@ def _incremental_load_orders_table(ti):
     df["fecha_picking"] = pd.to_datetime(df["fecha_picking"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+
+    # Replace non-numeric picker's ids with NULL
+    df["id_picker"] = pd.to_numeric(df["id_picker"], errors="coerce")
 
     # Cast numeric values to int
     df = df.round({
@@ -140,7 +145,8 @@ def _incremental_load_orders_table(ti):
         "fecha_facturacion": "string",
         "fecha_picking": "string",
         "fecha_modificacion": "string",
-        "documento_electronico": "int64"
+        "documento_electronico": "int64",
+        "id_picker": "int"
     }, errors="ignore")
 
     custom_data_fields_full = ti.xcom_pull(key="return_value", task_ids=["order_custom_data_field_full_load"])[0] 
@@ -209,7 +215,8 @@ def _incremental_load_orders_table(ti):
         "rut_picker",
         "empresa_picker",
         "fecha_modificacion_unixtime",
-        "documento_electronico"
+        "documento_electronico",
+        "id_picker"
     ]
 
     df = df[["id"]+columns]

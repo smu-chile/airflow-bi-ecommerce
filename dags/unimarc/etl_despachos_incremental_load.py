@@ -219,6 +219,37 @@ def _order_shipping_table_incremental_load(ts, ti):
 
     return
 
+def _upsert_cumplimiento_despacho(ts):
+    import os
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
+    with open(curr_working_directory+"/dags/unimarc/sql/upsert_cumplimiento_despacho.sql", "r") as query_file:
+        base_query = query_file.read()
+
+    df_new_orders = _get_new_orders_from_s3(ts)
+    order_ids = df_new_orders["seq_id"].tolist()
+    chunksize = 500
+    iter_range = len(order_ids) // chunksize
+    for i in range(iter_range+1):
+        order_ids_sublist = order_ids[i*chunksize:(i+1)*chunksize]
+        if len(order_ids_sublist) == 0:
+            break
+        order_ids_sublist_str = ",".join([str(id_order) for id_order in order_ids_sublist])
+        cumplimiento_query = base_query.replace("{id_list}", order_ids_sublist_str)
+
+        # Execute query
+        print(cumplimiento_query)
+        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_connection = pg_hook.get_conn()
+        cursor = pg_connection.cursor()
+        cursor.execute(cumplimiento_query)
+        pg_connection.commit()
+        cursor.close()
+        pg_connection.close()
+        print("Data loaded to Postgres. operaciones_unimarc.cumplimiento_despacho")
+
+    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -234,7 +265,7 @@ with DAG(
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata", "despachos", "unimarc"],
+    tags=["DATA", "Janis", "ecommdata", "despachos", "unimarc", "cumplimiento_despacho"],
 ) as dag:
 
     dag.doc_md = """
@@ -269,7 +300,7 @@ with DAG(
         bucket_key = "janis/replica/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
-        timeout = 600,
+        timeout = 300,
         retries = 3,
         retry_delay = timedelta(minutes=1)
     )
@@ -291,6 +322,11 @@ with DAG(
         sql = "sql/update_despachos_tipo.sql"
     )
 
+    t6 = PythonOperator(
+        task_id = "upsert_cumplimiento_despacho",
+        python_callable = _upsert_cumplimiento_despacho
+    )
+
     t0 >> t1
     t0 >> t2 >> t3 >> t4
-    t1 >> t4 >> t5
+    t1 >> t4 >> t5 >> t6
