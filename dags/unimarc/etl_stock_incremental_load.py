@@ -115,6 +115,7 @@ def _load_vtex_id_list():
             from ecommdata_unimarc.lista8 l)
             group by CONCAT(l.material, '-', l.umv), l.material, l.umv) _t
         inner join ecommdata.skus s on _t.ref_id = s.ref_id
+        where s.vtex_id is not null
         UNION
         select distinct s.vtex_id
         from staging.stock_unimarc sa
