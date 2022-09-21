@@ -14,7 +14,7 @@ def _get_stock_nrt_documents(ds, ts):
     max_updated_at_value = ds
     mongo_hook = MongoHook(conn_id="mongodb_nrt_conn")
     order_documents = mongo_hook.find(
-        mongo_collection="BD_STOCK_NRT",
+        mongo_collection="movements",
         query={"createAt": {"$gt": max_updated_at_value}} 
     )
 
