@@ -25,7 +25,7 @@ select
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
 , '{{ts}}'::timestamp as ultima_actualizacion
-, l.material is not null as surtido_ecommerce
+, l.material is not null and l.excluido is false as surtido_ecommerce
 from staging.stock_vtex_unimarc svu
 left join ecommdata.bodegas b on svu.id_warehouse = b.id 
 left join ecommdata.tiendas t on b.id_tienda = t.id 
