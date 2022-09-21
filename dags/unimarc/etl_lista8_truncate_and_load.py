@@ -96,6 +96,7 @@ def _load_lista8(ts):
     df_full["fecha"] = exec_date
     df_full["id_tienda"] = df_full["id_tienda"].str.zfill(4)
     df_full["material"] = df_full["material"].str.zfill(18)
+    df_full["excluido"] = False
 
     # Drop duplicates
     df_full = df_full.drop_duplicates()
@@ -121,6 +122,12 @@ def _load_lista8(ts):
                     index=False,         
                     chunksize=20000,         
                     method='multi')
+        conn.execute("""
+            UPDATE ecommdata.lista8 l
+            SET excluido = True
+            FROM catalogo.productos_excluidos pe
+            WHERE l.material = pe.material and l.umv = pe.umv
+        """)
 
     print("Data saved to PostgreSQL. Table: ecommdata.lista8")
 
