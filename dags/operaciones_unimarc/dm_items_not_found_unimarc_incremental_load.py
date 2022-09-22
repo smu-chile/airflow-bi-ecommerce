@@ -14,26 +14,30 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     import sqlalchemy
     from sqlalchemy import text
     query = f"""
-    select date(frp.fecha_picking) as fecha_proceso
+    select 
+    CONCAT(replace(date(frp.fecha_picking)::text,'-',''), '-', replace(to_char(aux.inicio_bloque, 'HH24:MI'),':',''), '-', replace(to_char(aux.fin_bloque, 'HH24:MI'),':',''), '-', frp.ref_id, '-', frp.id_tienda) as id
+    , date(frp.fecha_picking) as fecha_proceso
     , frp.ref_id
     , s.ean_primario as ean
     , frp.id_tienda
     , m.nombre as marca
     , COUNT(distinct frp.orden) as ordenes_afectadas
     , SUM(frp.unidades_solicitadas - frp.unidades_pickeadas) as unidades_faltantes
-    , case
-        when date_part('minute', frp.fecha_picking::time) < 30 then (date_trunc('hour', frp.fecha_picking::time))::time
-        else (date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval)::time
-    end as inicio_bloque
-    , case
-        when date_part('minute', frp.fecha_picking::time) < 30 then (date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval)::time
-        else (date_trunc('hour', frp.fecha_picking::time)::interval + ('01:00:00')::interval)::time
-    end as fin_bloque
+    , aux.inicio_bloque
+    , aux.fin_bloque
     , (now() AT TIME ZONE 'America/Santiago')::timestamp as fecha_modificacion
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p  on frp.ref_id = p.ref_id
-    left join ecommdata.marcas m on p.id_marca = m.id
+    left join ecommdata.marcas m on p.id_marca = m.id,
+    lateral (select case
+        when date_part('minute', frp.fecha_picking::time) < 30 then (date_trunc('hour', frp.fecha_picking::time))::time
+        else (date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval)::time
+    end as inicio_bloque,
+    case
+        when date_part('minute', frp.fecha_picking::time) < 30 then (date_trunc('hour', frp.fecha_picking::time)::interval + ('00:30:00')::interval)::time
+        else (date_trunc('hour', frp.fecha_picking::time)::interval + ('01:00:00')::interval)::time
+    end as fin_bloque) aux
     where frp.estado_foundrate = 1 and date(frp.fecha_picking) = '{ds}' and m.nombre in ('SOPROLE', 'NEXT', 'UNO', 'MANJARATE', 'QUILQUE')
     group by frp.ref_id, s.ean_primario,date(frp.fecha_picking), frp.id_tienda, m.nombre, date_trunc('hour', frp.fecha_picking::time), inicio_bloque, fin_bloque;
     """
@@ -47,7 +51,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     
     df = pd.DataFrame(
         data = results,
-        columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion']
+        columns = ['id', 'fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion']
     )
 
     if len(df) == 0:
@@ -71,6 +75,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
 
     connection = engine.connect()
     upsert_query = f""" 
+
                     INSERT INTO soprole.alerta_found_rate
                     VALUES {','.join([str(i) for i in list(df.to_records(index=False))])}
                     ON CONFLICT ON CONSTRAINT alerta_found_rate_pk
