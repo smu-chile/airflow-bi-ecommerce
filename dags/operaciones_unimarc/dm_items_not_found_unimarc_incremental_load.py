@@ -51,7 +51,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     
     df = pd.DataFrame(
         data = results,
-        columns = ['id', 'fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion']
+        columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion', 'id']
     )
 
     if len(df) == 0:
