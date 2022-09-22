@@ -15,8 +15,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     from sqlalchemy import text
     query = f"""
     select 
-    CONCAT(replace(date(frp.fecha_picking)::text,'-',''), '-', replace(to_char(aux.inicio_bloque, 'HH24:MI'),':',''), '-', replace(to_char(aux.fin_bloque, 'HH24:MI'),':',''), '-', frp.ref_id, '-', frp.id_tienda) as id
-    , date(frp.fecha_picking) as fecha_proceso
+    date(frp.fecha_picking) as fecha_proceso
     , frp.ref_id
     , s.ean_primario as ean
     , frp.id_tienda
@@ -26,6 +25,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     , aux.inicio_bloque
     , aux.fin_bloque
     , (now() AT TIME ZONE 'America/Santiago')::timestamp as fecha_modificacion
+    , CONCAT(replace(date(frp.fecha_picking)::text,'-',''), '-', replace(to_char(aux.inicio_bloque, 'HH24:MI'),':',''), '-', replace(to_char(aux.fin_bloque, 'HH24:MI'),':',''), '-', frp.ref_id, '-', frp.id_tienda) as id
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p  on frp.ref_id = p.ref_id
