@@ -45,7 +45,7 @@ select _t.id_orden
         	WHEN -- LATE DAY
                 _t.fecha_despacho < _t.fecha_entrega::date THEN 3
 			WHEN -- VENTANA NO FINALIZADA
-            	_t.fecha_despacho = current_date
+            	_t.fecha_despacho >= current_date
                 AND to_char(_t.termino_ventana, 'HHMI') > to_char(current_timestamp, 'HHMI')
                 THEN 5
         -- ERROR
