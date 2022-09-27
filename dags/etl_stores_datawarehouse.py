@@ -32,7 +32,7 @@ with DAG(
     'etl_stores_datawarehouse_raw_load',
     default_args=default_args,
     description="Extraction of raw data from data warehouse.",
-    schedule_interval="0 6 * * *",
+    schedule_interval="30 10 * * *",
     start_date=datetime(2022, 5, 1),
     catchup=False,
     tags=["DATA", "DW", "S3", "Tiendas"],
