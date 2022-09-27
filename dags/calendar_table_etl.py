@@ -113,7 +113,7 @@ with DAG(
     'calendar_table_etl',
     default_args=default_args,
     description="Netezza vm_dim_date full table load to S3 and transformation-load to Postgres",
-    schedule_interval="0 6 * * *",
+    schedule_interval="30 10 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "DW", "S3"],

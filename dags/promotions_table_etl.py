@@ -210,7 +210,7 @@ with DAG(
     'workflow_promotions_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental workflow_promotion data.",
-    schedule_interval="0 8 * * *",
+    schedule_interval="30 10 * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
     max_active_runs=1,
