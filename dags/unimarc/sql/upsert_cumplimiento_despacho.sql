@@ -20,7 +20,7 @@ select _t.id_orden
              WHEN -- LATE DAY
                 _t.fecha_despacho < _t.fecha_entrega::date THEN 3
              WHEN -- DIA NO FINALIZADO
-            	_t.fecha_despacho = current_date THEN 5
+            	_t.fecha_despacho >= current_date THEN 5
                 -- ERROR
       	ELSE 4
       end as cumplimiento_ondate
@@ -34,7 +34,7 @@ select _t.id_orden
                 THEN 1
         	WHEN-- EARLY TIME
                 _t.fecha_despacho = _t.fecha_entrega::date
-                AND _t.hora_entrega < to_char(_t.termino_ventana, 'HH24MI')
+                AND _t.hora_entrega < to_char(_t.inicio_ventana, 'HH24MI')
                 THEN 2
         	WHEN -- EARLY DATE
                 _t.fecha_despacho > _t.fecha_entrega::date THEN 2
@@ -45,9 +45,12 @@ select _t.id_orden
         	WHEN -- LATE DAY
                 _t.fecha_despacho < _t.fecha_entrega::date THEN 3
 			WHEN -- VENTANA NO FINALIZADA
-            	_t.fecha_despacho >= current_date
+            	_t.fecha_despacho = current_date
                 AND to_char(_t.termino_ventana, 'HHMI') > to_char(current_timestamp, 'HHMI')
                 THEN 5
+            when
+            	_t.fecha_despacho > current_date
+            	then 5
         -- ERROR
             ELSE 4
         end as cumplimiento_ontime
