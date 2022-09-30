@@ -67,17 +67,21 @@ from
 		, t2.nombre as nombre_transportadora
 		, d.fecha_despacho::date as fecha_despacho
 		, d.fecha_despacho::time as hora_despacho
-		, ocde.fecha_creacion at time zone 'UTC' at time zone 'America/Santiago' as fecha_entrega 
-		, to_char(ocde.fecha_creacion at time zone 'UTC' at time zone 'America/Santiago', 'HH24MI') as hora_entrega 
+		, ocde2.fecha_creacion at time zone 'UTC' at time zone 'America/Santiago' as fecha_entrega 
+		, to_char(ocde2.fecha_creacion at time zone 'UTC' at time zone 'America/Santiago', 'HH24MI') as hora_entrega 
 		, d.inicio_ventana
 		, d.termino_ventana
 	    , d.comuna 
-		, rank() over (partition by d.id_orden order by d.id) as _rank
+		, rank() over (partition by d.id_orden order by d.id desc) as _rank
 	from ecommdata.despachos d 
 	join ecommdata.ordenes_janis oj 
 		on d.id_orden = oj.id 
-	left join ecommdata.orden_cambios_de_estado ocde 
-		on ocde.id_orden = oj.janis_id and ocde.estado_nuevo = 90
+	left join (select _a.id, _a.id_orden, _a.fecha_creacion
+		from(select ocde.id, ocde.id_orden, ocde.fecha_creacion, rank() over (partition by ocde.id_orden order by ocde.id desc) as _rank1
+			from ecommdata.orden_cambios_de_estado ocde
+			where ocde.estado_nuevo = 90) _a
+		where _rank1 = 1) ocde2
+		on ocde2.id_orden = oj.janis_id
 	left join ecommdata.tiendas t
 		on oj.id_tienda_janis = t.id_janis 
 	left join ecommdata.transportadoras t2 
