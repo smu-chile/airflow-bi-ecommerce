@@ -179,7 +179,7 @@ with DAG(
     'etl_venta_sku_tienda_dw_load_and_truncate',
     default_args=default_args,
     description="Extracción y carga de vistas de venta por sku desde DW hasta Workspace.",
-    schedule_interval="0 10 * * *",
+    schedule_interval="30 12 * * *",
     start_date=datetime(2022, 9, 1),
     catchup=False,
     max_active_runs = 1,
