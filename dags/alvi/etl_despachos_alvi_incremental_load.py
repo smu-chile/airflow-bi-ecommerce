@@ -306,7 +306,7 @@ with DAG(
     )
 
     t2_a = S3KeySensor(
-        task_id = "wait_for_orders_s3_file",
+        task_id = "wait_for_order_status_changes_s3_file",
         bucket_key = "janis/replica_alvi/wms_order_status_changes/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_order_status_changes.csv",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
