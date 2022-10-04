@@ -305,6 +305,16 @@ with DAG(
         retry_delay = timedelta(minutes=1)
     )
 
+    t2_a = S3KeySensor(
+        task_id = "wait_for_order_status_changes_s3_file",
+        bucket_key = "janis/replica/wms_order_status_changes/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_order_status_changes.csv",
+        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        aws_conn_id = "aws_s3_connection",
+        timeout = 300,
+        retries = 3,
+        retry_delay = timedelta(minutes=1)
+    )
+
     t3 = PythonOperator(
         task_id = "get_order_shipping_from_janis",
         python_callable = _get_order_shipping_from_janis
@@ -328,5 +338,5 @@ with DAG(
     )
 
     t0 >> t1
-    t0 >> t2 >> t3 >> t4
+    t0 >> [t2,t2_a] >> t3 >> t4
     t1 >> t4 >> t5 >> t6
