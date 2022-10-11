@@ -25,7 +25,7 @@ end as publicacion_valida
 	else false
 end as disponible_web
 , case
-	when t300.ref_id is not null and t300.evento = 'Top300' then true
+	when li.material is not null then true
 	else false
 end as top300
 , s.stock_janis
@@ -55,7 +55,7 @@ left join ecommdata.tiendas t on s.id_tienda = t.id
 left join ecommdata.precios pr on t.id_janis = pr.id_tienda_janis and s.ref_id = pr.ref_id
 left join ecommdata.productos_tienda pt on s.ref_id = pt.ref_id and s.id_tienda = pt.id_tienda
 left join ecommdata.marcas m on p.id_marca = m.id
-left join ecommdata.productos_top300 t300 on s.ref_id = t300.ref_id
+left join ecommdata.lista_infaltables li on s.material = li.material
 inner join lateral (select
 	case 
 	when foto.ref_id is null then false
