@@ -27,7 +27,7 @@ end as disponible_web
 , case
 	when li.material is not null then true
 	else false
-end as top300
+end as infaltable
 , s.stock_janis
 , s.stock_seguridad_janis
 , s.stock_infinito_janis
