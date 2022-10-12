@@ -1,0 +1,163 @@
+from airflow import DAG
+from airflow import macros
+from airflow.hooks.S3_hook import S3Hook
+from airflow.models import Variable
+from airflow.operators.python import PythonOperator
+
+from datetime import datetime
+
+def _load_json_to_s3(ts, ds):
+    import requests
+    import json
+    import pandas as pd
+    from io import StringIO
+    import boto3 
+
+    base_url = Variable.get("FROGMI_API_URL")
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, -1)}&filters[period][to]={ds}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=100&include=stores,events"
+    api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
+
+    payload={}
+    headers = {
+    'Authorization': f'Bearer {api_key}',
+    'X-Company-UUID': Variable.get("FROGMI_COMPANY_UUID_SECRET"),
+    'Content-Type': 'application/vnd.api+json'
+    }
+
+    response = requests.request("GET", url, headers=headers, data=payload)
+
+    res = json.loads(response.text)
+    res['included'].pop(0)
+    lista_lineas = []
+
+    for linea in res['data']:
+        respuesta_0 = None
+        respuesta_1 = None
+        respuesta_2 = None
+        respuesta_3 = None
+        id = linea['id']
+        realizado = linea['attributes']['done']
+        fecha_inicio = linea['attributes']['start_date']
+        fecha_fin = linea['attributes']['end_date']
+        descripcion = linea['attributes']['external_data'][0]['main_text']
+        material = linea['attributes']['external_data'][0]['second_text'][8:]
+        tienda_frogmi = linea['relationships']['stores']['data']['id']
+        for i in res['included']:
+            if i['relationships']['task_action_events']['data']['id'] == id:
+                pregunta = i['attributes']['name']
+                id_respuesta = i['attributes']['answer']
+                for j in i['attributes']['alternatives']['data']:
+                    if id_respuesta == j['id'] and pregunta == "Producto se encuentra en la góndola?":
+                        respuesta_0 = bool(j['attributes']['value'])
+                    if id_respuesta == j['id'] and pregunta == "Hay stock para reponer?":
+                        respuesta_1 = bool(j['attributes']['value'])
+                    if id_respuesta == j['id'] and pregunta == "Hay stock en sistema?":
+                        respuesta_2 = bool(j['attributes']['value'])
+                    if id_respuesta == j['id'] and pregunta == "Se pudo reponer?":
+                        respuesta_3 = bool(j['attributes']['value'])
+        lista_lineas.append([id,realizado,fecha_inicio,fecha_fin,descripcion,material,tienda_frogmi,respuesta_0,respuesta_1,respuesta_2,respuesta_3])
+    df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','respuesta_0','respuesta_1','respuesta_2','respuesta_3'])
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    file_name = f"frogmi/alerta_found_rate/{curr_datetime}_alerta_found_rate.csv"
+    buffer = StringIO()
+
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    response = s3_client.put_object(
+        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+    )
+
+    return file_name
+
+def _get_table_alerta_found_rate_from_S3(ti):
+    import pandas as pd
+
+    alerta_found_rate_file = ti.xcom_pull(key="return_value", task_ids=["load_json_to_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+alerta_found_rate_file)
+    if not s3_hook.check_for_key(alerta_found_rate_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % alerta_found_rate_file)
+
+    alerta_found_rate_object = s3_hook.get_key(alerta_found_rate_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(alerta_found_rate_object.get()["Body"])
+    print(f"Number of records found: {len(df.index)}")
+
+    return df
+
+def _save_table_alerta_found_rate(ts, ti):
+    import pandas as pd
+    import sqlalchemy
+    import numpy as np
+
+    df = _get_table_alerta_found_rate_from_S3(ti)
+    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','respuesta_0','respuesta_1','respuesta_2','respuesta_3']]
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    
+
+    df.to_sql(name="frogmi_alerta_found_rate",
+                con=engine,         
+                schema="staging",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+    
+    return
+
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+
+with DAG(
+    'etl_frogmi_alerta_found_rate',
+    default_args=default_args,
+    description="Extracción y carga de tabla alerta frogmi desde API.",
+    schedule_interval="0 8 * * *",
+    start_date=datetime(2022, 10, 12),
+    catchup=False,
+    max_active_runs = 1,
+    tags=["frogmi", "found_rate"],
+) as dag:
+
+    dag.doc_md = """
+    Extracción y carga de tabla alerta frogmi desde API.
+    """ 
+
+    t0 = PythonOperator(
+        task_id = "load_json_to_s3",
+        python_callable = _load_json_to_s3
+    )
+
+    t1 = PythonOperator(
+        task_id = "get_table_alerta_found_rate_from_S3",
+        python_callable = _get_table_alerta_found_rate_from_S3
+    )
+
+
+t0 >> t1
