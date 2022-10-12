@@ -56,7 +56,7 @@ def _load_json_to_s3(ts, ds):
                     if id_respuesta == j['id'] and pregunta == "Se pudo reponer?":
                         respuesta_3 = bool(j['attributes']['value'])
         lista_lineas.append([id,realizado,fecha_inicio,fecha_fin,descripcion,material,tienda_frogmi,respuesta_0,respuesta_1,respuesta_2,respuesta_3])
-    df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','respuesta_0','respuesta_1','respuesta_2','respuesta_3'])
+    df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','gondola','stock_para_reponer','stock_en_sistema','repuesto'])
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     file_name = f"frogmi/alerta_found_rate/{curr_datetime}_alerta_found_rate.csv"
     buffer = StringIO()
@@ -103,7 +103,7 @@ def _save_table_alerta_found_rate(ts, ti):
     import numpy as np
 
     df = _get_table_alerta_found_rate_from_S3(ti)
-    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','respuesta_0','respuesta_1','respuesta_2','respuesta_3']]
+    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','gondola','stock_para_reponer','stock_en_sistema','repuesto']]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
