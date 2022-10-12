@@ -95,6 +95,20 @@ def _get_table_alerta_found_rate_from_S3(ti):
     df = pd.read_csv(alerta_found_rate_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
 
+    df = df.astype({
+        "id": "string",
+        "realizado": "bool",
+        "fecha_inicio": "string",
+        "fecha_fin": "string",
+        "descripcion": "string",
+        "material": "string",
+        "tienda_frogmi": "string",
+        "gondola": "bool",
+        "stock_para_reponer": "bool",
+        "stock_en_sistema": "bool",
+        "repuesto": "bool"
+    }, errors="ignore")
+
     return df
 
 def _save_table_alerta_found_rate(ts, ti):
@@ -112,8 +126,6 @@ def _save_table_alerta_found_rate(ts, ti):
     
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
-
-    
 
     df.to_sql(name="frogmi_alerta_found_rate",
                 con=engine,         
