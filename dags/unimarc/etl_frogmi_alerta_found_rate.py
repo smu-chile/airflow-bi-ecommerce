@@ -155,8 +155,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "get_table_alerta_found_rate_from_S3",
-        python_callable = _get_table_alerta_found_rate_from_S3
+        task_id = "save_table_alerta_found_rate",
+        python_callable = _save_table_alerta_found_rate
     )
 
 
