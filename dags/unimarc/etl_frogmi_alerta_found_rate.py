@@ -117,7 +117,7 @@ def _save_table_alerta_found_rate(ts, ti):
 
     df.to_sql(name="frogmi_alerta_found_rate",
                 con=engine,         
-                schema="staging",         
+                schema="ecommdata",         
                 if_exists='append',         
                 index=False,         
                 chunksize=20000,         
