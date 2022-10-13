@@ -151,10 +151,10 @@ def _save_table_alerta_found_rate(ts, ti, ds):
                 chunksize=20000,         
                 method='multi')
         conn.execute(f"""
-            UPDATE ecommdata.frogmi_alerta_found_rate fa
-            SET fa.id_tienda = t.id
+            UPDATE ecommdata.frogmi_alerta_found_rate
+            SET id_tienda = t.id
             FROM ecommdata.tiendas t
-            WHERE fa.fecha_inicio::date = {ds}
+            WHERE fecha_inicio::date = {ds}
         """)
     
     return
