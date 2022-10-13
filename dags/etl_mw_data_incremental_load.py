@@ -425,7 +425,7 @@ def _interactions_incremental_load(ti):
 
     return
 
-def _inscripctions_incremental_load(ts):
+def _inscriptions_incremental_load(ts):
     import pandas as pd
     import pymongo
     import pytz
@@ -562,8 +562,8 @@ with DAG(
     )
 
     t3 = PythonOperator(
-        task_id = "inscripctions_incremental_load",
-        python_callable = _inscripctions_incremental_load
+        task_id = "inscriptions_incremental_load",
+        python_callable = _inscriptions_incremental_load
     )
 
     t0 >> t1 >> t2 >> t3
