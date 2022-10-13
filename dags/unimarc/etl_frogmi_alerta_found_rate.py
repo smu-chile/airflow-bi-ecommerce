@@ -154,7 +154,7 @@ def _save_table_alerta_found_rate(ts, ti, ds):
             UPDATE ecommdata.frogmi_alerta_found_rate
             SET id_tienda = t.id
             FROM ecommdata.tiendas t
-            WHERE fecha_inicio::date = {ds}
+            WHERE fecha_inicio::date = '{ds}'
         """)
     
     return
