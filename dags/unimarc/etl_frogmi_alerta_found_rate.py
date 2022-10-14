@@ -110,6 +110,9 @@ def _get_table_alerta_found_rate_from_S3(ti):
     df = pd.read_csv(alerta_found_rate_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
 
+    df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+    df["fecha_fin"] = pd.to_datetime(df["fecha_fin"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
+
     df = df.astype({
         "id": "string",
         "realizado": "bool",
@@ -132,9 +135,6 @@ def _save_table_alerta_found_rate(ts, ti, ds):
 
     df = _get_table_alerta_found_rate_from_S3(ti)
     df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','gondola','stock_para_reponer','stock_en_sistema','repuesto']]
-
-    df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-    df["fecha_fin"] = pd.to_datetime(df["fecha_fin"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
