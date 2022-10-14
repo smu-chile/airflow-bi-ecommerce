@@ -14,7 +14,7 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, -1)}&filters[period][to]={ds}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=100&include=stores,events"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, -1)}&filters[period][to]={ds}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
     payload={}
@@ -27,7 +27,6 @@ def _load_json_to_s3(ts, ds):
     response = requests.request("GET", url, headers=headers, data=payload)
 
     res = json.loads(response.text)
-    res['included'].pop(0)
     lista_lineas = []
 
     for linea in res['data']:
@@ -154,8 +153,9 @@ def _save_table_alerta_found_rate(ts, ti, ds):
             UPDATE ecommdata.frogmi_alerta_found_rate
             SET id_tienda = t.id
             FROM ecommdata.tiendas t
-            WHERE fecha_inicio::date = '{ds}'
+            WHERE fecha_inicio::date >= '{macros.ds_add(ds, -1)}'
         """)
+
     
     return
 
