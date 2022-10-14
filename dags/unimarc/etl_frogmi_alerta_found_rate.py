@@ -173,8 +173,8 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla alerta frogmi desde API.",
     schedule_interval="0 8 * * *",
-    start_date=datetime(2022, 10, 12),
-    catchup=False,
+    start_date=datetime(2022, 9, 1),
+    catchup=True,
     max_active_runs = 1,
     tags=["frogmi", "found_rate"],
 ) as dag:
