@@ -110,9 +110,6 @@ def _get_table_alerta_found_rate_from_S3(ti):
     df = pd.read_csv(alerta_found_rate_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
 
-    df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-    df["fecha_fin"] = pd.to_datetime(df["fecha_fin"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-
     df = df.astype({
         "id": "string",
         "realizado": "bool",
