@@ -14,7 +14,8 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, -1)}&filters[period][to]={ds}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={ds}&filters[period][to]={macros.ds_add(ds, 1)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
+    print(url)
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
     payload={}
@@ -128,7 +129,6 @@ def _get_table_alerta_found_rate_from_S3(ti):
 def _save_table_alerta_found_rate(ts, ti, ds):
     import pandas as pd
     import sqlalchemy
-    import numpy as np
 
     df = _get_table_alerta_found_rate_from_S3(ti)
     df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','gondola','stock_para_reponer','stock_en_sistema','repuesto']]
@@ -153,7 +153,7 @@ def _save_table_alerta_found_rate(ts, ti, ds):
             UPDATE ecommdata.frogmi_alerta_found_rate
             SET id_tienda = t.id
             FROM ecommdata.tiendas t
-            WHERE fecha_inicio::date >= '{macros.ds_add(ds, -1)}'
+            WHERE fecha_inicio::date >= '{ds}' and tienda_frogmi = t.id_frogmi
         """)
 
     
