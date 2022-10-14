@@ -123,7 +123,7 @@ with DAG(
     'etl_costs_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="30 10 * * *",
+    schedule_interval="30 11 * * *",
     start_date=datetime(2022, 5, 1),
     catchup=True,
     max_active_runs=1,

@@ -142,7 +142,7 @@ with DAG(
         external_task_id=None,
         allowed_states=['success'],
         failed_states=['failed'],
-        timeout = 60*30
+        timeout = 60*60
     )
 
     t1 = PythonOperator(

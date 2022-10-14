@@ -56,6 +56,21 @@ def _load_json_to_s3(ts, ds):
                         respuesta_3 = bool(j['attributes']['value'])
         lista_lineas.append([id,realizado,fecha_inicio,fecha_fin,descripcion,material,tienda_frogmi,respuesta_0,respuesta_1,respuesta_2,respuesta_3])
     df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','gondola','stock_para_reponer','stock_en_sistema','repuesto'])
+    
+    df = df.astype({
+        "id": "string",
+        "realizado": "bool",
+        "fecha_inicio": "string",
+        "fecha_fin": "string",
+        "descripcion": "string",
+        "material": "string",
+        "tienda_frogmi": "string",
+        "gondola": "bool",
+        "stock_para_reponer": "bool",
+        "stock_en_sistema": "bool",
+        "repuesto": "bool"
+    }, errors="ignore")
+    
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     file_name = f"frogmi/alerta_found_rate/{curr_datetime}_alerta_found_rate.csv"
     buffer = StringIO()
@@ -110,7 +125,7 @@ def _get_table_alerta_found_rate_from_S3(ti):
 
     return df
 
-def _save_table_alerta_found_rate(ts, ti):
+def _save_table_alerta_found_rate(ts, ti, ds):
     import pandas as pd
     import sqlalchemy
     import numpy as np
@@ -126,22 +141,21 @@ def _save_table_alerta_found_rate(ts, ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    df.to_sql(name="frogmi_alerta_found_rate",
+    with engine.begin() as conn:
+        df.to_sql(name="frogmi_alerta_found_rate",
                 con=engine,         
                 schema="ecommdata",         
                 if_exists='append',         
                 index=False,         
                 chunksize=20000,         
                 method='multi')
-<<<<<<< Updated upstream
-=======
         conn.execute(f"""
             UPDATE ecommdata.frogmi_alerta_found_rate
             SET id_tienda = t.id
             FROM ecommdata.tiendas t
             WHERE fecha_inicio::date >= '{macros.ds_add(ds, -1)}'
         """)
->>>>>>> Stashed changes
+
     
     return
 

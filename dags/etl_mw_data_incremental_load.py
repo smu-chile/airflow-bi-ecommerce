@@ -425,6 +425,105 @@ def _interactions_incremental_load(ti):
 
     return
 
+def _inscriptions_incremental_load(ts):
+    import pandas as pd
+    import pymongo
+    import pytz
+    from sqlalchemy import create_engine
+
+    mongo_user = Variable.get("MIDDLEWARE_PAGOS_MONGODB_USER")
+    mongo_pass = Variable.get("MIDDLEWARE_PAGOS_MONGODB_PASSWORD")
+    mongo_db = Variable.get("MIDDLEWARE_PAGOS_MONGODB_DATABASE")
+    mongo_host = Variable.get("MIDDLEWARE_PAGOS_MONGODB_HOST")
+    myclient = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_host+"/"+mongo_db+"?authSource=admin&ssl=true")
+    
+    mydb = myclient[mongo_db]
+    mycollection = mydb["inscriptions"]
+
+    execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
+    local_tz = pytz.timezone("America/Santiago")
+    date_from = local_tz.localize(execution_date).astimezone(pytz.utc)
+    date_to = date_from + timedelta(days=1)
+
+    print(date_from)
+    print(date_to)
+
+    x = mycollection.find({"createdAt": {"$gte": date_from, "$lt": date_to}})
+    documents = list(x)
+    print(f"Documentos encontrados {len(documents)}")
+
+    if len(documents) == 0:
+        print("No records found.")
+        return
+
+    new_documents = []
+    for record in documents:
+        new_document = {}
+        inscription_id = str(record["_id"])
+        new_document["id"] = inscription_id
+        new_document["num_tarjeta"] = record.get("cardNumber", None)
+        new_document["tipo_tarjeta"] = record.get("cardType", None)
+        new_document["canal"] = record.get("channel", None)
+        new_document["fecha_creacion"] = record.get("createdAt", None)
+        new_document["fecha_borrado"] = record.get("deletedAt", None)
+        new_document["procesador"] = record.get("gateway", {}).get("name", None)
+        new_document["cod_autorizacion"] = record.get("gateway", {}).get("data", {}).get("authorizationCode", None)
+        new_document["tipo"] = record.get("type", None)
+        new_document["secuencia"] = record.get("sequence", None)
+        new_documents.append(new_document)
+
+    df = pd.DataFrame(new_documents)
+
+    column_types = {
+        "id": "string",
+        "tipo": "string",
+        "num_tarjeta": "string",
+        "tipo_tarjeta": "string",
+        "canal": "string",
+        "fecha_creacion": "string",
+        "fecha_borrado": "string",
+        "procesador": "string",
+        "cod_autorizacion": "int",
+        "secuencia": "int"
+    }
+
+    for column in column_types.keys():
+        if column not in df.columns:
+            df[column] = None
+
+    df = df[[
+        "id",
+        "tipo",
+        "num_tarjeta",
+        "tipo_tarjeta",
+        "canal",
+        "fecha_creacion",
+        "fecha_borrado",
+        "procesador",
+        "cod_autorizacion",
+        "secuencia"
+    ]]
+
+    df = df.astype(column_types, errors="ignore")
+
+    psql_host = Variable.get("POSTGRESQL_HOST")
+    psql_user = Variable.get("POSTGRESQL_USER")
+    psql_pass = Variable.get("POSTGRESQL_PASSWORD")
+    psql_db = Variable.get("POSTGRESQL_DB")
+    engine = create_engine("postgresql://"+psql_user+":"+psql_pass+"@"+psql_host+":5432/"+psql_db)
+
+    # Se insertan los datos
+    print(f"Insertando {len(df.index)} registros...")
+    df.to_sql(name='mw_inscripciones', 
+        con=engine, 
+        schema='ecommdata',
+        if_exists='append', 
+        index=False,
+        chunksize=20000,
+        method='multi')
+
+    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -440,7 +539,7 @@ with DAG(
     start_date=datetime(2022, 4, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones"],
+    tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones", "mw_inscripciones"],
 ) as dag:
 
     dag.doc_md = """
@@ -462,4 +561,9 @@ with DAG(
         python_callable = _interactions_incremental_load
     )
 
-    t0 >> t1 >> t2
+    t3 = PythonOperator(
+        task_id = "inscriptions_incremental_load",
+        python_callable = _inscriptions_incremental_load
+    )
+
+    t0 >> t1 >> t2 >> t3
