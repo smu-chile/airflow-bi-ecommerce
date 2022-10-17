@@ -365,5 +365,13 @@ with DAG(
         sql = "sql/stock_final.sql"
     )
 
+    t7 = PostgresOperator(
+        task_id = "delete_old_stock",
+        postgres_conn_id = "postgresql_conn",
+        sql = """DELETE
+            FROM ecommdata.stock
+            WHERE fecha < {{ds}} - interval '21 days' """
+    )
 
-t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
+
+t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7
