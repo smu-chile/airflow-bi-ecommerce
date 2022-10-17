@@ -370,7 +370,7 @@ with DAG(
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
             FROM ecommdata.stock
-            WHERE fecha = '{{ds}}' - interval '21 days' """
+            WHERE fecha = '{{ds}}'::date - interval '21 days' """
     )
 
 
