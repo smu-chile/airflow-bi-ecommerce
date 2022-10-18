@@ -125,7 +125,7 @@ with DAG(
     'categories_table_etl',
     default_args=default_args,
     description="Extracción, transformación y carga de tabla categories desde Janis Replica hasta Workspace.",
-    schedule_interval="0 5 * * *",
+    schedule_interval="0 3 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "Janis", "S3"],
