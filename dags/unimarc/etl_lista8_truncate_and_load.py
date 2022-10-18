@@ -65,6 +65,7 @@ def _load_lista8(ts):
         "PRECIO REGULAR": "int",
         "PRECIO PROMOCIONAL": "int",
         "DESCRIPCION": "str",
+        "STOCK X UMV": "float"
     }
 
     column_names = {
@@ -79,6 +80,7 @@ def _load_lista8(ts):
         "PRECIO REGULAR": "precio_regular",
         "PRECIO PROMOCIONAL": "precio_promocional",
         "DESCRIPCION": "descripcion",
+        "STOCK X UMV": "stock_x_umv"
     }
 
     dataframe_list = []
@@ -100,7 +102,6 @@ def _load_lista8(ts):
 
     # Drop duplicates
     df_full = df_full.drop_duplicates()
-
     print("Number of records to be loaded: "+str(len(df_full.index)))
 
     host = Variable.get("POSTGRESQL_HOST")
