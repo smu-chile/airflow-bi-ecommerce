@@ -80,7 +80,6 @@ def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
     return base_payload
 
 def _post_request_to_publish_task_endpoint(ts):
-    import pandas as pd
     import json
     import requests
     
