@@ -91,6 +91,7 @@ def _load_lista8(ts):
         print(f"Loading file: {s3_file}")
         lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
         df = pd.read_csv(lista8_object.get()["Body"], sep=";")
+        df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
         df = df.astype(column_types)
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
