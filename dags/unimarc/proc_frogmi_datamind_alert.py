@@ -37,7 +37,7 @@ def _get_time_interval(ts):
         return exec_datetime_local_str, "interval '5 hours'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
-    if Variable.get("FROGMI_ENV") != "prod":
+    if Variable.get("FROGMI_DATAMIND_ENV") != "prod":
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
 
