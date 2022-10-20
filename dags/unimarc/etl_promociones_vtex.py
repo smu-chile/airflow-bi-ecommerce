@@ -50,7 +50,7 @@ def _load_json_to_s3(ts, ds):
         archivado = linea['isArchived']
         tipo_efecto = linea['effectType']
         lista_lineas.append([id,ultima_modificacion,nombre,fecha_inicio,fecha_fin,activo,descripcion,valores_generales,tipo,estado,archivado,tipo_efecto])
-    df = pd.DataFrame(lista_lineas, columns =[id,ultima_modificacion,nombre,fecha_inicio,fecha_fin,activo,descripcion,valores_generales,tipo,estado,archivado,tipo_efecto])
+    df = pd.DataFrame(lista_lineas, columns =['id','ultima_modificacion','nombre','fecha_inicio','fecha_fin','activo','descripcion','valores_generales','tipo','estado','archivado','tipo_efecto'])
     
     df = df.astype({
         "id": "string",
