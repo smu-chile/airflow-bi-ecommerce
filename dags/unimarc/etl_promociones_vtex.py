@@ -125,7 +125,7 @@ def _save_table_promociones(ts, ti, ds):
     import sqlalchemy
 
     df = _get_table_promociones_from_S3(ti)
-    df = df[['id','ultima_actualizacion','nombre','fecha_inicio','fecha_fin','activo','descripcion','valores_generales','tipo','estado','archivado','tipo_efecto']]
+    df = df[['id','ultima_modificacion','nombre','fecha_inicio','fecha_fin','activo','descripcion','valores_generales','tipo','estado','archivado','tipo_efecto']]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
