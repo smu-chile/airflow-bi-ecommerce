@@ -273,7 +273,7 @@ def _save_detalle_promociones_in_s3(ti, ts):
 
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
-    url_list = [f"https://{accountName}.{env}.com.br/api/rnb/pvt/benefits/calculatorconfiguration/{i[0]}" for i in l_vtex_id]
+    url_list = [f"https://{accountName}.{env}.com.br/api/rnb/pvt/calculatorconfiguration/{i[0]}" for i in l_vtex_id]
     
     session = requests.session()
     thread_num = 40
