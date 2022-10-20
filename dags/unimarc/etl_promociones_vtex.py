@@ -330,7 +330,7 @@ def _save_detalle_promociones_in_s3(ti, ts):
 def _get_table_detalle_promociones_from_S3(ti):
     import pandas as pd
 
-    detalle_promociones_file = ti.xcom_pull(key="return_value", task_ids=["_save_detalle_promociones_in_s3"])[0]
+    detalle_promociones_file = ti.xcom_pull(key="return_value", task_ids=["save_detalle_promociones_in_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
