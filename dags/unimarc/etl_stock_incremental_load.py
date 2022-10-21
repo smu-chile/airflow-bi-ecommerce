@@ -110,10 +110,7 @@ def _load_vtex_id_list():
     query = """
         select s.vtex_id
         from ( select CONCAT(l.material, '-', l.umv) as ref_id, l.material, l.umv
-            from ecommdata_unimarc.lista8 l
-            where l.fecha = (select max(l.fecha)
-            from ecommdata_unimarc.lista8 l)
-            group by CONCAT(l.material, '-', l.umv), l.material, l.umv) _t
+            from ecommdata.lista8 l) _t
         inner join ecommdata.skus s on _t.ref_id = s.ref_id
         where s.vtex_id is not null
         UNION
