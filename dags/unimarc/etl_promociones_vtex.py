@@ -1,0 +1,440 @@
+from airflow import DAG
+from airflow import macros
+from airflow.hooks.S3_hook import S3Hook
+from airflow.models import Variable
+from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+
+from datetime import datetime
+
+def _load_json_to_s3(ts, ds):
+    import requests
+    import json
+    import pandas as pd
+    from io import StringIO
+    import boto3 
+
+    accountName = Variable.get("VTEX_ACCOUNT_NAME")
+    env = Variable.get("VTEX_ENV")
+
+    url = f"https://{accountName}.{env}.com.br/api/rnb/pvt/benefits/calculatorconfiguration"
+
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
+    payload={}
+    headers = {
+    "X-VTEX-API-AppKey" : X_VTEX_API_AppKey,
+    "X-VTEX-API-AppToken" :  X_VTEX_API_AppToken
+    }
+
+    response = requests.request("GET", url, headers=headers, data=payload)
+
+    res = json.loads(response.text)
+    lista_lineas = []
+
+    for linea in res['items']:
+        id = linea['idCalculatorConfiguration']
+        ultima_modificacion = linea['lastModifiedUtc']
+        nombre = linea['name']
+        fecha_inicio = linea['beginDate']
+        fecha_fin = linea['endDate']
+        activo = linea['isActive']
+        descripcion = linea['description']
+        try:
+            valores_generales = linea['generalValues']
+        except:
+            valores_generales = None
+        tipo = linea['type']
+        estado = linea['status']
+        archivado = linea['isArchived']
+        tipo_efecto = linea['effectType']
+        lista_lineas.append([id,ultima_modificacion,nombre,fecha_inicio,fecha_fin,activo,descripcion,valores_generales,tipo,estado,archivado,tipo_efecto])
+    df = pd.DataFrame(lista_lineas, columns =['id','ultima_modificacion','nombre','fecha_inicio','fecha_fin','activo','descripcion','valores_generales','tipo','estado','archivado','tipo_efecto'])
+    
+    df = df.astype({
+        "id": "string",
+        "ultima_modificacion": "string",
+        "nombre": "string",
+        "fecha_inicio": "string",
+        "fecha_fin": "string",
+        "activo": "bool",
+        "descripcion": "string",
+        "valores_generales": "object",
+        "tipo": "string",
+        "estado": "string",
+        "archivado": "bool",
+        "tipo_efecto": "string"
+    }, errors="ignore")
+    
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    file_name = f"vtex/promociones_vtex/{curr_datetime}_promociones_vtex.csv"
+    buffer = StringIO()
+
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    response = s3_client.put_object(
+        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+    )
+
+    return file_name
+
+def _get_table_promociones_from_S3(ti):
+    import pandas as pd
+
+    promociones_file = ti.xcom_pull(key="return_value", task_ids=["load_json_to_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+promociones_file)
+    if not s3_hook.check_for_key(promociones_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % promociones_file)
+
+    promociones_object = s3_hook.get_key(promociones_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(promociones_object.get()["Body"])
+    print(f"Number of records found: {len(df.index)}")
+
+    df = df.astype({
+        "id": "string",
+        "ultima_modificacion": "string",
+        "nombre": "string",
+        "fecha_inicio": "string",
+        "fecha_fin": "string",
+        "activo": "bool",
+        "descripcion": "string",
+        "valores_generales": "object",
+        "tipo": "string",
+        "estado": "string",
+        "archivado": "bool",
+        "tipo_efecto": "string"
+    }, errors="ignore")
+
+    return df
+
+def _save_table_promociones(ts, ti, ds):
+    import pandas as pd
+    import sqlalchemy
+
+    df = _get_table_promociones_from_S3(ti)
+    df = df[['id','ultima_modificacion','nombre','fecha_inicio','fecha_fin','activo','descripcion','valores_generales','tipo','estado','archivado','tipo_efecto']]
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+    df.to_sql(name="promociones_vtex",
+            con=engine,         
+            schema="ecommdata",         
+            if_exists='append',         
+            index=False,         
+            chunksize=20000,         
+            method='multi')
+
+    return
+
+def _load_vtex_id_list():
+    query = """
+        select pv.id
+        from ecommdata.promociones_vtex pv
+        where pv.activo is true
+        """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
+    r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
+    try:
+        responses.append({'json':r.json(), 'url':url})
+    except Exception as e:
+        print(e)
+        print(url)
+        print(r)
+        print(r.status_code)
+        exception_cases.append(url)
+
+
+def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
+    for url in url_sublist:
+        get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
+    return
+
+def _load_promociones_detalle_vtex_to_S3(final_responses, ts, file_name):
+    import pandas as pd
+    import sqlalchemy
+    import boto3
+    from io import StringIO
+
+    df = pd.DataFrame(final_responses)
+    
+    df = df[[
+        "idCalculatorConfiguration",
+        "name",
+        "generalValues",
+        "beginDateUtc",
+        "endDateUtc",
+        "lastModified",
+        "isActive",
+        "isArchived",
+        "priceTableName",
+        "brands",
+        "products",
+        "skus",
+        "collections1BuyTogether",
+        "collections2BuyTogether",
+        "listSku1BuyTogether",
+        "listSku2BuyTogether",
+        "coupon"
+
+    ]]
+
+    df["idCalculatorConfiguration"] = df["idCalculatorConfiguration"].astype("str")
+    df["name"] = df["name"].astype("str")
+    df["beginDateUtc"] = df["beginDateUtc"].astype("str")
+    df["endDateUtc"] = df["endDateUtc"].astype("str")
+    df["lastModified"] = df["lastModified"].astype("str")
+    df["isActive"] = df["isActive"].astype("bool")
+    df["isArchived"] = df["isArchived"].astype("bool")
+
+    columns_rename = {
+        "idCalculatorConfiguration" : "id",
+        "name" : "nombre",
+        "generalValues" : "valores_generales",
+        "beginDateUtc": "fecha_inicio",
+        "endDateUtc" : "fecha_fin",
+        "lastModified" : "ultima_modificacion",
+        "isActive" : "activo",
+        "isArchived" : "archivado",
+        "priceTableName" : "tabla_nombre_precio",
+        "brands" : "marcas",
+        "products" : "productos",
+        "skus" : "skus",
+        "collections1BuyTogether" : "collections1BuyTogether",
+        "collections2BuyTogether" : "collections2BuyTogether",
+        "listSku1BuyTogether" : "listSku1BuyTogether",
+        "listSku2BuyTogether" : "listSku2BuyTogether",
+        "coupon" : "cupon"
+    }
+
+    df = df.rename(columns=columns_rename)
+
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    file_name = f"vtex/promociones_detalle_vtex/{curr_datetime}_promociones_detalle_vtex.csv"
+    buffer = StringIO()
+
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    response = s3_client.put_object(
+        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+    )
+
+    return file_name
+
+def _save_detalle_promociones_in_s3(ti, ts):
+    import requests
+    from threading import Thread
+    import pandas as pd
+    import sqlalchemy
+    
+    l_vtex_id = _load_vtex_id_list()
+
+    if len(l_vtex_id) == 0:
+        print('the list of vtex id was empty')
+        return
+
+    accountName = Variable.get("VTEX_ACCOUNT_NAME")
+    env = Variable.get("VTEX_ENV")
+    url_list = [f"https://{accountName}.{env}.com.br/api/rnb/pvt/calculatorconfiguration/{i[0]}" for i in l_vtex_id]
+    
+    session = requests.session()
+    thread_num = 40
+    task_num = len(url_list)//thread_num # division entera
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    session.mount('https://', adapter)
+    thread_tasks = []
+    count = 0
+    responses = []
+    exception_cases = []
+
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
+    for thr in range(thread_num):
+        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+        count = count + 1
+    # tareas resagadas:
+    if task_num*thread_num != len(url_list):
+        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+    for task in thread_tasks:
+        task.join()
+        thread_tasks = []
+    
+    final_responses = []
+
+    for response in responses:
+        try:
+            aux = response['json']['idCalculatorConfiguration']
+            final_responses.append(response['json'])
+        except KeyError as e:
+            print(e)
+            print(response)
+            exception_cases.append(response['url'])
+    
+    file_name = _load_promociones_detalle_vtex_to_S3(final_responses, ts, 'promociones_detalle_vtex')
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    date_path = ts[:10].replace("-","/")
+    s3_path = f"vtex/api/get_stock_url_retries/{date_path}/"
+    retries = s3_path+"retries"
+
+    s3_hook.load_string(str(exception_cases),retries,bucket_name=s3_bucket,replace=True)
+    ti.xcom_push(key = 'vtex_retries', value = retries)
+
+    return file_name
+
+def _get_table_detalle_promociones_from_S3(ti):
+    import pandas as pd
+
+    detalle_promociones_file = ti.xcom_pull(key="return_value", task_ids=["save_detalle_promociones_in_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+detalle_promociones_file)
+    if not s3_hook.check_for_key(detalle_promociones_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % detalle_promociones_file)
+
+    detalle_promociones_object = s3_hook.get_key(detalle_promociones_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(detalle_promociones_object.get()["Body"])
+    print(f"Number of records found: {len(df.index)}")
+
+    df["id"] = df["id"].astype("str")
+    df["nombre"] = df["nombre"].astype("str")
+    df["fecha_inicio"] = df["fecha_inicio"].astype("str")
+    df["fecha_fin"] = df["fecha_fin"].astype("str")
+    df["ultima_modificacion"] = df["ultima_modificacion"].astype("str")
+    df["activo"] = df["activo"].astype("bool")
+    df["archivado"] = df["archivado"].astype("bool")
+
+    return df
+
+def _save_table_detalle_promociones(ts, ti, ds):
+    import pandas as pd
+    import sqlalchemy
+
+    df = _get_table_detalle_promociones_from_S3(ti)
+    df = df[["id",
+        "nombre",
+        "valores_generales",
+        "fecha_inicio",
+        "fecha_fin",
+        "ultima_modificacion",
+        "activo",
+        "archivado",
+        "tabla_nombre_precio",
+        "marcas",
+        "productos",
+        "skus",
+        "collections1BuyTogether",
+        "collections2BuyTogether",
+        "listSku1BuyTogether",
+        "listSku2BuyTogether",
+        "cupon"]]
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+    df.to_sql(name="promociones_detalle_vtex",
+            con=engine,         
+            schema="ecommdata",         
+            if_exists='append',         
+            index=False,         
+            chunksize=20000,         
+            method='multi')
+
+    return
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+
+with DAG(
+    'etl_promociones_vtex',
+    default_args=default_args,
+    description="Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.",
+    schedule_interval="0 8 * * *",
+    start_date=datetime(2022, 10, 20),
+    catchup=False,
+    max_active_runs = 1,
+    tags=["vtex", "promociones"],
+) as dag:
+
+    dag.doc_md = """
+    Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.
+    """ 
+
+    t0 = PythonOperator(
+        task_id = "load_json_to_s3",
+        python_callable = _load_json_to_s3
+    )
+
+    t1 = PythonOperator(
+        task_id = "save_table_promociones",
+        python_callable = _save_table_promociones
+    )
+
+    t2 = PythonOperator(
+        task_id = "save_detalle_promociones_in_s3",
+        python_callable = _save_detalle_promociones_in_s3
+    )
+
+    t3 = PythonOperator(
+        task_id = "save_table_detalle_promociones",
+        python_callable = _save_table_detalle_promociones
+    )
+
+
+t0 >> t1 >> t2 >> t3
