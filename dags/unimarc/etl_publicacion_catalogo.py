@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 
 def _check_time(ts):
     time_str = ts[11:16]
-    if (time_str == "00:00") or (time_str == "04:00"):
+    if (time_str == "23:00") or (time_str == "03:00"):
         return "task_skip"
     else:
         return "load_table_publicacion_catalogo"
