@@ -147,7 +147,7 @@ with DAG(
     'etl_publicacion_catalogo',
     default_args=default_args,
     description="Carga de tabla publicacion catalogo",
-    schedule_interval="0 */4 * * *",
+    schedule_interval="0 3/4 * * *",
     start_date=datetime(2022, 8, 18),
     catchup=False,
     max_active_runs=1,

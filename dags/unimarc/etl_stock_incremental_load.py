@@ -308,7 +308,7 @@ with DAG(
     'etl_stock_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla stock desde Vtex y Janis.",
-    schedule_interval="0 */4 * * *",
+    schedule_interval="0 3/4 * * *",
     start_date=datetime(2022, 7, 11),
     catchup=False,
     max_active_runs = 1,
