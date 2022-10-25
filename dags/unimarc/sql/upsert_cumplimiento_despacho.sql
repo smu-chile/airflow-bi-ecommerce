@@ -49,7 +49,7 @@ select _t.id_orden
                 _t.fecha_despacho < _t.fecha_entrega::date THEN 30
 			WHEN -- VENTANA NO FINALIZADA
             	_t.fecha_despacho = current_date
-                AND to_char(_t.termino_ventana, 'HH24MI') > to_char({{ts_with_tz}} at time zone 'America/Santiago', 'HH24MI')
+                AND to_char(_t.termino_ventana, 'HH24MI') > to_char({ts} at time zone 'America/Santiago', 'HH24MI')
                 THEN 40
             WHEN
             	_t.fecha_despacho > current_date
