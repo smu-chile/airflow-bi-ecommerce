@@ -43,5 +43,5 @@ SELECT pc.fecha_hora,
         END) AS con_tienda
 FROM ecommdata.publicacion_catalogo pc
 INNER JOIN catalogo.productos_eventos pe on pc.ref_id = pe.ref_id
-WHERE pc.surtido_ecommerce IS TRUE and pc.fecha_hora = '{{ts}}'::timestamp
+WHERE pc.surtido_ecommerce IS TRUE and pc.fecha_hora = '{{ts}}'::timestamp + interval '1 hour'
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pe.evento;
