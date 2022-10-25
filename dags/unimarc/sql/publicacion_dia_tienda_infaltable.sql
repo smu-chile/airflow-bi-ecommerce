@@ -41,5 +41,5 @@ SELECT pc.fecha_hora,
             ELSE 0
         END) AS con_tienda
 FROM ecommdata.publicacion_catalogo pc
-WHERE pc.surtido_ecommerce IS TRUE and pc.infaltable is TRUE and pc.fecha_hora = '{{ts}}'::timestamp
+WHERE pc.surtido_ecommerce IS TRUE and pc.infaltable is TRUE and pc.fecha_hora = '{{ts}}'::timestamp + interval '1 hour'
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3;
