@@ -235,7 +235,7 @@ def _upsert_cumplimiento_despacho(ts):
         if len(order_ids_sublist) == 0:
             break
         order_ids_sublist_str = ",".join([str(id_order) for id_order in order_ids_sublist])
-        cumplimiento_query = base_query.replace("{id_list}", order_ids_sublist_str)
+        cumplimiento_query = base_query.replace("{id_list}", order_ids_sublist_str).replace("{ts}", str(ts))
 
         # Execute query
         print(cumplimiento_query)
