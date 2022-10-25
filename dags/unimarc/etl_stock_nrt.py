@@ -59,10 +59,7 @@ def _load_stock_nrt_to_workspace(ti, ts):
         new_document["id"] = document["_id"]["$oid"]
         new_document["fecha_hora"] = document["createAt"]
         new_document["sku_id"] = document["IdSku"]
-        try: 
-            new_document["UMV"] = document["MeasurementUnit"]
-        except:
-            new_document["UMV"] = None
+        new_document["UMV"] = document.get("MeasurementUnit", None)
         new_document["id_tienda"] = document["Store"]
         new_document["tipo"] = document["Type"]
         new_document["cantidad"] = document["Quantity"]
