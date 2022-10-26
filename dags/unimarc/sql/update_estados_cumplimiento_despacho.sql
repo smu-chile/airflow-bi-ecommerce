@@ -9,8 +9,8 @@ and cumplimiento_ondate = 40;
 update opreaciones_unimarc.cumplimiento_despacho
 set cumplimiento_ontime = 999
 where termino_ventana between 
-                        '{{ts}}' at time zone 'America/Santiago' - interval '1 day'  
+                        ('{{ts}}' at time zone 'America/Santiago') - interval '1 day'  
                         and 
-                        '{{ts}}' at time zone 'America/Santiago'
+                        ('{{ts}}' at time zone 'America/Santiago')
 and cumplimiento_ontime = 40;
 commit;
