@@ -13,52 +13,56 @@ select _t.id_orden
 	, _t.inicio_ventana
 	, _t.termino_ventana
 	, _t.comuna	
-	,CASE WHEN -- ON DAY
-                _t.fecha_despacho = _t.fecha_entrega::date THEN 1
-             WHEN -- EARLY DAY
-                _t.fecha_despacho > _t.fecha_entrega::date THEN 2  
-             WHEN -- LATE DAY
-                _t.fecha_despacho < _t.fecha_entrega::date THEN 3
-             WHEN -- DIA NO FINALIZADO
-            	_t.fecha_despacho >= current_date THEN 5
-                -- ERROR
-      	ELSE 4
-      end as cumplimiento_ondate
-    , CASE WHEN -- ON TIME
-                _t.fecha_despacho = _t.fecha_entrega::date
-                AND _t.hora_entrega
-                    BETWEEN 
-                    to_char(_t.inicio_ventana, 'HH24MI')
-                    AND
-                    to_char(_t.termino_ventana + interval '20 minutes', 'HH24MI')
-                THEN 1
+	, CASE WHEN -- ANULADAS
+				_t.estado_janis >= 100 THEN 0
+			WHEN -- ON DAY
+                _t.fecha_despacho = _t.fecha_entrega::date THEN 10
+            WHEN -- EARLY DAY
+                _t.fecha_despacho > _t.fecha_entrega::date THEN 20  
+            WHEN -- LATE DAY
+                _t.fecha_despacho < _t.fecha_entrega::date THEN 30
+            WHEN -- DIA NO FINALIZADO
+            	_t.fecha_despacho >= current_date THEN 40
+                -- ERROR // DIA FINALIZADO SIN ENTREGA
+      		ELSE 999
+      END AS cumplimiento_ondate
+    , CASE WHEN  -- ANULADAS
+				_t.estado_janis >= 100 THEN 0
+	    	WHEN -- ON TIME
+				_t.fecha_despacho = _t.fecha_entrega::date
+				AND _t.hora_entrega BETWEEN 
+					to_char(_t.inicio_ventana, 'HH24MI')
+					AND
+					to_char(_t.termino_ventana + interval '20 minutes', 'HH24MI')
+				THEN 10
         	WHEN-- EARLY TIME
                 _t.fecha_despacho = _t.fecha_entrega::date
                 AND _t.hora_entrega < to_char(_t.inicio_ventana, 'HH24MI')
-                THEN 2
+                THEN 20
         	WHEN -- EARLY DATE
-                _t.fecha_despacho > _t.fecha_entrega::date THEN 2
+                _t.fecha_despacho > _t.fecha_entrega::date THEN 20
         	WHEN -- LATE TIME
                 _t.fecha_despacho = _t.fecha_entrega::date
                 AND _t.hora_entrega > to_char(_t.termino_ventana + interval '20 minutes', 'HH24MI')
-                THEN 3
+                THEN 30
         	WHEN -- LATE DAY
-                _t.fecha_despacho < _t.fecha_entrega::date THEN 3
+                _t.fecha_despacho < _t.fecha_entrega::date THEN 30
 			WHEN -- VENTANA NO FINALIZADA
             	_t.fecha_despacho = current_date
-                AND to_char(_t.termino_ventana, 'HH24MI') > to_char(current_timestamp, 'HH24MI')
-                THEN 5
-			WHEN
-				_t.fecha_despacho = current_date
-				THEN 5
-        -- ERROR
-            ELSE 4
-        end as cumplimiento_ontime
-from
+                AND to_char(_t.termino_ventana, 'HH24MI') > to_char('{ts}' at time zone 'America/Santiago' + interval '30 min', 'HH24MI')
+                THEN 40
+            WHEN
+            	_t.fecha_despacho > ('{ts}' at time zone 'America/Santiago')::date
+            	then 40
+        -- ERROR // VENTANA O DIA FINALIZADO SIN ENTREGA
+            ELSE 999
+        END AS cumplimiento_ontime
+FROM
 (
-	select d.id
+	SELECT d.id
 		, d.id_orden 
 		, oj.janis_id
+		, oj.estado_janis 
 		, d.tipo_despacho
 		, oj.fecha_facturacion
 		, t.id as id_tienda
@@ -73,21 +77,24 @@ from
 		, d.termino_ventana
 	    , d.comuna 
 		, rank() over (partition by d.id_orden order by d.id desc) as _rank
-	from ecommdata_alvi.despachos d 
-	join ecommdata_alvi.ordenes_janis oj 
-		on d.id_orden = oj.id 
-	left join (select _a.id, _a.id_orden, _a.fecha_creacion
-		from(select ocde.id, ocde.id_orden, ocde.fecha_creacion, rank() over (partition by ocde.id_orden order by ocde.id desc) as _rank1
-			from ecommdata_alvi.orden_cambios_de_estado ocde
-			where ocde.estado_nuevo = 90) _a
-		where _rank1 = 1) ocde2
+	FROM ecommdata_alvi.despachos d 
+	JOIN ecommdata_alvi.ordenes_janis oj 
+		ON d.id_orden = oj.id 
+	LEFT JOIN (select _a.id, _a.id_orden, _a.fecha_creacion
+				from(
+					select ocde.id, ocde.id_orden, ocde.fecha_creacion, rank() over (partition by ocde.id_orden order by ocde.id desc) as _rank1
+					from ecommdata_alvi.orden_cambios_de_estado ocde
+					where ocde.estado_nuevo = 90
+					) _a
+				where _rank1 = 1
+		) ocde2
 		on ocde2.id_orden = oj.janis_id
 	left join ecommdata_alvi.tiendas t
 		on oj.id_tienda_janis = t.id_janis 
 	left join ecommdata_alvi.transportadoras t2 
 		on t2.id = d.id_transportadora
-	where oj.id in ({id_list})
-	and oj.estado_janis not in (125, 135, 110, 80)
+	where oj.estado_janis not in (80)
+	and oj.id in ({id_list})
 ) _t
 where _t._rank = 1
 on conflict (id_orden) do update
