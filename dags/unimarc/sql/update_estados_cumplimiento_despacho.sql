@@ -6,7 +6,7 @@ where termino_ventana between
                         and 
                         ('{{ts}}' at time zone 'America/Santiago')::date
 and cumplimiento_ondate = 40;
-update opreaciones_unimarc.cumplimiento_despacho
+update operaciones_unimarc.cumplimiento_despacho
 set cumplimiento_ontime = 999
 where termino_ventana between 
                         ('{{ts}}' at time zone 'America/Santiago') - interval '1 day'  
