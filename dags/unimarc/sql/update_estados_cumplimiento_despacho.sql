@@ -1,5 +1,5 @@
 begin;
-update opreaciones_unimarc.cumplimiento_despacho
+update operaciones_unimarc.cumplimiento_despacho
 set cumplimiento_ondate = 999
 where termino_ventana between 
                         ('{{ts}}' at time zone 'America/Santiago')::date - interval '1 day' 
