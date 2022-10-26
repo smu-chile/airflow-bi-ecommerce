@@ -52,7 +52,7 @@ select _t.id_orden
                 AND to_char(_t.termino_ventana, 'HH24MI') > to_char('{ts}' at time zone 'America/Santiago' + interval '30 min', 'HH24MI')
                 THEN 40
             WHEN
-            	_t.fecha_despacho > current_date
+            	_t.fecha_despacho > ('{ts}' at time zone 'America/Santiago')::date
             	then 40
         -- ERROR // VENTANA O DIA FINALIZADO SIN ENTREGA
             ELSE 999
