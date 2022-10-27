@@ -449,7 +449,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             tipo = "marcas"
             aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
 
-    df2 = pd.DataFrame(aux_list, columns = [id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+    df2 = pd.DataFrame(aux_list, columns = ['id','nombre_promocion','valores_generales','fecha_inicio','fecha_fin','ultima_modificacion','activo','archivado','tabla_nombre_precio','marcas','cupon','vtex_id_producto','nombre_producto','vtex_id_sku','nombre_sku','tipo'])
         
 
 
