@@ -4,6 +4,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from datetime import datetime
 
@@ -382,6 +383,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
     for ind in df.index:
         id = df['id'][ind]
         nombre_promocion = df['nombre_promocion'][ind]
+        valores_generales = df['valores_generales'][ind]
         fecha_inicio = df['fecha_inicio'][ind]
         fecha_fin = df['fecha_fin'][ind]
         ultima_modificacion = df['ultima_modificacion'][ind]
@@ -396,58 +398,58 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_sku = None
             nombre_sku = None
             tipo = "producto"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         for i in ast.literal_eval(df['skus'][ind]):
             vtex_id_producto = None
             nombre_producto = None
             vtex_id_sku = i.get('id',None)
             nombre_sku = i.get('name',None)
             tipo = "sku"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         for i in ast.literal_eval(df['collections1BuyTogether'][ind]):
             vtex_id_producto = i.get('id',None)
             nombre_producto = i.get('name',None)
             vtex_id_sku = None
             nombre_sku = None
             tipo = "collections1BuyTogether"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         for i in ast.literal_eval(df['collections2BuyTogether'][ind]):
             vtex_id_producto = i.get('id',None)
             nombre_producto = i.get('name',None)
             vtex_id_sku = None
             nombre_sku = None
             tipo = "collections2BuyTogether"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         for i in ast.literal_eval(df['listSku1BuyTogether'][ind]):
             vtex_id_producto = None
             nombre_producto = None
             vtex_id_sku = i.get('id',None)
             nombre_sku = i.get('name',None)
             tipo = "listSku1BuyTogether"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         for i in ast.literal_eval(df['listSku2BuyTogether'][ind]):
             vtex_id_producto = None
             nombre_producto = None
             vtex_id_sku = i.get('id',None)
             nombre_sku = i.get('name',None)
             tipo = "listSku2BuyTogether"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         if tabla_nombre_precio != None:
             vtex_id_producto = None
             nombre_producto = None
             vtex_id_sku = None
             nombre_sku = None
             tipo = "tabla_nombre_precio"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         if marcas != '[]':
             vtex_id_producto = None
             nombre_producto = None
             vtex_id_sku = None
             nombre_sku = None
             tipo = "marcas"
-            aux_list.append([id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
 
-    df2 = pd.DataFrame(aux_list, columns = [id,nombre_promocion,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
+    df2 = pd.DataFrame(aux_list, columns = [id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tabla_nombre_precio, tipo])
         
 
 
@@ -491,25 +493,41 @@ with DAG(
     Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.
     """ 
 
-    t0 = PythonOperator(
+    t0 = PostgresOperator(
+        task_id = "truncate_promociones_vtex",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE ecommdata.promociones_vtex
+        """,
+    )
+
+    t1 = PostgresOperator(
+        task_id = "truncate_promociones_vtex",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE ecommdata.promociones_detalle_vtex
+        """,
+    )
+    
+    t2 = PythonOperator(
         task_id = "load_json_to_s3",
         python_callable = _load_json_to_s3
     )
 
-    t1 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "save_table_promociones",
         python_callable = _save_table_promociones
     )
 
-    t2 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "save_detalle_promociones_in_s3",
         python_callable = _save_detalle_promociones_in_s3
     )
 
-    t3 = PythonOperator(
+    t5 = PythonOperator(
         task_id = "save_table_detalle_promociones",
         python_callable = _save_table_detalle_promociones
     )
 
 
-t0 >> t1 >> t2 >> t3
+t0 >> t1 >> t2 >> t3 >> t4 >> t5
