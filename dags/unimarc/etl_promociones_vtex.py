@@ -382,7 +382,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
 
     for ind in df.index:
         id = df['id'][ind]
-        nombre_promocion = df['nombre_promocion'][ind]
+        nombre_promocion = df['nombre'][ind]
         valores_generales = df['valores_generales'][ind]
         fecha_inicio = df['fecha_inicio'][ind]
         fecha_fin = df['fecha_fin'][ind]
