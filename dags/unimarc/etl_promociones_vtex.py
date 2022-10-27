@@ -435,6 +435,8 @@ def _save_table_detalle_promociones(ts, ti, ds):
             tipo = "listSku2BuyTogether"
             aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
         if len(str(tabla_nombre_precio)) > 0:
+            print(str(tabla_nombre_precio))
+            print(tabla_nombre_precio)
             vtex_id_producto = None
             nombre_producto = None
             vtex_id_sku = None
