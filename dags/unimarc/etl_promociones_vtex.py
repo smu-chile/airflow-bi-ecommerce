@@ -4,6 +4,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from datetime import datetime
 
@@ -356,6 +357,7 @@ def _get_table_detalle_promociones_from_S3(ti):
 def _save_table_detalle_promociones(ts, ti, ds):
     import pandas as pd
     import sqlalchemy
+    import ast
 
     df = _get_table_detalle_promociones_from_S3(ti)
     df = df[["id",
@@ -376,6 +378,81 @@ def _save_table_detalle_promociones(ts, ti, ds):
         "listSku2BuyTogether",
         "cupon"]]
 
+    aux_list = []
+
+    for ind in df.index:
+        id = df['id'][ind]
+        nombre_promocion = df['nombre'][ind]
+        valores_generales = df['valores_generales'][ind]
+        fecha_inicio = df['fecha_inicio'][ind]
+        fecha_fin = df['fecha_fin'][ind]
+        ultima_modificacion = df['ultima_modificacion'][ind]
+        activo = df['activo'][ind]
+        archivado = df['archivado'][ind]
+        tabla_nombre_precio = df['tabla_nombre_precio'][ind]
+        marcas = df['marcas'][ind]
+        cupon = df['cupon'][ind]
+        for i in ast.literal_eval(df['productos'][ind]):
+            vtex_id_producto = i.get('id',None)
+            nombre_producto = i.get('name',None)
+            vtex_id_sku = None
+            nombre_sku = None
+            tipo = "producto"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+        for i in ast.literal_eval(df['skus'][ind]):
+            vtex_id_producto = None
+            nombre_producto = None
+            vtex_id_sku = i.get('id',None)
+            nombre_sku = i.get('name',None)
+            tipo = "sku"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+        for i in ast.literal_eval(df['collections1BuyTogether'][ind]):
+            vtex_id_producto = i.get('id',None)
+            nombre_producto = i.get('name',None)
+            vtex_id_sku = None
+            nombre_sku = None
+            tipo = "collections1BuyTogether"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+        for i in ast.literal_eval(df['collections2BuyTogether'][ind]):
+            vtex_id_producto = i.get('id',None)
+            nombre_producto = i.get('name',None)
+            vtex_id_sku = None
+            nombre_sku = None
+            tipo = "collections2BuyTogether"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+        for i in ast.literal_eval(df['listSku1BuyTogether'][ind]):
+            vtex_id_producto = None
+            nombre_producto = None
+            vtex_id_sku = i.get('id',None)
+            nombre_sku = i.get('name',None)
+            tipo = "listSku1BuyTogether"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+        for i in ast.literal_eval(df['listSku2BuyTogether'][ind]):
+            vtex_id_producto = None
+            nombre_producto = None
+            vtex_id_sku = i.get('id',None)
+            nombre_sku = i.get('name',None)
+            tipo = "listSku2BuyTogether"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+        if str(tabla_nombre_precio) != 'nan':
+            vtex_id_producto = None
+            nombre_producto = None
+            vtex_id_sku = None
+            nombre_sku = None
+            tipo = "tabla_nombre_precio"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+        if marcas != '[]':
+            vtex_id_producto = None
+            nombre_producto = None
+            vtex_id_sku = None
+            nombre_sku = None
+            tipo = "marcas"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo])
+
+    df2 = pd.DataFrame(aux_list, columns = ['id','nombre_promocion','valores_generales','fecha_inicio','fecha_fin','ultima_modificacion','activo','archivado','tabla_nombre_precio','marcas','cupon','vtex_id_producto','nombre_producto','vtex_id_sku','nombre_sku','tipo'])
+        
+
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -383,7 +460,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
     
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
-    df.to_sql(name="promociones_detalle_vtex",
+    df2.to_sql(name="promociones_detalle_vtex",
             con=engine,         
             schema="ecommdata",         
             if_exists='append',         
@@ -416,25 +493,41 @@ with DAG(
     Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.
     """ 
 
-    t0 = PythonOperator(
+    t0 = PostgresOperator(
+        task_id = "truncate_promociones_vtex",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE ecommdata.promociones_vtex
+        """,
+    )
+
+    t1 = PostgresOperator(
+        task_id = "truncate_promociones_detalle_vtex",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE ecommdata.promociones_detalle_vtex
+        """,
+    )
+    
+    t2 = PythonOperator(
         task_id = "load_json_to_s3",
         python_callable = _load_json_to_s3
     )
 
-    t1 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "save_table_promociones",
         python_callable = _save_table_promociones
     )
 
-    t2 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "save_detalle_promociones_in_s3",
         python_callable = _save_detalle_promociones_in_s3
     )
 
-    t3 = PythonOperator(
+    t5 = PythonOperator(
         task_id = "save_table_detalle_promociones",
         python_callable = _save_table_detalle_promociones
     )
 
 
-t0 >> t1 >> t2 >> t3
+t0 >> t1 >> t2 >> t3 >> t4 >> t5

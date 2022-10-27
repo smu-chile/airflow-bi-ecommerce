@@ -235,7 +235,7 @@ def _upsert_cumplimiento_despacho(ts):
         if len(order_ids_sublist) == 0:
             break
         order_ids_sublist_str = ",".join([str(id_order) for id_order in order_ids_sublist])
-        cumplimiento_query = base_query.replace("{id_list}", order_ids_sublist_str)
+        cumplimiento_query = base_query.replace("{id_list}", order_ids_sublist_str).replace("{ts}", str(ts))
 
         # Execute query
         print(cumplimiento_query)
@@ -337,6 +337,12 @@ with DAG(
         python_callable = _upsert_cumplimiento_despacho
     )
 
+    t7 = PostgresOperator(
+        task_id = "update_estados_cumplimiento_despacho",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/update_estados_cumplimiento_despacho.sql"
+    )
+
     t0 >> t1
     t0 >> t2 >> t2_a >> t3 >> t4
-    t1 >> t4 >> t5 >> t6
+    t1 >> t4 >> t5 >> t6 >> t7
