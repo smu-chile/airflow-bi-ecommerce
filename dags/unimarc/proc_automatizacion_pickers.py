@@ -408,13 +408,13 @@ def automa_pickers(id_drive, ds):
     df_out = get_user(df_formato, formato_RUT_get, largo, headersQA, myfile)
     put_user(df_out, myfile, formato_PUT_user, headersQA)
 
-    os.remove('log.txt')
     os.remove(output_file_name)
     
 
 def borrar_archivo():
     import os
     os.remove('temp_keys.json')
+    os.remove('log.txt')
 
 default_args = {
     "owner": "capacity_and_planning",
