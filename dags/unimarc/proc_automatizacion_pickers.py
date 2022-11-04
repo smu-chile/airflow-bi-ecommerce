@@ -410,7 +410,7 @@ def automa_pickers(id_drive, ds):
 
     os.remove('temp_keys.json')
     os.remove(output_file_name)
-    os.remove(myfile)
+    os.remove('log.txt')
 
 default_args = {
     "owner": "capacity_and_planning",
