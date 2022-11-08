@@ -14,7 +14,7 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={ds}&filters[period][to]={macros.ds_add(ds, 1)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
     print(url)
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
@@ -172,7 +172,7 @@ with DAG(
     'etl_frogmi_alerta_found_rate',
     default_args=default_args,
     description="Extracción y carga de tabla alerta frogmi desde API.",
-    schedule_interval="0 8 * * *",
+    schedule_interval="0 21 * * *",
     start_date=datetime(2022, 10, 12),
     catchup=False,
     max_active_runs = 1,
