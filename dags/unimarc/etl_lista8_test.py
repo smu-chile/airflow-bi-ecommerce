@@ -109,9 +109,11 @@ def _load_lista8_exclusions(ts):
     }
 
     dataframe_list = []
-    for s3_file_index in range(len(s3_file_list)):
-        s3_file = s3_file_list[s3_file_index]
-        s3_file_y = s3_file_list_y[s3_file_index]
+    for s3_file in s3_file_list:
+        s3_file_y = ''
+        for temp_s3_file_y in s3_file_list_y:
+            if temp_s3_file_y[-8:] == s3_file[-8:]:
+                s3_file_y = temp_s3_file_y
         if not s3_file.endswith((".csv", ".CSV")):
             # Skip empty any non-csv file
             continue
