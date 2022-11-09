@@ -123,12 +123,12 @@ def _load_lista8_exclusions(ts):
         print(f"Comparing files: {s3_file} and {s3_file_y}")
         
         lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
-        dfA = pd.read_csv(lista8_object.get()["Body"], sep=";")
-        dfA["STOCK X UMV"] = dfA["STOCK X UMV"].str.replace(',','.')
+        dfB = pd.read_csv(lista8_object.get()["Body"], sep=";")
+        dfB["STOCK X UMV"] = dfB["STOCK X UMV"].str.replace(',','.')
         
         lista8_object_y = s3_hook.get_key(s3_file_y, bucket_name=s3_bucket)
-        dfB = pd.read_csv(lista8_object_y.get()["Body"], sep=";")
-        dfB["STOCK X UMV"] = dfB["STOCK X UMV"].str.replace(',','.')
+        dfA = pd.read_csv(lista8_object_y.get()["Body"], sep=";")
+        dfA["STOCK X UMV"] = dfA["STOCK X UMV"].str.replace(',','.')
 
         df = pd.merge(dfA, dfB, on=['MATERIAL', 'UM VTA'], how="outer", indicator=True
               ).query('_merge=="left_only"')
