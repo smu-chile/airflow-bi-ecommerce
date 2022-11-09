@@ -87,6 +87,7 @@ def _load_lista8_exclusions(ts):
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
     print(f"Files detected today: {s3_file_list}")
 
+    exec_date_y = datetime.strptime(ts[:10], "%Y-%m-%d")
     exec_date_y = exec_date.strftime("%Y/%m/%d")
     prefix_y = f"datastage/L8/{exec_date_y}/"
 
