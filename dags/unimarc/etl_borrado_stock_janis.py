@@ -110,7 +110,6 @@ def _save_lista8_exclusions_in_s3(ts):
         "DESCRIPCION_x": "descripcion"
     }
 
-    dataframe_list = []
     for s3_file in s3_file_list:
         s3_file_y = ''
         for temp_s3_file_y in s3_file_list_y:
@@ -137,12 +136,12 @@ def _save_lista8_exclusions_in_s3(ts):
 
         df = df[['CENTRO_x','MATERIAL', 'UM VTA', 'DESCRIPCION_x']]
         df = df.astype(column_types)
-        dataframe_list.append(df)
 
         buffer = StringIO()
-        id_tienda = str(int(df['CENTRO_x'].iloc[0])).zfill(4)
+        id_tienda = str(int(df['CENTRO_x'].values[0])).zfill(4)
         len_df = str(len(df)).zfill(4)
         file_name = f"borrado_stock/{exec_date}/{id_tienda}/borrado_stock-{id_tienda}-{len_df}.csv"
+        print(f"saving file {file_name}")
 
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
