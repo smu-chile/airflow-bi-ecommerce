@@ -74,9 +74,11 @@ def _yesterday_stopper_lista8(ts):
     else:
         raise Exception(f"Not all active stores found")
 
-def _load_lista8_exclusions(ts):
+def _save_lista8_exclusions_in_s3(ts):
     import pandas as pd
     import sqlalchemy
+    import boto3
+    from io import StringIO
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
@@ -136,38 +138,31 @@ def _load_lista8_exclusions(ts):
         df = df[['CENTRO_x','MATERIAL', 'UM VTA', 'DESCRIPCION_x']]
         df = df.astype(column_types)
         dataframe_list.append(df)
-    df_full = pd.concat(dataframe_list, ignore_index=True)
-    df_full = df_full.rename(columns=column_names)
-    df_full["fecha"] = exec_date
-    df_full["id_tienda"] = df_full["id_tienda"].str.zfill(4)
-    df_full["material"] = df_full["material"].str.zfill(18)
 
-    # Drop duplicates
-    df_full = df_full.drop_duplicates()
-    print("Number of records to be loaded: "+str(len(df_full.index)))
+        buffer = StringIO()
+        id_tienda = str(int(df['CENTRO_x'].iloc[0])).zfill(4)
+        len_df = str(len(df)).zfill(4)
+        file_name = f"borrado_stock/{exec_date}/{id_tienda}/borrado_stock-{id_tienda}-{len_df}.csv"
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
-    
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
 
-    # Save to PostgreSQL:
+        access_key = Variable.get("AWS_ACCESS_KEY")
+        secret_key = Variable.get("AWS_SECRET_KEY")
+        bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name = "us-east-1"
+        )
+        response = s3_client.put_object(
+            Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+        )
 
-    with engine.begin() as conn:
-        df_full.to_sql(name="test_lista8_eliminados",
-                    con=conn,         
-                    schema="ecommdata",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
+    dir_name = f"borrado_stock/{exec_date}/"
 
-    print("Data saved to PostgreSQL. Table: ecommdata.lista8")
-
-    return
+    return dir_name
 
 default_args = {
     "owner": "ecommerce_data",
@@ -177,18 +172,18 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'lista8_test_eliminados',
+    'etl_borrado_stock_janis',
     default_args=default_args,
-    description="Prueba de detección de borrados lista8",
+    description="Borrado de stock janis en base a productos removidos de lista8.",
     schedule_interval="0 10 * * *",
     start_date=datetime(2022, 11, 1),
     catchup=True,
     max_active_runs = 1,
-    tags=["DATA", "SAP", "ecommdata", "lista8"],
+    tags=["DATA", "SAP", "ecommdata", "lista8", "stock", "janis"],
 ) as dag:
 
     dag.doc_md = """
-    Prueba para determinar correcto funcionamiento de la logica de detección de productos removidos de lista 8 entre ayer y hoy."
+    Borrado de stock janis en base a productos removidos de lista8."
     """ 
     t0 = S3KeySensor(
         task_id = "wait_for_lista8_flag_file",
@@ -211,8 +206,8 @@ with DAG(
     )
 
     t2 = PythonOperator(
-        task_id = "_load_lista8_exclusions",
-        python_callable = _load_lista8_exclusions
+        task_id = "save_lista8_exclusions_in_s3",
+        python_callable = _save_lista8_exclusions_in_s3
     )
 
 
