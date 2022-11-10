@@ -138,7 +138,7 @@ def _save_lista8_exclusions_in_s3(ts):
         df = df.astype(column_types)
 
         buffer = StringIO()
-        id_tienda = str(int(df['CENTRO_x'].values[0])).zfill(4)
+        id_tienda = s3_file[-8:-4]
         len_df = str(len(df)).zfill(4)
         file_name = f"borrado_stock/{exec_date}/{id_tienda}/borrado_stock-{id_tienda}-{len_df}.csv"
         print(f"saving file {file_name}")
