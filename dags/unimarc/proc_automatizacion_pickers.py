@@ -35,25 +35,25 @@ def get_user(df_formato, formato_RUT_get, largo, headersQA, myfile):
                 print (r_get.content)
                 continue
             df_get_request = pd.concat([df_get_request, json_carga], axis = 0)
-        if r_get.status_code == 400:
+        elif r_get.status_code == 400:
             print (r_get.status_code)
             print ('Parámetros inválidos')
             myfile.write (str(r_get.status_code)+ "\n")
             myfile.write ('Parámetros inválidos\n')
             break
-        if r_get.status_code == 401:
+        elif r_get.status_code == 401:
             print (r_get.status_code)
             print ('El header no existe o es inválido\n')
             myfile.write (str(r_get.status_code)+ "\n")
             myfile.write('El header no existe o es inválido\n')
             break
-        if r_get.status_code == 403:
+        elif r_get.status_code == 403:
             print (r_get.status_code)
             print ('Permiso denegado para las credenciales utilizadas')
             myfile.write (str(r_get.status_code)+ "\n")
             myfile.write ('Permiso denegado para las credenciales utilizadas\n')
             break
-        if r_get.status_code == 429:
+        elif r_get.status_code == 429:
             print (r_get.status_code)
             print ('Muchas requests simultáneas, porfavor espere 30 segundos') 
             myfile.write (str(r_get.status_code)+ "\n")
@@ -117,7 +117,7 @@ def get_user(df_formato, formato_RUT_get, largo, headersQA, myfile):
                     myfile.write (str(r_get.status_code)+ "\n")
                     myfile.write('Error por tercera vez, se realiza break\n')
                     break
-        if r_get.status_code  == 503:
+        elif r_get.status_code  == 503:
             print (r_get.status_code)
             print ('No se puede alcanzar el servidor, reintentando en 10 minutos')
             myfile.write (str(r_get.status_code)+ "\n")
@@ -231,25 +231,25 @@ def put_user(dfx, myfile, formato_PUT_user, headersQA):
             print (r.status_code)
             myfile.write ('Datos Actualizados correctamente\n')
             myfile.write (str(r.status_code)+ "\n")
-        if r.status_code == 400:
+        elif r.status_code == 400:
             print (r.status_code)
             print ('Parámetros inválidos')
             myfile.write (str(r.status_code)+ "\n")
             myfile.write ('Parámetros inválidos\n')
             break
-        if r.status_code == 401:
+        elif r.status_code == 401:
             print (r.status_code)
             print ('El header no existe o es inválido')
             myfile.write (str(r.status_code)+ "\n")
             myfile.write('El header no existe o es inválido\n')
             break
-        if r.status_code == 403:
+        elif r.status_code == 403:
             print (r.status_code)
             print ('Permiso denegado para las credenciales utilizadas')
             myfile.write (str(r.status_code)+ "\n")
             myfile.write ('Permiso denegado para las credenciales utilizadas\n')
             break
-        if r.status_code == 429:
+        elif r.status_code == 429:
             print (r.status_code)
             print ('Muchas requests simultáneas, porfavor espere 30 segundos')
             myfile.write (str(r.status_code)+ "\n")
@@ -276,7 +276,7 @@ def put_user(dfx, myfile, formato_PUT_user, headersQA):
                     myfile.write (str(r.status_code)+ "\n")
                     myfile.write('Error por tercera vez, se realiza break\n')
                     break
-        if r.status_code  == 503:
+        elif r.status_code  == 503:
             print (r.status_code)
             print ('No se puede alcanzar el servidor, reintentando en 10 minutos')
             myfile.write (str(r.status_code)+ "\n")
@@ -374,14 +374,6 @@ def automa_pickers(id_drive, ds):
     id_last = df_last.iloc[0]['id']
     name_last = df_last.iloc[0]['nombre_archivo']
 
-    if name_last.endswith('.xlsx'):
-        pass
-    else:
-        print ('error, tipo de archivo incorrecto')
-        myfile.write('error, tipo de archivo incorrecto')
-        myfile.close()
-        raise Exception('Error, tipo de archivo incorrecto')
-
     file_id = id_last
     # store the output file name
     output_file_name = name_last
@@ -389,14 +381,22 @@ def automa_pickers(id_drive, ds):
     f = drive.CreateFile({'id': file_id})
     #content = f.GetContentFile()
 
-    # Guarda el archivo ÚNICO necesario, conversar si borrarlo (primero hay que subirlo a s3)
+    # Guarda el archivo ÚNICO necesario, se borra posteriormente.
     f.GetContentFile(output_file_name)
 
+    if name_last.endswith('.xlsx'):
+        df_formato = pd.read_excel(output_file_name, index_col=False)
+    elif name_last.endswith('.csv'):
+        df_formato = pd.read_csv(output_file_name, index_col=False, names=['RUT','Tienda','Nombre','Apellido','Operador'])
+    else:
+        print ('error, tipo de archivo incorrecto')
+        myfile.write('error, tipo de archivo incorrecto')
+        myfile.close()
+        raise Exception('Error, tipo de archivo incorrecto')
 
     formato_RUT_get = 'https://janisqa.in/api/user?employeeId={}'
     formato_PUT_user = 'https://janisqa.in/api/user/{}'
-
-    df_formato = pd.read_excel(output_file_name, index_col=False)
+    #df_formato = pd.read_excel(output_file_name, index_col=False)
     df_formato['RUT'] = df_formato['RUT'].values.astype('str')
 
     #print (fechayhora)
@@ -408,7 +408,8 @@ def automa_pickers(id_drive, ds):
     df_out = get_user(df_formato, formato_RUT_get, largo, headersQA, myfile)
     put_user(df_out, myfile, formato_PUT_user, headersQA)
 
-    os.remove(output_file_name)
+
+    os.remove(output_file_name) #Borra el archivo que se genera localmente para hacer dfs; to do: guardarlo en S3 antes de borrarlo.
     
 
 def borrar_archivo():
@@ -427,7 +428,7 @@ with DAG(
     'proc_automatizacion_pickers',
     default_args=default_args,
     description="Carga automática de pickers en la API",
-    schedule_interval="0 6 * * *",
+    schedule_interval="0 3 * * *",
     start_date=pendulum.datetime(2022, 11, 3, tz="America/Santiago"),
     catchup=False,
     tags=["OPS","Janis","API","GET","PUT"],
