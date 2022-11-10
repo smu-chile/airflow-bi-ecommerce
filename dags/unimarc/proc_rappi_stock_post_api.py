@@ -1,23 +1,92 @@
 from airflow import DAG
+from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from airflow.operators.dummy import DummyOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 
 from datetime import datetime, timedelta
 import pendulum
 
-def _check_if_dag_ran_today(ds, dag_latest_run):
-    print(dag_latest_run)
-    print(ds == dag_latest_run)
+def _check_time(ts):
+    import pytz
 
-    if ds != dag_latest_run:
-        print("stock_and_prices_full_post_request")
+    exec_datetime = datetime.strptime(ts, '%Y-%m-%dT%H:%M:%S')
+    local_tz = pytz.timezone("America/Santiago")
+    local_exec_datetime = local_tz.localize(exec_datetime).astimezone(pytz.utc)
+    time_str = local_exec_datetime.strftime('%H%M')
+    print(f"Local execution time: {local_exec_datetime.strftime('%Y/%m/%d %H:%M:%S')}")
+    if int(time_str[:2]) > 23 or int(time_str[:2]) < 8:
+        print("Outside execution hours. Skipping tasks.")
+        return "task_skip"
+    else:
+        print("Expected time range. Executing tasks.")
+        return "check_if_dag_ran_today"
+
+def _check_if_dag_ran_today(ds):
+    exec_date_string = ds.replace("-", "/")
+    response_files_path = f"rappi/api/stock/post/full/responses/{exec_date_string}/"
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching prefix: "+response_files_path)
+    if not s3_hook.check_for_prefix(response_files_path, bucket_name=s3_bucket):
+        print("Response prefix not found.\nExecuting a FULL LOAD...")
         return "stock_and_prices_full_post_request"
     else:
-        print("stock_and_prices_delta_post_request")
+        print("Response prefix found.\nExecuting a DELTA LOAD...")
         return "stock_and_prices_delta_post_request"
 
-def _stock_and_prices_full_post_request():
+
+def _calculate_request_body(ds, ts, type):
+    import json
+    import os
+    import pandas as pd
+
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
+    with open(curr_working_directory+f"/dags/unimarc/sql/rappi_stock_{type}_load.sql", "r") as query_file:
+        rappi_stock_query = query_file.read()
+    
+    exec_datetime_string = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    body_file_path = f"rappi/api/stock/post/{type}/requests/{exec_datetime_string}_"
+    if type == 'full':
+        rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
+    else:
+        rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
+
+    print(rappi_stock_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    df = pd.read_sql_query(rappi_stock_query, pg_connection)
+    print(f"Number of records found: {len(df.index)}")
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    active_stores = df["store_id"].unique().tolist()
+    store_body_file_paths = []
+    for store_id in active_stores:
+        df = df[df["store_id"] == store_id].head(10)
+        dict_body = df.to_dict(orient="records")
+        json_body = json.dumps(dict_body)
+
+        store_body_file_path = body_file_path + store_id + ".json"
+
+        s3_hook.load_string(json_body,
+                    key=body_file_path,
+                    bucket_name=s3_bucket,
+                    replace=True,
+                    encrypt=False)
+        
+        store_body_file_paths.append(store_body_file_path)
+
+    return store_body_file_paths
+
+def _stock_and_prices_full_post_request(ds):
     print("FULL LOAD")
+    
     return
 
 def _stock_and_prices_delta_post_request():
@@ -62,14 +131,20 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "stock_and_prices_full_post_request",
-        python_callable = _stock_and_prices_full_post_request
+        task_id = "_calculate_full_request_body",
+        python_callable = _calculate_request_body,
+        op_kwargs = {
+            "type": "full"
+        }
     )
 
     t2 = PythonOperator(
-        task_id = "stock_and_prices_delta_post_request",
-        python_callable = _stock_and_prices_delta_post_request
+        task_id = "_calculate_delta_request_body",
+        python_callable = _calculate_request_body,
+        op_kwargs = {
+            "type": "delta"
+        }
     )
 
-
+    t0 >> [t1, t2]
 
