@@ -18,7 +18,7 @@ def _check_time(ts):
     print(f"Local execution time: {local_exec_datetime.strftime('%Y/%m/%d %H:%M:%S')}")
     if int(time_str[:2]) > 23 or int(time_str[:2]) < 8:
         print("Outside execution hours. Skipping tasks.")
-        return "task_skip"
+        return "skip_dag_run"
     else:
         print("Expected time range. Executing tasks.")
         return "check_if_dag_ran_today"
@@ -31,7 +31,7 @@ def _check_if_dag_ran_today(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching prefix: "+response_files_path)
-    if not s3_hook.check_for_prefix(response_files_path, bucket_name=s3_bucket):
+    if not s3_hook.check_for_prefix(bucket_name=s3_bucket, prefix=response_files_path, delimiter="/"):
         print("Response prefix not found.\nExecuting a FULL LOAD...")
         return "stock_and_prices_full_post_request"
     else:
@@ -122,7 +122,13 @@ with DAG(
     - Full load: la primera carga del día debe ser una carga completa por cada tienda activa.\n
     - Delta load: las cargas siguentes del día deben representar la variación de stock.
     """ 
+
     t0 = BranchPythonOperator(
+        task_id = "check_time",
+        python_callable = _check_time
+    )
+
+    t1 = BranchPythonOperator(
         task_id = "check_if_dag_ran_today",
         python_callable = _check_if_dag_ran_today,
         op_kwargs = {
@@ -130,21 +136,25 @@ with DAG(
         }
     )
 
-    t1 = PythonOperator(
-        task_id = "_calculate_full_request_body",
+    t2 = PythonOperator(
+        task_id = "calculate_full_request_body",
         python_callable = _calculate_request_body,
         op_kwargs = {
             "type": "full"
         }
     )
 
-    t2 = PythonOperator(
-        task_id = "_calculate_delta_request_body",
+    t3 = PythonOperator(
+        task_id = "calculate_delta_request_body",
         python_callable = _calculate_request_body,
         op_kwargs = {
             "type": "delta"
         }
     )
 
-    t0 >> [t1, t2]
+    td = DummyOperator(
+        task_id = "skip_dag_run"
+    )
+
+    t0 >> t1 >> [t2, t3]
 
