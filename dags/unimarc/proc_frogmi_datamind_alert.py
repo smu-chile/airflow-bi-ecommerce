@@ -167,7 +167,7 @@ def _post_request_to_publish_task_endpoint(ts):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    json_payloads_string = json.dumps(payloads)
+    json_payloads_string = json.dumps(payloads, ensure_ascii=False)
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     payloads_s3_path = "frogmi/api/post_publish_task_datamind/"+curr_datetime+".json"
