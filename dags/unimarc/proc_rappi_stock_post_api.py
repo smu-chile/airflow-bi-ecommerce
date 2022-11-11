@@ -71,7 +71,9 @@ def _calculate_request_body(ds, ts, type):
     for store_id in active_stores:
         df = df[df["store_id"] == store_id].head(10)
         dict_body = df.to_dict(orient="records")
-        json_body = json.dumps(dict_body, ensure_ascii=False)
+        print(dict_body)
+        json_body = json.dumps(dict_body, ensure_ascii=False).encode("utf-8")
+        print(json_body)
 
         store_body_file_path = body_file_path + store_id + ".json"
 
@@ -95,7 +97,7 @@ def _stock_and_prices_delta_post_request():
     return
 
 default_args = {
-    "owner": "capacity_and_planning",
+    "owner": "ecommerce_ops",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
