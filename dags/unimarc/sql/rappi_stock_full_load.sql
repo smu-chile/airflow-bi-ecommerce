@@ -23,6 +23,6 @@ left join ecommdata.marcas m
 	on m.id = p2.id_marca
 left join ecommdata.skus s2 
 	on s2.ref_id = s.ref_id 
-where s.fecha = {ds}
+where s.fecha = '{ds}'
 and s.surtido_ecommerce is true
 and p.precio is not null;
