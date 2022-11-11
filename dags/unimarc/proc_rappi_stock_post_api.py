@@ -71,12 +71,12 @@ def _calculate_request_body(ds, ts, type):
     for store_id in active_stores:
         df = df[df["store_id"] == store_id].head(10)
         dict_body = df.to_dict(orient="records")
-        json_body = json.dumps(dict_body)
+        json_body = json.dumps(dict_body, ensure_ascii=False)
 
         store_body_file_path = body_file_path + store_id + ".json"
 
         s3_hook.load_string(json_body,
-                    key=body_file_path,
+                    key=store_body_file_path,
                     bucket_name=s3_bucket,
                     replace=True,
                     encrypt=False)
