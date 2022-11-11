@@ -11,11 +11,12 @@ import pendulum
 def _check_time(ts):
     import pytz
 
-    exec_datetime = datetime.strptime(ts, '%Y-%m-%dT%H:%M:%S')
-    local_tz = pytz.timezone("America/Santiago")
-    local_exec_datetime = local_tz.localize(exec_datetime).astimezone(pytz.utc)
-    time_str = local_exec_datetime.strftime('%H%M')
-    print(f"Local execution time: {local_exec_datetime.strftime('%Y/%m/%d %H:%M:%S')}")
+    exec_datetime = datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')
+    exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
+    local_tz = pendulum.timezone("America/Santiago")
+    exec_datetime_local = local_tz.convert(exec_datetime_utc)
+    time_str = exec_datetime_local.strftime('%H%M')
+    print(f"Local execution time: {exec_datetime_local.strftime('%Y/%m/%d %H:%M:%S')}")
     if int(time_str[:2]) > 23 or int(time_str[:2]) < 8:
         print("Outside execution hours. Skipping tasks.")
         return "skip_dag_run"
@@ -156,5 +157,6 @@ with DAG(
         task_id = "skip_dag_run"
     )
 
-    t0 >> t1 >> [t2, t3]
+    t0 >> [t1, td] 
+    t1 >> [t2, t3]
 
