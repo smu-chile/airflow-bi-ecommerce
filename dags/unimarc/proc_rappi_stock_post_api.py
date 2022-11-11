@@ -34,10 +34,10 @@ def _check_if_dag_ran_today(ds):
     print("Searching prefix: "+response_files_path)
     if not s3_hook.check_for_prefix(bucket_name=s3_bucket, prefix=response_files_path, delimiter="/"):
         print("Response prefix not found.\nExecuting a FULL LOAD...")
-        return "stock_and_prices_full_post_request"
+        return "calculate_full_request_body"
     else:
         print("Response prefix found.\nExecuting a DELTA LOAD...")
-        return "stock_and_prices_delta_post_request"
+        return "calculate_delta_request_body"
 
 
 def _calculate_request_body(ds, ts, type):
