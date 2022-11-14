@@ -55,7 +55,7 @@ def _calculate_request_body(ds, ts, type):
     if type == 'full':
         rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
     else:
-        rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
+        rappi_stock_query = ""
 
     print(rappi_stock_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -71,9 +71,7 @@ def _calculate_request_body(ds, ts, type):
     for store_id in active_stores:
         df = df[df["store_id"] == store_id].head(10)
         dict_body = df.to_dict(orient="records")
-        print(dict_body)
-        json_body = json.dumps(dict_body, ensure_ascii=False).encode("utf-8")
-        print(json_body)
+        json_body = json.dumps(dict_body)
 
         store_body_file_path = body_file_path + store_id + ".json"
 
