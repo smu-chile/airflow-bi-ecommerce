@@ -177,13 +177,13 @@ def _send_stock_0_to_janis(ts):
     s3_file_list = list(filter(lambda x: (x[-3:] == 'CSV'), s3_file_list))
     print(f"Files detected: {s3_file_list}")
 
-    base_url = "https://janisqa.in/api/"
+    base_url = Variable.get("JANIS_API_URL")
 
     url = f"{base_url}stock"
 
-    JANIS_API_KEY = "aa19fa61330a18fcebe83a288ea1109e0673d1bb"
-    JANIS_API_SECRET = "c8ec5fdb8ed50dfc67115a5d8fb58105abe3b831064b3732d57f43e81e79e5e5"
-    JANIS_CLIENT = "unimarcdev"
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
+    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
 
     headers = {
     "janis-api-key" : JANIS_API_KEY,
