@@ -85,9 +85,24 @@ def _calculate_request_body(ds, ts, type):
 
     return store_body_file_paths
 
-def _stock_and_prices_full_post_request(ds):
+def _stock_and_prices_full_post_request(ti, ds):
+    import json
     print("FULL LOAD")
     
+    post_body_file = ti.xcom_pull(key="return_value", task_ids=["calculate_full_request_body"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+post_body_file)
+    if not s3_hook.check_for_key(post_body_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % post_body_file)
+
+    json_body_object = s3_hook.get_key(post_body_file, bucket_name=s3_bucket)
+    json_body_string = json_body_object.get()["Body"].read()
+    print(json_body_string)
+    json_body = json.loads(json_body_string)
+    print(json_body)
+
     return
 
 def _stock_and_prices_delta_post_request():
@@ -151,6 +166,11 @@ with DAG(
         op_kwargs = {
             "type": "delta"
         }
+    )
+
+    t4 = PythonOperator(
+        task_id = "stock_and_prices_full_post_request",
+        python_callable = _stock_and_prices_full_post_request,        
     )
 
     td = DummyOperator(
