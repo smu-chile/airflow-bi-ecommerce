@@ -70,6 +70,7 @@ def _calculate_request_body(ds, ts, type):
     store_body_file_paths = []
     for store_id in active_stores:
         df = df[df["store_id"] == store_id]
+        df["is_available"] = True
         dict_body = df.to_dict(orient="records")
         json_body = json.dumps(dict_body)
 
