@@ -170,6 +170,7 @@ def _send_stock_0_to_janis(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"borrado_stock/{exec_date}/"
+    print(prefix)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
