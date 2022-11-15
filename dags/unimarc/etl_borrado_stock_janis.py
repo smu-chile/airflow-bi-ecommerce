@@ -175,7 +175,7 @@ def _send_stock_0_to_janis(ts):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
-    s3_file_list = list(filter(lambda x: (x[-3:] == 'CSV'), s3_file_list))
+    s3_file_list = list(filter(lambda x: (x[-3:] == 'csv'), s3_file_list))
     print(f"Files detected: {s3_file_list}")
 
     base_url = Variable.get("JANIS_API_URL")
