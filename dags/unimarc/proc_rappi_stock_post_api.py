@@ -69,7 +69,8 @@ def _calculate_request_body(ds, ts, type):
     active_stores = df["store_id"].unique().tolist()
     store_body_file_paths = []
     for store_id in active_stores:
-        df = df[df["store_id"] == store_id].head(10)
+        df = df[df["store_id"] == store_id]
+        df["is_available"] = True
         dict_body = df.to_dict(orient="records")
         json_body = json.dumps(dict_body)
 
@@ -85,9 +86,41 @@ def _calculate_request_body(ds, ts, type):
 
     return store_body_file_paths
 
-def _stock_and_prices_full_post_request(ds):
+def _stock_and_prices_full_post_request(ti, ds):
+    import json
+    import requests
     print("FULL LOAD")
     
+    post_body_files = ti.xcom_pull(key="return_value", task_ids=["calculate_full_request_body"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    for body_file in post_body_files:
+        print("Searching file: "+body_file)
+        if not s3_hook.check_for_key(body_file, bucket_name=s3_bucket):
+            raise Exception("Key %s does not exist." % body_file)
+
+        json_body_object = s3_hook.get_key(body_file, bucket_name=s3_bucket)
+        json_body_string = json_body_object.get()["Body"].read()
+        json_body = json.loads(json_body_string)
+        payload = {
+            "records": json_body
+        }
+
+        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
+        headres = {
+            "api_key": Variable.get("RAPPI_API_KEY"),
+            "Content-Type": "application/json"
+        }
+        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        print(response.status_code)
+        try:
+            response_json = response.json()
+            print(response_json)
+        except Exception as e:
+            print(e)
+            print("Error on response.")
+
     return
 
 def _stock_and_prices_delta_post_request():
@@ -153,10 +186,15 @@ with DAG(
         }
     )
 
+    t4 = PythonOperator(
+        task_id = "stock_and_prices_full_post_request",
+        python_callable = _stock_and_prices_full_post_request,        
+    )
+
     td = DummyOperator(
         task_id = "skip_dag_run"
     )
 
     t0 >> [t1, td] 
     t1 >> [t2, t3]
-
+    t2 >> t4

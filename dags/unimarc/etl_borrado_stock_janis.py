@@ -161,15 +161,64 @@ def _save_lista8_exclusions_in_s3(ts):
 
     dir_name = f"borrado_stock/{exec_date}/"
 
-    return dir_name
+    return
+
+def _send_stock_0_to_janis(ts):
+    import requests
+    import pandas as pd
+    
+    exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
+    exec_date = exec_date.strftime("%Y/%m/%d")
+    prefix = f"borrado_stock/{exec_date}/"
+    print(prefix)
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    s3_file_list = list(filter(lambda x: (x[-3:] == 'csv'), s3_file_list))
+    print(f"Files detected: {s3_file_list}")
+
+    base_url = Variable.get("JANIS_API_URL")
+
+    url = f"{base_url}stock"
+
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
+    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
+
+    headers = {
+    "janis-api-key" : JANIS_API_KEY,
+    "janis-api-secret" : JANIS_API_SECRET,
+    "janis-client" : JANIS_CLIENT,
+    "Connection" : "keep-alive"
+    }
+
+    
+
+    for s3_file in s3_file_list:
+        if (int(s3_file[-8:-4]) > 100) or (s3_file[-13:-9] != '1971'):
+            payload=[]
+            s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
+            df = pd.read_csv(s3_object.get()["Body"], sep=",")
+            for ind in df.index:
+                material = str(df['MATERIAL'][ind]).zfill(18)
+                id_tienda = str(int(df['CENTRO_x'][ind])).zfill(4)
+                row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
+                payload.append(row)
+            payload = str(payload).replace("'", '"')
+            response = requests.request("POST", url, headers=headers, data=payload)
+            print(f"[L = {s3_file[-8:-4]} - S = {s3_file[-13:-9]}] response from file {s3_file}:")
+            print(response.text)
+
 
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 0,
+    "retries": 0
 }
+
 with DAG(
     'etl_borrado_stock_janis',
     default_args=default_args,
@@ -209,5 +258,10 @@ with DAG(
         python_callable = _save_lista8_exclusions_in_s3
     )
 
+    t3 = PythonOperator(
+        task_id = "send_stock_0_to_janis",
+        python_callable = _send_stock_0_to_janis
+    )
 
-    t0 >> t1 >> t1_y >> t2
+
+    t0 >> t1 >> t1_y >> t2 >> t3
