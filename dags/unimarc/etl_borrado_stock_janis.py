@@ -161,15 +161,61 @@ def _save_lista8_exclusions_in_s3(ts):
 
     dir_name = f"borrado_stock/{exec_date}/"
 
-    return dir_name
+    return
+
+def _send_stock_0_to_janis(ts):
+    import requests
+    import pandas as pd
+    
+    exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
+    exec_date = exec_date.strftime("%Y/%m/%d")
+    prefix = f"borrado_stock/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    s3_file_list = list(filter(lambda x: (x[-3:] == 'CSV'), s3_file_list))
+    print(f"Files detected: {s3_file_list}")
+
+    base_url = "https://janisqa.in/api/"
+
+    url = f"{base_url}stock"
+
+    JANIS_API_KEY = "aa19fa61330a18fcebe83a288ea1109e0673d1bb"
+    JANIS_API_SECRET = "c8ec5fdb8ed50dfc67115a5d8fb58105abe3b831064b3732d57f43e81e79e5e5"
+    JANIS_CLIENT = "unimarcdev"
+
+    headers = {
+    "janis-api-key" : JANIS_API_KEY,
+    "janis-api-secret" : JANIS_API_SECRET,
+    "janis-client" : JANIS_CLIENT,
+    "Connection" : "keep-alive"
+    }
+
+    
+
+    for s3_file in s3_file_list:
+        payload=[]
+        df = pd.read_csv(s3_file, sep=',')
+        for ind in df.index:
+            material = str(df['MATERIAL'][ind]).zfill(18)
+            id_tienda = str(int(df['CENTRO_x'][ind])).zfill(4)
+            row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
+            payload.append(row)
+        payload = str(payload).replace("'", '"')
+        response = requests.request("POST", url, headers=headers, data=payload)
+        print(f"response from file {s3_file}:")
+        print(response.text)
+
 
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
-    "retries": 0,
+    "retries": 0
 }
+
 with DAG(
     'etl_borrado_stock_janis',
     default_args=default_args,
@@ -209,5 +255,10 @@ with DAG(
         python_callable = _save_lista8_exclusions_in_s3
     )
 
+    t3 = PythonOperator(
+        task_id = "send_stock_0_to_janis",
+        python_callable = _send_stock_0_to_janis
+    )
 
-    t0 >> t1 >> t1_y >> t2
+
+    t0 >> t1 >> t1_y >> t2 >> t3
