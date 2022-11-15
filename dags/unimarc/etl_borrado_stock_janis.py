@@ -196,18 +196,19 @@ def _send_stock_0_to_janis(ts):
     
 
     for s3_file in s3_file_list:
-        payload=[]
-        s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
-        df = pd.read_csv(s3_object.get()["Body"], sep=",")
-        for ind in df.index:
-            material = str(df['MATERIAL'][ind]).zfill(18)
-            id_tienda = str(int(df['CENTRO_x'][ind])).zfill(4)
-            row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
-            payload.append(row)
-        payload = str(payload).replace("'", '"')
-        response = requests.request("POST", url, headers=headers, data=payload)
-        print(f"response from file {s3_file}:")
-        print(response.text)
+        if (int(s3_file[-8:-4]) > 100) or (s3_file[-13:-9] != '1971'):
+            payload=[]
+            s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
+            df = pd.read_csv(s3_object.get()["Body"], sep=",")
+            for ind in df.index:
+                material = str(df['MATERIAL'][ind]).zfill(18)
+                id_tienda = str(int(df['CENTRO_x'][ind])).zfill(4)
+                row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
+                payload.append(row)
+            payload = str(payload).replace("'", '"')
+            response = requests.request("POST", url, headers=headers, data=payload)
+            print(f"[L = {s3_file[-8:-4]} - S = {s3_file[-8:-4]}] response from file {s3_file}:")
+            print(response.text)
 
 
 default_args = {
