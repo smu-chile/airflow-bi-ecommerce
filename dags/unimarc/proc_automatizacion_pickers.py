@@ -317,7 +317,7 @@ def automa_pickers(id_drive, ds):
         "Content-Type": "application/json",
         "janis-api-key": Variable.get('JANIS_API_KEY'),
         "janis-api-secret" : Variable.get('JANIS_API_SECRET'),
-        "janis-client" : "unimarcdev"
+        "janis-client" : "unimarc"
     }
 
     myfile = open('log.txt', 'w')
@@ -394,8 +394,8 @@ def automa_pickers(id_drive, ds):
         myfile.close()
         raise Exception('Error, tipo de archivo incorrecto')
 
-    formato_RUT_get = 'https://janisqa.in/api/user?employeeId={}'
-    formato_PUT_user = 'https://janisqa.in/api/user/{}'
+    formato_RUT_get = 'https://janis.in/api/user?employeeId={}'
+    formato_PUT_user = 'https://janis.in/api/user/{}'
     #df_formato = pd.read_excel(output_file_name, index_col=False)
     df_formato['RUT'] = df_formato['RUT'].values.astype('str')
 
