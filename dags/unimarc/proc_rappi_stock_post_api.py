@@ -87,6 +87,7 @@ def _calculate_request_body(ds, ts, type):
 
 def _stock_and_prices_full_post_request(ti, ds):
     import json
+    import requests
     print("FULL LOAD")
     
     post_body_files = ti.xcom_pull(key="return_value", task_ids=["calculate_full_request_body"])[0]
@@ -103,6 +104,23 @@ def _stock_and_prices_full_post_request(ti, ds):
         print(json_body_string)
         json_body = json.loads(json_body_string)
         print(json_body)
+        payload = {
+            "records": json_body
+        }
+
+        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
+        headres = {
+            "api_key": Variable.get("RAPPI_API_KEY"),
+            "Content-Type": "application/json"
+        }
+        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        print(response.status_code)
+        try:
+            response_json = response.json()
+            print(response.json())
+        except Exception as e:
+            print(e)
+            print("Error on response.")
 
     return
 
