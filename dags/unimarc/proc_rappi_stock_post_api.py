@@ -69,7 +69,7 @@ def _calculate_request_body(ds, ts, type):
     active_stores = df["store_id"].unique().tolist()
     store_body_file_paths = []
     for store_id in active_stores:
-        df = df[df["store_id"] == store_id].head(10)
+        df = df[df["store_id"] == store_id]
         dict_body = df.to_dict(orient="records")
         json_body = json.dumps(dict_body)
 
@@ -101,9 +101,7 @@ def _stock_and_prices_full_post_request(ti, ds):
 
         json_body_object = s3_hook.get_key(body_file, bucket_name=s3_bucket)
         json_body_string = json_body_object.get()["Body"].read()
-        print(json_body_string)
         json_body = json.loads(json_body_string)
-        print(json_body)
         payload = {
             "records": json_body
         }
@@ -117,7 +115,7 @@ def _stock_and_prices_full_post_request(ti, ds):
         print(response.status_code)
         try:
             response_json = response.json()
-            print(response.json())
+            print(response_json)
         except Exception as e:
             print(e)
             print("Error on response.")
