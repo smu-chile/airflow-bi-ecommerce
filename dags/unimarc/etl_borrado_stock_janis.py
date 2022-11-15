@@ -207,7 +207,7 @@ def _send_stock_0_to_janis(ts):
                 payload.append(row)
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
-            print(f"[L = {s3_file[-8:-4]} - S = {s3_file[-8:-4]}] response from file {s3_file}:")
+            print(f"[L = {s3_file[-8:-4]} - S = {s3_file[-13:-9]}] response from file {s3_file}:")
             print(response.text)
 
 
