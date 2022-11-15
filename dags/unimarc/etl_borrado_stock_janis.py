@@ -197,7 +197,8 @@ def _send_stock_0_to_janis(ts):
 
     for s3_file in s3_file_list:
         payload=[]
-        df = pd.read_csv(s3_file, sep=',')
+        s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
+        df = pd.read_csv(s3_object.get()["Body"], sep=",")
         for ind in df.index:
             material = str(df['MATERIAL'][ind]).zfill(18)
             id_tienda = str(int(df['CENTRO_x'][ind])).zfill(4)
