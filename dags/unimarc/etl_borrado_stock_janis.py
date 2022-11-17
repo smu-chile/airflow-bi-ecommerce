@@ -196,7 +196,7 @@ def _send_stock_0_to_janis(ts):
     
 
     for s3_file in s3_file_list:
-        if (int(s3_file[-8:-4]) > 100) or (s3_file[-13:-9] != '1971'):
+        if (int(s3_file[-8:-4]) > 100) or (s3_file[-13:-9] != '1917'):
             payload=[]
             s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
             df = pd.read_csv(s3_object.get()["Body"], sep=",")
