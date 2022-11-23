@@ -84,7 +84,7 @@ def gsheets_to_sql(keys,gc,today):
     # Log prueba de conexión
     try:
         #service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-        service_account.Credentials.from_service_account_file('keys.json', scopes=SCOPES)
+        service_account.Credentials.from_service_account_file('temp_keys.json', scopes=SCOPES)
         print("conectado a Gsheet...")
     except Exception as e:
         print (str(e))
