@@ -96,8 +96,8 @@ def gsheets_to_sql(keys,gc,today):
     BOOSMAP_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_BOOSMAP') ### boosmap # GOOGLE_SHEET_KEY_DOTACION_BOOSMAP
     TIMEJOBS_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS') ### timejobs # GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS
     TOUCH_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TOUCH') ### touch # GOOGLE_SHEET_KEY_DOTACION_TOUCH
-    # service credentials
-    #service = build('sheets', 'v4', credentials=creds)
+    # TODO : Credentials check
+
     ################# Hoja Dotación #####################
     # lee excels de google sheet de dotación
     df_dotacion_gsheets_fr = pd.DataFrame()
