@@ -77,10 +77,10 @@ def gsheets_to_sql(keys,gc,today):
     #def funcion_extraccion_gsheets():
     ## conección a GSheets
     # json de llaves de acceso
-    SERVICE_ACCOUNT_FILE = keys
+    #SERVICE_ACCOUNT_FILE = keys
     # otros parámetros de conexión 
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    creds = None
+    #creds = None
     # Log prueba de conexión
     try:
         #service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -91,8 +91,7 @@ def gsheets_to_sql(keys,gc,today):
         print("no se pudo establecer conexión con Gsheets")
         raise Exception('No se puede establecer conexion con Google Sheets')
     # se conecta a Gsheet
-    creds = service_account.Credentials.from_service_account_file(
-            SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    #creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
             
     # The ID and range of a sample spreadsheet.
     BOOSMAP_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_BOOSMAP') ### boosmap # GOOGLE_SHEET_KEY_DOTACION_BOOSMAP
