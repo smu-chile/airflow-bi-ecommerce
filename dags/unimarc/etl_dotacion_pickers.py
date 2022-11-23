@@ -5,19 +5,6 @@ from datetime import datetime
 import pendulum
 
 
-def credenciales():
-    import gspread
-    import json
-
-    diccionario_keys = Variable.get('KEYS_GOOGLE_SHEET',deserialize_json=True)
-    with open('temp_keys.json', 'w', encoding='utf-8') as f:
-        json.dump(diccionario_keys, f, ensure_ascii=False)
-    
-    gc = gspread.service_account(filename='temp_keys.json')
-    #gc = gspread.service_account_from_dict(credentials)
-    keys = 'temp_keys.json'
-    return (gc, keys)
-
 def fecha_ejecucion(ts):
     from datetime import timedelta, datetime
 
@@ -63,12 +50,23 @@ def cod_tienda(tienda):
         cod = '0'*(4-len(cod.split('-')[0]))+cod
     return cod
 
-def gsheets_to_sql(keys,gc,today):
+def gsheets_to_sql(today):
     import pandas as pd 
     import sqlalchemy
     from sqlalchemy import text
     import psycopg2
     from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+    import gspread
+    import json
+
+    diccionario_keys = Variable.get('KEYS_GOOGLE_SHEET',deserialize_json=True)
+    with open('temp_keys.json', 'w', encoding='utf-8') as f:
+        json.dump(diccionario_keys, f, ensure_ascii=False)
+    
+    gc = gspread.service_account(filename='temp_keys.json')
+    #gc = gspread.service_account_from_dict(credentials)
+    #keys = 'temp_keys.json'
 
     # parámetros de palabra clave:
     keyword1 = "Dotacíon  Forecast"
@@ -77,7 +75,7 @@ def gsheets_to_sql(keys,gc,today):
     #def funcion_extraccion_gsheets():
     ## conección a GSheets
     # json de llaves de acceso
-    SERVICE_ACCOUNT_FILE = keys
+    SERVICE_ACCOUNT_FILE = 'temp_keys.json'
     # otros parámetros de conexión 
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     creds = None
@@ -98,7 +96,9 @@ def gsheets_to_sql(keys,gc,today):
     BOOSMAP_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_BOOSMAP') ### boosmap # GOOGLE_SHEET_KEY_DOTACION_BOOSMAP
     TIMEJOBS_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS') ### timejobs # GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS
     TOUCH_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TOUCH') ### touch # GOOGLE_SHEET_KEY_DOTACION_TOUCH
-    # TODO : Credentials check
+    # service credentials
+    service = build('sheets', 'v4', credentials=creds)
+    sheet = service.spreadsheets()
 
     ################# Hoja Dotación #####################
     # lee excels de google sheet de dotación
@@ -311,9 +311,8 @@ def main_execution(ts):
     from pandas.core.common import SettingWithCopyWarning
 
     warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
-    gc, keys = credenciales()
     today = fecha_ejecucion(ts)
-    gsheets_to_sql(gc,keys,today)
+    gsheets_to_sql(today)
 
     
     #gsheets_to_sql(keys)
