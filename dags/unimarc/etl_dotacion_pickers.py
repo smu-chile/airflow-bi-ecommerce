@@ -306,14 +306,14 @@ def gsheets_to_sql(keys,gc,today):
         print('Datos GoogleSheet forecast: {}'.format(df_fr.shape[0]))
     conn.close()
 
-def main_execution():
+def main_execution(ts):
     import os
     import warnings
     from pandas.core.common import SettingWithCopyWarning
 
     warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
     gc, keys = credenciales()
-    today = fecha_ejecucion()
+    today = fecha_ejecucion(ts)
     gsheets_to_sql(gc,keys,today)
 
     os.remove('temp_keys.json')
