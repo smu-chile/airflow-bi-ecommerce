@@ -328,11 +328,11 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'dot_pickers_a_bdd',
+    'etl_dot_pickers_a_bdd',
     default_args=default_args,
     description="Automatización de dotación de pickers a Base de datos",
     schedule_interval="0 * * * *",
-    start_date=pendulum.datetime(2022, 11, 3, tz="America/Santiago"),
+    start_date=pendulum.datetime(2022, 11, 22, tz="America/Santiago"),
     catchup=False,
     tags=["OPS","GOOGLE","GOOGLE_SHEET"],
 ) as dag:
@@ -343,7 +343,7 @@ with DAG(
     """ 
 
     t0 = PythonOperator(
-        task_id = "ejecución_principal",
+        task_id = "ejecucion_principal",
         python_callable = main_execution,
     )
 
