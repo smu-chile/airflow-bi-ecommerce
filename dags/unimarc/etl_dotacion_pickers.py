@@ -13,10 +13,9 @@ def credenciales():
     with open('temp_keys.json', 'w', encoding='utf-8') as f:
         json.dump(diccionario_keys, f, ensure_ascii=False)
     
-    gc = gspread.service_account(filename='temp_keys.json')
     #gc = gspread.service_account_from_dict(credentials)
     keys = 'temp_keys.json'
-    return (gc, keys)
+    return (keys)
 
 def fecha_ejecucion(ts):
     from datetime import timedelta, datetime
@@ -63,13 +62,15 @@ def cod_tienda(tienda):
         cod = '0'*(4-len(cod.split('-')[0]))+cod
     return cod
 
-def gsheets_to_sql(keys,gc,today):
+def gsheets_to_sql(keys,today):
+    import gspread
     import pandas as pd 
     import sqlalchemy
     from sqlalchemy import text
     import psycopg2
     from google.oauth2 import service_account
 
+    gc = gspread.service_account(filename='temp_keys.json')
     # parámetros de palabra clave:
     keyword1 = "Dotacíon  Forecast"
     keyword2 = "Dotacíon Diaria Operador"
@@ -310,9 +311,9 @@ def main_execution(ts):
     from pandas.core.common import SettingWithCopyWarning
 
     warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
-    gc, keys = credenciales()
+    keys = credenciales()
     today = fecha_ejecucion(ts)
-    gsheets_to_sql(gc,keys,today)
+    gsheets_to_sql(keys,today)
 
     
     #gsheets_to_sql(keys)
