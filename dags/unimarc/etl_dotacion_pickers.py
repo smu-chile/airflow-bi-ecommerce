@@ -20,14 +20,16 @@ def credenciales():
 
 def fecha_ejecucion(ts):
     from datetime import timedelta, datetime
-    today = (datetime.strptime(ts, '%d/%m/%Y %H:%M:%S')) + timedelta(days=1)
+
+    #ts = ts.replace("T", " ")
+    today = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
 
     #today = datetime.now()
     #today = today.strftime("%d/%m/%Y %H:%M:%S")
+    today = today.strftime('%Y-%m-%dT%H:%M:%S')
     return (today)
 
 
-#os.chdir(r'C:\Users\rmatos\OneDrive - SMU S.A\Forecast & Quality\Forecast\Lectura tabla excel\Amazon\keys.json')
 
 #################### INGESTA GSHEETS ######################
 # FUNCIONES
@@ -211,8 +213,6 @@ def gsheets_to_sql(keys,gc,today):
     print(df_fr.columns)
     print(df_fr.dtypes)
 
-
-    df_fr
     
     ############## CARGA DE DATOS #######################
     host = "bi-ecommerce-postgres-prod-master.cuuchupawrpt.us-east-1.rds.amazonaws.com"
@@ -307,7 +307,6 @@ def gsheets_to_sql(keys,gc,today):
     conn.close()
 
 def main_execution(ts):
-    import os
     import warnings
     from pandas.core.common import SettingWithCopyWarning
 
@@ -316,8 +315,15 @@ def main_execution(ts):
     today = fecha_ejecucion(ts)
     gsheets_to_sql(gc,keys,today)
 
-    os.remove('temp_keys.json')
+    
     #gsheets_to_sql(keys)
+
+def borrar_archivos():
+    import os
+
+    os.remove('temp_keys.json')
+    os.remove('FORECASRT.csv')
+    os.remove('DOTACION.csv')
 
 default_args = {
     "owner": "capacity_and_planning",
@@ -346,3 +352,9 @@ with DAG(
         python_callable = main_execution,
     )
 
+    t1 = PythonOperator(
+        task_id = "borrar_archivos",
+        python_callable = borrar_archivos,
+    )
+
+t0>>t1
