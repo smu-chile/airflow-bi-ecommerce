@@ -1,7 +1,6 @@
 apache-airflow-providers-mongo==2.2.0
 boto3==1.20.15
 google-api-python-client
-google-auth
 gspread
 jaydebeapi
 oauth2client
