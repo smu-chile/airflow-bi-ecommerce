@@ -66,7 +66,6 @@ def gsheets_to_sql(keys,gc,today):
     import sqlalchemy
     from sqlalchemy import text
     import psycopg2
-    from googleapiclient.discovery import build
     from google.oauth2 import service_account
 
     # parámetros de palabra clave:
@@ -98,7 +97,7 @@ def gsheets_to_sql(keys,gc,today):
     TIMEJOBS_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS') ### timejobs # GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS
     TOUCH_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TOUCH') ### touch # GOOGLE_SHEET_KEY_DOTACION_TOUCH
     # service credentials
-    service = build('sheets', 'v4', credentials=creds)
+    #service = build('sheets', 'v4', credentials=creds)
     ################# Hoja Dotación #####################
     # lee excels de google sheet de dotación
     df_dotacion_gsheets_fr = pd.DataFrame()
