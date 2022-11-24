@@ -215,10 +215,11 @@ def gsheets_to_sql(keys,today):
 
     
     ############## CARGA DE DATOS #######################
-    host = "bi-ecommerce-postgres-prod-master.cuuchupawrpt.us-east-1.rds.amazonaws.com"
-    database = "postgres"
-    username = "fmacaya"
-    password = "PJfW#36DUPX"
+
+    host = Variable.get('POSTGRESQL_HOST')
+    database = Variable.get('POSTGRESQL_DB')
+    username = Variable.get('POSTGRESQL_USER')
+    password = Variable.get('POSTGRESQL_PASSWORD')
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
