@@ -27,7 +27,7 @@ def fecha_ejecucion(ts):
     #today = datetime.now()
     #today = today.strftime("%d/%m/%Y %H:%M:%S")
     localtimezone = pytz.timezone("America/Santiago")
-    today = localtimezone.localize(today).astimezone(pytz.utc)
+    today = today.replace(tzinfo = pytz.utc).astimezone(localtimezone)
     today = today.strftime('%Y-%m-%dT%H:%M:%S')
     print (today)
     return (today)
