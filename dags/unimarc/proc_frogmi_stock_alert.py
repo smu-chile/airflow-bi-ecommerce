@@ -53,7 +53,7 @@ def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
                 "attributes": {
                     "name": f"FR-Ecomm {task_start_date_str[:-5]}",
                     "template_id": "a6dbc4bd-64e6-4628-bb6b-66902cba3a7e",
-                    "accountable_area_code": "ADMIN_LOCAL",
+                    "accountable_area_code": "ADMIN_LOCAL_PILOTO",
                     "stores": [
                         id_tienda
                     ],
