@@ -97,7 +97,7 @@ left join ecommdata.ff_perfiles fp ON admins.perfil = fp.id
 left join ecommdata.categorias c on a.id_categoria = c.id
 left join ecommdata.tiendas t on a.id_tienda = t.id_janis
 left join ecommdata.lista_infaltables li on SUBSTRING(a.ref_id, 1, 18) = li.material
-left join mfc_unimarc.sector_picking sp on substring(s.ref_id, 1, 18) = sp.material and s.id_tienda = sp.id_tienda
+left join mfc_unimarc.sector_picking sp on substring(s.ref_id, 1, 18) = sp.material and t.id = sp.id_tienda
 on conflict on constraint found_rate_pk
 do
 update set orden = excluded.orden
