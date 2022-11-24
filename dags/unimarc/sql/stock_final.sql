@@ -26,6 +26,10 @@ select
 , su.date_modified as fecha_modificacion_janis
 , '{{ts}}'::timestamp + interval '1 hour' as ultima_actualizacion
 , l.material is not null and l.excluido is false as surtido_ecommerce
+, case
+	when li.material is null then false
+	else true
+end as infaltable
 from staging.stock_vtex_unimarc svu
 left join ecommdata.bodegas b on svu.id_warehouse = b.id 
 left join ecommdata.tiendas t on b.id_tienda = t.id 
@@ -34,6 +38,7 @@ left join staging.stock_unimarc su on s.id = su.item_id and t.id_janis = su.stor
 left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
 left join ecommdata.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
+left join ecommdata.lista_infaltables li on p.material = li.material
 where t.status = 1;
 DELETE from ecommdata.stock
 WHERE ultima_actualizacion < '{{ts}}'::timestamp AND fecha = '{{ds}}'::date;

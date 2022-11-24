@@ -36,6 +36,10 @@ orden
 , fecha_picking
 , concat(admins.nombre ,' ',admins.apellido) AS pickeador
 , fp.nombre as perfil_picker
+, case
+	when li.material is null then false
+	else true
+end as infaltable
 from (
 select 	distinct oj.id			as orden
 	    , op.id					as id_producto_orden
@@ -91,6 +95,7 @@ left join ecommdata.administradores admins on a.id_picker = admins.id
 left join ecommdata.ff_perfiles fp ON admins.perfil = fp.id
 left join ecommdata.categorias c on a.id_categoria = c.id
 left join ecommdata.tiendas t on a.id_tienda = t.id_janis
+left join ecommdata.lista_infaltables li on SUBSTRING(a.ref_id, 1, 18) = li.material;
 on conflict on constraint found_rate_pk
 do
 update set orden = excluded.orden
@@ -113,3 +118,4 @@ update set orden = excluded.orden
 , fecha_picking = excluded.fecha_picking
 , pickeador = excluded.pickeador
 , perfil_picker = excluded.perfil_picker
+, infaltable = excluded.infaltable
