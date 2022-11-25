@@ -90,31 +90,43 @@ def _send_report_to_sftp():
     for tiendapeya in dic_tiendas.keys():
         sql_str = f"""
                         SELECT P.EAN AS SKU
-                                , precio.PRECIO_MODAL AS Precio
+                                , CASE WHEN WF.PRECIO IS NULL THEN precio.PRECIO_MODAL
+                                        ELSE WF.PRECIO END AS Precio
                                 , CASE WHEN FLOOR(NBR_ITM / P.CONT_CONV_UMB) >= 15 THEN 1
                                         WHEN FLOOR(NBR_ITM / P.CONT_CONV_UMB) < 15 THEN 0
                                         ELSE 0 END AS Stock
                         FROM DWC_SMU.SMU.VW_FACT_STOCK S
                         LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA ON SA.SKU_KEY  = S.SKU_KEY
-                        LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON P.SKU_KEY = SA.SKU_KEY 
+                        LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON P.SKU_KEY = SA.SKU_KEY
                         LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU ON OU.OU_KEY = S.OU_KEY
                         LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A ON A.ALMACEN_KEY =S.ALMACEN_KEY
                         LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
                         INNER JOIN (SELECT _t.FECHA_CARGA
                                             , LPAD(_t.CODIGO_MATERIAL , 18, 0) AS material
-                                            , CASE WHEN _t.UMV = 'UN' THEN 'ST' ELSE _t.UMV END AS UMV 
+                                            , CASE WHEN _t.UMV = 'UN' THEN 'ST' ELSE _t.UMV END AS UMV
                                             , _t1.PRECIO_MODAL
                                     FROM (SELECT MAX(FECHA_CARGA) AS FECHA_CARGA
-                                            , CODIGO_MATERIAL
-                                            , UMV 
+                                                    , CODIGO_MATERIAL
+                                                    , UMV
                                             FROM NZ_BU.ECOMERCE.VW_POSC_ACT_H_PRECIO_MODAL_UNI
                                             GROUP BY CODIGO_MATERIAL, UMV) _t
                                     INNER JOIN NZ_BU.ECOMERCE.VW_POSC_ACT_H_PRECIO_MODAL_UNI _t1
                                             ON _t.FECHA_CARGA=_t1.FECHA_CARGA
-                                            AND _t.CODIGO_MATERIAL=_t1.CODIGO_MATERIAL
-                                            AND _t.UMV=_t1.UMV) precio
-                                ON precio.MATERIAL = SA.SKU_PRODUCT
-                                AND precio.umv = p.UNIDAD_DE_MEDIDA
+                                                AND _t.CODIGO_MATERIAL=_t1.CODIGO_MATERIAL
+                                                AND _t.UMV=_t1.UMV) precio
+                                        ON precio.MATERIAL = SA.SKU_PRODUCT
+                                        AND precio.umv = p.UNIDAD_DE_MEDIDA
+                        LEFT JOIN (SELECT EAN
+                                            , min(PRECIO_PROMOCIONAL) AS PRECIO
+                                    FROM NZ_BU.ECOMERCE.VW_WORKFLOW
+                                    WHERE FECHA_INICIO_DE_PROMOCION <= TO_CHAR(NOW(),'YYYY-MM-DD')
+                                    AND FECHA_FIN_DE_PROMOCION >= TO_CHAR(NOW(),'YYYY-MM-DD')
+                                    AND TIPO_PROMOCION IN (1,4)
+                                    AND REGISTRO_VALIDO = 'X'
+                                    AND ORGANIZACION_VENTAS = '1000'
+                                    AND CANAL_DISTRIBUCION = '10'
+                                    AND ID_EVENTO NOT IN (105, 555)
+                                    GROUP BY EAN ) WF ON WF.EAN = P.EAN
                         WHERE A.ALMACEN_COD = '0001'
                         AND S.APLICA_STOCK = 'S'
                         AND DATE_VALUE = TO_CHAR(NOW() - INTERVAL '1 days','YYYY-MM-DD')
@@ -122,7 +134,7 @@ def _send_report_to_sftp():
                         AND P.NLS_PD_DSC IS NOT NULL
                         AND P.UNIDAD_DE_MEDIDA  IS NOT NULL
                         AND PART.PARTICULARIDAD_COD = 'A'
-                        AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683);
+                        AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)                        
                     """
         print("Ejecutando tienda:" + dic_tiendas[tiendapeya])
         cur.execute(sql_str)
