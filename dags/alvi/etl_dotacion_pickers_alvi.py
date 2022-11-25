@@ -213,7 +213,7 @@ def gsheets_to_sql(keys,today):
 
     #print(df_forecast)
 
-    df_forecast.to_csv('PruebaRRR.csv',sep =';')
+    #df_forecast.to_csv('PruebaRRR.csv',sep =';')
     #print(df_dotacion_gsheets_oper)
     # dataframe de dotación
     df_dotacion = df_dotacion_gsheets_oper[['Tienda', 'fecha', 'dotacion_operador', 'cod_tienda','operador']]
