@@ -118,31 +118,49 @@ def gsheets_to_sql(keys,today):
         operador = str(gsheet_dotacion.title).split(' ')[-1]
         # dataframe de dotacion diaria operador
         a1 = a.reset_index().loc[desde[0]:hasta[0]-1]
-
+        print('============================================================================================')
+        print(a1)
         a1.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]+1][3:])
+        print('===========================================================================================')
+        print(a1.columns)
+        #a_prueba = a.filter(items = [8], axis=0)
+        #a1.columns = ["","0","Tienda"]+list(a_prueba.iloc[:,2:].values[0])
+        print('============================================================================================')
         a1 = a1[~a1['Tienda'].isin(["",keyword1])]
-        print(a1.head())
+        print(a1)
+        print('=============================================================================================')
         a1_melt = a1.melt(id_vars=["","0","Tienda"],var_name='fecha',value_name='dotacion_fr')
+        print(a1_melt)
+        print('=============================================================================================')
         a1_melt['fecha'] = a1_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a1_melt['cod_tienda'] = a1_melt['Tienda'].apply(lambda x: cod_tienda(x))
-        a1_melt = a1_melt[a1_melt['Tienda'].apply(lambda x: 1 if 'unimarc' in str(x).lower() else 0)==1]
+        a1_melt = a1_melt[a1_melt['Tienda'].apply(lambda x: 1 if 'alvi' in str(x).lower() else 0)==1]
         #a1_melt = a1_melt[a1_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a1_melt['operador'] = operador
         df_dotacion_gsheets_fr = df_dotacion_gsheets_fr.append(a1_melt)
-        #print(a1_melt)
+        print(a1_melt)
+        print(df_dotacion_gsheets_fr)
         # dataframe de dotacion diaria operador
         a2 = a.reset_index().loc[hasta[0]+1:]
+        print('==============================================================================================')
+        print(a2.columns)
         a2.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]+1][3:])
+        #a2.columns = ["index","0","Tienda"]+list(a_prueba.iloc[:,2:].values[0])
         a2 = a2[~a2['Tienda'].isin(["",keyword2])]
+        print('==============================================================================================')
+        print(a2)
+        print('==============================================================================================')
         a2_melt = a2.melt(id_vars=["","0","Tienda"],var_name='fecha',value_name='dotacion_operador')
         a2_melt = a2_melt[a2_melt['dotacion_operador']!='']
         a2_melt['fecha'] = a2_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a2_melt['cod_tienda'] = a2_melt['Tienda'].apply(lambda x: cod_tienda(x))
-        a2_melt = a2_melt[a2_melt['Tienda'].apply(lambda x: 1 if 'unimarc' in str(x).lower() else 0)==1]
+        a2_melt = a2_melt[a2_melt['Tienda'].apply(lambda x: 1 if 'alvi' in str(x).lower() else 0)==1]
         #a2_melt = a2_melt[a2_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a2_melt['operador'] = operador
-        #print(a2_melt)
         df_dotacion_gsheets_oper = df_dotacion_gsheets_oper.append(a2_melt)
+        print(a2_melt)
+        print(df_dotacion_gsheets_oper)
+  
 
     ################# Hoja Forecast #####################
     # ingesta de datos
@@ -155,24 +173,35 @@ def gsheets_to_sql(keys,today):
         hasta = busca_valor(a,keyword3)
         operador = str(gsheet_dotacion.title).split(' ')[-1]
         # dataframe de forecast ordenes
+        print('===========================================================================================')
         a3 = a.reset_index().loc[hasta[0]:]
-        a3.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]][3:])
+        print(a3)
+        #print(a_prueba.iloc[:,2:].values)
+        print('===========================================================================================')
+        a3.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]+1][3:])
         a3 = a3[~a3['Tienda'].isin(["",keyword3])]
-        a3_melt = a3.melt(id_vars=["","0","Tienda"],var_name='fecha',value_name='ordenes_forecast')
+        print(a3)
+        print(a3.columns)
+        print('===========================================================================================')
+        #a3_melt = a3.melt(id_vars=["index","0","Tienda"],var_name='fecha',value_name='ordenes_forecast')
+        a3_melt = a3.melt(id_vars=["","0","Tienda"],var_name='fecha',value_name='ordenes_forecast')         
         a3_melt = a3_melt[a3_melt['ordenes_forecast']!='']
         a3_melt['fecha'] = a3_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a3_melt['cod_tienda'] = a3_melt['Tienda'].apply(lambda x: cod_tienda(x))
-        a3_melt = a3_melt[a3_melt['Tienda'].apply(lambda x: 1 if 'unimarc' in str(x).lower() else 0)==1]
+        a3_melt = a3_melt[a3_melt['Tienda'].apply(lambda x: 1 if 'alvi' in str(x).lower() else 0)==1]
         #a3_melt = a3_melt[a3_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a3_melt['operador'] = operador
         df_forecast_gsheets_ordenes = df_forecast_gsheets_ordenes.append(a3_melt)
+        print(a3_melt)
+        print(df_forecast_gsheets_ordenes)
 
     # dataframe de forecast
+    
     df_forecast = df_dotacion_gsheets_fr[['cod_tienda','Tienda', 'fecha', 'dotacion_fr','operador']].merge(df_forecast_gsheets_ordenes[['cod_tienda','Tienda', 'fecha', 'ordenes_forecast','operador']],
                                                                                                             on=['cod_tienda','Tienda', 'fecha','operador'],
                                                                                                             how='outer')
     
-    
+    print(df_dotacion_gsheets_fr)
     # agrupa df_forecast en las tiendas con apertura camión excepto mirador
     df_forecast['modelo'] = df_forecast['cod_tienda'].apply(lambda x: 'Picker' if '-' in x else 'Shopper')
     df_forecast['cod_tienda'] = df_forecast['cod_tienda'].apply(lambda x: str(x).split('-')[0] if '-' in x else x)
@@ -182,10 +211,10 @@ def gsheets_to_sql(keys,today):
     
     df_forecast['fecha_carga'] = today
 
-    print(df_forecast)
+    #print(df_forecast)
 
-    #df_forecast.to_csv('PruebaRRR.csv',sep =';')
-    print(df_dotacion_gsheets_oper)
+    df_forecast.to_csv('PruebaRRR.csv',sep =';')
+    #print(df_dotacion_gsheets_oper)
     # dataframe de dotación
     df_dotacion = df_dotacion_gsheets_oper[['Tienda', 'fecha', 'dotacion_operador', 'cod_tienda','operador']]
     # agrupa df_dotacion en las tiendas con apertura camión excepto mirador
@@ -194,9 +223,13 @@ def gsheets_to_sql(keys,today):
     
     df_dotacion = df_dotacion[['Tienda', 'fecha', 'dotacion_operador', 'cod_tienda','operador','modelo']]
     df_dotacion.columns = ['Tienda', 'fecha', 'dotacion', 'id_tienda', 'operador','modelo']
-    print(df_dotacion)
+    #print(df_dotacion)
     df_dotacion = df_dotacion[['fecha', 'id_tienda', 'modelo', 'dotacion','operador']]
     df_dotacion['fecha_carga'] = today
+
+    print('################################################################################################')
+    print(df_dotacion)
+    print('################################################################################################')
     
     #################### AMAZON ###############################
 
@@ -208,14 +241,15 @@ def gsheets_to_sql(keys,today):
     df_fr['dotacion'] = df_fr['dotacion'].astype(int)
     df_fr['ordenes'] = df_fr['ordenes'].astype(int)
     df_real = df_real.fillna(0).replace('',0)
-    print(df_real.loc[df_real['dotacion'] == 'Cambio'])
+    #print(df_real.loc[df_real['dotacion'] == 'Cambio'])
     df_real['dotacion'] = df_real['dotacion'].astype(int)
-    print(df_real)
-    print(df_real.columns)
-    print(df_real.dtypes)
-    print(df_fr)
-    print(df_fr.columns)
-    print(df_fr.dtypes)
+    #print(df_real)
+    #print(df_real.columns)
+    #print(df_real.dtypes)
+    #print(df_fr)
+    #print(df_fr.columns)
+    #print(df_fr.dtypes)
+
 
     
     ############## CARGA DE DATOS #######################
