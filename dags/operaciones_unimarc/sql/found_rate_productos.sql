@@ -4,7 +4,7 @@ orden
 , fecha_facturacion 
 , id_producto_orden
 , a.ref_id
-, descripcion
+, a.descripcion
 , c.n1 as categoria_n1
 , c.n2 as categoria_n2
 , c.n3 as categoria_n3
