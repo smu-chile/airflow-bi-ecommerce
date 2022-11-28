@@ -474,7 +474,6 @@ def costos_to_sql(costos_df):
 def subir_a_bdd():
     import pandas as pd 
     from sqlalchemy import text
-    import pandas as pd
 
     #### IMPORTA CSV
     df_costos_estimado = pd.read_csv("costos_logisticos_diarios_estimacion.csv", decimal=',', sep=';')
@@ -511,6 +510,7 @@ default_args = {
     "email_on_retry": False,
     "retries": 0,
 }
+
 with DAG(
     'etl_costo_logistico_diario',
     default_args=default_args,
