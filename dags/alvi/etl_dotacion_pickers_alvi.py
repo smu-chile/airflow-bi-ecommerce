@@ -67,7 +67,6 @@ def gsheets_to_sql(keys,today):
     import pandas as pd 
     import sqlalchemy
     from sqlalchemy import text
-    import psycopg2
     from google.oauth2 import service_account
 
     gc = gspread.service_account(filename='temp_keys.json')
@@ -275,19 +274,13 @@ def gsheets_to_sql(keys,today):
 
     #### VALIDACION DE LA CARGA DE DATOS
 
-    conn = psycopg2.connect(database=database,
-                            host=host,
-                            user=username,
-                            password=password,
-                            port=5432)
+    connection = engine.connect()
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM forecast_and_planning.dotacion_real_alvi")
-    df_real_base = pd.DataFrame(cursor.fetchall())
+    engine = sqlalchemy.create_engine(conn_url)
+    df_real_base = pd.read_sql("SELECT * FROM forecast_and_planning.dotacion_real_alvi", con=engine)
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM forecast_and_planning.forecast_alvi")
-    df_fr_base = pd.DataFrame(cursor.fetchall())
+    engine = sqlalchemy.create_engine(conn_url)
+    df_fr_base = pd.read_sql("SELECT * FROM forecast_and_planning.forecast_alvi", con=engine)
 
     ################ LOGS ###########################
     if df_real_base.shape[0] == df_real.shape[0]:
@@ -310,13 +303,9 @@ def gsheets_to_sql(keys,today):
         print('ERROR: No se ha cargado exitosamente la base forecast')
         print('Datos SQL forecast: {}'.format(df_fr_base.shape[0]))
         print('Datos GoogleSheet forecast: {}'.format(df_fr.shape[0]))
-    conn.close()
+    connection.close()
 
 def main_execution(ts):
-    import warnings
-    from pandas.core.common import SettingWithCopyWarning
-
-    warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
     keys = credenciales()
     today = fecha_ejecucion(ts)
     gsheets_to_sql(keys,today)
