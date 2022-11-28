@@ -261,10 +261,7 @@ def gsheets_to_sql(keys,today):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    #df_real = df_real.drop_duplicates()
-    #df_fr = df_fr.drop_duplicates()
-    df_fr.to_csv('FORECASRT.csv',sep =';')
-    df_real.to_csv('DOTACION.csv',sep =';')
+    #TODO: csv to local removed
     ##### FORECAST
     
 
@@ -363,8 +360,6 @@ def borrar_archivos():
     import os
 
     os.remove('temp_keys.json')
-    os.remove('FORECASRT.csv')
-    os.remove('DOTACION.csv')
 
 default_args = {
     "owner": "capacity_and_planning",
