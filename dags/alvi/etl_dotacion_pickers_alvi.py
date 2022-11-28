@@ -1,5 +1,5 @@
-from airflow.models import Variable
 from airflow import DAG
+from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from datetime import datetime
 import pendulum
