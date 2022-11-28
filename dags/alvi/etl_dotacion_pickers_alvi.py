@@ -13,7 +13,6 @@ def credenciales():
     with open('temp_keys.json', 'w', encoding='utf-8') as f:
         json.dump(diccionario_keys, f, ensure_ascii=False)
     
-    #gc = gspread.service_account_from_dict(credentials)
     keys = 'temp_keys.json'
     return (keys)
 
@@ -23,9 +22,6 @@ def fecha_ejecucion(ts):
 
     #ts = ts.replace("T", " ")
     today = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
-
-    #today = datetime.now()
-    #today = today.strftime("%d/%m/%Y %H:%M:%S")
     localtimezone = pytz.timezone("America/Santiago")
     today = today.replace(tzinfo = pytz.utc).astimezone(localtimezone)
     today = today.strftime('%Y-%m-%dT%H:%M:%S')
@@ -44,7 +40,7 @@ def busca_valor(a,valor):
             if a.iloc[row][col] == valor:
                 cell = [row,col]
     return cell
-# funcion fecha
+
 def fecha_y_m_d(x):
     from datetime import timedelta, datetime
     import pandas as pd 
@@ -59,7 +55,7 @@ def fecha_y_m_d(x):
     except:
         fecha = ""
     return fecha
-# funcion cod_tienda
+
 def cod_tienda(tienda):
     cod = tienda.split(' ')[0].lstrip('0')
     if len(cod.split('-')[0])<4:
@@ -79,29 +75,22 @@ def gsheets_to_sql(keys,today):
     keyword1 = "Dotacíon  Forecast"
     keyword2 = "Dotacíon Diaria Operador"
     keyword3 = "Ordenes  Forecast"
-    #def funcion_extraccion_gsheets():
-    ## conección a GSheets
+    # conexión a GSheets
     # json de llaves de acceso
-    #SERVICE_ACCOUNT_FILE = keys
-    # otros parámetros de conexión 
+    # parámetros de conexión 
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    #creds = None
-    # Log prueba de conexión
+    # prueba de conexión
     try:
-        #service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
         service_account.Credentials.from_service_account_file('temp_keys.json', scopes=SCOPES)
         print("conectado a Gsheet...")
     except Exception as e:
         print (str(e))
         print("no se pudo establecer conexión con Gsheets")
         raise Exception('No se puede establecer conexion con Google Sheets')
-    # se conecta a Gsheet
-    #creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
             
     # The ID and range of a sample spreadsheet.
-    BOOSMAP_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_BOOSMAP_ALVI') ### boosmap # GOOGLE_SHEET_KEY_DOTACION_BOOSMAP
-    TIMEJOBS_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS_ALVI') ### timejobs # GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS
-    #TOUCH_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TOUCH') ### touch # GOOGLE_SHEET_KEY_DOTACION_TOUCH
+    BOOSMAP_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_BOOSMAP_ALVI') ### boosmap # 
+    TIMEJOBS_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_TIMEJOBS_ALVI') ### timejobs 
     # TODO : Credentials check
 
     ################# Hoja Dotación #####################
@@ -123,8 +112,6 @@ def gsheets_to_sql(keys,today):
         a1.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]+1][3:])
         print('===========================================================================================')
         print(a1.columns)
-        #a_prueba = a.filter(items = [8], axis=0)
-        #a1.columns = ["","0","Tienda"]+list(a_prueba.iloc[:,2:].values[0])
         print('============================================================================================')
         a1 = a1[~a1['Tienda'].isin(["",keyword1])]
         print(a1)
@@ -135,7 +122,6 @@ def gsheets_to_sql(keys,today):
         a1_melt['fecha'] = a1_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a1_melt['cod_tienda'] = a1_melt['Tienda'].apply(lambda x: cod_tienda(x))
         a1_melt = a1_melt[a1_melt['Tienda'].apply(lambda x: 1 if 'alvi' in str(x).lower() else 0)==1]
-        #a1_melt = a1_melt[a1_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a1_melt['operador'] = operador
         df_dotacion_gsheets_fr = df_dotacion_gsheets_fr.append(a1_melt)
         print(a1_melt)
@@ -145,7 +131,6 @@ def gsheets_to_sql(keys,today):
         print('==============================================================================================')
         print(a2.columns)
         a2.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]+1][3:])
-        #a2.columns = ["index","0","Tienda"]+list(a_prueba.iloc[:,2:].values[0])
         a2 = a2[~a2['Tienda'].isin(["",keyword2])]
         print('==============================================================================================')
         print(a2)
@@ -155,7 +140,6 @@ def gsheets_to_sql(keys,today):
         a2_melt['fecha'] = a2_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a2_melt['cod_tienda'] = a2_melt['Tienda'].apply(lambda x: cod_tienda(x))
         a2_melt = a2_melt[a2_melt['Tienda'].apply(lambda x: 1 if 'alvi' in str(x).lower() else 0)==1]
-        #a2_melt = a2_melt[a2_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a2_melt['operador'] = operador
         df_dotacion_gsheets_oper = df_dotacion_gsheets_oper.append(a2_melt)
         print(a2_melt)
@@ -176,20 +160,17 @@ def gsheets_to_sql(keys,today):
         print('===========================================================================================')
         a3 = a.reset_index().loc[hasta[0]:]
         print(a3)
-        #print(a_prueba.iloc[:,2:].values)
         print('===========================================================================================')
         a3.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]+1][3:])
         a3 = a3[~a3['Tienda'].isin(["",keyword3])]
         print(a3)
         print(a3.columns)
         print('===========================================================================================')
-        #a3_melt = a3.melt(id_vars=["index","0","Tienda"],var_name='fecha',value_name='ordenes_forecast')
         a3_melt = a3.melt(id_vars=["","0","Tienda"],var_name='fecha',value_name='ordenes_forecast')         
         a3_melt = a3_melt[a3_melt['ordenes_forecast']!='']
         a3_melt['fecha'] = a3_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a3_melt['cod_tienda'] = a3_melt['Tienda'].apply(lambda x: cod_tienda(x))
         a3_melt = a3_melt[a3_melt['Tienda'].apply(lambda x: 1 if 'alvi' in str(x).lower() else 0)==1]
-        #a3_melt = a3_melt[a3_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a3_melt['operador'] = operador
         df_forecast_gsheets_ordenes = df_forecast_gsheets_ordenes.append(a3_melt)
         print(a3_melt)
@@ -211,10 +192,6 @@ def gsheets_to_sql(keys,today):
     
     df_forecast['fecha_carga'] = today
 
-    #print(df_forecast)
-
-    #df_forecast.to_csv('PruebaRRR.csv',sep =';')
-    #print(df_dotacion_gsheets_oper)
     # dataframe de dotación
     df_dotacion = df_dotacion_gsheets_oper[['Tienda', 'fecha', 'dotacion_operador', 'cod_tienda','operador']]
     # agrupa df_dotacion en las tiendas con apertura camión excepto mirador
@@ -223,7 +200,6 @@ def gsheets_to_sql(keys,today):
     
     df_dotacion = df_dotacion[['Tienda', 'fecha', 'dotacion_operador', 'cod_tienda','operador','modelo']]
     df_dotacion.columns = ['Tienda', 'fecha', 'dotacion', 'id_tienda', 'operador','modelo']
-    #print(df_dotacion)
     df_dotacion = df_dotacion[['fecha', 'id_tienda', 'modelo', 'dotacion','operador']]
     df_dotacion['fecha_carga'] = today
 
@@ -241,14 +217,8 @@ def gsheets_to_sql(keys,today):
     df_fr['dotacion'] = df_fr['dotacion'].astype(int)
     df_fr['ordenes'] = df_fr['ordenes'].astype(int)
     df_real = df_real.fillna(0).replace('',0)
-    #print(df_real.loc[df_real['dotacion'] == 'Cambio'])
     df_real['dotacion'] = df_real['dotacion'].astype(int)
-    #print(df_real)
-    #print(df_real.columns)
-    #print(df_real.dtypes)
-    #print(df_fr)
-    #print(df_fr.columns)
-    #print(df_fr.dtypes)
+
 
 
     
@@ -271,11 +241,9 @@ def gsheets_to_sql(keys,today):
     df_real['fecha_carga'] = df_real['fecha_carga'].apply(lambda x : pd.to_datetime(x))
     df_real['fecha'] = df_real['fecha'].apply(lambda x : pd.to_datetime(x))
     
-    #print(df_fr.info())
-    #print(df_real.info())
     #DELETE
     connection = engine.connect()
-    delete_query = "DELETE FROM forecast_and_planning.forecast_alvi"
+    delete_query = "TRUNCATE TABLE forecast_and_planning.forecast_alvi"
     connection.execute(text(delete_query))
     connection.close()
 
@@ -292,7 +260,7 @@ def gsheets_to_sql(keys,today):
 
     # DELETE
     connection = engine.connect()
-    delete_query = "DELETE FROM forecast_and_planning.dotacion_real_alvi"
+    delete_query = "TRUNCATE TABLE forecast_and_planning.dotacion_real_alvi"
     connection.execute(text(delete_query))
     connection.close()
 
@@ -352,9 +320,6 @@ def main_execution(ts):
     keys = credenciales()
     today = fecha_ejecucion(ts)
     gsheets_to_sql(keys,today)
-
-    
-    #gsheets_to_sql(keys)
 
 def borrar_archivos():
     import os
