@@ -510,7 +510,7 @@ default_args = {
 }
 
 with DAG(
-    'etl_costos_logistico_diario',
+    'etl_costos_logisticos_diarios',
     default_args=default_args,
     description="Automatización de calculo de costos logisticos diarios",
     schedule_interval="0 7 * * *",
