@@ -174,8 +174,6 @@ def funcion_tarifas():
     df_tarifa = pd.DataFrame(result)
     return df_tarifa
 
-
-globals().clear()
 #from locale import THOUSEP
 
 def ejecucion_principal(ds):
@@ -512,7 +510,7 @@ default_args = {
 }
 
 with DAG(
-    'etl_costo_logistico_diario',
+    'etl_costos_logisticos_diarios',
     default_args=default_args,
     description="Automatización de calculo de costos logisticos diarios",
     schedule_interval="0 7 * * *",
