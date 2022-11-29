@@ -438,7 +438,8 @@ def costos_to_sql(costos_df):
     #connection.close()
 
     # INSERT
-    df_costos.to_sql(name="costos_logisticos_diarios",
+    #df_costos.to_sql(name="costos_logisticos_diarios",
+    df_costos.to_sql(name="costos_logisticos_diarios_soloestim",
     con=engine,
     schema="forecast_and_planning",
     if_exists='append',
@@ -450,7 +451,7 @@ def costos_to_sql(costos_df):
     connection = engine.connect()
 
     engine = sqlalchemy.create_engine(conn_url)
-    df_tarifa_test = pd.read_sql("SELECT * FROM forecast_and_planning.costos_logisticos_diarios", con=engine)
+    df_tarifa_test = pd.read_sql("SELECT * FROM forecast_and_planning.costos_logisticos_diarios_soloestim", con=engine)
 
     if df_tarifa_test.shape[0] == df_tarifa_test.shape[0]: # Deberia comparar con df_cpstos?
         print('EXITOSO: Se ha cargado exitosamente la base costos logísticos')
@@ -482,9 +483,15 @@ def subir_a_bdd():
     #                    "estimado_total","real_shoppers","real_asegurado","real_picker",
     #                    "real_camiones","real_coordinador","real_total","estimado_driver",
     #                    "estimado_gasto_extra","real_driver","real_gasto_extra","estimado_descuentos","real_descuentos"]]
-
-    #### SUBE ARCHIVO TRANSFORMADO
     #df_costos['fecha'] = df_costos['fecha'].apply(lambda x: str(pd.to_datetime(x, format="%Y-%m-%d").strftime("%Y-%m-%d"))).astype(str)
+    #### SUBE ARCHIVO TRANSFORMADO
+    
+    for col in df_costos_estimado.columns:
+        df_costos_estimado = df_costos_estimado.rename(columns = {col: col.lower()})
+    
+    df_costos_estimado = df_costos_estimado [["id_tienda","fecha","estimado_shoppers","estimado_asegurado",
+                        "estimado_picker","estimado_camiones","estimado_coordinador",
+                        "estimado_total","estimado_driver","estimado_gasto_extra","estimado_descuentos"]]
     costos_to_sql(df_costos_estimado)
 
 def borrar_archivos():
