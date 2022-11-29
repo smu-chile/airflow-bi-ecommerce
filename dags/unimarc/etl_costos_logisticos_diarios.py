@@ -4,11 +4,13 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime
 import pendulum
 
+#TODO: todas las funciones usan psycopg2 excepto una, decidir si cambiar a psycopg2 o sqlalchemy
+
 def venta_fact_geo(fecha_desde):
 
     import pandas as pd
     import psycopg2
-    from sqlalchemy import create_engine
+    #from sqlalchemy import create_engine
     # fecha ingresada
     # importa zcobro despacho de AWS
     # credenciales aws
@@ -53,9 +55,9 @@ def venta_fact_geo(fecha_desde):
     return df_venta_fact_geo
 
 def asistencia_shopper(fecha_desde):
-    import pandas as pd 
+    import pandas as pd
     import psycopg2
-    from sqlalchemy import create_engine
+    #from sqlalchemy import create_engine
 
     # fecha ingresada
     # importa zcobro despacho de AWS
@@ -109,8 +111,8 @@ def funcion_km_real(fecha_desde):
 
     import pandas as pd 
     import psycopg2
-    import sqlalchemy
-    from sqlalchemy import text
+    #import sqlalchemy
+    #from sqlalchemy import text
     
     ############## CARGA DE DATOS #######################
 
@@ -120,7 +122,7 @@ def funcion_km_real(fecha_desde):
     password = Variable.get('POSTGRESQL_PASSWORD')
 
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
+    #engine = sqlalchemy.create_engine(conn_url)
 
     #### VALIDACION DE LA CARGA DE DATOS
 
@@ -144,8 +146,8 @@ def funcion_tarifas():
 
     import pandas as pd 
     import psycopg2
-    import sqlalchemy
-    from sqlalchemy import text
+    #import sqlalchemy
+    #from sqlalchemy import text
     
     ############## CARGA DE DATOS #######################
 
@@ -155,7 +157,7 @@ def funcion_tarifas():
     password = Variable.get('POSTGRESQL_PASSWORD')
 
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
+    #engine = sqlalchemy.create_engine(conn_url)
 
     #### VALIDACION DE LA CARGA DE DATOS
 
@@ -177,10 +179,8 @@ def funcion_tarifas():
 #from locale import THOUSEP
 
 def ejecucion_principal(ds):
-    import pandas as pd 
-    import numpy as np  
-    from sqlalchemy import create_engine
-    import os
+    import pandas as pd
+    import numpy as np
     import geopy
     from calendar import monthrange
 
@@ -195,8 +195,6 @@ def ejecucion_principal(ds):
     ########### IMPORTA CONSULTAS ##########
     ########################################
     # TODO: ubicación local de airflow, después se borran los archivos
-
-
     # TODO: se incluyen funciones en mismo archivo
 
     ########################################
@@ -417,7 +415,6 @@ def costos_to_sql(costos_df):
     import pandas as pd 
     import sqlalchemy
     from sqlalchemy import text
-    import psycopg2
     import pandas as pd
 
     df_costos = costos_df
@@ -450,28 +447,22 @@ def costos_to_sql(costos_df):
     method='multi')
     #### VALIDACION DE LA CARGA DE DATOS
 
-    conn = psycopg2.connect(database=database,
-                            host=host,
-                            user=username,
-                            password=password,
-                            port=5432)
+    connection = engine.connect()
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM forecast_and_planning.costos_logisticos_diarios")
-    df_tarifa_test = pd.DataFrame(cursor.fetchall())
+    engine = sqlalchemy.create_engine(conn_url)
+    df_tarifa_test = pd.read_sql("SELECT * FROM forecast_and_planning.costos_logisticos_diarios", con=engine)
 
-    if df_tarifa_test.shape[0] == df_tarifa_test.shape[0]:
+    if df_tarifa_test.shape[0] == df_tarifa_test.shape[0]: # Deberia comparar con df_cpstos?
         print('EXITOSO: Se ha cargado exitosamente la base costos logísticos')
         print('Datos SQL df_tarifa_test: {}'.format(df_tarifa_test.shape[0]))
         print('Datos df_tarifa_test: {}'.format(df_tarifa_test.shape[0]))
         #print(df_tarifa_test)
     else:
         print('ERROR: No se ha cargado exitosamente la base costos logísticos')
-    conn.close()
+    connection.close()
 
 def subir_a_bdd():
     import pandas as pd 
-    from sqlalchemy import text
 
     #### IMPORTA CSV
     df_costos_estimado = pd.read_csv("costos_logisticos_diarios_estimacion.csv", decimal=',', sep=';')
