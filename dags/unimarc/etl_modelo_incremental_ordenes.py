@@ -319,6 +319,7 @@ def _order_items_table_incremental_load(ti):
     column_types = {
         "ref_id": "string",
         "ean": "string",
+        "cart_id": "string"
     } 
 
     df = pd.read_csv(order_items_object.get()["Body"], dtype=column_types)
@@ -343,7 +344,8 @@ def _order_items_table_incremental_load(ti):
 		"brand",
 		"category",
 		"measurement_unit",
-		"unit_multiplier"
+		"unit_multiplier",
+        "cart_id"
     ]]  
 
     df = df.merge(df_orders, how="inner", left_on="order_id", right_on="original_id").drop(columns=["order_id", "original_id"])
@@ -381,7 +383,8 @@ def _order_items_table_incremental_load(ti):
 		"brand": "id_marca",
 		"category": "ref_id_categoria",
 		"measurement_unit": "unidad_de_medida",
-		"unit_multiplier": "multiplicador_unidad"
+		"unit_multiplier": "multiplicador_unidad",
+        "cart_id": "janis_cart_id"
     }
 
     df = df.rename(columns=columns_rename)
@@ -408,7 +411,8 @@ def _order_items_table_incremental_load(ti):
 		"id_marca",
 		"ref_id_categoria",
 		"unidad_de_medida",
-		"multiplicador_unidad"
+		"multiplicador_unidad",
+        "janis_cart_id"
     ]
 
     df = df[["id"]+columns]
