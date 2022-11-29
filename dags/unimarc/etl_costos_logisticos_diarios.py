@@ -182,6 +182,7 @@ def ejecucion_principal(ds):
     import pandas as pd
     import numpy as np
     import geopy
+    from geopy import distance
     from calendar import monthrange
 
     ########################################
