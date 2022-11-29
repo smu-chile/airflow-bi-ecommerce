@@ -62,7 +62,8 @@ def _incremental_load_orders_table(ti):
             "date_modified",
             "call_center_operator_id",
             "invoice_number",
-            "picker"
+            "picker",
+            "cart_id"
             ]]
 
     # Rename columns to match workspace schema:
@@ -95,7 +96,8 @@ def _incremental_load_orders_table(ti):
         "date_picked": "fecha_picking",
         "date_modified": "fecha_modificacion",
         "invoice_number": "documento_electronico",
-        "picker": "id_picker"
+        "picker": "id_picker",
+        "cart_id": "janis_cart_id"
     }
     df = df.rename(columns=columns_rename)
 
@@ -146,7 +148,8 @@ def _incremental_load_orders_table(ti):
         "fecha_picking": "string",
         "fecha_modificacion": "string",
         "documento_electronico": "int64",
-        "id_picker": "int"
+        "id_picker": "int",
+        "janis_cart_id": "string"
     }, errors="ignore")
 
     custom_data_fields_full = ti.xcom_pull(key="return_value", task_ids=["order_custom_data_field_full_load"])[0] 
@@ -216,7 +219,8 @@ def _incremental_load_orders_table(ti):
         "empresa_picker",
         "fecha_modificacion_unixtime",
         "documento_electronico",
-        "id_picker"
+        "id_picker",
+        "janis_cart_id"
     ]
 
     df = df[["id"]+columns]
@@ -343,7 +347,7 @@ def _order_items_table_incremental_load(ti):
 		"brand",
 		"category",
 		"measurement_unit",
-		"unit_multiplier"
+		"unit_multiplier",
     ]]  
 
     df = df.merge(df_orders, how="inner", left_on="order_id", right_on="original_id").drop(columns=["order_id", "original_id"])
@@ -381,7 +385,7 @@ def _order_items_table_incremental_load(ti):
 		"brand": "id_marca",
 		"category": "ref_id_categoria",
 		"measurement_unit": "unidad_de_medida",
-		"unit_multiplier": "multiplicador_unidad"
+		"unit_multiplier": "multiplicador_unidad",
     }
 
     df = df.rename(columns=columns_rename)
@@ -408,7 +412,7 @@ def _order_items_table_incremental_load(ti):
 		"id_marca",
 		"ref_id_categoria",
 		"unidad_de_medida",
-		"multiplicador_unidad"
+		"multiplicador_unidad",
     ]
 
     df = df[["id"]+columns]
