@@ -64,6 +64,7 @@ def _load_lista8(ts):
         df["P/Vta Reg."] = df["P/Vta Reg."].fillna(0)
         df["P/Vta Prom."] = df["P/Vta Prom."].str.replace('.','')
         df["P/Vta Prom."] = df["P/Vta Prom."].fillna(0)
+        df = df[['Tienda','Material', 'UM Vta', 'Línea', 'Categoría', 'Descripción Gr Art', 'P/Vta Reg.', 'P/Vta Prom.', 'Descripción', ' Stock x UMV']]
         df = df.astype(column_types)
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
