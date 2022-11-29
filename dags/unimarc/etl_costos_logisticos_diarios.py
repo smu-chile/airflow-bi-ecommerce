@@ -512,7 +512,7 @@ with DAG(
     default_args=default_args,
     description="Automatización de calculo de costos logisticos diarios",
     schedule_interval="0 7 * * *",
-    start_date=pendulum.datetime(2022, 11, 30, tz="America/Santiago"),
+    start_date=pendulum.datetime(2022, 11, 28, tz="America/Santiago"),
     catchup=False,
     tags=["OPS","AWS","ETL", "DIAR"],
 ) as dag:
