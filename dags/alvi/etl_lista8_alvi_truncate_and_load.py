@@ -25,27 +25,27 @@ def _load_lista8(ts):
     column_types = {
         "Tienda": "str",
         "Material":	"str",
-        "UM Vta":	"str",
-        "Linea": "str",
+        "UM Vta": "str",
+        "Línea": "str",
         "Categoria": "str",
         "Descripción Gr Art": "str",
         "P/Vta Reg.": "int",
         "P/Vta Prom.": "int",
         "Descripción": "str",
-        "Stock x UMV": "float"
+        " Stock x UMV": "float"
     }
 
     column_names = {
         "Tienda": "id_tienda",
         "Material":	"material",
-        "UM Vta":	"umv",
-        "Linea": "linea",
+        "UM Vta": "umv",
+        "Línea": "linea",
         "Categoria": "categoria",
         "Descripción Gr Art": "grupo_articulo",
         "P/Vta Reg.": "precio_regular",
         "P/Vta Prom.": "precio_promocional",
         "Descripción": "descripcion",
-        "Stock x UMV": "stock_x_umv"
+        " Stock x UMV": "stock_x_umv"
     }
 
     dataframe_list = []
