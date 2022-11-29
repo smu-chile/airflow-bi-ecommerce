@@ -55,7 +55,7 @@ def _load_lista8(ts):
             continue
         print(f"Loading file: {s3_file}")
         lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
-        df = pd.read_csv(lista8_object.get()["Body"], sep=";")
+        df = pd.read_csv(lista8_object.get()["Body"], sep=";", header = 5)
         df["Stock x UMV"] = df["Stock x UMV"].str.replace(',','.')
         df.drop(df[df['Tienda'] == 'Tienda'].index, inplace = True)
         df.dropna(subset = ['Tienda'], inplace = True)
