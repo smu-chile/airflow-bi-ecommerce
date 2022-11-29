@@ -100,7 +100,7 @@ def _load_lista8(ts):
         conn.execute("""
             UPDATE ecommdata_alvi.lista8_alvi l
             SET excluido = True
-            FROM catalogo.productos_excluidos pe
+            FROM catalogo.productos_excluidos_alvi pe
             WHERE l.material = pe.material and l.umv = pe.umv
         """)
 
