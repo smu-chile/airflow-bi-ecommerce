@@ -127,8 +127,7 @@ def funcion_km_real(fecha_desde):
                             port=5432)
 
     cur = conn.cursor()
-    #WHERE fecha_facturacion >= '{fecha_desde}
-    cur.execute(f"SELECT fecha_facturacion, id_orden as orden, lat, lng, tienda, transportadora, kms_totales as KMs_Totales FROM forecast_and_planning.tabla_kms;")
+    cur.execute(f"SELECT fecha_facturacion, id_orden as orden, lat, lng, tienda, transportadora, kms_totales as KMs_Totales FROM forecast_and_planning.tabla_kms WHERE fecha_facturacion >= '{fecha_desde};")
     rows = cur.fetchall()
     columns = cur.description
     conn.close()
