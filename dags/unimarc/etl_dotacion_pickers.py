@@ -13,7 +13,6 @@ def credenciales():
     with open('temp_keys.json', 'w', encoding='utf-8') as f:
         json.dump(diccionario_keys, f, ensure_ascii=False)
     
-    #gc = gspread.service_account_from_dict(credentials)
     keys = 'temp_keys.json'
     return (keys)
 
@@ -21,11 +20,7 @@ def fecha_ejecucion(ts):
     from datetime import timedelta, datetime
     import pytz
 
-    #ts = ts.replace("T", " ")
     today = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
-
-    #today = datetime.now()
-    #today = today.strftime("%d/%m/%Y %H:%M:%S")
     localtimezone = pytz.timezone("America/Santiago")
     today = today.replace(tzinfo = pytz.utc).astimezone(localtimezone)
     today = today.strftime('%Y-%m-%dT%H:%M:%S')
@@ -71,7 +66,6 @@ def gsheets_to_sql(keys,today):
     import pandas as pd 
     import sqlalchemy
     from sqlalchemy import text
-    import psycopg2
     from google.oauth2 import service_account
 
     gc = gspread.service_account(filename='temp_keys.json')
@@ -79,13 +73,9 @@ def gsheets_to_sql(keys,today):
     keyword1 = "Dotacíon  Forecast"
     keyword2 = "Dotacíon Diaria Operador"
     keyword3 = "Ordenes  Forecast"
-    #def funcion_extraccion_gsheets():
     ## conección a GSheets
-    # json de llaves de acceso
-    #SERVICE_ACCOUNT_FILE = keys
     # otros parámetros de conexión 
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
-    #creds = None
     # Log prueba de conexión
     try:
         #service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
@@ -95,8 +85,6 @@ def gsheets_to_sql(keys,today):
         print (str(e))
         print("no se pudo establecer conexión con Gsheets")
         raise Exception('No se puede establecer conexion con Google Sheets')
-    # se conecta a Gsheet
-    #creds = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
             
     # The ID and range of a sample spreadsheet.
     BOOSMAP_SPREADSHEET_ID = Variable.get('GOOGLE_SHEET_KEY_DOTACION_BOOSMAP') ### boosmap # GOOGLE_SHEET_KEY_DOTACION_BOOSMAP
@@ -126,10 +114,8 @@ def gsheets_to_sql(keys,today):
         a1_melt['fecha'] = a1_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a1_melt['cod_tienda'] = a1_melt['Tienda'].apply(lambda x: cod_tienda(x))
         a1_melt = a1_melt[a1_melt['Tienda'].apply(lambda x: 1 if 'unimarc' in str(x).lower() else 0)==1]
-        #a1_melt = a1_melt[a1_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a1_melt['operador'] = operador
         df_dotacion_gsheets_fr = df_dotacion_gsheets_fr.append(a1_melt)
-        #print(a1_melt)
         # dataframe de dotacion diaria operador
         a2 = a.reset_index().loc[hasta[0]+1:]
         a2.columns = ["","0","Tienda"]+list(a.reset_index().loc[desde[0]+1][3:])
@@ -139,9 +125,7 @@ def gsheets_to_sql(keys,today):
         a2_melt['fecha'] = a2_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a2_melt['cod_tienda'] = a2_melt['Tienda'].apply(lambda x: cod_tienda(x))
         a2_melt = a2_melt[a2_melt['Tienda'].apply(lambda x: 1 if 'unimarc' in str(x).lower() else 0)==1]
-        #a2_melt = a2_melt[a2_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a2_melt['operador'] = operador
-        #print(a2_melt)
         df_dotacion_gsheets_oper = df_dotacion_gsheets_oper.append(a2_melt)
 
     ################# Hoja Forecast #####################
@@ -163,7 +147,6 @@ def gsheets_to_sql(keys,today):
         a3_melt['fecha'] = a3_melt['fecha'].apply(lambda x: fecha_y_m_d(x))
         a3_melt['cod_tienda'] = a3_melt['Tienda'].apply(lambda x: cod_tienda(x))
         a3_melt = a3_melt[a3_melt['Tienda'].apply(lambda x: 1 if 'unimarc' in str(x).lower() else 0)==1]
-        #a3_melt = a3_melt[a3_melt['Tienda'].apply(lambda x: 1 if 'MFC' in str(x).lower() else 0)==1]
         a3_melt['operador'] = operador
         df_forecast_gsheets_ordenes = df_forecast_gsheets_ordenes.append(a3_melt)
 
@@ -184,7 +167,6 @@ def gsheets_to_sql(keys,today):
 
     print(df_forecast)
 
-    #df_forecast.to_csv('PruebaRRR.csv',sep =';')
     print(df_dotacion_gsheets_oper)
     # dataframe de dotación
     df_dotacion = df_dotacion_gsheets_oper[['Tienda', 'fecha', 'dotacion_operador', 'cod_tienda','operador']]
@@ -227,10 +209,6 @@ def gsheets_to_sql(keys,today):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    #df_real = df_real.drop_duplicates()
-    #df_fr = df_fr.drop_duplicates()
-    df_fr.to_csv('FORECASRT.csv',sep =';')
-    df_real.to_csv('DOTACION.csv',sep =';')
     ##### FORECAST
     
 
@@ -244,7 +222,7 @@ def gsheets_to_sql(keys,today):
     print(df_real.info())
     #DELETE
     connection = engine.connect()
-    delete_query = "DELETE FROM forecast_and_planning.forecast"
+    delete_query = "TRUNCATE TABLE forecast_and_planning.forecast"
     connection.execute(text(delete_query))
     connection.close()
 
@@ -261,7 +239,7 @@ def gsheets_to_sql(keys,today):
 
     # DELETE
     connection = engine.connect()
-    delete_query = "DELETE FROM forecast_and_planning.dotacion_real"
+    delete_query = "TRUNCATE TABLE forecast_and_planning.dotacion_real"
     connection.execute(text(delete_query))
     connection.close()
 
@@ -276,19 +254,13 @@ def gsheets_to_sql(keys,today):
 
     #### VALIDACION DE LA CARGA DE DATOS
 
-    conn = psycopg2.connect(database=database,
-                            host=host,
-                            user=username,
-                            password=password,
-                            port=5432)
+    connection = engine.connect()
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM forecast_and_planning.dotacion_real")
-    df_real_base = pd.DataFrame(cursor.fetchall())
+    engine = sqlalchemy.create_engine(conn_url)
+    df_real_base = pd.read_sql("SELECT * FROM forecast_and_planning.dotacion_real", con=engine)
 
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM forecast_and_planning.forecast")
-    df_fr_base = pd.DataFrame(cursor.fetchall())
+    engine = sqlalchemy.create_engine(conn_url)
+    df_fr_base = pd.read_sql("SELECT * FROM forecast_and_planning.forecast", con=engine)
 
     ################ LOGS ###########################
     if df_real_base.shape[0] == df_real.shape[0]:
@@ -309,26 +281,20 @@ def gsheets_to_sql(keys,today):
         print('ERROR: No se ha cargado exitosamente la base forecast')
         print('Datos SQL forecast: {}'.format(df_fr_base.shape[0]))
         print('Datos GoogleSheet forecast: {}'.format(df_fr.shape[0]))
-    conn.close()
+    connection.close()
 
 def main_execution(ts):
-    import warnings
-    from pandas.core.common import SettingWithCopyWarning
+    import os
+    import time
 
-    warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
     keys = credenciales()
     today = fecha_ejecucion(ts)
     gsheets_to_sql(keys,today)
 
     
-    #gsheets_to_sql(keys)
-
-def borrar_archivos():
-    import os
-
+    time.sleep (10)
     os.remove('temp_keys.json')
-    os.remove('FORECASRT.csv')
-    os.remove('DOTACION.csv')
+
 
 default_args = {
     "owner": "capacity_and_planning",
@@ -356,10 +322,3 @@ with DAG(
         task_id = "ejecucion_principal",
         python_callable = main_execution,
     )
-
-    t1 = PythonOperator(
-        task_id = "borrar_archivos",
-        python_callable = borrar_archivos,
-    )
-
-t0>>t1
