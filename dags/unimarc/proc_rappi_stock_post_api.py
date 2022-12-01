@@ -91,6 +91,7 @@ def _calculate_request_body(ds, ts, type):
     for store_id in active_stores:
         df_store = df[df["store_id"] == store_id]
         df_store["id"] = df_store["id"].astype("int").astype("str")
+        df_store["discount_price"] = df_store["discount_price"].astype("int")
         df_store["is_available"] = True
         dict_body = df_store.to_dict(orient="records")
         json_body = json.dumps(dict_body)
