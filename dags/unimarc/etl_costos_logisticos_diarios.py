@@ -3,6 +3,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from datetime import datetime
 import pendulum
+from airflow.hooks.S3_hook import S3Hook
 
 #TODO: todas las funciones usan psycopg2 excepto una
 
@@ -166,12 +167,13 @@ def funcion_tarifas():
     df_tarifa = pd.DataFrame(result)
     return df_tarifa
 
-def ejecucion_principal(ds):
+def _calcular_costos_logisticos(ds):
     import pandas as pd
     import numpy as np
     import geopy
     from geopy import distance
     from calendar import monthrange
+    from io import StringIO
 
     ########################################
     ########### PARÁMETROS #################
@@ -223,6 +225,7 @@ def ejecucion_principal(ds):
     # agrega solo operador desde la tabla tarifas (para calcular fecha de corte)
     df_venta_fact_geo['id_tienda'] = df_venta_fact_geo['tienda'].apply(lambda x: str(x).split(' ')[0])
     df_venta_fact_geo = df_venta_fact_geo[(df_venta_fact_geo['id_tienda']==df_venta_fact_geo['id_tienda'])&(df_venta_fact_geo['id_tienda'].astype(str)!="None")]
+    print (df_venta_fact_geo)
     df_venta_fact_geo['cod_tienda'] = df_venta_fact_geo.apply(lambda row: str(int(row['id_tienda'].split('-')[0]))+"-0" if '581-' in row['transportadora'] or '445-' in row['transportadora'] else int(row['id_tienda'].split('-')[0]), axis=1)
     lk_operador_del_tarifario = df_tarifas_oper.merge(df_tarifas_oper[['ID_MES','cod_tienda', 'Operador']].groupby('cod_tienda')['ID_MES'].max().reset_index(), on=['ID_MES','cod_tienda'])[['cod_tienda', 'Operador']].drop_duplicates()
     df_venta_fact_geo = df_venta_fact_geo.merge(df_tarifas_oper[['ID_MES','cod_tienda', 'Operador']].drop_duplicates(), on=['ID_MES', 'cod_tienda'], how='left').merge(lk_operador_del_tarifario, on='cod_tienda', how='left')
@@ -388,11 +391,23 @@ def ejecucion_principal(ds):
     "estimado_driver","estimado_gasto_extra","estimado_descuentos"]
     ##########  EXPORTA  ###########
     # tabla a subir
-    df_costo_tienda_diario.to_csv("costos_logisticos_diarios_estimacion.csv", index=False, decimal=',', sep=';')
-    
-    print(df_costo_shopper_diario_aseg.groupby(['MES_FACTURA'])['costo_logistico_total'].sum())
-    df_costo_tienda_diario['fecha_op'] = df_costo_tienda_diario['fecha']
-    df_costo_tienda_diario.merge(df_costo_shopper_diario_aseg[['fecha_op','MES_FACTURA']].drop_duplicates(subset='fecha_op'), on='fecha_op', how='left').groupby(['MES_FACTURA']).estimado_total.sum()
+    buffer = StringIO()
+    print("Number of records:")
+    print(len(df_costo_tienda_diario.index))
+    df_costo_tienda_diario.to_csv(buffer, header=True, index=False, encoding="utf-8", sep = ";")
+    buffer.seek(0)
+
+    aws_conn_id="aws_s3_connection"
+    file_name = "forecast_and_planning/costos_logisticos/costos_logisticos_diarios_estimacion.csv"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+    s3_hook.load_string(buffer.getvalue(),
+                  key=file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
+
+    return file_name
 
 
 def costos_to_sql(costos_df):
@@ -440,11 +455,22 @@ def costos_to_sql(costos_df):
         print('ERROR: No se ha cargado exitosamente la base costos logísticos')
     connection.close()
 
-def subir_a_bdd():
+def _subir_a_bdd(ti):
     import pandas as pd 
 
     #### IMPORTA CSV
-    df_costos_estimado = pd.read_csv("costos_logisticos_diarios_estimacion.csv", decimal=',', sep=';')
+    file_name = ti.xcom_pull(key = "return_value", task_ids = ['calcular_costos_logisticos'])[0]
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+file_name)
+    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % file_name)
+    
+    costos_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
+
+    df_costos_estimado = pd.read_csv(costos_object.get()["Body"], decimal=',', sep=';')
+    
     # transforma fecha del estimado
     df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha']==df_costos_estimado['fecha']]
     df_costos_estimado['fecha'] = df_costos_estimado['fecha'].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d') if str(x)[:3]=='202' else pd.to_datetime(x, format='%d-%m-%Y')).apply(lambda x: x.strftime('%Y-%m-%d'))
@@ -459,10 +485,6 @@ def subir_a_bdd():
                         "estimado_total","estimado_driver","estimado_gasto_extra","estimado_descuentos"]]
     costos_to_sql(df_costos_estimado)
 
-def borrar_archivos():
-    import os
-
-    os.remove("costos_logisticos_diarios_estimacion.csv")
 
 default_args = {
     "owner": "capacity_and_planning",
@@ -488,19 +510,13 @@ with DAG(
     """ 
 
     t0 = PythonOperator(
-        task_id = "ejecucion_principal",
-        python_callable = ejecucion_principal,
+        task_id = "calcular_costos_logisticos",
+        python_callable = _calcular_costos_logisticos,
     )
 
     t1 = PythonOperator(
         task_id = "subir_a_bdd",
-        python_callable = subir_a_bdd,
-    )
-
-    t2 = PythonOperator(
-        task_id = "borrar_archivos",
-        python_callable = borrar_archivos,
+        python_callable = _subir_a_bdd,
     )
 
 t0>>t1
-t1>>t2
