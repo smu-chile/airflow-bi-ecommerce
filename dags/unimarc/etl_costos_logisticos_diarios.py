@@ -215,6 +215,7 @@ def ejecucion_principal(ds):
 
     print(df_tarifas_oper)
     ## Transformaciones de df_venta_fact_geo
+    print (df_venta_fact_geo)
     # fecha consolidada
     df_venta_fact_geo['fecha_op'] = df_venta_fact_geo.apply(lambda row: str(row['fecha_picking']) if '-' in str(row['fecha_picking']) else (str(row['fecha_compromiso']) if '-' in str(row['fecha_compromiso']) else str(row['fecha_creacion'])), axis=1)
     # calcula ID_MES
