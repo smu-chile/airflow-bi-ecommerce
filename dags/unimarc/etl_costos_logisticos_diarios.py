@@ -418,6 +418,20 @@ def costos_to_sql(costos_df):
     import pandas as pd
 
     df_costos = costos_df
+    column_types = {
+        "estimado_shoppers" : "int",
+        "estimado_asegurado" : "int",
+        "estimado_picker" : "int",
+        "estimado_camiones" : "int",
+        "estimado_coordinador" : "int",
+        "estimado_total" : "int",
+        "estimado_driver" : "int",
+        "estimado_gasto_extra" : "int",
+        "estimado_descuentos" : "int",
+    }
+
+    df_costos = df_costos.astype(column_types, errors = 'ignore')
+
     
     ############## CARGA DE DATOS #######################
 
