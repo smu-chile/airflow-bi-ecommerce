@@ -170,7 +170,6 @@ def funcion_tarifas():
 def _calcular_costos_logisticos(ds):
     import pandas as pd
     import numpy as np
-    import geopy
     from geopy import distance
     from calendar import monthrange
     from io import StringIO
@@ -264,7 +263,7 @@ def _calcular_costos_logisticos(ds):
     df_venta_fact_geo_tarifa_km = df_venta_fact_geo_tarifa.merge(df_km_real[['orden', 'KMs_Totales']], on='orden', how='left')
     # calcula KM de vincenty
     df_venta_fact_geo_tarifa_km['KMs_Vincenty'] = df_venta_fact_geo_tarifa_km.apply(lambda row:
-        geopy.distance.distance((row['lat_tienda'],row['lng_tienda']), (row['lat_pedido'],row['lng_pedido']), ellipsoid='WGS-84').km
+        distance.distance((row['lat_tienda'],row['lng_tienda']), (row['lat_pedido'],row['lng_pedido']), ellipsoid='WGS-84').km
         if row['lat_tienda']==row['lat_tienda'] 
         and row['lat_tienda']==row['lat_tienda'] 
         and row['lng_pedido']==row['lng_pedido'] else np.nan, axis=1)*2
@@ -419,15 +418,15 @@ def costos_to_sql(costos_df):
 
     df_costos = costos_df
     column_types = {
-        "estimado_shoppers" : "int",
-        "estimado_asegurado" : "int",
-        "estimado_picker" : "int",
-        "estimado_camiones" : "int",
-        "estimado_coordinador" : "int",
-        "estimado_total" : "int",
-        "estimado_driver" : "int",
-        "estimado_gasto_extra" : "int",
-        "estimado_descuentos" : "int",
+        'estimado_shoppers' : 'int',
+        'estimado_asegurado' : 'int',
+        'estimado_picker' : 'int',
+        'estimado_camiones' : 'int',
+        'estimado_coordinador' : 'int',
+        'estimado_total' : 'int',
+        'estimado_driver' : 'int',
+        'estimado_gasto_extra' : 'int',
+        'estimado_descuentos' : 'int',
     }
 
     df_costos = df_costos.astype(column_types, errors = 'ignore')
