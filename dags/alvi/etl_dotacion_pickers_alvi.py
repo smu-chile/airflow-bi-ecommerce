@@ -68,6 +68,8 @@ def gsheets_to_sql(keys,today):
     import sqlalchemy
     from sqlalchemy import text
     from google.oauth2 import service_account
+    import os
+    import time
 
     gc = gspread.service_account(filename='temp_keys.json')
     # parámetros de palabra clave:
@@ -305,15 +307,14 @@ def gsheets_to_sql(keys,today):
         print('Datos GoogleSheet forecast: {}'.format(df_fr.shape[0]))
     connection.close()
 
+    time.sleep(10)
+    os.remove('temp_keys.json')
+
 def main_execution(ts):
     keys = credenciales()
     today = fecha_ejecucion(ts)
     gsheets_to_sql(keys,today)
 
-def borrar_archivos():
-    import os
-
-    os.remove('temp_keys.json')
 
 default_args = {
     "owner": "capacity_and_planning",
@@ -341,10 +342,3 @@ with DAG(
         task_id = "ejecucion_principal",
         python_callable = main_execution,
     )
-
-    t1 = PythonOperator(
-        task_id = "borrar_archivos",
-        python_callable = borrar_archivos,
-    )
-
-t0>>t1
