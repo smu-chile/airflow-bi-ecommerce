@@ -417,19 +417,6 @@ def costos_to_sql(costos_df):
     import pandas as pd
 
     df_costos = costos_df
-    column_types = {
-        'estimado_shoppers' : 'int',
-        'estimado_asegurado' : 'int',
-        'estimado_picker' : 'int',
-        'estimado_camiones' : 'int',
-        'estimado_coordinador' : 'int',
-        'estimado_total' : 'int',
-        'estimado_driver' : 'int',
-        'estimado_gasto_extra' : 'int',
-        'estimado_descuentos' : 'int',
-    }
-
-    df_costos = df_costos.astype(column_types, errors = 'ignore')
 
     
     ############## CARGA DE DATOS #######################
@@ -496,6 +483,20 @@ def _subir_a_bdd(ti):
     df_costos_estimado = df_costos_estimado [["id_tienda","fecha","estimado_shoppers","estimado_asegurado",
                         "estimado_picker","estimado_camiones","estimado_coordinador",
                         "estimado_total","estimado_driver","estimado_gasto_extra","estimado_descuentos"]]
+
+    column_types = {
+        'estimado_shoppers' : 'int',
+        'estimado_asegurado' : 'int',
+        'estimado_picker' : 'int',
+        'estimado_camiones' : 'int',
+        'estimado_coordinador' : 'int',
+        'estimado_total' : 'int',
+        'estimado_driver' : 'int',
+        'estimado_gasto_extra' : 'int',
+        'estimado_descuentos' : 'int',
+    }
+    df_costos_estimado = df_costos_estimado.astype(column_types, errors = 'ignore')
+    print (df_costos_estimado.dtypes)
     costos_to_sql(df_costos_estimado)
 
 
