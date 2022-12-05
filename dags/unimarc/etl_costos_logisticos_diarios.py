@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from datetime import datetime
+from datetime import datetime, timedelta
 import pendulum
 from airflow.hooks.S3_hook import S3Hook
 
@@ -444,7 +444,7 @@ def costos_to_sql(costos_df):
         print('ERROR: No se ha cargado exitosamente la base costos logísticos')
     connection.close()
 
-def _subir_a_bdd(ti):
+def _subir_a_bdd(ti, ds):
     import pandas as pd 
 
     #### IMPORTA CSV
@@ -485,6 +485,7 @@ def _subir_a_bdd(ti):
     df_costos_estimado['estimado_picker'] = pd.to_numeric(df_costos_estimado['estimado_picker'], errors = 'ignore')
     df_costos_estimado['estimado_coordinador'] = pd.to_numeric(df_costos_estimado['estimado_coordinador'], errors = 'ignore')
     df_costos_estimado['estimado_total'] = pd.to_numeric(df_costos_estimado['estimado_total'], errors = 'ignore')
+    #df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'] == (datetime.strptime(ds, '%Y-%m-%d'))]
     print (df_costos_estimado.dtypes)
     costos_to_sql(df_costos_estimado)
 
