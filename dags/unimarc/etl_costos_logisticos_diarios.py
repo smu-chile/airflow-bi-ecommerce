@@ -5,7 +5,6 @@ from datetime import datetime
 import pendulum
 from airflow.hooks.S3_hook import S3Hook
 
-#TODO: todas las funciones usan psycopg2 excepto una
 
 def venta_fact_geo(fecha_desde):
 
@@ -178,14 +177,14 @@ def _calcular_costos_logisticos(ds):
     ########### PARÁMETROS #################
     ########################################
     # fecha desde (posteriormente será la ultima fecha cargada en AWS)
-    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d')))
+    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d'))) - timedelta(days=30)
     #fecha_desde = "2022-03-26"
 
     ########################################
     ########### IMPORTA CONSULTAS ##########
     ########################################
-    # TODO: ubicación local de airflow, después se borran los archivos
-    # TODO: se incluyen funciones en mismo archivo
+    # ubicación local de airflow, después se borran los archivos
+    # se incluyen funciones en mismo archivo
 
     ########################################
     ########### IMPORTA DATOS ##############
@@ -223,12 +222,11 @@ def _calcular_costos_logisticos(ds):
     df_venta_fact_geo['ID_MES'] = df_venta_fact_geo['fecha_op'].apply(lambda x: int(pd.to_datetime(x,format='%Y-%m-%d').strftime('%Y%m')))
     # agrega solo operador desde la tabla tarifas (para calcular fecha de corte)
     df_venta_fact_geo['id_tienda'] = df_venta_fact_geo['tienda'].apply(lambda x: str(x).split(' ')[0])
-    df_venta_fact_geo = df_venta_fact_geo[(df_venta_fact_geo['id_tienda']==df_venta_fact_geo['id_tienda'])&(df_venta_fact_geo['id_tienda'].astype(str)!="None")]
-    print (df_venta_fact_geo)
+    df_venta_fact_geo = df_venta_fact_geo[(df_venta_fact_geo['id_tienda'].notna())&(df_venta_fact_geo['id_tienda'].astype(str)!="None")]
     df_venta_fact_geo['cod_tienda'] = df_venta_fact_geo.apply(lambda row: str(int(row['id_tienda'].split('-')[0]))+"-0" if '581-' in row['transportadora'] or '445-' in row['transportadora'] else int(row['id_tienda'].split('-')[0]), axis=1)
     lk_operador_del_tarifario = df_tarifas_oper.merge(df_tarifas_oper[['ID_MES','cod_tienda', 'Operador']].groupby('cod_tienda')['ID_MES'].max().reset_index(), on=['ID_MES','cod_tienda'])[['cod_tienda', 'Operador']].drop_duplicates()
     df_venta_fact_geo = df_venta_fact_geo.merge(df_tarifas_oper[['ID_MES','cod_tienda', 'Operador']].drop_duplicates(), on=['ID_MES', 'cod_tienda'], how='left').merge(lk_operador_del_tarifario, on='cod_tienda', how='left')
-    df_venta_fact_geo['Operador'] = df_venta_fact_geo.apply(lambda row: row['Operador_x'] if row['Operador_x']==row['Operador_x'] else row['Operador_y'], axis=1)
+    df_venta_fact_geo['Operador'] = df_venta_fact_geo.apply(lambda row: row['Operador_x'] if str(row['Operador_x'])!='nan' else row['Operador_y'], axis=1)
     del df_venta_fact_geo['Operador_x'], df_venta_fact_geo['Operador_y']
     # calcula mes de facturación
     df_venta_fact_geo['MES_CORTE25'] = df_venta_fact_geo['fecha_op'].apply(lambda x : pd.to_datetime(x, format="%Y-%m-%d").strftime('%Y%m') 
@@ -263,20 +261,20 @@ def _calcular_costos_logisticos(ds):
     df_venta_fact_geo_tarifa_km = df_venta_fact_geo_tarifa.merge(df_km_real[['orden', 'KMs_Totales']], on='orden', how='left')
     # calcula KM de vincenty
     df_venta_fact_geo_tarifa_km['KMs_Vincenty'] = df_venta_fact_geo_tarifa_km.apply(lambda row:
-        distance.distance((row['lat_tienda'],row['lng_tienda']), (row['lat_pedido'],row['lng_pedido']), ellipsoid='WGS-84').km
-        if row['lat_tienda']==row['lat_tienda'] 
-        and row['lat_tienda']==row['lat_tienda'] 
-        and row['lng_pedido']==row['lng_pedido'] else np.nan, axis=1)*2
+        geopy.distance.distance((row['lat_tienda'],row['lng_tienda']), (row['lat_pedido'],row['lng_pedido']), ellipsoid='WGS-84').km
+        if ~pd.isnull(row['lat_tienda'])
+        and ~pd.isnull(row['lat_tienda'])
+        and ~pd.isnull(row['lng_pedido']) else np.nan, axis=1)*2
     df_venta_fact_geo_tarifa_km['KMs_Vincenty'] = df_venta_fact_geo_tarifa_km['KMs_Vincenty'].apply(lambda x: 81 if x> 80 else x)
     # proporción o desviación de Vincenty vs Km reales
-    desv_vinventy = df_venta_fact_geo_tarifa_km[(df_venta_fact_geo_tarifa_km['KMs_Totales']==df_venta_fact_geo_tarifa_km['KMs_Totales'])].groupby('cod_tienda').sum()[['KMs_Totales', 'KMs_Vincenty']].reset_index()
+    desv_vinventy = df_venta_fact_geo_tarifa_km[(df_venta_fact_geo_tarifa_km['KMs_Totales'].notna())].groupby('cod_tienda').sum()[['KMs_Totales', 'KMs_Vincenty']].reset_index()
     desv_vinventy['prop_vinc'] = desv_vinventy.apply(lambda row: row['KMs_Totales']/row['KMs_Vincenty'] if row['KMs_Totales']>0 else 0, axis=1)
     desv_vinventy_sin_cero = desv_vinventy[desv_vinventy['KMs_Totales']>0].sum()[['KMs_Totales', 'KMs_Vincenty']]
     prop_vinc_promedio = desv_vinventy_sin_cero['KMs_Totales']/desv_vinventy_sin_cero['KMs_Vincenty']
     desv_vinventy['prop_vinc'] = desv_vinventy['prop_vinc'].apply(lambda x: x if x>1 else prop_vinc_promedio)
     # agrega la proporción para poner los kilomitros estimados
     df_venta_fact_geo_tarifa_km = df_venta_fact_geo_tarifa_km.merge(desv_vinventy[['cod_tienda', 'prop_vinc']], on='cod_tienda', how='left')
-    df_venta_fact_geo_tarifa_km['KMs_estimado'] = df_venta_fact_geo_tarifa_km.apply(lambda row: row['KMs_Vincenty']*row['prop_vinc'] if row['KMs_Totales']!=row['KMs_Totales'] else 0, axis=1)
+    df_venta_fact_geo_tarifa_km['KMs_estimado'] = df_venta_fact_geo_tarifa_km.apply(lambda row: row['KMs_Vincenty']*row['prop_vinc'] if pd.isnull(row['KMs_Totales']) else 0, axis=1)
 
 
     ########################################
@@ -308,6 +306,7 @@ def _calcular_costos_logisticos(ds):
     df_costo_shopper_diario_aseg['asegurado'] = df_costo_shopper_diario_aseg.apply(lambda row: 35000 if str(row['cod_tienda'])== '581' and row['fecha_op'] >'2022-09-18' else row['asegurado'], axis=1)
     df_costo_shopper_diario_aseg['asegurado'] = df_costo_shopper_diario_aseg.apply(lambda row: row['asegurado']*0.9 if str(row['Operador'])== 'Touch' and row['fecha_op'] >='2022-10-26' else row['asegurado'], axis=1)
     df_costo_shopper_diario_aseg['asegurado'] = df_costo_shopper_diario_aseg.apply(lambda row: 40000 if str(row['Operador'])== 'Touch' and row['fecha_op'] >'2022-11-03' else row['asegurado'], axis=1)
+    #df_costo_shopper_diario_aseg['asegurado'] = df_costo_shopper_diario_aseg.apply(lambda row: 35000 if str(row['cod_tienda'])== '581' and row['fecha_op'] >'2022-09-18' else row['asegurado'], axis=1)
     # calcula dif bono para los días sin venta
 
     todas_fecha = pd.DataFrame(df_costo_shopper_diario_aseg[['MES_FACTURA','fecha_op']].drop_duplicates(subset='fecha_op'))
@@ -319,11 +318,9 @@ def _calcular_costos_logisticos(ds):
     fecha_tienda_con_vta = df_costo_shopper_diario_aseg[['fecha_op', 'cod_tienda']].drop_duplicates()
     fecha_tienda_con_vta['con_vta'] = 1
     fecha_tienda_sin_vta = todas_fecha_tienda.merge(fecha_tienda_con_vta, on=['fecha_op', 'cod_tienda'], how='left')
-    fecha_tienda_sin_vta = fecha_tienda_sin_vta[fecha_tienda_sin_vta['con_vta']!=fecha_tienda_sin_vta['con_vta']]
+    fecha_tienda_sin_vta = fecha_tienda_sin_vta[fecha_tienda_sin_vta['con_vta'].notna()]
     df_tarifas_oper['cod_tienda2'] = df_tarifas_oper['cod_tienda'].apply(lambda x: str(x).zfill(4))
-    asegurados_dia_sin_vta = fecha_tienda_sin_vta[['MES_FACTURA', 'fecha_op', 'cod_tienda']].merge(df_tarifas_oper[['cod_tienda2', 'MES_FACTURA', 'asegurado']],
-                                                                                                left_on=['cod_tienda', 'MES_FACTURA'],
-                                                                                                right_on=['cod_tienda2', 'MES_FACTURA'], how='left')[['MES_FACTURA', 'fecha_op', 'cod_tienda','asegurado']]
+
     # pegar despues asegurados_dia_sin_vta con asegurado cambiado a dif bono
     df_costo_shopper_diario_aseg['costo_orden_shopper_para_asegurado'] = df_costo_shopper_diario_aseg.apply(lambda row: row['costo_orden_shopper']*0.8 if row['Operador']=='Time Jobs' else row['costo_orden_shopper'], axis=1)
     df_costo_shopper_diario_aseg['Dif_bono'] = df_costo_shopper_diario_aseg.apply(lambda row: 0 if row['costo_orden_shopper_para_asegurado'] > row['asegurado'] else row['asegurado']-row['costo_orden_shopper_para_asegurado'], axis=1)
@@ -344,10 +341,10 @@ def _calcular_costos_logisticos(ds):
     df_costo_shopper_diario_aseg = df_costo_shopper_diario_aseg.merge(df_asistencia_shoppers_agg, on=['employee_id', 'fecha_op', 'cod_tienda'], how='left')
     # calcula costo picker
     # ***
-    df_costo_shopper_diario_aseg['costo_dia_picker'] = df_costo_shopper_diario_aseg.apply(lambda row: row['horas_en_janis']*row['Picker_hr'] if row['horas_en_janis']==row['horas_en_janis']
-                                                                                        else (float(df_costo_shopper_diario_aseg[df_costo_shopper_diario_aseg['cod_tienda']==row['cod_tienda']][['horas_en_janis']].mean()))*row['Picker_hr'], axis=1)
+    df_costo_shopper_diario_aseg['costo_dia_picker'] = df_costo_shopper_diario_aseg.apply(lambda row: row['horas_en_janis']*row['Picker_hr'] if pd.notna(row['horas_en_janis'])
+                                                                                        else (float(df_costo_shopper_diario_aseg[df_costo_shopper_diario_aseg['cod_tienda']==row['cod_tienda']][['horas_en_janis']].mean()))*row['Picker_hr'], axis=1).sum()
     #
-    ##########  recurso fijo  ###########
+    ##########  recurso fijo ###########
     # calcula en cuantos shopper/tienda/mes prorratear el coordinador external
     cuenta_dia_shopper_mes = df_costo_shopper_diario_aseg.groupby(['MES_FACTURA', 'cod_tienda', 'fecha_op'])['employee_id'].count().reset_index()
     cuenta_dia_shopper_mes.columns = ['MES_FACTURA', 'cod_tienda', 'fecha_op', 'shoppers_dia_tienda_mes']
@@ -360,15 +357,7 @@ def _calcular_costos_logisticos(ds):
     #
     df_costo_shopper_diario_aseg['costo_logistico_total'] = df_costo_shopper_diario_aseg.fillna(0).apply(lambda row: row['Camion_orden'] + row['costo_dia_shopper'] + row['costo_dia_picker'] + row['costo_coordinador_ext'], axis=1)
     ##########  AGRUPACION  ###########
-    # guarda una versión con camiones para comparar transporte en rutas
-    df_costo_transportadora_diario = df_costo_shopper_diario_aseg.groupby(['fecha_op', 'cod_tienda']).agg(
-            costo_shoppers = ('costo_orden_shopper', 'sum'),
-            costo_asegurado = ('Dif_bono', 'sum'),
-            costo_picker = ('costo_dia_picker', 'sum'),
-            costo_camiones = ('Camion_orden', 'sum'),
-            costo_coordinador = ('costo_coordinador_ext', 'sum'),
-            costo_total = ('costo_logistico_total', 'sum')
-        ).reset_index()
+
     # pasa codigo tienda a tienda solo sin diferenciar por op camiones
     df_costo_shopper_diario_aseg['cod_tienda'] = df_costo_shopper_diario_aseg['cod_tienda'].apply(lambda x: str(x).rstrip('-0').zfill(4)
                                                                                                 if '-' in str(x)
@@ -472,7 +461,7 @@ def _subir_a_bdd(ti):
     df_costos_estimado = pd.read_csv(costos_object.get()["Body"], decimal=',', sep=';')
     
     # transforma fecha del estimado
-    df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha']==df_costos_estimado['fecha']]
+    df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'].notna()]
     df_costos_estimado['fecha'] = df_costos_estimado['fecha'].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d') if str(x)[:3]=='202' else pd.to_datetime(x, format='%d-%m-%Y')).apply(lambda x: x.strftime('%Y-%m-%d'))
     df_costos_estimado['id_tienda'] = df_costos_estimado['id_tienda'].apply(lambda x: str(int(float(x)))[0:4].rstrip(' ').zfill(4))
     #### SUBE ARCHIVO TRANSFORMADO
