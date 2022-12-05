@@ -38,7 +38,7 @@ left join (
 		and registro_valido = True
 		and organizacion_ventas = '1000'
 		and canal_distribucion = '10'
-		and id_evento not in (105, 555)
+		and id_mecanica not in (25, 26, 27, 36, 37, 50, 51, 72, 77, 93, 99)
 		group by ean, material
 ) wf
 	on s.material = wf.material 
