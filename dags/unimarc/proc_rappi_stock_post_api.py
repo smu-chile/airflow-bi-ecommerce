@@ -40,6 +40,25 @@ def _check_if_dag_ran_today(ds):
         return "calculate_delta_request_body"
 
 
+def _get_second_to_last_datetime():
+    second_to_last_datetime_query = """
+        SELECT fecha_hora
+        FROM ecommdata.publicacion_catalogo pc
+        group by fecha_hora
+        order by fecha_hora desc
+        offset 1 limit 1;
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+
+    pg_cur = pg_connection.cursor()
+
+    pg_cur.execute(second_to_last_datetime_query)
+    second_to_last_datetime = pg_cur.fetchall()[0].strftime("%Y-%m-%d %H:%M:%S")
+    
+    return second_to_last_datetime
+
+
 def _calculate_request_body(ds, ts, type):
     import json
     import os
@@ -55,7 +74,8 @@ def _calculate_request_body(ds, ts, type):
     if type == 'full':
         rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
     else:
-        rappi_stock_query = ""
+        second_to_last_datetime = _get_second_to_last_datetime()
+        rappi_stock_query = rappi_stock_query.replace("{ds}", ds).replace("{second_to_last_datetime}", second_to_last_datetime)
 
     print(rappi_stock_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -69,9 +89,11 @@ def _calculate_request_body(ds, ts, type):
     active_stores = df["store_id"].unique().tolist()
     store_body_file_paths = []
     for store_id in active_stores:
-        df = df[df["store_id"] == store_id]
-        df["is_available"] = True
-        dict_body = df.to_dict(orient="records")
+        df_store = df[df["store_id"] == store_id]
+        df_store["id"] = df_store["id"].astype("int").astype("str")
+        df_store["discount_price"] = df_store["discount_price"].astype("int")
+        df_store["is_available"] = True
+        dict_body = df_store.to_dict(orient="records")
         json_body = json.dumps(dict_body)
 
         store_body_file_path = body_file_path + store_id + ".json"
