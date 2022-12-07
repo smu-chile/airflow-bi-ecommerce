@@ -149,6 +149,7 @@ def _stock_and_prices_delta_post_request():
 
 def _datawarehouse_stock_full_load():
     import jaydebeapi
+    import json
     import os
     import pandas as pd
 
@@ -170,6 +171,9 @@ def _datawarehouse_stock_full_load():
         "0926",
     ]
 
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
     dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
     dsn_port = "5480" 
@@ -183,6 +187,7 @@ def _datawarehouse_stock_full_load():
     cur = conn.cursor()
 
     for store_id in store_id_list:
+        body_file_path = f"rappi/api/stock/post/full/requests/{store_id}.json"
         stock_query = f"""
             SELECT P.ean AS ean --ean (PRIMARIO) ean_ppal / UPC
                     , CASE
@@ -252,7 +257,17 @@ def _datawarehouse_stock_full_load():
         df = pd.DataFrame(results, columns=columns)
 
         print(f"Número de registros: {len(df.index)}")
-        print(df.head(1))
+        print(df.columns)
+
+        dict_body = df.to_dict(orient="records")
+        json_body = json.dumps(dict_body)
+
+        s3_hook.load_string(json_body,
+                    key=body_file_path,
+                    bucket_name=s3_bucket,
+                    replace=True,
+                    encrypt=False)
+        
     
     return
 
