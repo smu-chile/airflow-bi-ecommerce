@@ -254,8 +254,9 @@ def _datawarehouse_stock_full_load():
         results = cur.fetchall()
         columns = [i[0] for i in cur.description]
         df = pd.DataFrame(results, columns=columns)
-        df["price"] = df["price"].astype("int")
-        df["discount_price"] = df["discount_price"].astype("int")
+        df["PRICE"] = df["PRICE"].astype("int")
+        df["DISCOUNT_PRICE"] = df["DISCOUNT_PRICE"].astype("int")
+        df.columns= df.columns.str.lower()
         df["is_available"] = True
 
         print(f"Número de registros: {len(df.index)}")
