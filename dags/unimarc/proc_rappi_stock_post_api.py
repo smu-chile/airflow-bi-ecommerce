@@ -113,6 +113,7 @@ def _stock_and_prices_full_post_request(ti, ds):
     
     exec_datetime_string = ds.replace("-", "/")
     prefix = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/"
+    responses_prefix = f"rappi/api/stock/post/full/responses/{exec_datetime_string}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -137,22 +138,24 @@ def _stock_and_prices_full_post_request(ti, ds):
 
         rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
 
-        print(json_body)
-        break
-
-        # headres = {
-        #     "api_key": Variable.get("RAPPI_API_KEY"),
-        #     "Content-Type": "application/json"
-        # }
-        # response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
-        # print(response.status_code)
-        # try:
-        #     response_json = response.json()
-        #     print(response_json)
-        # except Exception as e:
-        #     print(e)
-        #     print("Error on response.")
-
+        headres = {
+            "api_key": Variable.get("RAPPI_API_KEY"),
+            "Content-Type": "application/json"
+        }
+        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        print(response.status_code)
+        try:
+            response_json = response.json()
+            response_string = json.dumps(response_json)
+            s3_hook.load_string(response_string,
+                  key=responses_prefix+body_file,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
+        except Exception as e:
+            print(e)
+            print("Error on response.")
+            break
     return
 
 def _stock_and_prices_delta_post_request():
