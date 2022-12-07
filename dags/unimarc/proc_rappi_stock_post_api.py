@@ -125,6 +125,7 @@ def _stock_and_prices_full_post_request(ti, ds):
         return
 
     for body_file in s3_file_list:
+        file_name = body_file.split("/")[-1]
         print("Searching file: "+body_file)
         if not s3_hook.check_for_key(body_file, bucket_name=s3_bucket):
             raise Exception("Key %s does not exist." % body_file)
@@ -148,7 +149,7 @@ def _stock_and_prices_full_post_request(ti, ds):
             response_json = response.json()
             response_string = json.dumps(response_json)
             s3_hook.load_string(response_string,
-                  key=responses_prefix+body_file,
+                  key=responses_prefix+file_name,
                   bucket_name=s3_bucket,
                   replace=True,
                   encrypt=False)
