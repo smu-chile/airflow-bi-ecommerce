@@ -345,10 +345,10 @@ with DAG(
     #     }
     # )
 
-    # t4 = PythonOperator(
-    #     task_id = "stock_and_prices_full_post_request",
-    #     python_callable = _stock_and_prices_full_post_request,        
-    # )
+    t4 = PythonOperator(
+        task_id = "stock_and_prices_full_post_request",
+        python_callable = _stock_and_prices_full_post_request,        
+    )
 
     # td = DummyOperator(
     #     task_id = "skip_dag_run"
@@ -362,3 +362,4 @@ with DAG(
     # t0 >> [t1, td] 
     # t1 >> [t2, t3]
     # t2 >> t4
+    t5 >> t4
