@@ -201,7 +201,6 @@ def _datawarehouse_stock_full_load():
                     , ou.ou_id AS store_id --probar desde dim_store
                     , P.NM AS name -- name
                     , P.BRAND_DESC AS trademark -- trademark desde DIM_SKU_ATTR
-                    , TRUE AS is_available --, os.CATALOGADO == 1 -- is_available CATALOGADO DE DIM_OU_SKU 
                     , CASE 
                         WHEN p.unidad_de_medida IN ('KG', 'KGV') THEN 'WW'
                         ELSE 'U'
@@ -255,6 +254,9 @@ def _datawarehouse_stock_full_load():
         results = cur.fetchall()
         columns = [i[0] for i in cur.description]
         df = pd.DataFrame(results, columns=columns)
+        df["price"] = df["price"].astype("int")
+        df["discount_price"] = df["discount_price"].astype("int")
+        df["is_available"] = True
 
         print(f"Número de registros: {len(df.index)}")
         print(df.columns)
