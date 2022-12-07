@@ -111,11 +111,19 @@ def _stock_and_prices_full_post_request(ti, ds):
     import requests
     print("FULL LOAD")
     
-    post_body_files = ti.xcom_pull(key="return_value", task_ids=["calculate_full_request_body"])[0]
+    exec_datetime_string = ds.replace("-", "/")
+    prefix = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    for body_file in post_body_files:
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    print(f"Number of files found: {len(s3_file_list)}")
+
+    if len(s3_file_list) == 0:
+        print("NO FILES FOUND.")
+        return
+
+    for body_file in s3_file_list:
         print("Searching file: "+body_file)
         if not s3_hook.check_for_key(body_file, bucket_name=s3_bucket):
             raise Exception("Key %s does not exist." % body_file)
@@ -128,18 +136,22 @@ def _stock_and_prices_full_post_request(ti, ds):
         }
 
         rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
-        headres = {
-            "api_key": Variable.get("RAPPI_API_KEY"),
-            "Content-Type": "application/json"
-        }
-        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
-        print(response.status_code)
-        try:
-            response_json = response.json()
-            print(response_json)
-        except Exception as e:
-            print(e)
-            print("Error on response.")
+
+        print(json_body)
+        break
+
+        # headres = {
+        #     "api_key": Variable.get("RAPPI_API_KEY"),
+        #     "Content-Type": "application/json"
+        # }
+        # response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        # print(response.status_code)
+        # try:
+        #     response_json = response.json()
+        #     print(response_json)
+        # except Exception as e:
+        #     print(e)
+        #     print("Error on response.")
 
     return
 
@@ -147,12 +159,13 @@ def _stock_and_prices_delta_post_request():
     print("DELTA LOAD")
     return
 
-def _datawarehouse_stock_full_load():
+def _datawarehouse_stock_full_load(ts):
     import jaydebeapi
     import json
     import os
     import pandas as pd
 
+    exec_datetime_string = ts[:10].replace("-", "/")
     store_id_list = [
         "0332", "0343", "0402", "0982", "0011",
         "0375", "0022", "0030", "0086", "0046",
@@ -187,7 +200,7 @@ def _datawarehouse_stock_full_load():
     cur = conn.cursor()
 
     for store_id in store_id_list:
-        body_file_path = f"rappi/api/stock/post/full/requests/{store_id}.json"
+        body_file_path = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/{store_id}.json"
         stock_query = f"""
             SELECT P.ean AS ean --ean (PRIMARIO) ean_ppal / UPC
                     , CASE
@@ -270,7 +283,6 @@ def _datawarehouse_stock_full_load():
                     bucket_name=s3_bucket,
                     replace=True,
                     encrypt=False)
-        
     
     return
 
