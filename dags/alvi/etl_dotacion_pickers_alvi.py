@@ -10,10 +10,10 @@ def credenciales():
     import json
 
     diccionario_keys = Variable.get('KEYS_GOOGLE_SHEET',deserialize_json=True)
-    with open('temp_keys.json', 'w', encoding='utf-8') as f:
+    with open('temp_keys_alvi.json', 'w', encoding='utf-8') as f:
         json.dump(diccionario_keys, f, ensure_ascii=False)
     
-    keys = 'temp_keys.json'
+    keys = 'temp_keys_alvi.json'
     return (keys)
 
 def fecha_ejecucion(ts):
@@ -71,7 +71,7 @@ def gsheets_to_sql(keys,today):
     import os
     import time
 
-    gc = gspread.service_account(filename='temp_keys.json')
+    gc = gspread.service_account(filename='temp_keys_alvi.json')
     # parámetros de palabra clave:
     keyword1 = "Dotacíon  Forecast"
     keyword2 = "Dotacíon Diaria Operador"
@@ -82,7 +82,7 @@ def gsheets_to_sql(keys,today):
     SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
     # prueba de conexión
     try:
-        service_account.Credentials.from_service_account_file('temp_keys.json', scopes=SCOPES)
+        service_account.Credentials.from_service_account_file('temp_keys_alvi.json', scopes=SCOPES)
         print("conectado a Gsheet...")
     except Exception as e:
         print (str(e))
@@ -308,7 +308,7 @@ def gsheets_to_sql(keys,today):
     connection.close()
 
     time.sleep(10)
-    os.remove('temp_keys.json')
+    os.remove('temp_keys_alvi.json')
 
 def main_execution(ts):
     keys = credenciales()
