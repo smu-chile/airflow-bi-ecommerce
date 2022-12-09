@@ -29,9 +29,9 @@ def venta_fact_geo(fecha_desde):
     # Get Cursor
     cur = conn.cursor()
     query = f"""
-    select to_char(timezone('America/Santiago',o.fecha_creacion::timestamp), 'yyyy-mm-dd') as fecha_creacion, 
+    select o.fecha_creacion as fecha_creacion, 
     to_char(timezone('America/Santiago',d.fecha_despacho ::timestamp), 'yyyy-mm-dd') as fecha_compromiso, 
-    to_char(timezone('America/Santiago',o.fecha_picking::timestamp), 'yyyy-mm-dd') as fecha_picking,
+    o.fecha_picking as fecha_picking,
     o.id as orden, eo.nombre_estado as estado, a.nombre as firstname, a.apellido as lastname, a.id_empleado as employee_id,
     t2.nombre_tienda_janis as tienda, t.nombre as transportadora, d.lng as lng_pedido, d.lat as lat_pedido, t2.longitud as lng_tienda, t2.latitud as lat_tienda, o.venta_facturada_neta as "sum(venta_neta)",
     o.unidades_solicitadas as "sum(unidades)", o.productos_solicitados as "sum(productos)"
@@ -421,7 +421,6 @@ def costos_to_sql(costos_df):
     ##### CARGA
 
     # INSERT
-    #df_costos.to_sql(name="costos_logisticos_diarios",
     df_costos.to_sql(name="costos_logisticos_diarios_soloestim",
     con=engine,
     schema="forecast_and_planning",
@@ -505,7 +504,7 @@ with DAG(
     schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2022, 11, 28, tz="America/Santiago"),
     catchup=False,
-    tags=["OPS","AWS","ETL", "DIAR"],
+    tags=["OPS","AWS","ETL", "unimarc", "forecast_and_planning", "costos_logisticos_solo_estim"],
 ) as dag:
 
     dag.doc_md = """
