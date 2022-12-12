@@ -68,6 +68,8 @@ def _load_json_to_s3(ts, ds):
         linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3]
         lista_lineas.append(linea_f)
 
+    next_url = res["links"]["next"]
+
     while(len(res['data']) == 500):
         response = requests.request("GET", next_url, headers=headers, data=payload)
         res = json.loads(response.text)
