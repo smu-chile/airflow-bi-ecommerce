@@ -261,7 +261,7 @@ def _calcular_costos_logisticos(ds):
     df_venta_fact_geo_tarifa_km = df_venta_fact_geo_tarifa.merge(df_km_real[['orden', 'KMs_Totales']], on='orden', how='left')
     # calcula KM de vincenty
     df_venta_fact_geo_tarifa_km['KMs_Vincenty'] = df_venta_fact_geo_tarifa_km.apply(lambda row:
-        geopy.distance.distance((row['lat_tienda'],row['lng_tienda']), (row['lat_pedido'],row['lng_pedido']), ellipsoid='WGS-84').km
+        distance.distance((row['lat_tienda'],row['lng_tienda']), (row['lat_pedido'],row['lng_pedido']), ellipsoid='WGS-84').km
         if ~pd.isnull(row['lat_tienda'])
         and ~pd.isnull(row['lat_tienda'])
         and ~pd.isnull(row['lng_pedido']) else np.nan, axis=1)*2
