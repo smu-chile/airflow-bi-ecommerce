@@ -151,18 +151,18 @@ def _load_json_to_s3(ts, ds):
 
     return file_name
 
-def _get_table_alerta_found_rate_from_S3(ti):
+def _get_table_alerta_reposicion_from_S3(ti):
     import pandas as pd
 
-    alerta_found_rate_file = ti.xcom_pull(key="return_value", task_ids=["load_json_to_s3"])[0]
+    alerta_reposicion_file = ti.xcom_pull(key="return_value", task_ids=["load_json_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+alerta_found_rate_file)
-    if not s3_hook.check_for_key(alerta_found_rate_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % alerta_found_rate_file)
+    print("Searching file: "+alerta_reposicion_file)
+    if not s3_hook.check_for_key(alerta_reposicion_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % alerta_reposicion_file)
 
-    alerta_found_rate_object = s3_hook.get_key(alerta_found_rate_file, bucket_name=s3_bucket)
+    alerta_found_rate_object = s3_hook.get_key(alerta_reposicion_file, bucket_name=s3_bucket)
 
     df = pd.read_csv(alerta_found_rate_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
@@ -184,12 +184,12 @@ def _get_table_alerta_found_rate_from_S3(ti):
 
     return df
 
-def _save_table_alerta_found_rate(ts, ti, ds):
+def _save_table_alerta_reposicion(ts, ti, ds):
     import pandas as pd
     import sqlalchemy
 
-    df = _get_table_alerta_found_rate_from_S3(ti)
-    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','gondola','stock_para_reponer','stock_en_sistema','repuesto']]
+    df = _get_table_alerta_reposicion_from_S3(ti)
+    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios']]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -200,7 +200,7 @@ def _save_table_alerta_found_rate(ts, ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        df.to_sql(name="frogmi_alerta_found_rate",
+        df.to_sql(name="frogmi_alerta_reposicion",
                 con=engine,         
                 schema="ecommdata",         
                 if_exists='append',         
@@ -208,7 +208,7 @@ def _save_table_alerta_found_rate(ts, ti, ds):
                 chunksize=20000,         
                 method='multi')
         conn.execute(f"""
-            UPDATE ecommdata.frogmi_alerta_found_rate
+            UPDATE ecommdata.frogmi_alerta_reposicion
             SET id_tienda = t.id
             FROM ecommdata.tiendas t
             WHERE fecha_inicio::date >= '{ds}' and tienda_frogmi = t.id_frogmi
@@ -227,18 +227,18 @@ default_args = {
 }
 
 with DAG(
-    'etl_frogmi_alerta_found_rate',
+    'etl_frogmi_alerta_reposicion',
     default_args=default_args,
-    description="Extracción y carga de tabla alerta frogmi desde API.",
+    description="Extracción y carga de tabla alerta reposicion desde API.",
     schedule_interval="0 21 * * *",
     start_date=datetime(2022, 10, 12),
     catchup=False,
     max_active_runs = 1,
-    tags=["frogmi", "found_rate"],
+    tags=["frogmi", "reposicion"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla alerta frogmi desde API.
+    Extracción y carga de tabla alerta reposicion desde API.
     """ 
 
     t0 = PythonOperator(
@@ -247,8 +247,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "save_table_alerta_found_rate",
-        python_callable = _save_table_alerta_found_rate
+        task_id = "save_table_alerta_reposicion",
+        python_callable = _save_table_alerta_reposicion
     )
 
 
