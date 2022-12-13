@@ -26,6 +26,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     , aux.fin_bloque
     , (now() AT TIME ZONE 'America/Santiago')::timestamp as fecha_modificacion
     , CONCAT(replace(date(frp.fecha_picking)::text,'-',''), '-', replace(to_char(aux.inicio_bloque, 'HH24:MI'),':',''), '-', replace(to_char(aux.fin_bloque, 'HH24:MI'),':',''), '-', frp.ref_id, '-', frp.id_tienda) as id
+    , true as activa
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p  on frp.ref_id = p.ref_id
@@ -51,7 +52,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     
     df = pd.DataFrame(
         data = results,
-        columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion', 'id']
+        columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion', 'id', 'activa']
     )
 
     if len(df) == 0:
@@ -85,6 +86,14 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
                     WHERE alerta_found_rate.unidades_faltantes <> excluded.unidades_faltantes AND alerta_found_rate.ordenes_afectadas <> excluded.ordenes_afectadas;
             """
     connection.execute(text(upsert_query))
+    deactivate_query = f"""
+
+                    UPDATE soprole.alerta_found_rate
+                    SET activa = false
+                    WHERE fecha_modificación < now() - interval '1 day'
+
+            """
+    connection.execute(text(deactivate_query))
     connection.close()
 
     print("Data saved to PostgreSQL. Table: soprole.alerta_found_rate")
