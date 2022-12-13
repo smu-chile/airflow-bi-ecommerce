@@ -9,8 +9,6 @@ from datetime import datetime, timedelta
 import pendulum
 
 def _check_time(ts):
-    import pytz
-
     exec_datetime = datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
@@ -113,11 +111,21 @@ def _stock_and_prices_full_post_request(ti, ds):
     import requests
     print("FULL LOAD")
     
-    post_body_files = ti.xcom_pull(key="return_value", task_ids=["calculate_full_request_body"])[0]
+    exec_datetime_string = ds.replace("-", "/")
+    prefix = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/"
+    responses_prefix = f"rappi/api/stock/post/full/responses/{exec_datetime_string}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    for body_file in post_body_files:
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    print(f"Number of files found: {len(s3_file_list)}")
+
+    if len(s3_file_list) == 0:
+        print("NO FILES FOUND.")
+        return
+
+    for body_file in s3_file_list:
+        file_name = body_file.split("/")[-1]
         print("Searching file: "+body_file)
         if not s3_hook.check_for_key(body_file, bucket_name=s3_bucket):
             raise Exception("Key %s does not exist." % body_file)
@@ -130,6 +138,7 @@ def _stock_and_prices_full_post_request(ti, ds):
         }
 
         rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
+
         headres = {
             "api_key": Variable.get("RAPPI_API_KEY"),
             "Content-Type": "application/json"
@@ -138,15 +147,147 @@ def _stock_and_prices_full_post_request(ti, ds):
         print(response.status_code)
         try:
             response_json = response.json()
-            print(response_json)
+            response_string = json.dumps(response_json)
+            s3_hook.load_string(response_string,
+                  key=responses_prefix+file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
         except Exception as e:
             print(e)
             print("Error on response.")
-
+            break
     return
 
 def _stock_and_prices_delta_post_request():
     print("DELTA LOAD")
+    return
+
+def _datawarehouse_stock_full_load(ts):
+    import jaydebeapi
+    import json
+    import os
+    import pandas as pd
+
+    exec_datetime_string = ts[:10].replace("-", "/")
+    store_id_list = [
+        "0332", "0343", "0402", "0982", "0011",
+        "0375", "0022", "0030", "0086", "0046",
+        "0111", "0062", "0345", "0336", "0602",
+        "0058", "0953", "0009", "0477", "0344",
+        "0331", "0626", "0025", "0028", "0980",
+        "0326", "0475", "0476", "0357", "0903",
+        "0325", "0717", "0353", "0087", "0763",
+        "0961", "0328", "0916", "0683", "0017",
+        "0956", "0333", "0469", "0917", "0355",
+        "0761", "0939", "0645", "0581", "0931",
+        "0027", "0759", "0958", "0340", "0458",
+        "0051", "0644", "0008", "0714", "0954",
+        "0912", "0681", "0978", "0914", "0923",
+        "0960", "0957", "0905", "0445", "0902",
+        "0926",
+    ]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    dsn_database = Variable.get("DW_SECRET_DATABASE") 
+    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
+    dsn_port = "5480" 
+    dsn_uid = Variable.get("DW_SECRET_USER")
+    dsn_pwd = Variable.get("DW_PASSWORD")
+    jdbc_driver_name = "org.netezza.Driver" 
+    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+
+    connection_string = 'jdbc:netezza://' + dsn_hostname + ':' + dsn_port + '/' + dsn_database
+    conn = jaydebeapi.connect(jdbc_driver_name, connection_string, {'user': dsn_uid, 'password': dsn_pwd},jars=jdbc_driver_loc)
+    cur = conn.cursor()
+
+    for store_id in store_id_list:
+        body_file_path = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/{store_id}.json"
+        stock_query = f"""
+            SELECT P.ean AS ean --ean (PRIMARIO) ean_ppal / UPC
+                    , CASE
+                        WHEN P.CONT_CONV_UMB > 1 THEN CAST(CAST(sa.sku_product AS int) AS varchar(25)) || '_' || P.CONT_CONV_UMB
+                        ELSE CAST(CAST(sa.sku_product AS int) AS varchar(25)) --id (sin ceros a la izquierda)
+                    END AS id
+                    , precio.PRECIO_MODAL AS price -- price
+                    , CASE WHEN WF.PRECIO IS NULL THEN precio.PRECIO_MODAL 
+                            ELSE WF.PRECIO END AS discount_price  --discount_price
+                    , FLOOR(NBR_ITM / P.CONT_CONV_UMB) AS stock --stock
+                    , ou.ou_id AS store_id --probar desde dim_store
+                    , P.NM AS name -- name
+                    , P.BRAND_DESC AS trademark -- trademark desde DIM_SKU_ATTR
+                    , CASE 
+                        WHEN p.unidad_de_medida IN ('KG', 'KGV') THEN 'WW'
+                        ELSE 'U'
+                    END AS sale_type -- sale_type U, WW
+            FROM DWC_SMU.SMU.VW_FACT_STOCK S
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA ON SA.SKU_KEY  = S.SKU_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON P.SKU_KEY = SA.SKU_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU ON OU.OU_KEY = S.OU_KEY --probar contra dim_store
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A ON A.ALMACEN_KEY =S.ALMACEN_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
+            INNER JOIN (SELECT _t.FECHA_CARGA
+                                , LPAD(_t.CODIGO_MATERIAL , 18, 0) AS material
+                                , CASE WHEN _t.UMV = 'UN' THEN 'ST' ELSE _t.UMV END AS UMV
+                                , _t1.PRECIO_MODAL
+                        FROM (SELECT MAX(FECHA_CARGA) AS FECHA_CARGA
+                                        , CODIGO_MATERIAL
+                                        , UMV
+                                FROM NZ_BU.ECOMERCE.VW_POSC_ACT_H_PRECIO_MODAL_UNI
+                                GROUP BY CODIGO_MATERIAL, UMV) _t
+                        INNER JOIN NZ_BU.ECOMERCE.VW_POSC_ACT_H_PRECIO_MODAL_UNI _t1
+                                ON _t.FECHA_CARGA=_t1.FECHA_CARGA
+                                    AND _t.CODIGO_MATERIAL=_t1.CODIGO_MATERIAL
+                                    AND _t.UMV=_t1.UMV) precio
+                            ON precio.MATERIAL = SA.SKU_PRODUCT
+                            AND precio.umv = p.UNIDAD_DE_MEDIDA
+            LEFT JOIN (SELECT EAN
+                                , min(PRECIO_PROMOCIONAL) AS PRECIO
+                        FROM NZ_BU.ECOMERCE.VW_WORKFLOW
+                        WHERE FECHA_INICIO_DE_PROMOCION <= TO_CHAR(NOW(),'YYYY-MM-DD')
+                        AND FECHA_FIN_DE_PROMOCION >= TO_CHAR(NOW(),'YYYY-MM-DD')
+                        AND TIPO_PROMOCION IN (1,4)
+                        AND REGISTRO_VALIDO = 'X'
+                        AND ORGANIZACION_VENTAS = '1000'
+                        AND CANAL_DISTRIBUCION = '10'
+                        AND ID_MECANICA NOT IN (25, 26, 27, 36, 37, 50, 51, 72, 77, 93, 99)
+                        GROUP BY EAN ) WF ON WF.EAN = P.EAN
+            WHERE A.ALMACEN_COD = '0001'
+            AND S.APLICA_STOCK = 'S'
+            AND DATE_VALUE = TO_CHAR(NOW() - INTERVAL '1 days','YYYY-MM-DD')
+            AND OU.OU_ID = '{store_id}'
+            AND P.NLS_PD_DSC IS NOT NULL
+            AND P.UNIDAD_DE_MEDIDA  IS NOT NULL
+            AND PART.PARTICULARIDAD_COD = 'A'
+            AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
+            AND FLOOR(NBR_ITM / P.CONT_CONV_UMB) > 0
+            AND p.indic_ean_ppal = 'X';
+        """
+        
+        print(f"Ejecutando tienda: {store_id}")
+        cur.execute(stock_query)
+        results = cur.fetchall()
+        columns = [i[0] for i in cur.description]
+        df = pd.DataFrame(results, columns=columns)
+        df["PRICE"] = df["PRICE"].astype("int")
+        df["DISCOUNT_PRICE"] = df["DISCOUNT_PRICE"].astype("int")
+        df.columns= df.columns.str.lower()
+        df["is_available"] = True
+
+        print(f"Número de registros: {len(df.index)}")
+        print(df.columns)
+
+        dict_body = df.to_dict(orient="records")
+        json_body = json.dumps(dict_body)
+
+        s3_hook.load_string(json_body,
+                    key=body_file_path,
+                    bucket_name=s3_bucket,
+                    replace=True,
+                    encrypt=False)
+    
     return
 
 default_args = {
@@ -179,44 +320,50 @@ with DAG(
     - Delta load: las cargas siguentes del día deben representar la variación de stock.
     """ 
 
-    t0 = BranchPythonOperator(
-        task_id = "check_time",
-        python_callable = _check_time
-    )
+    # t0 = BranchPythonOperator(
+    #     task_id = "check_time",
+    #     python_callable = _check_time
+    # )
 
-    t1 = BranchPythonOperator(
-        task_id = "check_if_dag_ran_today",
-        python_callable = _check_if_dag_ran_today,
-        op_kwargs = {
-            "dag_latest_run": "{{dag.get_latest_execution_date()}}"
-        }
-    )
+    # t1 = BranchPythonOperator(
+    #     task_id = "check_if_dag_ran_today",
+    #     python_callable = _check_if_dag_ran_today,
+    #     op_kwargs = {
+    #         "dag_latest_run": "{{dag.get_latest_execution_date()}}"
+    #     }
+    # )
 
-    t2 = PythonOperator(
-        task_id = "calculate_full_request_body",
-        python_callable = _calculate_request_body,
-        op_kwargs = {
-            "type": "full"
-        }
-    )
+    # t2 = PythonOperator(
+    #     task_id = "calculate_full_request_body",
+    #     python_callable = _calculate_request_body,
+    #     op_kwargs = {
+    #         "type": "full"
+    #     }
+    # )
 
-    t3 = PythonOperator(
-        task_id = "calculate_delta_request_body",
-        python_callable = _calculate_request_body,
-        op_kwargs = {
-            "type": "delta"
-        }
-    )
+    # t3 = PythonOperator(
+    #     task_id = "calculate_delta_request_body",
+    #     python_callable = _calculate_request_body,
+    #     op_kwargs = {
+    #         "type": "delta"
+    #     }
+    # )
 
     t4 = PythonOperator(
         task_id = "stock_and_prices_full_post_request",
         python_callable = _stock_and_prices_full_post_request,        
     )
 
-    td = DummyOperator(
-        task_id = "skip_dag_run"
+    # td = DummyOperator(
+    #     task_id = "skip_dag_run"
+    # )
+
+    t5 = PythonOperator(
+        task_id = "datawarehouse_stock_full_load",
+        python_callable = _datawarehouse_stock_full_load
     )
 
-    t0 >> [t1, td] 
-    t1 >> [t2, t3]
-    t2 >> t4
+    # t0 >> [t1, td] 
+    # t1 >> [t2, t3]
+    # t2 >> t4
+    t5 >> t4
