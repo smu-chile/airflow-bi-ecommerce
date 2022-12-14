@@ -90,7 +90,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
 
                     UPDATE soprole.alerta_found_rate
                     SET activa = false
-                    WHERE fecha_modificación < now() - interval '1 day'
+                    WHERE fecha_modificacion < now() - interval '1 day'
 
             """
     connection.execute(text(deactivate_query))
