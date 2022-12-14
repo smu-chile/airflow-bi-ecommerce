@@ -456,7 +456,7 @@ def costos_to_sql(df_costos):
     incremental_query = """
         INSERT INTO forecast_and_planning.costos_logisticos_diarios_soloestim ("""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id_orden)
+        ON CONFLICT (id_tienda,fecha)
         DO NOTHING; 
     """
 
