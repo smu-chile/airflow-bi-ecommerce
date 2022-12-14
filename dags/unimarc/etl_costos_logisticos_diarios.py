@@ -486,7 +486,7 @@ def _subir_a_bdd(ti, ds):
     df_costos_estimado['estimado_gasto_extra'] = pd.to_numeric(df_costos_estimado['estimado_gasto_extra'], errors = 'ignore')
     df_costos_estimado['estimado_descuentos'] = pd.to_numeric(df_costos_estimado['estimado_descuentos'], errors = 'ignore')
     
-    #df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'] == (datetime.strptime(ds, '%Y-%m-%d'))]
+    df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'] == (datetime.strptime(ds, '%Y-%m-%d'))]
     print (df_costos_estimado.dtypes)
     costos_to_sql(df_costos_estimado)
 
