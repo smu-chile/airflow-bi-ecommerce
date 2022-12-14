@@ -179,7 +179,7 @@ def _calcular_costos_logisticos(ds):
     ########### PARÁMETROS #################
     ########################################
     # fecha desde (posteriormente será la ultima fecha cargada en AWS)
-    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d'))) - timedelta(days=30)
+    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d'))) - timedelta(days=90)
     #fecha_desde = "2022-03-26"
 
     ########################################
@@ -423,8 +423,8 @@ def costos_to_sql(df_costos):
 
     # INSERT
     columns = [
-        "fecha",
         "id_tienda",
+        "fecha",
         "estimado_shoppers", 
         "estimado_asegurado",
         "estimado_picker",
