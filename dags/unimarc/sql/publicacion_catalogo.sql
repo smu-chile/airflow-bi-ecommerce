@@ -28,10 +28,6 @@ end as disponible_web
 	when li.material is not null then true
 	else false
 end as infaltable
-, case
-	when tp.material is not null then true
-	else false
-end as top_300
 , s.stock_janis
 , s.stock_seguridad_janis
 , s.stock_infinito_janis
@@ -39,6 +35,10 @@ end as top_300
 , s.stock_reservado_vtex
 , s.stock_infinito_vtex
 , s.surtido_ecommerce
+, case
+	when tp.material is not null then true
+	else false
+end as top_300
 from ecommdata.stock s
 left join (select t1.ref_id
 	, t1.q_foto
