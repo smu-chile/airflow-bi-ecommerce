@@ -26,7 +26,6 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     , aux.fin_bloque
     , (now() AT TIME ZONE 'America/Santiago')::timestamp as fecha_modificacion
     , CONCAT(replace(date(frp.fecha_picking)::text,'-',''), '-', replace(to_char(aux.inicio_bloque, 'HH24:MI'),':',''), '-', replace(to_char(aux.fin_bloque, 'HH24:MI'),':',''), '-', frp.ref_id, '-', frp.id_tienda) as id
-    , true as activa
     from operaciones_unimarc.found_rate_productos frp
     left join ecommdata.skus s on frp.ref_id = s.ref_id
     left join ecommdata.productos p  on frp.ref_id = p.ref_id
@@ -52,7 +51,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     
     df = pd.DataFrame(
         data = results,
-        columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion', 'id', 'activa']
+        columns = ['fecha_proceso', 'ref_id', 'ean', 'id_tienda', 'marca', 'ordenes_afectadas', 'unidades_faltantes', 'inicio_bloque', 'fin_bloque', 'fecha_modificacion', 'id']
     )
 
     if len(df) == 0:
@@ -63,6 +62,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     df['fecha_proceso'] = df['fecha_proceso'].astype(str)
     df['inicio_bloque'] = df['inicio_bloque'].astype(str)
     df['fin_bloque'] = df['fin_bloque'].astype(str)
+    df['activa'] = True
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
