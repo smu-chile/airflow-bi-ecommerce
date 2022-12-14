@@ -62,6 +62,7 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
     df['fecha_proceso'] = df['fecha_proceso'].astype(str)
     df['inicio_bloque'] = df['inicio_bloque'].astype(str)
     df['fin_bloque'] = df['fin_bloque'].astype(str)
+    df['activa'] = True
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
@@ -85,6 +86,14 @@ def _upsert_table_from_ecommdata_into_DM(ti, ds):
                     WHERE alerta_found_rate.unidades_faltantes <> excluded.unidades_faltantes AND alerta_found_rate.ordenes_afectadas <> excluded.ordenes_afectadas;
             """
     connection.execute(text(upsert_query))
+    deactivate_query = f"""
+
+                    UPDATE soprole.alerta_found_rate
+                    SET activa = false
+                    WHERE fecha_modificación < now() - interval '1 day'
+
+            """
+    connection.execute(text(deactivate_query))
     connection.close()
 
     print("Data saved to PostgreSQL. Table: soprole.alerta_found_rate")
