@@ -435,12 +435,14 @@ def costos_to_sql(costos_df):
     engine = sqlalchemy.create_engine(conn_url)
     df_tarifa_test = pd.read_sql("SELECT * FROM forecast_and_planning.costos_logisticos_diarios_soloestim", con=engine)
 
-    if df_costos.shape[0] == df_tarifa_test.shape[0]: # Deberia comparar con df_costos?
+    try:
         print('EXITOSO: Se ha cargado exitosamente la base costos logísticos')
         print('Datos SQL df_tarifa_test: {}'.format(df_tarifa_test.shape[0]))
         print('Datos df_tarifa_test: {}'.format(df_tarifa_test.shape[0]))
-    else:
+    except Exception as e:
         print('ERROR: No se ha cargado exitosamente la base costos logísticos')
+        print (str(e))
+        raise Exception('Error, no se pudo cargar a la base de datos')
     connection.close()
 
 def _subir_a_bdd(ti, ds):
