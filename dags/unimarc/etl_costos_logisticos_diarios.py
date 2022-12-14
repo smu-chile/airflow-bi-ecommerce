@@ -177,7 +177,7 @@ def _calcular_costos_logisticos(ds):
     ########### PARÁMETROS #################
     ########################################
     # fecha desde (posteriormente será la ultima fecha cargada en AWS)
-    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d'))) - timedelta(days=30)
+    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d')))
     #fecha_desde = "2022-03-26"
 
     ########################################
@@ -486,7 +486,6 @@ def _subir_a_bdd(ti, ds):
     df_costos_estimado['estimado_gasto_extra'] = pd.to_numeric(df_costos_estimado['estimado_gasto_extra'], errors = 'ignore')
     df_costos_estimado['estimado_descuentos'] = pd.to_numeric(df_costos_estimado['estimado_descuentos'], errors = 'ignore')
     
-    df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'] == (datetime.strptime(ds, '%Y-%m-%d'))]
     print (df_costos_estimado.dtypes)
     costos_to_sql(df_costos_estimado)
 
