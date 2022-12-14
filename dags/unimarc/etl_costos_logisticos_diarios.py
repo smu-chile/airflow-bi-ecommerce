@@ -472,18 +472,18 @@ def _subir_a_bdd(ti, ds):
                         "estimado_picker","estimado_camiones","estimado_coordinador",
                         "estimado_total","estimado_driver","estimado_gasto_extra","estimado_descuentos"]]
 
-    column_types = {
-        'estimado_camiones' : 'int',
-        'estimado_driver' : 'int',
-        'estimado_gasto_extra' : 'int',
-        'estimado_descuentos' : 'int',
-    }
-    df_costos_estimado = df_costos_estimado.astype(column_types, errors = 'ignore')
+
+    #df_costos_estimado = df_costos_estimado.astype(column_types, errors = 'ignore')
     df_costos_estimado['estimado_shoppers'] = pd.to_numeric(df_costos_estimado['estimado_shoppers'], errors = 'ignore')
     df_costos_estimado['estimado_asegurado'] = pd.to_numeric(df_costos_estimado['estimado_asegurado'], errors = 'ignore')
     df_costos_estimado['estimado_picker'] = pd.to_numeric(df_costos_estimado['estimado_picker'], errors = 'ignore')
+    df_costos_estimado['estimado_camiones'] = pd.to_numeric(df_costos_estimado['estimado_camiones'], errors = 'ignore')
     df_costos_estimado['estimado_coordinador'] = pd.to_numeric(df_costos_estimado['estimado_coordinador'], errors = 'ignore')
     df_costos_estimado['estimado_total'] = pd.to_numeric(df_costos_estimado['estimado_total'], errors = 'ignore')
+    df_costos_estimado['estimado_driver'] = pd.to_numeric(df_costos_estimado['estimado_driver'], errors = 'ignore')
+    df_costos_estimado['estimado_gasto_extra'] = pd.to_numeric(df_costos_estimado['estimado_gasto_extra'], errors = 'ignore')
+    df_costos_estimado['estimado_descuentos'] = pd.to_numeric(df_costos_estimado['estimado_descuentos'], errors = 'ignore')
+    
     #df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'] == (datetime.strptime(ds, '%Y-%m-%d'))]
     print (df_costos_estimado.dtypes)
     costos_to_sql(df_costos_estimado)
