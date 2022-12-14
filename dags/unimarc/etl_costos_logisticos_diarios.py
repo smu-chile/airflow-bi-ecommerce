@@ -423,8 +423,8 @@ def costos_to_sql(df_costos):
 
     # INSERT
     columns = [
-        "fecha",
         "id_tienda",
+        "fecha",
         "estimado_shoppers", 
         "estimado_asegurado",
         "estimado_picker",
