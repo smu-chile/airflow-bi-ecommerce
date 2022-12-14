@@ -1,0 +1,45 @@
+insert into catalogo.publicacion_dia_tienda_top_300
+SELECT pc.fecha_hora,
+    pc.id_tienda,
+    pc.c1,
+    pc.c2,
+    pc.c3,
+    count(1) AS total_surtido,
+    sum(
+        CASE
+            WHEN pc.publicacion_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS publicacion_valida,
+    sum(
+        CASE
+            WHEN pc.disponible_web IS TRUE THEN 1
+            ELSE 0
+        END) AS disponible_web,
+    sum(
+        CASE
+            WHEN COALESCE(pc.stock_janis, 0::bigint) > 0 THEN 1
+            ELSE 0
+        END) AS con_stock,
+    sum(
+        CASE
+            WHEN pc.stock_valido IS TRUE THEN 1
+            ELSE 0
+        END) AS con_stock_visible,
+    sum(
+        CASE
+            WHEN pc.foto_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS con_foto,
+    sum(
+        CASE
+            WHEN pc.categoria_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS con_categoria,
+    sum(
+        CASE
+            WHEN pc.tienda_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS con_tienda
+FROM ecommdata.publicacion_catalogo pc
+WHERE pc.surtido_ecommerce IS TRUE and pc.top_300 is TRUE and pc.fecha_hora = '{{ts}}'::timestamp + interval '1 hour'
+GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3;
