@@ -199,9 +199,9 @@ with DAG(
     )
 
     t6 = PostgresOperator(
-        task_id = "load_table_publicacion_dia_tienda_infaltable",
+        task_id = "load_table_publicacion_dia_tienda_top_300",
         postgres_conn_id="postgresql_conn",
-        sql="sql/publicacion_dia_tienda_infaltable.sql",
+        sql="sql/publicacion_dia_tienda_top_300.sql",
     )
 
     t7 = PythonOperator(
