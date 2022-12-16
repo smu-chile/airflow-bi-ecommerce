@@ -35,6 +35,10 @@ end as infaltable
 , s.stock_reservado_vtex
 , s.stock_infinito_vtex
 , s.surtido_ecommerce
+, case
+	when tp.material is not null then true
+	else false
+end as top_300
 from ecommdata.stock s
 left join (select t1.ref_id
 	, t1.q_foto
@@ -56,6 +60,7 @@ left join ecommdata.precios pr on t.id_janis = pr.id_tienda_janis and s.ref_id =
 left join ecommdata.productos_tienda pt on s.ref_id = pt.ref_id and s.id_tienda = pt.id_tienda
 left join ecommdata.marcas m on p.id_marca = m.id
 left join ecommdata.lista_infaltables li on s.material = li.material
+left join ecommdata.top300 tp on s.material = tp.material
 inner join lateral (select
 	case 
 	when foto.ref_id is null then false

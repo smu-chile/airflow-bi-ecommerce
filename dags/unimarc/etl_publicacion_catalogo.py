@@ -198,25 +198,31 @@ with DAG(
         sql="sql/publicacion_dia_tienda_infaltable.sql",
     )
 
-    t6 = PythonOperator(
+    t6 = PostgresOperator(
+        task_id = "load_table_publicacion_dia_tienda_top_300",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/publicacion_dia_tienda_top_300.sql",
+    )
+
+    t7 = PythonOperator(
         task_id = "store_periodic_data",
         python_callable = _store_periodic_data
     )
 
-    t7 = PythonOperator(
+    t8 = PythonOperator(
         task_id = "delete_periodic_data",
         python_callable = _delete_periodic_data
     )
 
-    t8 = PythonOperator(
+    t9 = PythonOperator(
         task_id = "store_daily_data",
         python_callable = _store_daily_data
     )
 
-    t9 = PythonOperator(
+    t10 = PythonOperator(
         task_id = "delete_daily_data",
         python_callable = _delete_daily_data
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10
     t1 >> t_dummy

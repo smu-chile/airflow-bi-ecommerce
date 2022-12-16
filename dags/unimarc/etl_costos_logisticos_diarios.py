@@ -1,9 +1,11 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+
 from datetime import datetime, timedelta
 import pendulum
-from airflow.hooks.S3_hook import S3Hook
 
 
 def venta_fact_geo(fecha_desde):
@@ -177,7 +179,7 @@ def _calcular_costos_logisticos(ds):
     ########### PARÁMETROS #################
     ########################################
     # fecha desde (posteriormente será la ultima fecha cargada en AWS)
-    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d'))) - timedelta(days=30)
+    fecha_desde = ((datetime.strptime(ds, '%Y-%m-%d'))) - timedelta(days=90)
     #fecha_desde = "2022-03-26"
 
     ########################################
@@ -398,14 +400,13 @@ def _calcular_costos_logisticos(ds):
     return file_name
 
 
-def costos_to_sql(costos_df):
+def costos_to_sql(df_costos):
 
     import pandas as pd 
     import sqlalchemy
     from sqlalchemy import text
     import pandas as pd
-
-    df_costos = costos_df
+    import numpy as np
 
     
     ############## CARGA DE DATOS #######################
@@ -421,13 +422,61 @@ def costos_to_sql(costos_df):
     ##### CARGA
 
     # INSERT
-    df_costos.to_sql(name="costos_logisticos_diarios_soloestim",
-    con=engine,
-    schema="forecast_and_planning",
-    if_exists='append',
-    index=False,
-    chunksize=20000,
-    method='multi')
+    columns = [
+        "id_tienda",
+        "fecha",
+        "estimado_shoppers", 
+        "estimado_asegurado",
+        "estimado_picker",
+        "estimado_camiones",
+        "estimado_coordinador",
+        "estimado_total",
+        "estimado_driver",
+        "estimado_gasto_extra",
+        "estimado_descuentos"
+    ]
+    columns_query = ",".join(columns)
+    values_query = ",".join(["%s" for column in columns])
+    df_costos = df_costos.fillna("NULL")
+    records = list(df_costos.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO forecast_and_planning.costos_logisticos_diarios_soloestim ("""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id_tienda,fecha)
+        DO NOTHING; 
+    """
+
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+
+    # df_costos.to_sql(name="costos_logisticos_diarios_soloestim",
+    # con=engine,
+    # schema="forecast_and_planning",
+    # if_exists='append',
+    # index=False,
+    # chunksize=20000,
+    # method='multi')
     #### VALIDACION DE LA CARGA DE DATOS
 
     connection = engine.connect()
@@ -475,7 +524,6 @@ def _subir_a_bdd(ti, ds):
                         "estimado_total","estimado_driver","estimado_gasto_extra","estimado_descuentos"]]
 
 
-    #df_costos_estimado = df_costos_estimado.astype(column_types, errors = 'ignore')
     df_costos_estimado['estimado_shoppers'] = pd.to_numeric(df_costos_estimado['estimado_shoppers'], errors = 'ignore')
     df_costos_estimado['estimado_asegurado'] = pd.to_numeric(df_costos_estimado['estimado_asegurado'], errors = 'ignore')
     df_costos_estimado['estimado_picker'] = pd.to_numeric(df_costos_estimado['estimado_picker'], errors = 'ignore')
@@ -486,7 +534,6 @@ def _subir_a_bdd(ti, ds):
     df_costos_estimado['estimado_gasto_extra'] = pd.to_numeric(df_costos_estimado['estimado_gasto_extra'], errors = 'ignore')
     df_costos_estimado['estimado_descuentos'] = pd.to_numeric(df_costos_estimado['estimado_descuentos'], errors = 'ignore')
     
-    #df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'] == (datetime.strptime(ds, '%Y-%m-%d'))]
     print (df_costos_estimado.dtypes)
     costos_to_sql(df_costos_estimado)
 
