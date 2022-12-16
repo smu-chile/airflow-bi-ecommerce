@@ -344,7 +344,7 @@ def _calcular_costos_logisticos(ds):
     # calcula costo picker
     # ***
     df_costo_shopper_diario_aseg['costo_dia_picker'] = df_costo_shopper_diario_aseg.apply(lambda row: row['horas_en_janis']*row['Picker_hr'] if pd.notna(row['horas_en_janis'])
-                                                                                        else (float(df_costo_shopper_diario_aseg[df_costo_shopper_diario_aseg['cod_tienda']==row['cod_tienda']][['horas_en_janis']].mean()))*row['Picker_hr'], axis=1).sum()
+                                                                                        else (float(df_costo_shopper_diario_aseg[df_costo_shopper_diario_aseg['cod_tienda']==row['cod_tienda']][['horas_en_janis']].mean()))*row['Picker_hr'], axis=1)
     #
     ##########  recurso fijo ###########
     # calcula en cuantos shopper/tienda/mes prorratear el coordinador external
