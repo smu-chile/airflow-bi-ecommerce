@@ -24,7 +24,7 @@ def get_stock():
         raise Exception("Key %s does not exist." % file_name)
     
     stock_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
-    data_stock = stock_object['Body'].read()
+    data_stock = stock_object.get()['Body'].read()
 
     # df_lect = pd.read_csv(stock_object.get()["Body"], sep=';')
 
