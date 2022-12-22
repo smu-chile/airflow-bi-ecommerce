@@ -125,7 +125,7 @@ def _send_report_to_sftp():
                                     AND REGISTRO_VALIDO = 'X'
                                     AND ORGANIZACION_VENTAS = '1000'
                                     AND CANAL_DISTRIBUCION = '10'
-                                    AND ID_MECANICA NOT IN (25, 26, 27, 36, 37, 50, 51, 72, 77, 93, 99)
+                                    AND ID_MECANICA NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99)
                                     GROUP BY EAN ) WF ON WF.EAN = P.EAN
                         WHERE A.ALMACEN_COD = '0001'
                         AND S.APLICA_STOCK = 'S'
