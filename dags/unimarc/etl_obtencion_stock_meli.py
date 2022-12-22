@@ -190,6 +190,49 @@ def get_stock(ts):
     print (df_tot)
     # df_tot.to_csv('output_mlfile/df_total.csv', index=False, sep=';')
 
+    columns_insert = [
+        "product_id",
+        "inventory_id",
+        "cantidad_total", 
+        "cantidad_disponible",
+        "cantidad_no_disponible",
+        "fecha",
+    ]
+
+    columns_query = ",".join(columns_insert)
+    values_query = ",".join(["%s" for column in columns_insert])
+    df_list = df_list.fillna("NULL")
+    records = list(df_list.to_records(index=False))
+
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO forecast_and_planning.tabla_stock_general ("""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id_tienda,fecha)
+        DO NOTHING; 
+    """
+
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+
 
 
 default_args = {
