@@ -14,7 +14,7 @@ def get_stock():
 
     #### IMPORTA CSV
     
-    file_name = '/forecast_and_planning/obtencion_stock_meli/publi_meli_19dic2022.xlsx'
+    file_name = 'forecast_and_planning/obtencion_stock_meli/publi_meli_19dic2022.xlsx'
     s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
