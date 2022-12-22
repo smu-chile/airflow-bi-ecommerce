@@ -7,11 +7,13 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from datetime import datetime, timedelta
 import pendulum
 
-def get_stock():
+def get_stock(ts):
     import pandas as pd
     import requests
     import io
     from pprint import pprint
+
+    fecha_exec = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
 
     #### IMPORTA CSV
     
@@ -109,6 +111,7 @@ def get_stock():
         registro.append(response["not_available_quantity"])
         registro.append(response["inventory_id"])
         registro.append(response["external_references"][0]["id"])
+        registro.append(fecha_exec)
         tabla_1.append(registro)
         print (registro)
         x = x+1
@@ -120,6 +123,7 @@ def get_stock():
                 "cantidad_no_disponible",
                 "inventory_id",
                 "product_id",
+                "fecha"
                 ]
 
     for inventory_id_value in total_inventory_id:
@@ -132,6 +136,7 @@ def get_stock():
         registro.append(response["available_quantity"])
         registro.append(response["inventory_id"])
         registro.append(response["external_references"][0]["id"])
+        registro.append(fecha_exec)
         #segundo nivel
         not_available_status = response.get("not_available_detail",[])
         for not_available in not_available_status:
@@ -174,10 +179,12 @@ def get_stock():
     columns = ["available_quantity",
                 "inventory_id",
                 "prodct_id",
+                "fecha",
                 "status",
                 "not_available_quantity",
                 "condition",
-                "quantity"]
+                "quantity",
+                ]
 
     df_tot = pd.DataFrame(total_data_available, columns=columns)
     print (df_tot)
@@ -194,7 +201,7 @@ default_args = {
 }
 
 with DAG(
-    'etl_obtenciob_stock_meli',
+    'etl_obtencion_stock_meli',
     default_args=default_args,
     description="Automatización de obtención de stock de MELI",
     schedule_interval="0 23 * * *",
@@ -212,4 +219,3 @@ with DAG(
         task_id = "obtener_stock_general",
         python_callable = get_stock,
     )
-
