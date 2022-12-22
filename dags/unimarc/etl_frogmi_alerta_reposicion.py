@@ -57,13 +57,13 @@ def _load_json_to_s3(ts, ds):
                     pregunta = i['attributes']['name']
                     id_respuesta = i['attributes']['answer']
                     for j in i['attributes']['alternatives']['data']:
-                        if id_respuesta == j['id'] and pregunta == "¿El producto está disponible?":
+                        if id_respuesta == j['id'][0] and pregunta == "¿El producto está disponible?":
                             respuesta_0 = bool(j['attributes']['value'])
-                        if id_respuesta == j['id'] and pregunta == "¿Por qué el producto no ha tenido venta?":
+                        if id_respuesta == j['id'][0] and pregunta == "¿Por qué el producto no ha tenido venta?":
                             respuesta_1 = bool(j['attributes']['value'])
-                        if id_respuesta == j['id'] and pregunta == "¿Por qué no se encuentra el producto disponible?":
+                        if id_respuesta == j['id'][0] and pregunta == "¿Por qué no se encuentra el producto disponible?":
                             respuesta_2 = bool(j['attributes']['value'])
-                        if id_respuesta == j['id'] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
+                        if id_respuesta == j['id'][0] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
                             respuesta_3 = bool(j['attributes']['answer'])
         linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3]
         lista_lineas.append(linea_f)
