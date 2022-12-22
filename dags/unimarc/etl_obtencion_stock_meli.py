@@ -10,6 +10,7 @@ import pendulum
 def get_stock():
     import pandas as pd
     import requests
+    import io
     from pprint import pprint
 
     #### IMPORTA CSV
@@ -23,6 +24,7 @@ def get_stock():
         raise Exception("Key %s does not exist." % file_name)
     
     stock_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
+    data_stock = stock_object['Body'].read()
 
     # df_lect = pd.read_csv(stock_object.get()["Body"], sep=';')
 
@@ -53,7 +55,7 @@ def get_stock():
     get_stock_seller = Variable.get('MELI_STOCK_API_FORMAT')
     get_non_available_stock = Variable.get('MELI_STOCK_DETAILS_API_FORMAT')
 
-    df_lect = pd.read_excel(stock_object.get()["Body"], sheet_name='Publicaciones', usecols="A:M",
+    df_lect = pd.read_excel(io.BytesIO(data_stock), sheet_name='Publicaciones', usecols="A:M",
     names=['product_id','num_variante','sku','titulo','variantes','cantidad', 'precio', 'moneda', 'descripcion', 'forma de envio','tipo de publicacion', 'cargo por venta', 'estado'],
     skiprows=2)
 
