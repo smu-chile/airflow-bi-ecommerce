@@ -179,11 +179,12 @@ def get_stock(ts):
     columns = ["available_quantity",
                 "inventory_id",
                 "prodct_id",
+                "fecha",
                 "status",
                 "not_available_quantity",
                 "condition",
                 "quantity",
-                "fecha"]
+                ]
 
     df_tot = pd.DataFrame(total_data_available, columns=columns)
     print (df_tot)
@@ -218,4 +219,3 @@ with DAG(
         task_id = "obtener_stock_general",
         python_callable = get_stock,
     )
-
