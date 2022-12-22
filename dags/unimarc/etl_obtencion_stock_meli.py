@@ -219,7 +219,7 @@ def get_stock(ts):
     incremental_query = """
         INSERT INTO forecast_and_planning.tabla_stock_general ("""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id_tienda,fecha)
+        ON CONFLICT (product_id,inventory_id, fecha)
         DO NOTHING; 
     """
 
