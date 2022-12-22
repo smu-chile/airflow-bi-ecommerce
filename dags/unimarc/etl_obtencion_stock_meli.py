@@ -191,14 +191,13 @@ def get_stock(ts):
     print (df_tot)
     # df_tot.to_csv('output_mlfile/df_total.csv', index=False, sep=';')
 
-    columns_insert = [
-        "product_id",
-        "inventory_id",
-        "cantidad_total", 
-        "cantidad_disponible",
-        "cantidad_no_disponible",
-        "fecha",
-    ]
+    columns_insert = ["cantidad_total",
+                "cantidad_disponible",
+                "cantidad_no_disponible",
+                "inventory_id",
+                "product_id",
+                "fecha"]
+    # df = df[columns_insert]
 
     columns_query = ",".join(columns_insert)
     values_query = ",".join(["%s" for column in columns_insert])
