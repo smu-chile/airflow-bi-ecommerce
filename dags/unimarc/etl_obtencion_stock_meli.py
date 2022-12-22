@@ -15,7 +15,7 @@ def get_stock(ts):
     import time
     from pprint import pprint
 
-    fecha_exec = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
+    fecha_exec = (datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1)
 
     #### IMPORTA CSV
     
@@ -175,6 +175,7 @@ def get_stock(ts):
         #     time.sleep(5)
 
     df_list = pd.DataFrame(tabla_1, columns=columns_t1)
+    df_list['fecha'] = df_list['fecha'].astype(str)
     print (df_list)
     # df_list.to_csv('output_mlfile/df_tabla1.csv', index=False, sep=';')
 
