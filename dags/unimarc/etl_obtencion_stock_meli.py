@@ -269,7 +269,7 @@ def get_stock(ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO forecast_and_planning.tabla_stock_general ("""+columns_query+""") 
+        INSERT INTO forecast_and_planning.tabla_stock_detalles ("""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (product_id,inventory_id, fecha)
         DO NOTHING; 
