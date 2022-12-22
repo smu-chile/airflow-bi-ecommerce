@@ -11,6 +11,7 @@ def get_stock(ts):
     import pandas as pd
     import requests
     import io
+    import numpy as np
     from pprint import pprint
 
     fecha_exec = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
