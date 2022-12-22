@@ -12,6 +12,7 @@ def get_stock(ts):
     import requests
     import io
     import numpy as np
+    import time
     from pprint import pprint
 
     fecha_exec = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
@@ -170,6 +171,8 @@ def get_stock(ts):
         y = y+1
         if y == 50:
             break
+        # if y % 100 == 0:
+        #     time.sleep(5)
 
     df_list = pd.DataFrame(tabla_1, columns=columns_t1)
     print (df_list)
@@ -191,14 +194,13 @@ def get_stock(ts):
     print (df_tot)
     # df_tot.to_csv('output_mlfile/df_total.csv', index=False, sep=';')
 
-    columns_insert = [
-        "product_id",
-        "inventory_id",
-        "cantidad_total", 
-        "cantidad_disponible",
-        "cantidad_no_disponible",
-        "fecha",
-    ]
+    columns_insert = ["cantidad_total",
+                "cantidad_disponible",
+                "cantidad_no_disponible",
+                "inventory_id",
+                "product_id",
+                "fecha"]
+    # df = df[columns_insert]
 
     columns_query = ",".join(columns_insert)
     values_query = ",".join(["%s" for column in columns_insert])
