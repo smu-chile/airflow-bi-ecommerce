@@ -31,10 +31,15 @@ def get_stock(ts):
     list_items = list(list_items_cursor)
     if len(list_items) == 0:
         raise Exception('Error, lista vacía')
+    z = 0
     for item in list_items:
         print (item)
+        z = z + 1
+        if z == 10:
+            break
     df_items = pd.DataFrame(list_items)
     print (df_items.dtypes)
+    pprint (df_items)
     # df_items = df_items['_id', 'id', 'inventory_id','seller_id','status','title']
 
     #### IMPORTA CSV
