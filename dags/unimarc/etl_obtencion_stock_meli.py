@@ -12,9 +12,10 @@ def get_stock(ts):
     import requests
     import io
     import numpy as np
+    import time
     from pprint import pprint
 
-    fecha_exec = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1))
+    fecha_exec = (datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1)
 
     #### IMPORTA CSV
     
@@ -134,6 +135,7 @@ def get_stock(ts):
         response = r.json()
 
         registro = []
+        registro.append(response["total"])
         registro.append(response["available_quantity"])
         registro.append(response["inventory_id"])
         registro.append(response["external_references"][0]["id"])
@@ -170,35 +172,48 @@ def get_stock(ts):
         y = y+1
         if y == 50:
             break
+        # if y % 100 == 0:
+        #     time.sleep(5)
 
     df_list = pd.DataFrame(tabla_1, columns=columns_t1)
+    df_list['fecha'] = df_list['fecha'].astype(str)
     print (df_list)
     # df_list.to_csv('output_mlfile/df_tabla1.csv', index=False, sep=';')
 
     # pprint (total_data_available)
 
-    columns = ["available_quantity",
+    columns = ["cantidad_total", "cantidad_disponible",
                 "inventory_id",
-                "prodct_id",
+                "product_id",
                 "fecha",
-                "status",
-                "not_available_quantity",
-                "condition",
-                "quantity",
+                "estado",
+                "cantidad_no_disponible_estado",
+                "condicion",
+                "cantidad_condicion",
                 ]
 
     df_tot = pd.DataFrame(total_data_available, columns=columns)
+    df_tot['fecha'] = df_tot['fecha'].astype(str)
     print (df_tot)
     # df_tot.to_csv('output_mlfile/df_total.csv', index=False, sep=';')
 
-    columns_insert = [
-        "product_id",
-        "inventory_id",
-        "cantidad_total", 
-        "cantidad_disponible",
-        "cantidad_no_disponible",
-        "fecha",
-    ]
+    columns_insert = ["cantidad_total",
+                "cantidad_disponible",
+                "cantidad_no_disponible",
+                "inventory_id",
+                "product_id",
+                "fecha"]
+
+    columns_insert_tot = ["cantidad_total", "cantidad_disponible",
+                "inventory_id",
+                "product_id",
+                "fecha",
+                "estado",
+                "cantidad_no_disponible_estado",
+                "condicion",
+                "cantidad_condicion",
+                ]
+    # df = df[columns_insert]
 
     columns_query = ",".join(columns_insert)
     values_query = ",".join(["%s" for column in columns_insert])
@@ -219,6 +234,42 @@ def get_stock(ts):
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO forecast_and_planning.tabla_stock_general ("""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (product_id,inventory_id, fecha)
+        DO NOTHING; 
+    """
+
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+
+    #-----------------
+
+    columns_query = ",".join(columns_insert_tot)
+    values_query = ",".join(["%s" for column in columns_insert_tot])
+    df_tot = df_tot.fillna("NULL")
+    records = list(df_tot.to_records(index=False))
+
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO forecast_and_planning.tabla_stock_detalles ("""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (product_id,inventory_id, fecha)
         DO NOTHING; 
