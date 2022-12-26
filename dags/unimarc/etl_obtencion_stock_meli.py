@@ -28,11 +28,11 @@ def get_stock(ts):
         projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
     )
 
-    print (list_items_cursor)
     list_items = list(list_items_cursor)
     if len(list_items) == 0:
         raise Exception('Error, lista vacía')
-    print (list_items[0])
+    for item in list_items:
+        print (item)
     df_items = pd.DataFrame(list_items)
     print (df_items.dtypes)
     # df_items = df_items['_id', 'id', 'inventory_id','seller_id','status','title']
@@ -113,6 +113,7 @@ def get_stock(ts):
     # print (df2)
 
     total_inventory_id = list(df_items['inventory_id'].dropna())
+    print (total_inventory_id)
 
     x = 0
     y = 0
