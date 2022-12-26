@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.models import Variable
+from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -17,18 +18,30 @@ def get_stock(ts):
 
     fecha_exec = (datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1)
 
+
+    ### MONGO
+    mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
+    list_items_cursor = mongo_hook.find(
+        mongo_collection="items",
+        query={},
+        projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
+    )
+
+    list_items = list(list_items_cursor)
+    df_items = pd.DataFrame(list_items)
+
     #### IMPORTA CSV
     
-    file_name = 'forecast_and_planning/obtencion_stock_meli/publi_meli_19dic2022.xlsx'
-    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    # file_name = 'forecast_and_planning/obtencion_stock_meli/publi_meli_19dic2022.xlsx'
+    # s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
+    # s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+file_name)
-    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % file_name)
+    # print("Searching file: "+file_name)
+    # if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+    #     raise Exception("Key %s does not exist." % file_name)
     
-    stock_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
-    data_stock = stock_object.get()['Body'].read()
+    # stock_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
+    # data_stock = stock_object.get()['Body'].read()
 
     # df_lect = pd.read_csv(stock_object.get()["Body"], sep=';')
 
@@ -59,38 +72,40 @@ def get_stock(ts):
     get_stock_seller = Variable.get('MELI_STOCK_API_FORMAT')
     get_non_available_stock = Variable.get('MELI_STOCK_DETAILS_API_FORMAT')
 
-    df_lect = pd.read_excel(io.BytesIO(data_stock), sheet_name='Publicaciones', usecols="A:M",
-    names=['product_id','num_variante','sku','titulo','variantes','cantidad', 'precio', 'moneda', 'descripcion', 'forma de envio','tipo de publicacion', 'cargo por venta', 'estado'],
-    skiprows=2)
+    # df_lect = pd.read_excel(io.BytesIO(data_stock), sheet_name='Publicaciones', usecols="A:M",
+    # names=['product_id','num_variante','sku','titulo','variantes','cantidad', 'precio', 'moneda', 'descripcion', 'forma de envio','tipo de publicacion', 'cargo por venta', 'estado'],
+    # skiprows=2)
 
 
 
-    total_inventory_id = []
-    df_get_id = df_lect['product_id'].dropna()
-    print (df_get_id)
-    largo = len(list(df_get_id))
+    # total_inventory_id = []
+    # df_get_id = df_lect['product_id'].dropna()
+    # print (df_get_id)
+    # largo = len(list(df_get_id))
 
-    for x in range(largo):
-        product_id_value = df_get_id.iat[x]
-        r = requests.get(products_api.format(product_id_value), headers=header)
-        # pprint (r.json())
-        print (r.status_code)
-        response = r.json()
-        # registro = []
-        # registro.append(response['inventory_id'])
-        total_inventory_id.append(response['inventory_id'])
-        if x == 50:
-            break
+    # for x in range(largo):
+    #     product_id_value = df_get_id.iat[x]
+    #     r = requests.get(products_api.format(product_id_value), headers=header)
+    #     # pprint (r.json())
+    #     print (r.status_code)
+    #     response = r.json()
+    #     # registro = []
+    #     # registro.append(response['inventory_id'])
+    #     total_inventory_id.append(response['inventory_id'])
+    #     if x == 50:
+    #         break
 
-    total_inventory_id = [x for x in total_inventory_id if x is not None]
+    # total_inventory_id = [x for x in total_inventory_id if x is not None]
 
-    print (total_inventory_id)
+    # print (total_inventory_id)
 
     # df2 = pd.DataFrame(total_inventory_id, columns = ['inventory_id'])
     # df2 = df2.dropna()
     # largo2 = len(df2)
     # print (largo2)
     # print (df2)
+
+    total_inventory_id = list(df_items['inventory_id'].dropna())
 
     x = 0
     y = 0
