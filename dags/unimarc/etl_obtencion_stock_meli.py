@@ -29,6 +29,8 @@ def get_stock(ts):
 
     print (list_items_cursor)
     list_items = list(list_items_cursor)
+    if len(list_items) == 0:
+        raise Exception('Error, lista vacía')
     print (list_items[0])
     df_items = pd.DataFrame(list_items)
     df_items = df_items['_id', 'id', 'inventory_id','seller_id','status','title']
