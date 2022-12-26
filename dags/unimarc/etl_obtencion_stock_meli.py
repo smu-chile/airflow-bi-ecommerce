@@ -27,6 +27,7 @@ def get_stock(ts):
         projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
     )
 
+    pprint (list_items_cursor)
     list_items = list(list_items_cursor)
     print (list_items[0])
     df_items = pd.DataFrame(list_items)
