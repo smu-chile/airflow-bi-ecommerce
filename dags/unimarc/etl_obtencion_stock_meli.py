@@ -28,7 +28,9 @@ def get_stock(ts):
     )
 
     list_items = list(list_items_cursor)
+    print (list_items[0])
     df_items = pd.DataFrame(list_items)
+    print (df_items.dtypes)
 
     #### IMPORTA CSV
     
