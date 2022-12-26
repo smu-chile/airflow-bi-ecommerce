@@ -143,16 +143,14 @@ with DAG(
         task_id = "get_stock_nrt_documents",
         python_callable = _get_stock_nrt_documents,
         retries = 2,
-        retry_delay = timedelta(minutes=1),
-        depends_on_past = True
+        retry_delay = timedelta(minutes=1)
     )
 
     t1 = PythonOperator(
         task_id = "load_stock_nrt_to_workspace",
         python_callable = _load_stock_nrt_to_workspace,
         retries = 2,
-        retry_delay = timedelta(minutes=1),
-        depends_on_past = True
+        retry_delay = timedelta(minutes=1)
     )
 
     t0 >> t1
