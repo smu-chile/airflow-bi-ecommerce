@@ -24,13 +24,14 @@ def get_stock(ts):
     list_items_cursor = mongo_hook.find(
         mongo_collection="items",
         query={},
-        projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
+        # projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
     )
 
-    pprint (list_items_cursor)
+    print (list_items_cursor)
     list_items = list(list_items_cursor)
     print (list_items[0])
     df_items = pd.DataFrame(list_items)
+    df_items = df_items['_id', 'id', 'inventory_id','seller_id','status','title']
     print (df_items.dtypes)
 
     #### IMPORTA CSV
