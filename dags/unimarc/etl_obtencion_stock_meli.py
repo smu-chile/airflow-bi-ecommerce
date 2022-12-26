@@ -22,9 +22,10 @@ def get_stock(ts):
     ### MONGO
     mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
     list_items_cursor = mongo_hook.find(
+        mongo_db = Variable.get('MELI_ITEMS_DB_MONGO'),
         mongo_collection="items",
         query={},
-        # projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
+        projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
     )
 
     print (list_items_cursor)
@@ -33,8 +34,8 @@ def get_stock(ts):
         raise Exception('Error, lista vacía')
     print (list_items[0])
     df_items = pd.DataFrame(list_items)
-    df_items = df_items['_id', 'id', 'inventory_id','seller_id','status','title']
     print (df_items.dtypes)
+    # df_items = df_items['_id', 'id', 'inventory_id','seller_id','status','title']
 
     #### IMPORTA CSV
     
