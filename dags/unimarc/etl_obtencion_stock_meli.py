@@ -98,8 +98,10 @@ def get_stock(ts):
     for x in range(largo):
         product_id_value = df_get_id.iat[x]
         r = requests.get(products_api.format(product_id_value), headers=header)
-        # pprint (r.json())
         print (r.status_code)
+        if r.status_code == 404:
+            print ('Respuesta 404, producto sin ID de inventario')
+            continue
         response = r.json()
         # registro = []
         # registro.append(response['inventory_id'])
