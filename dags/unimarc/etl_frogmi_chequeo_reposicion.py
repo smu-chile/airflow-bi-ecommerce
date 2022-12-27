@@ -60,7 +60,6 @@ def _load_dw_stock_to_s3(ds,ts):
         cursor.close()
 
         products = ("'"+str(item).replace("'","").zfill(18)+"'" for item in products)
-        print(f"Number of products found in {store}: {len(products)}")
         print(products)
         
         query_stock_dw = f"""
