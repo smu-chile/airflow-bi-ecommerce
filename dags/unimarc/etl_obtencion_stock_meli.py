@@ -38,6 +38,8 @@ def get_stock(ts):
         if z == 10:
             break
     df_items = pd.DataFrame(list_items)
+    df_items['id'] = df_items['id'].dropna()
+    df_items['inventory_id'] = df_items["inventory_id"].dropna()
     print (df_items.dtypes)
     pprint (df_items)
     # df_items = df_items['_id', 'id', 'inventory_id','seller_id','status','title']
@@ -117,7 +119,7 @@ def get_stock(ts):
     # print (largo2)
     # print (df2)
 
-    total_inventory_id = list(df_items['inventory_id'].dropna())
+    total_inventory_id = list(df_items['inventory_id'])
     print (total_inventory_id)
 
     x = 0
