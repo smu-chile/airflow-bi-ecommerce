@@ -62,7 +62,7 @@ def _load_dw_stock_to_s3(ds,ts):
         if len(products) == 0:
             continue
 
-        products = tuple([str(item).zfill(18) for item in products])
+        products = tuple([str(item[0]).zfill(18) for item in products])
         print(products)
         
         query_stock_dw = f"""
