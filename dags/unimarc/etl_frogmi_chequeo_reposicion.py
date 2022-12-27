@@ -50,7 +50,7 @@ def _load_dw_stock_to_s3(ds,ts):
         query_products = f""""
             select material
             from ecommdata.frogmi_alerta_reposicion
-            where id_tienda = '{store}'
+            where id_tienda = '{store[0]}'
             and razon_de_porque_no_disponible = 'Sin Stock Físico (Ajustar inventario)'
             and fecha_inicio::date = '{ds}'
         """
@@ -59,7 +59,7 @@ def _load_dw_stock_to_s3(ds,ts):
         products = cursor.fetchall()
         cursor.close()
 
-        products = ("'"+str(item).zfill(18)+"'" for item in products)
+        products = ("'"+str(item).replace("'","").zfill(18)+"'" for item in products)
         print(f"Number of products found in {store}: {len(products)}")
         print(products)
         
