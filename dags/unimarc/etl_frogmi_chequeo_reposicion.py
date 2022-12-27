@@ -89,6 +89,7 @@ def _load_dw_stock_to_s3(ds,ts):
         stock_dw = pd.read_sql(query_stock_dw, con=dw_conn)
         df_list.append(stock_dw)
     df_full = pd.concat(df_list, ignore_index=True)
+    print(df_full)
     df_full["id_tienda"] = df_full["id_tienda"].str.zfill(4)
     df_full["material"] = df_full["material"].str.zfill(18)
     
