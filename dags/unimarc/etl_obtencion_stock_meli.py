@@ -90,26 +90,26 @@ def get_stock(ts):
 
 
 
-    # total_inventory_id = []
-    # df_get_id = df_lect['product_id'].dropna()
-    # print (df_get_id)
-    # largo = len(list(df_get_id))
+    total_inventory_id = []
+    df_get_id = df_items['id'].dropna()
+    print (df_get_id)
+    largo = len(list(df_get_id))
 
-    # for x in range(largo):
-    #     product_id_value = df_get_id.iat[x]
-    #     r = requests.get(products_api.format(product_id_value), headers=header)
-    #     # pprint (r.json())
-    #     print (r.status_code)
-    #     response = r.json()
-    #     # registro = []
-    #     # registro.append(response['inventory_id'])
-    #     total_inventory_id.append(response['inventory_id'])
-    #     if x == 50:
-    #         break
+    for x in range(largo):
+        product_id_value = df_get_id.iat[x]
+        r = requests.get(products_api.format(product_id_value), headers=header)
+        # pprint (r.json())
+        print (r.status_code)
+        response = r.json()
+        # registro = []
+        # registro.append(response['inventory_id'])
+        total_inventory_id.append(response['inventory_id'])
+        if x == 50:
+            break
 
-    # total_inventory_id = [x for x in total_inventory_id if x is not None]
+    total_inventory_id = [x for x in total_inventory_id if x is not None]
 
-    # print (total_inventory_id)
+    print (total_inventory_id)
 
     # df2 = pd.DataFrame(total_inventory_id, columns = ['inventory_id'])
     # df2 = df2.dropna()
@@ -117,10 +117,10 @@ def get_stock(ts):
     # print (largo2)
     # print (df2)
 
-    df2 = df_items['inventory_id']
-    print (df2)
-    total_inventory_id = df2.dropna()
-    print (total_inventory_id)
+    # df2 = df_items['inventory_id']
+    # print (df2)
+    # total_inventory_id = df2.dropna()
+    # print (total_inventory_id)
 
     x = 0
     y = 0
