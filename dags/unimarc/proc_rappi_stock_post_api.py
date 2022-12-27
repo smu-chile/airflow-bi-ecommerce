@@ -57,36 +57,57 @@ def _get_second_to_last_datetime():
     return second_to_last_datetime
 
 
-def _calculate_request_body(ds, ts, type):
+def _calculate_delta_request_body(ds, ts):
     import json
     import os
     import pandas as pd
 
+    store_id_list = [
+        "0332", "0343", "0402", "0982", "0011",
+        "0375", "0022", "0030", "0086", "0046",
+        "0111", "0062", "0345", "0336", "0602",
+        "0058", "0953", "0009", "0477", "0344",
+        "0331", "0626", "0025", "0028", "0980",
+        "0326", "0475", "0476", "0357", "0903",
+        "0325", "0717", "0353", "0087", "0763",
+        "0961", "0328", "0916", "0683", "0017",
+        "0956", "0333", "0469", "0917", "0355",
+        "0761", "0939", "0645", "0581", "0931",
+        "0027", "0759", "0958", "0340", "0458",
+        "0051", "0644", "0008", "0714", "0954",
+        "0912", "0681", "0978", "0914", "0923",
+        "0960", "0957", "0905", "0445", "0902",
+        "0926",
+    ]
+
     curr_working_directory = os.getcwd()
     print(os.getcwd())
-    with open(curr_working_directory+f"/dags/unimarc/sql/rappi_stock_{type}_load.sql", "r") as query_file:
+    second_to_last_datetime = _get_second_to_last_datetime()
+    with open(curr_working_directory+f"/dags/unimarc/sql/rappi_stock_delta_load.sql", "r") as query_file:
         rappi_stock_query = query_file.read()
     
     exec_datetime_string = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    body_file_path = f"rappi/api/stock/post/{type}/requests/{exec_datetime_string}_"
-    if type == 'full':
-        rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
-    else:
-        second_to_last_datetime = _get_second_to_last_datetime()
-        rappi_stock_query = rappi_stock_query.replace("{ds}", ds).replace("{second_to_last_datetime}", second_to_last_datetime)
+    rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
+    rappi_stock_query = rappi_stock_query.replace("{second_to_last_datetime}", second_to_last_datetime)
 
-    print(rappi_stock_query)
+    store_body_file_paths = []
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
-    df = pd.read_sql_query(rappi_stock_query, pg_connection)
-    print(f"Number of records found: {len(df.index)}")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    for store_id in store_id_list:
+        body_file_path = f"rappi/api/stock/post/delta/requests/{exec_datetime_string}_{store_id}"
+        rappi_stock_query_store = rappi_stock_query.replace("{store_id}", store_id)
 
-    active_stores = df["store_id"].unique().tolist()
-    store_body_file_paths = []
-    for store_id in active_stores:
+        df = pd.read_sql_query(rappi_stock_query_store, pg_connection)
+
+        print(f"Number of records found: {len(df.index)} for store: {store_id}")
+        if len(df.index) == 0:
+            print("NO RECORDS FOUND.")
+            continue
+
+        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
         df_store = df[df["store_id"] == store_id]
         df_store["id"] = df_store["id"].astype("int").astype("str")
         df_store["discount_price"] = df_store["discount_price"].astype("int")
@@ -94,7 +115,7 @@ def _calculate_request_body(ds, ts, type):
         dict_body = df_store.to_dict(orient="records")
         json_body = json.dumps(dict_body)
 
-        store_body_file_path = body_file_path + store_id + ".json"
+        store_body_file_path = body_file_path + ".json"
 
         s3_hook.load_string(json_body,
                     key=store_body_file_path,
@@ -106,64 +127,7 @@ def _calculate_request_body(ds, ts, type):
 
     return store_body_file_paths
 
-def _stock_and_prices_full_post_request(ti, ds):
-    import json
-    import requests
-    print("FULL LOAD")
-    
-    exec_datetime_string = ds.replace("-", "/")
-    prefix = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/"
-    responses_prefix = f"rappi/api/stock/post/full/responses/{exec_datetime_string}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
-    print(f"Number of files found: {len(s3_file_list)}")
-
-    if len(s3_file_list) == 0:
-        print("NO FILES FOUND.")
-        return
-
-    for body_file in s3_file_list:
-        file_name = body_file.split("/")[-1]
-        print("Searching file: "+body_file)
-        if not s3_hook.check_for_key(body_file, bucket_name=s3_bucket):
-            raise Exception("Key %s does not exist." % body_file)
-
-        json_body_object = s3_hook.get_key(body_file, bucket_name=s3_bucket)
-        json_body_string = json_body_object.get()["Body"].read()
-        json_body = json.loads(json_body_string)
-        payload = {
-            "records": json_body
-        }
-
-        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
-
-        headres = {
-            "api_key": Variable.get("RAPPI_API_KEY"),
-            "Content-Type": "application/json"
-        }
-        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
-        print(response.status_code)
-        try:
-            response_json = response.json()
-            response_string = json.dumps(response_json)
-            s3_hook.load_string(response_string,
-                  key=responses_prefix+file_name,
-                  bucket_name=s3_bucket,
-                  replace=True,
-                  encrypt=False)
-        except Exception as e:
-            print(e)
-            print("Error on response.")
-            break
-    return
-
-def _stock_and_prices_delta_post_request():
-    print("DELTA LOAD")
-    return
-
-def _datawarehouse_stock_full_load(ts):
+def _calculate_full_request_body(ts):
     import jaydebeapi
     import json
     import os
@@ -290,6 +254,63 @@ def _datawarehouse_stock_full_load(ts):
     
     return
 
+def _stock_and_prices_delta_post_request():
+    print("DELTA LOAD")
+    return
+
+def _stock_and_prices_full_post_request(ti, ds):
+    import json
+    import requests
+    print("FULL LOAD")
+    
+    exec_datetime_string = ds.replace("-", "/")
+    prefix = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/"
+    responses_prefix = f"rappi/api/stock/post/full/responses/{exec_datetime_string}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    print(f"Number of files found: {len(s3_file_list)}")
+
+    if len(s3_file_list) == 0:
+        print("NO FILES FOUND.")
+        return
+
+    for body_file in s3_file_list:
+        file_name = body_file.split("/")[-1]
+        print("Searching file: "+body_file)
+        if not s3_hook.check_for_key(body_file, bucket_name=s3_bucket):
+            raise Exception("Key %s does not exist." % body_file)
+
+        json_body_object = s3_hook.get_key(body_file, bucket_name=s3_bucket)
+        json_body_string = json_body_object.get()["Body"].read()
+        json_body = json.loads(json_body_string)
+        payload = {
+            "records": json_body
+        }
+
+        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
+
+        headres = {
+            "api_key": Variable.get("RAPPI_API_KEY"),
+            "Content-Type": "application/json"
+        }
+        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        print(response.status_code)
+        try:
+            response_json = response.json()
+            response_string = json.dumps(response_json)
+            s3_hook.load_string(response_string,
+                  key=responses_prefix+file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
+        except Exception as e:
+            print(e)
+            print("Error on response.")
+            break
+    return
+
 default_args = {
     "owner": "ecommerce_ops",
     "depends_on_past": False,
@@ -320,50 +341,41 @@ with DAG(
     - Delta load: las cargas siguentes del día deben representar la variación de stock.
     """ 
 
-    # t0 = BranchPythonOperator(
-    #     task_id = "check_time",
-    #     python_callable = _check_time
-    # )
-
-    # t1 = BranchPythonOperator(
-    #     task_id = "check_if_dag_ran_today",
-    #     python_callable = _check_if_dag_ran_today,
-    #     op_kwargs = {
-    #         "dag_latest_run": "{{dag.get_latest_execution_date()}}"
-    #     }
-    # )
-
-    # t2 = PythonOperator(
-    #     task_id = "calculate_full_request_body",
-    #     python_callable = _calculate_request_body,
-    #     op_kwargs = {
-    #         "type": "full"
-    #     }
-    # )
-
-    # t3 = PythonOperator(
-    #     task_id = "calculate_delta_request_body",
-    #     python_callable = _calculate_request_body,
-    #     op_kwargs = {
-    #         "type": "delta"
-    #     }
-    # )
-
-    t4 = PythonOperator(
-        task_id = "stock_and_prices_full_post_request",
-        python_callable = _stock_and_prices_full_post_request,        
+    t0 = BranchPythonOperator(
+        task_id = "check_time",
+        python_callable = _check_time
     )
 
-    # td = DummyOperator(
-    #     task_id = "skip_dag_run"
-    # )
-
-    t5 = PythonOperator(
-        task_id = "datawarehouse_stock_full_load",
-        python_callable = _datawarehouse_stock_full_load
+    t1 = BranchPythonOperator(
+        task_id = "check_if_dag_ran_today",
+        python_callable = _check_if_dag_ran_today,
     )
 
-    # t0 >> [t1, td] 
-    # t1 >> [t2, t3]
+    t2 = PythonOperator(
+        task_id = "calculate_full_request_body",
+        python_callable = _calculate_full_request_body
+    )
+
+    t3 = PythonOperator(
+        task_id = "calculate_delta_request_body",
+        python_callable = _calculate_delta_request_body
+    )
+
+    # t4 = PythonOperator(
+    #     task_id = "stock_and_prices_full_post_request",
+    #     python_callable = _stock_and_prices_full_post_request,        
+    # )
+
+    # t5 = PythonOperator(
+    #     task_id = "stock_and_prices_delta_post_request",
+    #     python_callable = _stock_and_prices_delta_post_request,
+    # )
+
+    td = DummyOperator(
+        task_id = "skip_dag_run"
+    )
+
+    t0 >> [t1, td]
+    t1 >> [t2, t3]
     # t2 >> t4
-    t5 >> t4
+    # t3 >> t5 
