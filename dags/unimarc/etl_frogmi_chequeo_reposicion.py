@@ -59,7 +59,7 @@ def _load_dw_stock_to_s3(ds,ts):
         products = cursor.fetchall()
         cursor.close()
 
-        products = ("'"+str(item).replace("'","").zfill(18)+"'" for item in products)
+        products = tuple([str(item).zfill(18) for item in products])
         print(products)
         
         query_stock_dw = f"""
@@ -76,7 +76,7 @@ def _load_dw_stock_to_s3(ds,ts):
             WHERE A.ALMACEN_COD = '0001'
             AND S.APLICA_STOCK = 'S'
             AND DATE_VALUE = TO_CHAR(NOW() - INTERVAL '1 days','YYYY-MM-DD')
-            AND OU.OU_ID = '{str(store)}'
+            AND OU.OU_ID = '{str(store[0])}'
             AND PART.PARTICULARIDAD_COD = 'A'
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
             AND sa.SKU_PRODUCT in {products};
