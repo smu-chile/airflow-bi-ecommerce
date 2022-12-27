@@ -59,6 +59,9 @@ def _load_dw_stock_to_s3(ds,ts):
         products = cursor.fetchall()
         cursor.close()
 
+        if len(products) == 0:
+            continue
+
         products = tuple([str(item).zfill(18) for item in products])
         print(products)
         
