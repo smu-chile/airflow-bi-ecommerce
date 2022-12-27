@@ -50,7 +50,9 @@ def _load_dw_stock_to_s3(ds,ts):
         query_products = f""""
             select material
             from ecommdata.frogmi_alerta_reposicion
-            where id_tienda = '{store}' and razon_de_porque_no_disponible = 'Sin Stock Físico (Ajustar inventario)'
+            where id_tienda = '{store}'
+            and razon_de_porque_no_disponible = 'Sin Stock Físico (Ajustar inventario)'
+            and fecha_inicio::date = '{ds}'
         """
         cursor = pg_connection.cursor()
         cursor.execute(query_products)
