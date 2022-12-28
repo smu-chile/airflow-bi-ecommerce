@@ -545,6 +545,11 @@ def _transfers_incremental_load(ts):
     max_updated_at = max_dates[1]
     cursor.close()
     pg_connection.close()
+
+    if max_created_at is None:
+        max_created_at = datetime.strptime("1999-01-01", "%Y-%m-%d")
+    if max_updated_at is None:
+        max_updated_at = datetime.strptime("1999-01-01", "%Y-%m-%d")
     
     print(f"CreatedAt from: {max_created_at}")
     print(f"UpdatedAt from: {max_updated_at}")
