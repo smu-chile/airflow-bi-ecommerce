@@ -34,6 +34,7 @@ def get_stock(ts):
     df_items = pd.DataFrame(list_items)
     df_items['_id'] = df_items["_id"].astype(str)
     df_items['fecha'] = fecha_exec
+    df_items['fecha'] = df_items['fecha'].astype(str)
     columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'fecha']
     df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre'})
     print (df_items.dtypes)
