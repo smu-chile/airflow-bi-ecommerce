@@ -35,6 +35,7 @@ def get_stock(ts):
     df_items['_id'] = df_items["_id"].astype(str)
     df_items['fecha'] = fecha_exec
     df_items['fecha'] = df_items['fecha'].astype(str)
+    df_items['id'] = df_items['id'].dropna()
     columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'fecha']
     df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre'})
     print (df_items.dtypes)
@@ -58,9 +59,7 @@ def get_stock(ts):
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata_meli.productos ("""+columns_query+""") 
-        VALUES ("""+values_query+""")
-        ON CONFLICT (id_mongo)
-        DO NOTHING; 
+        VALUES ("""+values_query+""");
     """
 
     print(incremental_query)

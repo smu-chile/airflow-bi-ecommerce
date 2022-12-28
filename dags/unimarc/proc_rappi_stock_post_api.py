@@ -74,6 +74,9 @@ def _calculate_delta_request_body(ds, ts):
     rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
     rappi_stock_query = rappi_stock_query.replace("{ts}", exec_datetime)
 
+    print("Base query:")
+    print(rappi_stock_query)
+
     store_body_file_paths = []
     exec_datetime_string = exec_datetime[:16].replace("-", "/").replace("T", "/").replace(":", "")
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -330,27 +333,27 @@ def _stock_and_prices_full_post_request(ti, ds):
         }
 
         print(f"Number of records found: {len(payload['records'])}")
-        # rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
+        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
 
-        # headres = {
-        #     "api_key": Variable.get("RAPPI_API_KEY"),
-        #     "Content-Type": "application/json"
-        # }
-        # response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
-        # print(response.status_code)
-        # try:
-        #     response_json = response.json()
-        #     response_string = json.dumps(response_json)
-        #     s3_hook.load_string(response_string,
-        #           key=responses_prefix+file_name,
-        #           bucket_name=s3_bucket,
-        #           replace=True,
-        #           encrypt=False)
-        #     print("Response body saved to S3.")
-        # except Exception as e:
-        #     print(e)
-        #     print("Error on response.")
-        #     break
+        headres = {
+            "api_key": Variable.get("RAPPI_API_KEY"),
+            "Content-Type": "application/json"
+        }
+        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        print(response.status_code)
+        try:
+            response_json = response.json()
+            response_string = json.dumps(response_json)
+            s3_hook.load_string(response_string,
+                  key=responses_prefix+file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
+            print("Response body saved to S3.")
+        except Exception as e:
+            print(e)
+            print("Error on response.")
+            break
     return
 
 default_args = {
