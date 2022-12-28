@@ -20,7 +20,7 @@
 	else 'ERROR'
 end as sale_type 
 from  ecommdata.stock s 
-left join ecommdata.tiendas t 
+join ecommdata.tiendas t 
 on s.id_tienda = t.id 
 and t.rappi = TRUE
 left join ecommdata.precios p 
