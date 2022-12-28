@@ -80,7 +80,7 @@ def _load_dw_stock_to_s3(ds,ts):
             LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
             WHERE A.ALMACEN_COD = '0001'
             AND S.APLICA_STOCK = 'S'
-            AND DATE_VALUE = TO_CHAR({macros.ds_add(ds, 1)} - INTERVAL '1 days','YYYY-MM-DD')
+            AND DATE_VALUE = '{ds}'
             AND OU.OU_ID = '{str(store[0])}'
             AND PART.PARTICULARIDAD_COD = 'A'
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
