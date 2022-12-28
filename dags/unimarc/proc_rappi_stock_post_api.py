@@ -96,7 +96,7 @@ def _calculate_delta_request_body(ds, ts):
         s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
         s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-        df_store = df[df["store_id"] == store_id]
+        df_store = df_store.dropna()
         df_store["id"] = df_store["id"].astype("int").astype("str")
         df_store["discount_price"] = df_store["discount_price"].astype("int")
         df_store["is_available"] = True
