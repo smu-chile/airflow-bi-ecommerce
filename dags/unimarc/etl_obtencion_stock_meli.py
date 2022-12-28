@@ -289,8 +289,6 @@ def get_stock(ts):
     incremental_query = """
         INSERT INTO ecommdata_meli.detalle_no_encontrado ("""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (product_id,inventory_id, fecha)
-        DO NOTHING; 
     """
 
     print(incremental_query)
