@@ -35,7 +35,7 @@ def get_stock(ts):
     df_items['_id'] = df_items["_id"].astype(str)
     df_items['fecha'] = fecha_exec
     df_items['fecha'] = df_items['fecha'].astype(str)
-    df_items['id'] = df_items['id'].dropna()
+    df_items = df_items[df_items['id'] != 'N/A']
     columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'fecha']
     df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre'})
     print (df_items.dtypes)
@@ -100,7 +100,7 @@ def get_stock(ts):
     get_non_available_stock = Variable.get('MELI_STOCK_DETAILS_API_FORMAT')
 
     total_inventory_id = []
-    df_get_id = df_items['id'].dropna()
+    df_get_id = df_items['product_id'].dropna()
     print (df_get_id)
     largo = len(list(df_get_id))
 
@@ -289,8 +289,6 @@ def get_stock(ts):
     incremental_query = """
         INSERT INTO ecommdata_meli.detalle_no_encontrado ("""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (product_id,inventory_id, fecha)
-        DO NOTHING; 
     """
 
     print(incremental_query)
