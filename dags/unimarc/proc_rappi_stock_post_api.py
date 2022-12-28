@@ -74,6 +74,9 @@ def _calculate_delta_request_body(ds, ts):
     rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
     rappi_stock_query = rappi_stock_query.replace("{ts}", exec_datetime)
 
+    print("Base query:")
+    print(rappi_stock_query)
+
     store_body_file_paths = []
     exec_datetime_string = exec_datetime[:16].replace("-", "/").replace("T", "/").replace(":", "")
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
