@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.models import Variable
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from datetime import datetime, timedelta
@@ -524,6 +525,290 @@ def _inscriptions_incremental_load(ts):
 
     return
 
+def _transfers_incremental_load(ts):
+    import numpy as np
+    import pandas as pd
+    import pymongo
+
+    max_dates_query = """
+        SELECT MAX(fecha_creacion)
+            , MAX(fecha_modificacion)
+        FROM ecommdata.mw_transferencias
+    """
+
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(max_dates_query)
+    max_dates = cursor.fetchone()
+    max_created_at = max_dates[0]
+    max_updated_at = max_dates[1]
+    cursor.close()
+    pg_connection.close()
+
+    if max_created_at is None:
+        max_created_at = datetime.strptime("1999-01-01", "%Y-%m-%d")
+    if max_updated_at is None:
+        max_updated_at = datetime.strptime("1999-01-01", "%Y-%m-%d")
+    
+    print(f"CreatedAt from: {max_created_at}")
+    print(f"UpdatedAt from: {max_updated_at}")
+
+    mongo_user = Variable.get("MIDDLEWARE_PAGOS_MONGODB_USER")
+    mongo_pass = Variable.get("MIDDLEWARE_PAGOS_MONGODB_PASSWORD")
+    mongo_db = Variable.get("MIDDLEWARE_PAGOS_MONGODB_DATABASE")
+    mongo_host = Variable.get("MIDDLEWARE_PAGOS_MONGODB_HOST")
+    myclient = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_host+"/"+mongo_db+"?authSource=admin&ssl=true")
+    
+    mydb = myclient[mongo_db]
+    mycollection = mydb["transfers"]
+
+    x = mycollection.find({
+        "$or": [
+            {
+                "createAt": {
+                    "$gt": max_created_at
+                }
+            },
+            {
+                "updatedAt": {
+                    "$gt": max_updated_at
+                }
+            }
+        ]
+    })
+    documents = list(x)
+    print(f"Documentos encontrados {len(documents)}")
+
+    if len(documents) == 0:
+        print("No records found.")
+        return
+
+    new_documents = []
+    for document in documents:
+        new_document = {}
+        new_document["id"] = str(document["_id"])
+        new_document["id_orden"] = document.get("orderId", None)
+        new_document["monto"] = document.get("orderAmount", None)
+        new_document["estado"] = document.get("operationStatus", None)
+        new_document["tienda"] = document.get("store", None)
+        new_document["nombre_tienda"] = document.get("storeName", None)
+        new_document["fecha_creacion"] = document.get("createAt", None)
+        new_document["fecha_modificacion"] = document.get("updatedAt", None)
+        new_document["id_transaccion"] = document.get("transactionId", None)
+        new_document["canal"] = document.get("channelType", None)
+        new_document["referencia"] = document.get("reference", None)
+
+        new_documents.append(new_document)
+
+    df = pd.DataFrame(new_documents)
+
+    columns = [
+        "id_orden",
+        "monto",
+        "estado",
+        "tienda",
+        "nombre_tienda",
+        "fecha_creacion",
+        "fecha_modificacion",
+        "id_transaccion",
+        "canal",
+        "referencia"
+    ]
+
+    column_types = {
+        "id": "string",
+        "id_orden": "string",
+        "monto": "int",
+        "estado": "string",
+        "tienda": "string",
+        "nombre_tienda": "string",
+        "fecha_creacion": "string",
+        "fecha_modificacion": "string",
+        "id_transaccion": "string",
+        "canal": "string",
+        "referencia": "string"
+    }
+
+    df = df.astype(column_types, errors="ignore")
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.mw_transferencias (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+
+    return
+
+def _vtex_payments_incremental_load():
+
+    import numpy as np
+    import pandas as pd
+    import pymongo
+
+    max_dates_query = """
+        SELECT MAX(fecha_creacion)
+            , MAX(fecha_modificacion)
+        FROM ecommdata.mw_pagos_vtex
+    """
+
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(max_dates_query)
+    max_dates = cursor.fetchone()
+    max_created_at = max_dates[0]
+    max_updated_at = max_dates[1]
+    cursor.close()
+    pg_connection.close()
+    
+    print(f"CreatedAt from: {max_created_at}")
+    print(f"UpdatedAt from: {max_updated_at}")
+
+    mongo_user = Variable.get("MIDDLEWARE_PAGOS_MONGODB_USER")
+    mongo_pass = Variable.get("MIDDLEWARE_PAGOS_MONGODB_PASSWORD")
+    mongo_db = Variable.get("MIDDLEWARE_PAGOS_MONGODB_DATABASE")
+    mongo_host = Variable.get("MIDDLEWARE_PAGOS_MONGODB_HOST")
+    myclient = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_host+"/"+mongo_db+"?authSource=admin&ssl=true")
+    
+    mydb = myclient[mongo_db]
+    mycollection = mydb["vtexPayments"]
+
+    x = mycollection.find({
+        "$or": [
+            {
+                "createAt": {
+                    "$gt": max_created_at
+                }
+            },
+            {
+                "updatedAt": {
+                    "$gt": max_updated_at
+                }
+            }
+        ]
+    })
+    documents = list(x)
+    print(f"Documentos encontrados {len(documents)}")
+
+    if len(documents) == 0:
+        print("No records found.")
+        return
+
+    new_documents = []
+    for document in documents:
+        new_document = {}
+        new_document["id"] = str(document["_id"])
+        new_document["id_operacion"] = str(document.get("operation", None))
+        new_document["estado"] = document.get("status", None)
+        new_document["canal"] = document.get("channelSlug", None)
+        new_document["id_transaccion"] = document.get("transactionId", None)
+        new_document["id_orden"] = document.get("orderId", None)
+        new_document["monto"] = document.get("amount", None)
+        new_document["valor"] = document.get("value", None)
+        new_document["medio_de_pago"] = document.get("paymentMethod", None)
+        new_document["fecha_creacion"] = document.get("createdAt", None)
+        new_document["fecha_modificacion"] = document.get("updatedAt", None)
+
+        new_documents.append(new_document)
+
+    df = pd.DataFrame(new_documents)
+
+    columns = [
+        "id_operacion",
+        "estado",
+        "canal",
+        "id_transaccion",
+        "id_orden",
+        "monto",
+        "valor",
+        "medio_de_pago",
+        "fecha_creacion",
+        "fecha_modificacion"
+    ]
+
+    column_types = {
+        "id": "string",
+        "id_operacion": "string",
+        "estado": "string",
+        "canal": "string",
+        "id_transaccion": "string",
+        "id_orden": "string",
+        "monto": "int",
+        "valor": "int",
+        "medio_de_pago": "string",
+        "fecha_creacion": "string",
+        "fecha_modificacion": "string"
+    }
+
+    df = df.astype(column_types, errors="ignore")
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.mw_pagos_vtex (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+
+    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -566,4 +851,14 @@ with DAG(
         python_callable = _inscriptions_incremental_load
     )
 
-    t0 >> t1 >> t2 >> t3
+    t4 = PythonOperator(
+        task_id = "transfers_incremental_load",
+        python_callable = _transfers_incremental_load
+    )
+
+    t5 = PythonOperator(
+        task_id = "vtex_payments_incremental_load",
+        python_callable = _vtex_payments_incremental_load
+    )
+
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5

@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.models import Variable
+from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -17,20 +18,22 @@ def get_stock(ts):
 
     fecha_exec = (datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1)
 
-    #### IMPORTA CSV
-    
-    file_name = 'forecast_and_planning/obtencion_stock_meli/publi_meli_19dic2022.xlsx'
-    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+file_name)
-    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % file_name)
-    
-    stock_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
-    data_stock = stock_object.get()['Body'].read()
+    ### MONGO
+    mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
+    list_items_cursor = mongo_hook.find(
+        mongo_db = Variable.get('MELI_ITEMS_DB_MONGO'),
+        mongo_collection="items",
+        query={},
+        projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
+    )
 
-    # df_lect = pd.read_csv(stock_object.get()["Body"], sep=';')
+    list_items = list(list_items_cursor)
+    if len(list_items) == 0:
+        raise Exception('Error, lista vacía')
+    df_items = pd.DataFrame(list_items)
+    print (df_items.dtypes)
+    # pprint (df_items)
 
     api_obtain_token = Variable.get('MELI_TOKEN_API')
     body_obtain_token = {
@@ -59,46 +62,31 @@ def get_stock(ts):
     get_stock_seller = Variable.get('MELI_STOCK_API_FORMAT')
     get_non_available_stock = Variable.get('MELI_STOCK_DETAILS_API_FORMAT')
 
-    df_lect = pd.read_excel(io.BytesIO(data_stock), sheet_name='Publicaciones', usecols="A:M",
-    names=['product_id','num_variante','sku','titulo','variantes','cantidad', 'precio', 'moneda', 'descripcion', 'forma de envio','tipo de publicacion', 'cargo por venta', 'estado'],
-    skiprows=2)
-
-
-
     total_inventory_id = []
-    df_get_id = df_lect['product_id'].dropna()
+    df_get_id = df_items['id'].dropna()
     print (df_get_id)
     largo = len(list(df_get_id))
 
-    for x in range(largo):
-        product_id_value = df_get_id.iat[x]
+    for z in range(largo):
+        product_id_value = df_get_id.iat[z]
         r = requests.get(products_api.format(product_id_value), headers=header)
-        # pprint (r.json())
         print (r.status_code)
+        if r.status_code == 404:
+            print ('Respuesta 404, producto sin ID de inventario')
+            continue
         response = r.json()
-        # registro = []
-        # registro.append(response['inventory_id'])
         total_inventory_id.append(response['inventory_id'])
-        if x == 50:
-            break
+        if z % 100 == 0:
+            time.sleep(5)
 
-    total_inventory_id = [x for x in total_inventory_id if x is not None]
+    total_inventory_id = [w for w in total_inventory_id if w is not None]
 
     print (total_inventory_id)
-
-    # df2 = pd.DataFrame(total_inventory_id, columns = ['inventory_id'])
-    # df2 = df2.dropna()
-    # largo2 = len(df2)
-    # print (largo2)
-    # print (df2)
 
     x = 0
     y = 0
     tabla_1 = []
     total_data_available = []
-
-    # r = requests.get(get_non_available_stock.format('LSAS09272'), headers=header)
-    # print (r.status_code)
 
     for inventory_id_value in total_inventory_id:
         print (inventory_id_value)
@@ -117,8 +105,8 @@ def get_stock(ts):
         tabla_1.append(registro)
         print (registro)
         x = x+1
-        if x == 50:
-            break
+        if x % 100 == 0:
+            time.sleep(5)
 
     columns_t1 = ["cantidad_total",
                 "cantidad_disponible",
@@ -170,17 +158,12 @@ def get_stock(ts):
             pprint(registro)
         
         y = y+1
-        if y == 50:
-            break
-        # if y % 100 == 0:
-        #     time.sleep(5)
+        if y % 100 == 0:
+            time.sleep(5)
 
     df_list = pd.DataFrame(tabla_1, columns=columns_t1)
     df_list['fecha'] = df_list['fecha'].astype(str)
     print (df_list)
-    # df_list.to_csv('output_mlfile/df_tabla1.csv', index=False, sep=';')
-
-    # pprint (total_data_available)
 
     columns = ["cantidad_total", "cantidad_disponible",
                 "inventory_id",
@@ -195,7 +178,6 @@ def get_stock(ts):
     df_tot = pd.DataFrame(total_data_available, columns=columns)
     df_tot['fecha'] = df_tot['fecha'].astype(str)
     print (df_tot)
-    # df_tot.to_csv('output_mlfile/df_total.csv', index=False, sep=';')
 
     columns_insert = ["cantidad_total",
                 "cantidad_disponible",
@@ -213,7 +195,6 @@ def get_stock(ts):
                 "condicion",
                 "cantidad_condicion",
                 ]
-    # df = df[columns_insert]
 
     columns_query = ",".join(columns_insert)
     values_query = ",".join(["%s" for column in columns_insert])
