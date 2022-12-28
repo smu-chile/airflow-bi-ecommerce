@@ -5,7 +5,7 @@ from airflow.operators.dummy import DummyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 
-from datetime import datetime, timedelta
+from datetime import datetime
 import pendulum
 
 def _check_time(ts):
@@ -38,29 +38,11 @@ def _check_if_dag_ran_today(ds):
         return "calculate_delta_request_body"
 
 
-def _get_second_to_last_datetime():
-    second_to_last_datetime_query = """
-        SELECT fecha_hora
-        FROM ecommdata.publicacion_catalogo pc
-        group by fecha_hora
-        order by fecha_hora desc
-        offset 1 limit 1;
-    """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-
-    pg_cur = pg_connection.cursor()
-
-    pg_cur.execute(second_to_last_datetime_query)
-    second_to_last_datetime = pg_cur.fetchall()[0].strftime("%Y-%m-%d %H:%M:%S")
-    
-    return second_to_last_datetime
-
-
 def _calculate_delta_request_body(ds, ts):
     import json
     import os
     import pandas as pd
+    import pytz
 
     store_id_list = [
         "0332", "0343", "0402", "0982", "0011",
@@ -82,15 +64,18 @@ def _calculate_delta_request_body(ds, ts):
 
     curr_working_directory = os.getcwd()
     print(os.getcwd())
-    second_to_last_datetime = _get_second_to_last_datetime()
+    exec_datetime = datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')
+    localtimezone = pytz.timezone("America/Santiago")
+    exec_datetime = exec_datetime.replace(tzinfo=pytz.utc).astimezone(localtimezone)
+    exec_datetime = exec_datetime.strftime('%Y-%m-%dT%H:%M:%S')
     with open(curr_working_directory+f"/dags/unimarc/sql/rappi_stock_delta_load.sql", "r") as query_file:
         rappi_stock_query = query_file.read()
     
-    exec_datetime_string = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     rappi_stock_query = rappi_stock_query.replace("{ds}", ds)
-    rappi_stock_query = rappi_stock_query.replace("{second_to_last_datetime}", second_to_last_datetime)
+    rappi_stock_query = rappi_stock_query.replace("{ts}", exec_datetime)
 
     store_body_file_paths = []
+    exec_datetime_string = exec_datetime[:16].replace("-", "/").replace("T", "/").replace(":", "")
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
@@ -122,6 +107,7 @@ def _calculate_delta_request_body(ds, ts):
                     bucket_name=s3_bucket,
                     replace=True,
                     encrypt=False)
+        print("Request payload saved to S3.")
         
         store_body_file_paths.append(store_body_file_path)
 
@@ -251,11 +237,65 @@ def _calculate_full_request_body(ts):
                     bucket_name=s3_bucket,
                     replace=True,
                     encrypt=False)
+        print("Request payload saved to S3.")
     
     return
 
-def _stock_and_prices_delta_post_request():
+def _stock_and_prices_delta_post_request(ds):
     print("DELTA LOAD")
+    import json
+    import requests
+    
+    exec_datetime_string = ds.replace("-", "/")
+    prefix = f"rappi/api/stock/post/delta/requests/{exec_datetime_string}/"
+    responses_prefix = f"rappi/api/stock/post/delta/responses/{exec_datetime_string}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    print(f"Number of files found: {len(s3_file_list)}")
+
+    if len(s3_file_list) == 0:
+        print("NO FILES FOUND.")
+        return
+
+    for body_file in s3_file_list:
+        file_name = body_file.split("/")[-1]
+        print("Searching file: "+body_file)
+        if not s3_hook.check_for_key(body_file, bucket_name=s3_bucket):
+            raise Exception("Key %s does not exist." % body_file)
+
+        json_body_object = s3_hook.get_key(body_file, bucket_name=s3_bucket)
+        json_body_string = json_body_object.get()["Body"].read()
+        json_body = json.loads(json_body_string)
+        payload = {
+            "type": "delta",
+            "records": json_body
+        }
+
+        print(f"Number of records found: {len(payload['records'])}")
+
+        # rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
+
+        # headres = {
+        #     "api_key": Variable.get("RAPPI_API_KEY"),
+        #     "Content-Type": "application/json"
+        # }
+        # response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        # print(response.status_code)
+        # try:
+        #     response_json = response.json()
+        #     response_string = json.dumps(response_json)
+        #     s3_hook.load_string(response_string,
+        #           key=responses_prefix+file_name,
+        #           bucket_name=s3_bucket,
+        #           replace=True,
+        #           encrypt=False)
+        #     print("Response body saved to S3.")
+        # except Exception as e:
+        #     print(e)
+        #     print("Error on response.")
+        #     break
     return
 
 def _stock_and_prices_full_post_request(ti, ds):
@@ -289,26 +329,28 @@ def _stock_and_prices_full_post_request(ti, ds):
             "records": json_body
         }
 
-        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
+        print(f"Number of records found: {len(payload['records'])}")
+        # rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
 
-        headres = {
-            "api_key": Variable.get("RAPPI_API_KEY"),
-            "Content-Type": "application/json"
-        }
-        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
-        print(response.status_code)
-        try:
-            response_json = response.json()
-            response_string = json.dumps(response_json)
-            s3_hook.load_string(response_string,
-                  key=responses_prefix+file_name,
-                  bucket_name=s3_bucket,
-                  replace=True,
-                  encrypt=False)
-        except Exception as e:
-            print(e)
-            print("Error on response.")
-            break
+        # headres = {
+        #     "api_key": Variable.get("RAPPI_API_KEY"),
+        #     "Content-Type": "application/json"
+        # }
+        # response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
+        # print(response.status_code)
+        # try:
+        #     response_json = response.json()
+        #     response_string = json.dumps(response_json)
+        #     s3_hook.load_string(response_string,
+        #           key=responses_prefix+file_name,
+        #           bucket_name=s3_bucket,
+        #           replace=True,
+        #           encrypt=False)
+        #     print("Response body saved to S3.")
+        # except Exception as e:
+        #     print(e)
+        #     print("Error on response.")
+        #     break
     return
 
 default_args = {
@@ -361,15 +403,15 @@ with DAG(
         python_callable = _calculate_delta_request_body
     )
 
-    # t4 = PythonOperator(
-    #     task_id = "stock_and_prices_full_post_request",
-    #     python_callable = _stock_and_prices_full_post_request,        
-    # )
+    t4 = PythonOperator(
+        task_id = "stock_and_prices_full_post_request",
+        python_callable = _stock_and_prices_full_post_request,        
+    )
 
-    # t5 = PythonOperator(
-    #     task_id = "stock_and_prices_delta_post_request",
-    #     python_callable = _stock_and_prices_delta_post_request,
-    # )
+    t5 = PythonOperator(
+        task_id = "stock_and_prices_delta_post_request",
+        python_callable = _stock_and_prices_delta_post_request,
+    )
 
     td = DummyOperator(
         task_id = "skip_dag_run"
@@ -377,5 +419,5 @@ with DAG(
 
     t0 >> [t1, td]
     t1 >> [t2, t3]
-    # t2 >> t4
-    # t3 >> t5 
+    t2 >> t4
+    t3 >> t5 

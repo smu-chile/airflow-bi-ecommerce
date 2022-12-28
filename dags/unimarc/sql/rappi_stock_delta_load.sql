@@ -22,7 +22,7 @@ end as sale_type
 from  ecommdata.stock s 
 left join ecommdata.tiendas t 
 on s.id_tienda = t.id 
---and t.rappi = TRUE
+and t.rappi = TRUE
 left join ecommdata.precios p 
 on p.ref_id = s.ref_id
 and p.id_tienda_janis = t.id_janis 
@@ -53,7 +53,7 @@ and s.id_tienda = '{store_id}'
 and exists (
 		select sn.sku_id || '-' || sn.umv 
 		from ecommdata.stock_nrt sn 
-		where sn.fecha_hora between '{ts}' and '{ts}' + interval '4 hours'
+		where sn.fecha_hora between '{ts}'::timestamp - interval '4 hours' and '{ts}'::timestamp
 		and sn.sku_id || '-' || sn.umv = s.ref_id 
 		and sn.id_tienda = s.id_tienda 
 );
