@@ -32,6 +32,7 @@ def get_stock(ts):
     if len(list_items) == 0:
         raise Exception('Error, lista vacía')
     df_items = pd.DataFrame(list_items)
+    df_items['_id'] = df_items["_id"].astype(str)
     df_items['fecha'] = fecha_exec
     columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'fecha']
     df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre'})
