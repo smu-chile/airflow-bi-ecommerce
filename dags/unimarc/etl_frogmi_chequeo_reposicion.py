@@ -63,8 +63,13 @@ def _load_dw_stock_to_s3(ds,ts):
         if len(products) == 0:
             print(f"No products to check in store {store[0]}")
             continue
+        elif len(products) == 1:
+            products = tuple([str(item[0]).zfill(18) for item in products])
+            products = str(products[0])
+            products = f"('{products}')"
+        else:
+            products = tuple([str(item[0]).zfill(18) for item in products])
 
-        products = tuple([str(item[0]).zfill(18) for item in products])
         print(f"Products in store {store[0]}: {products}")
         
         query_stock_dw = f"""

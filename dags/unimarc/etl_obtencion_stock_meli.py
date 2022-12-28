@@ -32,8 +32,46 @@ def get_stock(ts):
     if len(list_items) == 0:
         raise Exception('Error, lista vacía')
     df_items = pd.DataFrame(list_items)
+    df_items['_id'] = df_items["_id"].astype(str)
+    df_items['fecha'] = fecha_exec
+    df_items['fecha'] = df_items['fecha'].astype(str)
+    columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'fecha']
+    df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre'})
     print (df_items.dtypes)
-    # pprint (df_items)
+
+    columns_query = ",".join(columns_main)
+    values_query = ",".join(["%s" for column in columns_main])
+    df_items = df_items.fillna("NULL")
+    records = list(df_items.to_records(index=False))
+
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata_meli.productos ("""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id_mongo)
+        DO NOTHING; 
+    """
+
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
 
     api_obtain_token = Variable.get('MELI_TOKEN_API')
     body_obtain_token = {
@@ -214,7 +252,7 @@ def get_stock(ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO forecast_and_planning.tabla_stock_general ("""+columns_query+""") 
+        INSERT INTO ecommdata_meli.stock ("""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (product_id,inventory_id, fecha)
         DO NOTHING; 
@@ -250,7 +288,7 @@ def get_stock(ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO forecast_and_planning.tabla_stock_detalles ("""+columns_query+""") 
+        INSERT INTO ecommdata_meli.detalle_no_encontrado ("""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (product_id,inventory_id, fecha)
         DO NOTHING; 
