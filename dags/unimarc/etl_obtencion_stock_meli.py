@@ -58,9 +58,7 @@ def get_stock(ts):
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata_meli.productos ("""+columns_query+""") 
-        VALUES ("""+values_query+""")
-        ON CONFLICT (id_mongo)
-        DO NOTHING; 
+        VALUES ("""+values_query+""");
     """
 
     print(incremental_query)
