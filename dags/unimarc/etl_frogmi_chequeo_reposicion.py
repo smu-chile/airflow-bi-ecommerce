@@ -65,6 +65,7 @@ def _load_dw_stock_to_s3(ds,ts):
             continue
         elif len(products) == 1:
             products = products[0]
+            products = f"({str(products[0])})"
         else:
             products = tuple([str(item[0]).zfill(18) for item in products])
 
