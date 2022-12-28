@@ -60,10 +60,11 @@ def _load_dw_stock_to_s3(ds,ts):
         cursor.close()
 
         if len(products) == 0:
+            print(f"No products to check in store {store[0]}")
             continue
 
         products = tuple([str(item[0]).zfill(18) for item in products])
-        print(products)
+        print(f"Products in store {store[0]}: {products}")
         
         query_stock_dw = f"""
             SELECT  sa.SKU_PRODUCT AS material
@@ -84,7 +85,6 @@ def _load_dw_stock_to_s3(ds,ts):
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
             AND sa.SKU_PRODUCT in {products};
         """
-        print(query_stock_dw)
 
         stock_dw = pd.read_sql(query_stock_dw, con=dw_conn)
         df_list.append(stock_dw)
