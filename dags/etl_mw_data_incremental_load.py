@@ -652,7 +652,7 @@ def _transfers_incremental_load(ts):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.mw_tranferecias (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.mw_transferencias (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
