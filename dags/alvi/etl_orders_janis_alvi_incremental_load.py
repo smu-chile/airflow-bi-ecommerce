@@ -293,7 +293,7 @@ def _update_orders_sales_channel(ti):
 
         df = pd.read_csv(orders_object.get()["Body"])
 
-        df = df[["order_id", "utm_source"]]
+        df = df[["order_id", "utm_source"]].dropna()
         records = df.to_dict("records")
 
         records = [str((record["order_id"],record["utm_source"])) for record in records]
@@ -302,7 +302,7 @@ def _update_orders_sales_channel(ti):
         update_query = f"""
             UPDATE ecommdata_alvi.ordenes_janis as oj SET
                 canal_venta = data.canal_venta
-            FROM (
+            FROM ( VALUES
                 {records_string}
             ) as data(id_orden, canal_venta)
             WHERE oj.janis_id = data.id_orden ;
