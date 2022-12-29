@@ -88,8 +88,8 @@ def _calculate_delta_request_body(ds, ts):
 
         df_store = pd.read_sql_query(rappi_stock_query_store, pg_connection)
 
-        print(f"Number of records found: {len(df.index)} for store: {store_id}")
-        if len(df.index) == 0:
+        print(f"Number of records found: {len(df_store.index)} for store: {store_id}")
+        if len(df_store.index) == 0:
             print("NO RECORDS FOUND.")
             continue
 
