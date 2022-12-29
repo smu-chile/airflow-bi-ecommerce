@@ -279,8 +279,7 @@ def _get_order_marketing_data(ti, ts):
 def _update_orders_sales_channel(ti):
     import pandas as pd
     order_marketing_data_files = ti.xcom_pull(key="return_value", task_ids=["get_order_marketing_data"])[0]
-    order_marketing_data_files = order_marketing_data_files[1:-1].split(",")
-    order_marketing_data_files = [mkt_data_file.replace("'", "") for mkt_data_file in order_marketing_data_files]
+    print(order_marketing_data_files)
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
