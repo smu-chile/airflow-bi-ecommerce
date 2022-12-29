@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
+from utils.janis_alvi_utils import incremental_unixtime_load_table_s3, load_custom_query_to_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
@@ -231,6 +231,95 @@ def _incremental_load_ordes_table(ti):
 
     return
 
+def _get_order_marketing_data(ti, ts):
+    import pandas as pd
+
+    orders_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+orders_file)
+    if not s3_hook.check_for_key(orders_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % orders_file)
+
+    orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(orders_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    order_ids = df["id"].tolist()
+
+    iter_size = 500
+    iterations = (len(order_ids) // iter_size) + 1
+
+    s3_object_list = []
+
+    for i in range(iterations):
+        order_ids_sublist = order_ids[i*iter_size:(i+1)*iter_size]
+        order_ids_string = f"({','.join([str(order_id) for order_id in order_ids_sublist])})"
+        order_marketing_data_query = f"""
+            SELECT *
+            FROM janis_alvicl.wms_order_marketing_data womd
+            WHERE womd.order_id in {order_ids_string};
+        """
+        print(order_marketing_data_query)
+        s3_object_name = load_custom_query_to_s3(ts, 
+                                                order_marketing_data_query, 
+                                                "wms_order_marketing_data", 
+                                                extra_prefix=str(i))
+        s3_object_list.append(s3_object_name)
+
+    return s3_object_list
+        
+def _update_orders_sales_channel(ti):
+    import pandas as pd
+    order_marketing_data_files = ti.xcom_pull(key="return_value", task_ids=["get_order_marketing_data"])[0]
+    print(order_marketing_data_files)
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    for mkt_data_file in order_marketing_data_files:
+        print("Searching file: "+mkt_data_file)
+        if not s3_hook.check_for_key(mkt_data_file, bucket_name=s3_bucket):
+            raise Exception("Key %s does not exist." % mkt_data_file)
+
+        orders_object = s3_hook.get_key(mkt_data_file, bucket_name=s3_bucket)
+
+        df = pd.read_csv(orders_object.get()["Body"])
+
+        df = df[["order_id", "utm_source"]].dropna()
+        records = df.to_dict("records")
+
+        records = [str((record["order_id"],record["utm_source"])) for record in records]
+        records_string = ",".join(records)
+
+        update_query = f"""
+            UPDATE ecommdata_alvi.ordenes_janis as oj SET
+                canal_venta = data.canal_venta
+            FROM ( VALUES
+                {records_string}
+            ) as data(id_orden, canal_venta)
+            WHERE oj.janis_id = data.id_orden ;
+        """
+
+        print(update_query)
+        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_connection = pg_hook.get_conn()
+        cursor = pg_connection.cursor()
+        cursor.execute(update_query)
+        pg_connection.commit()
+        cursor.close()
+        pg_connection.close()
+        print("Data uploaded in Postgres")
+
+    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -278,4 +367,14 @@ with DAG(
         python_callable = _incremental_load_ordes_table
     )
 
-    t0 >> t1 >> t2
+    t3 = PythonOperator(
+        task_id = "get_order_marketing_data",
+        python_callable = _get_order_marketing_data
+    )
+
+    t4 = PythonOperator(
+        task_id = "update_orders_sales_channel",
+        python_callable = _update_orders_sales_channel
+    )
+
+    t0 >> t1 >> t2 >> t3 >> t4

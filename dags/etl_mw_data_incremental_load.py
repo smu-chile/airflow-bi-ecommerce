@@ -706,7 +706,7 @@ def _vtex_payments_incremental_load():
     x = mycollection.find({
         "$or": [
             {
-                "createAt": {
+                "createdAt": {
                     "$gt": max_created_at
                 }
             },
