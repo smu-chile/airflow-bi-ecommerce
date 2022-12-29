@@ -281,6 +281,10 @@ def _update_orders_sales_channel(ti):
     order_marketing_data_files = ti.xcom_pull(key="return_value", task_ids=["get_order_marketing_data"])[0]
     print(order_marketing_data_files)
 
+    if order_marketing_data_files is None:
+        print("No records found.")
+        return
+
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
