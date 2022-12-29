@@ -86,7 +86,7 @@ def _calculate_delta_request_body(ds, ts):
         body_file_path = f"rappi/api/stock/post/delta/requests/{exec_datetime_string}_{store_id}"
         rappi_stock_query_store = rappi_stock_query.replace("{store_id}", store_id)
 
-        df = pd.read_sql_query(rappi_stock_query_store, pg_connection)
+        df_store = pd.read_sql_query(rappi_stock_query_store, pg_connection)
 
         print(f"Number of records found: {len(df.index)} for store: {store_id}")
         if len(df.index) == 0:
@@ -96,8 +96,9 @@ def _calculate_delta_request_body(ds, ts):
         s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
         s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-        df_store = df.dropna()
+        df_store = df_store.dropna()
         df_store["id"] = df_store["id"].astype("int").astype("str")
+        df_store["price"] = df_store["price"].astype("int")
         df_store["discount_price"] = df_store["discount_price"].astype("int")
         df_store["is_available"] = True
         dict_body = df_store.to_dict(orient="records")
