@@ -261,7 +261,7 @@ def _get_order_marketing_data(ti, ts):
 
     for i in range(iterations):
         order_ids_sublist = order_ids[i*iter_size:(i+1)*iter_size]
-        order_ids_string = f"({','.join(order_ids_sublist)})"
+        order_ids_string = f"({','.join([str(order_id) for order_id in order_ids_sublist])})"
         order_marketing_data_query = f"""
             SELECT *
             FROM janis_alvicl.wms_order_marketing_data womd
