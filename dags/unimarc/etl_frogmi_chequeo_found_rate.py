@@ -20,7 +20,8 @@ def _load_dw_stock_to_s3(ds,ts):
 
     query_stores = """
         SELECT id
-        FROM ecommdata.tiendas;
+        FROM ecommdata.tiendas
+        WHERE id_frogmi is not null;
     """
 
     cursor = pg_connection.cursor()
