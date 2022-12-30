@@ -19,7 +19,7 @@ def _get_time_interval(ts):
     print(exec_datetime_local_str)
 
     task_start_date = exec_datetime_local + timedelta(days=1)
-    return exec_datetime_local_str, "interval '16 hours 30 miuntes'", task_start_date
+    return exec_datetime_local_str, "interval '16 hours 30 minutes'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date):
     if Variable.get("FROGMI_ENV") != "prod":
