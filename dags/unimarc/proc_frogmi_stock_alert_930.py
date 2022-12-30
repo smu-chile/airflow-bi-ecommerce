@@ -132,8 +132,7 @@ def _post_request_to_publish_task_endpoint(ts):
             id_tienda=r_tienda, 
             product=product_body, 
             descr=r_descripcion,
-            task_start_date=task_start_date, 
-            exec_date=exec_date_local))
+            task_start_date=task_start_date))
 
     # Send payloads to S3
     print(payloads)
