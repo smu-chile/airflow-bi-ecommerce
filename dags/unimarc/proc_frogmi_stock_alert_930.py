@@ -9,8 +9,7 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 13:00 -  curr_date at 09:30 to curr_date at 13:00 (+3 hrs 30 min)
-    # 17:00 -  curr_date at 13:00 to curr_date at 17:00 (+4 hrs)
+    # 09:30 -  prev_date at 17:00 to curr_date at 08:00 (+16 hrs 30 min)
 
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
@@ -19,17 +18,10 @@ def _get_time_interval(ts):
     exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
     print(exec_datetime_local_str)
 
-    current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
-    if current_exec_hour == "17":
-        task_start_date = exec_datetime_local + timedelta(days=1)
-        task_start_date = task_start_date.replace(hour=9, minute=30, second=0)
-        return exec_datetime_local_str, "interval '3 hours 30 minutes'", task_start_date
-    else:
-        task_start_date = exec_datetime_local
-        task_start_date = task_start_date.replace(hour=13, minute=0, second=0)
-        return exec_datetime_local_str, "interval '4 hours'", task_start_date
+    task_start_date = exec_datetime_local + timedelta(days=1)
+    return exec_datetime_local_str, "interval '16 hours 30 miuntes'", task_start_date
 
-def _pre_payload(id_tienda, product, descr, task_start_date, exec_date):
+def _pre_payload(id_tienda, product, descr, task_start_date):
     if Variable.get("FROGMI_ENV") != "prod":
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
@@ -124,7 +116,7 @@ def _post_request_to_publish_task_endpoint(ts):
     tiendas = df["id_tienda"].drop_duplicates().tolist()
     print("Frogmi store ids:")
     print(tiendas)
-    payloads = [] 
+    payloads = []
 
     registros = df.to_records(index=False)
 
@@ -189,11 +181,11 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_frogmi_post_alerta_foundrate",
+    "proc_frogmi_post_alerta_foundrate_930",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate a Frogmi",
-    schedule_interval="0 13,17 * * *",
-    start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
+    schedule_interval="30 9 * * *",
+    start_date=pendulum.datetime(2022, 12, 28, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
