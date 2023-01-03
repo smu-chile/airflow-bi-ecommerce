@@ -23,6 +23,8 @@ def _get_time_interval(ts):
     if current_exec_hour == "17":
         task_start_date = exec_datetime_local + timedelta(days=1)
         task_start_date = task_start_date.replace(hour=13, minute=0, second=0)
+        exec_datetime_local = exec_datetime_local.replace(hour=9, minute=30, second=0) + timedelta(days=1)
+        exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
         return exec_datetime_local_str, "interval '3 hours 30 minutes'", task_start_date
     else:
         task_start_date = exec_datetime_local
