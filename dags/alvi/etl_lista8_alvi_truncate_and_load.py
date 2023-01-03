@@ -8,7 +8,38 @@ from airflow.operators.python import PythonOperator
 
 from datetime import datetime, timedelta
 
+def _stopper_lista8(ts):
 
+    exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
+    exec_date = exec_date.strftime("%Y/%m/%d")
+    prefix = f"datastage/L8_alvi/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    s3_file_list = list(filter(lambda x: (x[-3:] == 'CSV'), s3_file_list))
+    print(f"Files detected: {s3_file_list}")
+
+    query = """
+        select count(1) as tiendas_activas
+        from ecommdata_alvi.tiendas t
+        where t.status = 1 and t.id != '1';
+    """
+
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    active_stores = results[0][0]
+    stores_found = len(s3_file_list)
+    print(f"active stores: {active_stores}")
+    print(f"stores found: {stores_found}")
+
+    if stores_found == active_stores:
+        return
+    else:
+        raise Exception(f"Not all active stores found")
 
 def _load_lista8(ts):
     import pandas as pd
@@ -23,29 +54,33 @@ def _load_lista8(ts):
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
     print(f"Files detected: {s3_file_list}")
     column_types = {
-        "Tienda": "str",
-        "Material":	"str",
-        "UM Vta": "str",
-        "Línea": "str",
-        "Categoría": "str",
-        "Descripción Gr Art": "str",
-        "P/Vta Reg.": "int",
-        "P/Vta Prom.": "int",
-        "Descripción": "str",
-        " Stock x UMV": "float"
+        "CENTRO": "str",
+        "MATERIAL":	"str",
+        "UM VTA":	"str",
+        "NEGOCIO": "str",
+        "SECCION": "str",
+        "LINEA": "str",
+        "CATEGORIA": "str",
+        "GRUPO ARTICULO": "str",
+        "PRECIO REGULAR": "int",
+        "PRECIO PROMOCIONAL": "int",
+        "DESCRIPCION": "str",
+        "STOCK X UMV": "float"
     }
 
     column_names = {
-        "Tienda": "id_tienda",
-        "Material":	"material",
-        "UM Vta": "umv",
-        "Línea": "linea",
-        "Categoría": "categoria",
-        "Descripción Gr Art": "grupo_articulo",
-        "P/Vta Reg.": "precio_regular",
-        "P/Vta Prom.": "precio_promocional",
-        "Descripción": "descripcion",
-        " Stock x UMV": "stock_x_umv"
+        "CENTRO": "id_tienda",
+        "MATERIAL":	"material",
+        "UM VTA":	"umv",
+        "NEGOCIO": "negocio",
+        "SECCION": "seccion",
+        "LINEA": "linea",
+        "CATEGORIA": "categoria",
+        "GRUPO ARTICULO": "grupo_articulo",
+        "PRECIO REGULAR": "precio_regular",
+        "PRECIO PROMOCIONAL": "precio_promocional",
+        "DESCRIPCION": "descripcion",
+        "STOCK X UMV": "stock_x_umv"
     }
 
     dataframe_list = []
@@ -55,16 +90,8 @@ def _load_lista8(ts):
             continue
         print(f"Loading file: {s3_file}")
         lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
-        df = pd.read_csv(lista8_object.get()["Body"], sep=";", header = 5)
-        df.drop(df[df['Tienda'] == 'Tienda'].index, inplace = True)
-        df.dropna(subset = ['Tienda'], inplace = True)
-        df[" Stock x UMV"] = df[" Stock x UMV"].str.replace('.','')
-        df[" Stock x UMV"] = df[" Stock x UMV"].str.replace(',','.')
-        df["P/Vta Reg."] = df["P/Vta Reg."].str.replace('.','')
-        df["P/Vta Reg."] = df["P/Vta Reg."].fillna(0)
-        df["P/Vta Prom."] = df["P/Vta Prom."].str.replace('.','')
-        df["P/Vta Prom."] = df["P/Vta Prom."].fillna(0)
-        df = df[['Tienda','Material', 'UM Vta', 'Línea', 'Categoría', 'Descripción Gr Art', 'P/Vta Reg.', 'P/Vta Prom.', 'Descripción', ' Stock x UMV']]
+        df = pd.read_csv(lista8_object.get()["Body"], sep=";")
+        df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
         df = df.astype(column_types)
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
@@ -89,8 +116,8 @@ def _load_lista8(ts):
     # Save to PostgreSQL:
 
     with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata_alvi.lista8_alvi") 
-        df_full.to_sql(name="lista8_alvi",
+        conn.execute("TRUNCATE ecommdata_alvi.lista8") 
+        df_full.to_sql(name="lista8",
                     con=conn,         
                     schema="ecommdata_alvi",         
                     if_exists='append',         
@@ -98,13 +125,13 @@ def _load_lista8(ts):
                     chunksize=20000,         
                     method='multi')
         conn.execute("""
-            UPDATE ecommdata_alvi.lista8_alvi l
+            UPDATE ecommdata_alvi.lista8 l
             SET excluido = True
             FROM catalogo.productos_excluidos_alvi pe
             WHERE l.material = pe.material and l.umv = pe.umv
         """)
 
-    print("Data saved to PostgreSQL. Table: ecommdata_alvi.lista8_alvi")
+    print("Data saved to PostgreSQL. Table: ecommdata.lista8")
 
     return
 
@@ -123,16 +150,16 @@ with DAG(
     start_date=datetime(2022, 7, 3),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "SAP", "ecommdata_alvi", "lista8", "alvi"],
+    tags=["DATA", "SAP", "ecommdata_alvi", "lista8"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción de archivos csv de lista8 alvi desde bucket de S3, transformación y carga de datos en tabla ecommdata_alvi.lista8_alvi. \n
+    Extracción de archivos csv de lista8 alvi desde bucket de S3, transformación y carga de datos en tabla ecommdata_alvi.lista8. \n
     Un sensor espera por 3 horas la presencia de un archivo bandera (.TRG) que indique que la carga de los csv de datos está completa. \n
     Se realiza previamente un truncado de todos los datos y posteriormente se realiza la carga del día
     """ 
     t0 = S3KeySensor(
-        task_id = "wait_for_lista8_flag_file",
+        task_id = "wait_for_lista8_alvi_flag_file",
         bucket_key = "datastage/L8_alvi/{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}/LISTA_8A.TRG",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
@@ -141,11 +168,15 @@ with DAG(
         retry_delay = timedelta(minutes=1),
     )
 
-
     t1 = PythonOperator(
-        task_id = "load_lista8",
+        task_id = "stopper_lista8_alvi",
+        python_callable = _stopper_lista8
+    )
+
+    t2 = PythonOperator(
+        task_id = "load_lista8_alvi",
         python_callable = _load_lista8
     )
 
 
-    t0 >> t1
+    t0 >> t1 >> t2
