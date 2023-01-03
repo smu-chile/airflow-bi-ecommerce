@@ -119,7 +119,7 @@ def _load_lista8(ts):
         conn.execute("TRUNCATE ecommdata.lista8") 
         df_full.to_sql(name="lista8",
                     con=conn,         
-                    schema="ecommdata",         
+                    schema="ecommdata_alvi",         
                     if_exists='append',         
                     index=False,         
                     chunksize=20000,         
