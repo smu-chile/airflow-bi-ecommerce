@@ -116,7 +116,7 @@ def _load_lista8(ts):
     # Save to PostgreSQL:
 
     with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata.lista8") 
+        conn.execute("TRUNCATE ecommdata_alvi.lista8") 
         df_full.to_sql(name="lista8",
                     con=conn,         
                     schema="ecommdata_alvi",         
