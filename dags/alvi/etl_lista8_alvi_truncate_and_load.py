@@ -23,7 +23,7 @@ def _stopper_lista8(ts):
     query = """
         select count(1) as tiendas_activas
         from ecommdata_alvi.tiendas t
-        where t.status = 1 and t.id = "1";
+        where t.status = 1 and t.id != '1';
     """
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
