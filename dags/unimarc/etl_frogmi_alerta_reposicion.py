@@ -14,7 +14,7 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=00a40e62-9eb3-443c-bb12-7239d2f0547f&per_page=500&include=events"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=00a40e62-9eb3-443c-bb12-7239d2f0547f&per_page=500&include=events,stores"
     print(url)
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
@@ -35,6 +35,7 @@ def _load_json_to_s3(ts, ds):
         respuesta_1 = None
         respuesta_2 = None
         respuesta_3 = None
+        tienda = None
         id = linea['id']
         realizado = linea['attributes']['done']
         fecha_inicio = linea['attributes']['start_date']
@@ -53,20 +54,24 @@ def _load_json_to_s3(ts, ds):
             material = 'vacio'
         tienda_frogmi = linea['relationships']['stores']['data']['id']
         for i in res['included']:
-                if i['relationships']['task_action_events']['data']['id'] == id:
-                    pregunta = i['attributes']['name']
-                    id_respuesta = i['attributes']['answer']
-                    if id_respuesta != None:
-                        for j in i['attributes']['alternatives']['data']:
-                            if id_respuesta[0] == j['id'] and pregunta == "¿El producto está disponible?":
-                                respuesta_0 = j['attributes']['name']
-                            if id_respuesta[0] == j['id'] and pregunta == "¿Por qué el producto no ha tenido venta?":
-                                respuesta_1 = j['attributes']['name']
-                            if id_respuesta[0] == j['id'] and pregunta == "¿Por qué no se encuentra el producto disponible?":
-                                respuesta_2 = j['attributes']['name']
-                            if id_respuesta[0] == j['id'] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
-                                respuesta_3 = j['attributes']['answer']
-        linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3]
+                if i['type'] == "task_action_result":
+                    if i['relationships']['task_action_events']['data']['id'] == id:
+                        pregunta = i['attributes']['name']
+                        id_respuesta = i['attributes']['answer']
+                        if id_respuesta != None:
+                            for j in i['attributes']['alternatives']['data']:
+                                if id_respuesta[0] == j['id'] and pregunta == "¿El producto está disponible?":
+                                    respuesta_0 = j['attributes']['name']
+                                if id_respuesta[0] == j['id'] and pregunta == "¿Por qué el producto no ha tenido venta?":
+                                    respuesta_1 = j['attributes']['name']
+                                if id_respuesta[0] == j['id'] and pregunta == "¿Por qué no se encuentra el producto disponible?":
+                                    respuesta_2 = j['attributes']['name']
+                                if id_respuesta[0] == j['id'] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
+                                    respuesta_3 = j['attributes']['answer']
+                elif i['type'] == 'stores':
+                    if i['id'] == tienda_frogmi:
+                        tienda = i["attributes"]["code"].zfill(4)
+        linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3, tienda]
         lista_lineas.append(linea_f)
 
     next_url = res["links"]["next"]
@@ -82,6 +87,7 @@ def _load_json_to_s3(ts, ds):
             respuesta_1 = None
             respuesta_2 = None
             respuesta_3 = None
+            tienda = None
             id = linea['id']
             realizado = linea['attributes']['done']
             fecha_inicio = linea['attributes']['start_date']
@@ -100,6 +106,7 @@ def _load_json_to_s3(ts, ds):
                 material = 'vacio'
             tienda_frogmi = linea['relationships']['stores']['data']['id']
             for i in res['included']:
+                if i['type'] == "task_action_results":
                     if i['relationships']['task_action_events']['data']['id'] == id:
                         pregunta = i['attributes']['name']
                         id_respuesta = i['attributes']['answer']
@@ -113,10 +120,13 @@ def _load_json_to_s3(ts, ds):
                                     respuesta_2 = j['attributes']['name']
                                 if id_respuesta[0] == j['id'] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
                                     respuesta_3 = j['attributes']['answer']
-            linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3]
+                elif i['type'] == 'stores':
+                    if i['id'] == tienda_frogmi:
+                        tienda = i["attributes"]["code"].zfill(4)
+            linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3, tienda]
             lista_lineas.append(linea_f)
 
-    df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios'])
+    df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios', 'id_tienda'])
     
     df = df.astype({
         "id": "string",
@@ -130,7 +140,8 @@ def _load_json_to_s3(ts, ds):
         "disponibilidad": "string",
         "razon_de_porque_no_en_venta": "string",
         "razon_de_porque_no_disponible": "string",
-        "comentarios": "string"
+        "comentarios": "string",
+        "id_tienda": "string"
     }, errors="ignore")
     
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
@@ -183,7 +194,8 @@ def _get_table_alerta_reposicion_from_S3(ti):
         "disponibilidad": "string",
         "razon_de_porque_no_en_venta": "string",
         "razon_de_porque_no_disponible": "string",
-        "comentarios": "string"
+        "comentarios": "string",
+        "id_tienda": "string"
     }, errors="ignore")
 
     return df
@@ -193,7 +205,8 @@ def _save_table_alerta_reposicion(ts, ti, ds):
     import sqlalchemy
 
     df = _get_table_alerta_reposicion_from_S3(ti)
-    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios']]
+    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios', 'id_tienda']]
+    df['id_tienda'] = df['id_tienda'].str.zfill(4)
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
