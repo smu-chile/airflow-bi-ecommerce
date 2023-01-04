@@ -19,8 +19,10 @@ def _load_dw_stock_to_s3(ds,ts):
     pg_connection = pg_hook.get_conn()
 
     query_stores = """
-        SELECT id
-        FROM ecommdata.tiendas;
+        select id_tienda
+        from ecommdata.frogmi_alerta_reposicion
+        where id_tienda is not null
+        group by id_tienda
     """
 
     cursor = pg_connection.cursor()

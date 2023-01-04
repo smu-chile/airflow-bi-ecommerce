@@ -82,6 +82,7 @@ def _load_json_to_s3(ts, ds):
             respuesta_1 = None
             respuesta_2 = None
             respuesta_3 = None
+            tienda = None
             id = linea['id']
             realizado = linea['attributes']['done']
             fecha_inicio = linea['attributes']['start_date']
@@ -100,6 +101,8 @@ def _load_json_to_s3(ts, ds):
                 material = 'vacio'
             tienda_frogmi = linea['relationships']['stores']['data']['id']
             for i in res['included']:
+                    if i['type'] == "stores" and i["id"] == tienda_frogmi:
+                        tienda = i["attributes"]["code"]
                     if i['relationships']['task_action_events']['data']['id'] == id:
                         pregunta = i['attributes']['name']
                         id_respuesta = i['attributes']['answer']
@@ -113,10 +116,10 @@ def _load_json_to_s3(ts, ds):
                                     respuesta_2 = j['attributes']['name']
                                 if id_respuesta[0] == j['id'] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
                                     respuesta_3 = j['attributes']['answer']
-            linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3]
+            linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3, tienda]
             lista_lineas.append(linea_f)
 
-    df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios'])
+    df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios', 'id_tienda'])
     
     df = df.astype({
         "id": "string",
@@ -130,7 +133,7 @@ def _load_json_to_s3(ts, ds):
         "disponibilidad": "string",
         "razon_de_porque_no_en_venta": "string",
         "razon_de_porque_no_disponible": "string",
-        "comentarios": "string"
+        "id_tienda": "string"
     }, errors="ignore")
     
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
@@ -183,7 +186,8 @@ def _get_table_alerta_reposicion_from_S3(ti):
         "disponibilidad": "string",
         "razon_de_porque_no_en_venta": "string",
         "razon_de_porque_no_disponible": "string",
-        "comentarios": "string"
+        "comentarios": "string",
+        "id_tienda": "string"
     }, errors="ignore")
 
     return df
@@ -193,7 +197,7 @@ def _save_table_alerta_reposicion(ts, ti, ds):
     import sqlalchemy
 
     df = _get_table_alerta_reposicion_from_S3(ti)
-    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios']]
+    df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios', 'id_tienda']]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
