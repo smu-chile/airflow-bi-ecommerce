@@ -203,6 +203,7 @@ def _save_table_alerta_reposicion(ts, ti, ds):
 
     df = _get_table_alerta_reposicion_from_S3(ti)
     df = df[['id','realizado','fecha_inicio','fecha_fin','descripcion', 'stock', 'material','tienda_frogmi','disponibilidad','razon_de_porque_no_en_venta','razon_de_porque_no_disponible','comentarios', 'id_tienda']]
+    df['id_tienda'] = df['id_tienda'].str.zfill(4)
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
