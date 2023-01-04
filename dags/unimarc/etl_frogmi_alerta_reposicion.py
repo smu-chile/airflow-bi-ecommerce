@@ -140,6 +140,7 @@ def _load_json_to_s3(ts, ds):
         "disponibilidad": "string",
         "razon_de_porque_no_en_venta": "string",
         "razon_de_porque_no_disponible": "string",
+        "comentarios": "string",
         "id_tienda": "string"
     }, errors="ignore")
     
