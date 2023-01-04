@@ -69,7 +69,8 @@ def _load_json_to_s3(ts, ds):
                                 if id_respuesta[0] == j['id'] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
                                     respuesta_3 = j['attributes']['answer']
                 elif i['type'] == 'stores':
-                    tienda = i["attributes"]["code"].zfill(4)
+                    if i['id'] == tienda_frogmi:
+                        tienda = i["attributes"]["code"].zfill(4)
         linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3, tienda]
         lista_lineas.append(linea_f)
 
@@ -120,7 +121,8 @@ def _load_json_to_s3(ts, ds):
                                 if id_respuesta[0] == j['id'] and pregunta == "Ingrese comentarios adicionales en caso de requerirlo.":
                                     respuesta_3 = j['attributes']['answer']
                 elif i['type'] == 'stores':
-                    tienda = i["attributes"]["code"].zfill(4)
+                    if i['id'] == tienda_frogmi:
+                        tienda = i["attributes"]["code"].zfill(4)
             linea_f = [id, realizado, fecha_inicio, fecha_fin, descripcion, stock, material, tienda_frogmi, respuesta_0, respuesta_1, respuesta_2, respuesta_3, tienda]
             lista_lineas.append(linea_f)
 
