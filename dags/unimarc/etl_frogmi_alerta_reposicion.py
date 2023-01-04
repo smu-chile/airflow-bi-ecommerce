@@ -106,7 +106,7 @@ def _load_json_to_s3(ts, ds):
                 material = 'vacio'
             tienda_frogmi = linea['relationships']['stores']['data']['id']
             for i in res['included']:
-                if i['type'] == "task_action_result":
+                if i['type'] == "task_action_results":
                     if i['relationships']['task_action_events']['data']['id'] == id:
                         pregunta = i['attributes']['name']
                         id_respuesta = i['attributes']['answer']
