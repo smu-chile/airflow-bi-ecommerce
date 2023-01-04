@@ -38,6 +38,7 @@ def get_stock(ts):
     df_items = df_items[df_items['id'] != 'N/A']
     columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'fecha']
     df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre'})
+    df_items = df_items[['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'fecha']]
     print (df_items.dtypes)
 
     columns_query = ",".join(columns_main)
