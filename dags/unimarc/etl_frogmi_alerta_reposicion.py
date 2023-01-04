@@ -14,7 +14,7 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=00a40e62-9eb3-443c-bb12-7239d2f0547f&per_page=500&include=events, stores"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=00a40e62-9eb3-443c-bb12-7239d2f0547f&per_page=500&include=events,stores"
     print(url)
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
