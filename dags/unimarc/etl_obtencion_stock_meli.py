@@ -14,7 +14,6 @@ def get_stock(ts):
     import io
     import numpy as np
     import time
-    from pprint import pprint
 
     fecha_exec = (datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=1)
 
@@ -129,7 +128,6 @@ def get_stock(ts):
         print (inventory_id_value)
         r = requests.get(get_non_available_stock.format(str(inventory_id_value)), headers=header)
         print (r.status_code)
-        #pprint (r.json())
         response = r.json()
 
         registro = []
@@ -140,7 +138,6 @@ def get_stock(ts):
         registro.append(response["external_references"][0]["id"])
         registro.append(fecha_exec)
         tabla_1.append(registro)
-        #print (registro)
         x = x+1
         if x % 100 == 0:
             time.sleep(5)
@@ -154,7 +151,6 @@ def get_stock(ts):
                 ]
 
     for inventory_id_value in total_inventory_id:
-        # print (inventory_id_value)
         r = requests.get(get_non_available_stock.format(inventory_id_value), headers=header)
         print (r.status_code)
         response = r.json()
@@ -181,18 +177,15 @@ def get_stock(ts):
 
                 total_data_available.append(registro_3)
                 print("NIVEL 3")
-                pprint(registro_3)
 
             if len(conditions) == 0:
                 registro_2 = registro_2 + [None, None]
                 total_data_available.append(registro_2)
                 print("NIVEL 2")
-                pprint(registro_2)
         if len(not_available_status) == 0:
             registro = registro + [None,None,None,None]
             total_data_available.append(registro)
             print("NIVEL 1")
-            pprint(registro)
         
         y = y+1
         if y % 100 == 0:
@@ -200,7 +193,6 @@ def get_stock(ts):
 
     df_list = pd.DataFrame(tabla_1, columns=columns_t1)
     df_list['fecha'] = df_list['fecha'].astype(str)
-    # print (df_list)
 
     columns = ["cantidad_total", "cantidad_disponible",
                 "inventory_id",
@@ -214,7 +206,6 @@ def get_stock(ts):
 
     df_tot = pd.DataFrame(total_data_available, columns=columns)
     df_tot['fecha'] = df_tot['fecha'].astype(str)
-    # print (df_tot)
 
     columns_insert = ["cantidad_total",
                 "cantidad_disponible",
