@@ -102,7 +102,6 @@ def get_stock(ts):
 
     total_inventory_id = []
     df_get_id = df_items['product_id'].dropna()
-    print (df_get_id)
     largo = len(list(df_get_id))
 
     for z in range(largo):
@@ -130,7 +129,7 @@ def get_stock(ts):
         print (inventory_id_value)
         r = requests.get(get_non_available_stock.format(str(inventory_id_value)), headers=header)
         print (r.status_code)
-        pprint (r.json())
+        #pprint (r.json())
         response = r.json()
 
         registro = []
@@ -141,7 +140,7 @@ def get_stock(ts):
         registro.append(response["external_references"][0]["id"])
         registro.append(fecha_exec)
         tabla_1.append(registro)
-        print (registro)
+        #print (registro)
         x = x+1
         if x % 100 == 0:
             time.sleep(5)
@@ -155,7 +154,7 @@ def get_stock(ts):
                 ]
 
     for inventory_id_value in total_inventory_id:
-        print (inventory_id_value)
+        # print (inventory_id_value)
         r = requests.get(get_non_available_stock.format(inventory_id_value), headers=header)
         print (r.status_code)
         response = r.json()
@@ -201,7 +200,7 @@ def get_stock(ts):
 
     df_list = pd.DataFrame(tabla_1, columns=columns_t1)
     df_list['fecha'] = df_list['fecha'].astype(str)
-    print (df_list)
+    # print (df_list)
 
     columns = ["cantidad_total", "cantidad_disponible",
                 "inventory_id",
@@ -215,7 +214,7 @@ def get_stock(ts):
 
     df_tot = pd.DataFrame(total_data_available, columns=columns)
     df_tot['fecha'] = df_tot['fecha'].astype(str)
-    print (df_tot)
+    # print (df_tot)
 
     columns_insert = ["cantidad_total",
                 "cantidad_disponible",
