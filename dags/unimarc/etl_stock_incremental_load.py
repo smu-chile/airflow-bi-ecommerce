@@ -4,6 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from utils.janis_utils import load_full_table_to_s3
 
@@ -370,5 +371,11 @@ with DAG(
             WHERE fecha = '{{ds}}'::date - interval '21 days' """
     )
 
+    t8 = TriggerDagRunOperator(
+        task_id="trigger_rappi_stock_integration",
+        trigger_dag_id="proc_rappi_post_stock_precio",
+        wait_for_completion=False
+    )
 
-t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7
+
+t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8
