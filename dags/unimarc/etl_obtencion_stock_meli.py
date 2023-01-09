@@ -27,14 +27,14 @@ def get_stock(ts):
     #     projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
     # )
 
-    pipeline_mongo = [{'$projection':{
+    pipeline_mongo = [{'$project':{
         'id':1, 
         'inventory_id':1, 
         'seller_id':1, 
         'status':1, 
         'title':1,
         'ean_list': {"$filter": {"input": "$attributes", "as": "list", "cond": {"$eq": ["$$list.id", "GTIN"]}}}}}, 
-        {'$projection' : {
+        {'$project' : {
         'id':1, 
         'inventory_id':1, 
         'seller_id':1, 
