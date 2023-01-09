@@ -20,11 +20,34 @@ def get_stock(ts):
 
     ### MONGO
     mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
-    list_items_cursor = mongo_hook.find(
+    # list_items_cursor = mongo_hook.find(
+    #     mongo_db = Variable.get('MELI_ITEMS_DB_MONGO'),
+    #     mongo_collection="items",
+    #     query={},
+    #     projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
+    # )
+
+    pipeline_mongo = [{'$projection':{
+        'id':1, 
+        'inventory_id':1, 
+        'seller_id':1, 
+        'status':1, 
+        'title':1,
+        'ean_list': {"$filter": {"input": "$attributes", "as": "list", "cond": {"$eq": ["$$list.id", "GTIN"]}}}}}, 
+        {'$projection' : {
+        'id':1, 
+        'inventory_id':1, 
+        'seller_id':1, 
+        'status':1, 
+        'title':1,
+        'eand': {"$arrayElemAt": ["$ean_list.value_name", 0]}
+        }}]
+
+
+    list_items_cursor = mongo_hook.aggregate(
         mongo_db = Variable.get('MELI_ITEMS_DB_MONGO'),
         mongo_collection="items",
-        query={},
-        projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
+        aggregate_query = pipeline_mongo,
     )
 
     list_items = list(list_items_cursor)
