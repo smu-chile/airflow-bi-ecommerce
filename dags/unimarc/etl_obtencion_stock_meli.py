@@ -33,6 +33,17 @@ def get_stock(ts):
         'seller_id':1, 
         'status':1, 
         'title':1,
+        'subtitle':1,
+        'category_id':1,
+        'price':1,
+        'base_price':1,
+        'original_price':1,
+        'permalink':1,
+        'seller_custom_field':1,
+        'date_created':1,
+        'last_updated':1,
+        'health':1,
+        'catalog_listing':1,
         'ean_list': {"$filter": {"input": "$attributes", "as": "list", "cond": {"$eq": ["$$list.id", "GTIN"]}}}}}, 
         {'$project' : {
         'id':1, 
@@ -40,6 +51,17 @@ def get_stock(ts):
         'seller_id':1, 
         'status':1, 
         'title':1,
+        'subtitle':1,
+        'category_id':1,
+        'price':1,
+        'base_price':1,
+        'original_price':1,
+        'permalink':1,
+        'seller_custom_field':1,
+        'date_created':1,
+        'last_updated':1,
+        'health':1,
+        'catalog_listing':1,
         'eand': {"$arrayElemAt": ["$ean_list.value_name", 0]}
         }}]
 
@@ -58,12 +80,12 @@ def get_stock(ts):
     df_items['fecha'] = fecha_exec
     df_items['fecha'] = df_items['fecha'].astype(str)
     df_items = df_items[df_items['id'] != 'N/A']
-    columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'subtitle', 'precio', 'precio_base',
+    columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'category_id', 'estado', 'nombre', 'subtitle', 'precio', 'precio_base',
     'precio_original','fecha','eand', 'seller_custom_field', 'fecha_creado', 'fecha_actualizado', 'health', 'catalog_listing']
     df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre', 'price':'precio',
     'original_price' : 'precio_original', 'base_price' : 'precio_base', 'date_created' : 'fecha_creado', 
     'last_updated' : 'fecha_ultima_actualizacion'})
-    df_items = df_items[['id_mongo', 'product_id','inventory_id', 'seller_id', 'estado', 'nombre', 'subtitle', 'precio', 'precio_base',
+    df_items = df_items[['id_mongo', 'product_id','inventory_id', 'seller_id', 'category_id', 'estado', 'nombre', 'subtitle', 'precio', 'precio_base',
     'precio_original','fecha','eand', 'seller_custom_field', 'fecha_creado', 'fecha_actualizado', 'health', 'catalog_listing']]
     print (df_items.dtypes)
 
