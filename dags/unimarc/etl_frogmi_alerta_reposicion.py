@@ -217,6 +217,10 @@ def _save_table_alerta_reposicion(ts, ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
+        conn.execute(f"""
+            DELETE FROM ecommdata.frogmi_alerta_reposicion
+            WHERE fecha_inicio::date = '{ds}'
+        """)
         df.to_sql(name="frogmi_alerta_reposicion",
                 con=engine,         
                 schema="ecommdata",         
@@ -247,7 +251,7 @@ with DAG(
     'etl_frogmi_alerta_reposicion',
     default_args=default_args,
     description="Extracción y carga de tabla alerta reposicion desde API.",
-    schedule_interval="0 21 * * *",
+    schedule_interval="30 15,19 * * *",
     start_date=datetime(2022, 10, 12),
     catchup=False,
     max_active_runs = 1,
