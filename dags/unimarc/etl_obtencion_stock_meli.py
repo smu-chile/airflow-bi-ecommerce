@@ -20,13 +20,6 @@ def get_stock(ts):
 
     ### MONGO
     mongo_hook = MongoHook(conn_id="mongodb_meli_conn")
-    # list_items_cursor = mongo_hook.find(
-    #     mongo_db = Variable.get('MELI_ITEMS_DB_MONGO'),
-    #     mongo_collection="items",
-    #     query={},
-    #     projection = {'id':1, 'inventory_id':1, 'seller_id':1, 'status':1, 'title':1}
-    # )
-
     pipeline_mongo = [{'$project':{
         'id':1, 
         'inventory_id':1, 
@@ -80,13 +73,18 @@ def get_stock(ts):
     df_items['fecha'] = fecha_exec
     df_items['fecha'] = df_items['fecha'].astype(str)
     df_items = df_items[df_items['id'] != 'N/A']
-    columns_main = ['id_mongo', 'product_id','inventory_id', 'seller_id', 'category_id', 'estado', 'nombre', 'subtitle', 'precio', 'precio_base',
-    'precio_original','fecha','eand', 'seller_custom_field', 'fecha_creado', 'fecha_ultima_actualizacion', 'health', 'catalog_listing']
+    columns_main = [
+        'id_mongo', 'product_id','inventory_id', 
+        'seller_id', 'category_id', 'estado', 
+        'nombre', 'subtitle', 'precio', 
+        'precio_base','precio_original','fecha',
+        'eand', 'seller_custom_field', 'fecha_creado', 
+        'fecha_ultima_actualizacion', 'health', 'catalog_listing'
+        ]
     df_items = df_items.rename(columns={'_id':'id_mongo','id':'product_id','status':'estado','title':'nombre', 'price':'precio',
     'original_price' : 'precio_original', 'base_price' : 'precio_base', 'date_created' : 'fecha_creado', 
     'last_updated' : 'fecha_ultima_actualizacion'})
-    df_items = df_items[['id_mongo', 'product_id','inventory_id', 'seller_id', 'category_id', 'estado', 'nombre', 'subtitle', 'precio', 'precio_base',
-    'precio_original','fecha','eand', 'seller_custom_field', 'fecha_creado', 'fecha_ultima_actualizacion', 'health', 'catalog_listing']]
+    df_items = df_items[columns_main]
     print (df_items.dtypes)
 
     columns_query = ",".join(columns_main)
