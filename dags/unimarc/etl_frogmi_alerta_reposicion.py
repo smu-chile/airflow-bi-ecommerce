@@ -251,7 +251,7 @@ with DAG(
     'etl_frogmi_alerta_reposicion',
     default_args=default_args,
     description="Extracción y carga de tabla alerta reposicion desde API.",
-    schedule_interval="30 15,19 * * *",
+    schedule_interval="30 15,19,21 * * *",
     start_date=datetime(2022, 10, 12),
     catchup=False,
     max_active_runs = 1,
