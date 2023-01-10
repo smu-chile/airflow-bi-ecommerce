@@ -131,7 +131,7 @@ def _send_report_to_sftp():
                         AND S.APLICA_STOCK = 'S'
                         AND DATE_VALUE = TO_CHAR(NOW() - INTERVAL '1 days','YYYY-MM-DD')
                         AND OU.OU_ID = '{dic_tiendas[tiendapeya]}'
-                        AND P.NLS_PD_DSC IS NOT NULL
+                        AND (P.NLS_PD_DSC IS NOT NULL OR P.UNIDAD_DE_MEDIDA IN ('KG', 'KGV'))
                         AND P.UNIDAD_DE_MEDIDA  IS NOT NULL
                         AND PART.PARTICULARIDAD_COD = 'A'
                         AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)                        
