@@ -212,7 +212,7 @@ def _calculate_full_request_body(ts):
             AND S.APLICA_STOCK = 'S'
             AND DATE_VALUE = TO_CHAR(NOW() - INTERVAL '1 days','YYYY-MM-DD')
             AND OU.OU_ID = '{store_id}'
-            AND P.NLS_PD_DSC IS NOT NULL
+            AND (P.NLS_PD_DSC IS NOT NULL OR P.UNIDAD_DE_MEDIDA IN ('KG', 'KGV'))
             AND P.UNIDAD_DE_MEDIDA  IS NOT NULL
             AND PART.PARTICULARIDAD_COD = 'A'
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
