@@ -21,7 +21,7 @@ def _get_time_interval(ts):
     task_start_date = exec_datetime_local + timedelta(days=1)
     return exec_datetime_local_str, "interval '16 hours 30 minutes'", task_start_date
 
-def _pre_payload(id_tienda, product, descr, task_start_date):
+def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
     if Variable.get("FROGMI_ENV") != "prod":
         print("WARNING: THIS IS A TEST RUN OF THIS DAG! Change Env Var: FROGMI_ENV to perform a production run.")
         id_tienda = "93145c22-7f04-4b44-bbdc-505ba33f2dde"
@@ -37,8 +37,8 @@ def _pre_payload(id_tienda, product, descr, task_start_date):
                 "type": "task_sku",
                 "attributes": {
                     "name": f"FR-Ecomm {task_start_date_str[:-5]}",
-                    "template_id": "a6dbc4bd-64e6-4628-bb6b-66902cba3a7e",
-                    "accountable_area_code": "ADMIN_LOCAL_PILOTO",
+                    "template_id": f"{template}",
+                    "accountable_area_code": f"{accountable_area_code}",
                     "stores": [
                         id_tienda
                     ],
@@ -128,11 +128,24 @@ def _post_request_to_publish_task_endpoint(ts):
             "product_code": r_material,
             "place_code": "alerta_repo"
         }
+        product_body_e = {
+            "product_code": r_material,
+            "place_code": "Found_Rate_ecommerce"
+        }
         payloads.append(_pre_payload(
             id_tienda=r_tienda, 
             product=product_body, 
             descr=r_descripcion,
-            task_start_date=task_start_date))
+            task_start_date=task_start_date,
+            template='a6dbc4bd-64e6-4628-bb6b-66902cba3a7e',
+            accountable_area_code='ADMIN_LOCAL_PILOTO'))
+        payloads.append(_pre_payload(
+            id_tienda=r_tienda, 
+            product=product_body_e, 
+            descr=r_descripcion,
+            task_start_date=task_start_date,
+            template='f1afd85f-a8dc-4aeb-8f3e-d91df8ab9444',
+            accountable_area_code='Encargado_ecommerce'))
 
     # Send payloads to S3
     print(payloads)
