@@ -119,3 +119,5 @@ with DAG(
         task_id = "load_stock_mfc",
         python_callable = _load_stock_mfc
     )
+
+    t0 >> t1
