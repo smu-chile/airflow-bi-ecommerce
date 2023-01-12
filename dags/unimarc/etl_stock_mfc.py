@@ -108,7 +108,7 @@ with DAG(
     """ 
     t0 = S3KeySensor(
         task_id = "wait_for_stock_mfc_flag_file",
-        bucket_key = "datastage/stock_mfc/{{macros.ds_add(ds, 1).strftime('%Y/%m/%d')}}/stock.trg",
+        bucket_key = "datastage/stock_mfc/{{macros.ds_add(ds, 1).replace('-','/')}}/stock.trg",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*10,
