@@ -3,6 +3,7 @@ from airflow import macros
 from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 
 
@@ -11,9 +12,9 @@ import pendulum
 
 def _load_stock_mfc(ds):
     import pandas as pd
-    import sqlalchemy
 
-    exec_date = macros.ds_add(ds, 1).replace("-", "/")
+    exec_date = datetime.strptime(ds, "%Y-%m-%d") + timedelta(days=1)
+    exec_date = f"{exec_date.year}/{exec_date.month}/{exec_date.day}"
     prefix = f"datastage/stock_mfc/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
