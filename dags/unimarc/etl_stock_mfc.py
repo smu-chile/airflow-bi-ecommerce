@@ -65,25 +65,20 @@ def _load_stock_mfc(ds):
 
     print("Number of records to be loaded: "+str(len(df_full.index)))
 
-    # host = Variable.get("POSTGRESQL_HOST")
-    # database = Variable.get("POSTGRESQL_DB")
-    # username = Variable.get("POSTGRESQL_USER")
-    # password = Variable.get("POSTGRESQL_PASSWORD")
-    
-    # conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    # engine = sqlalchemy.create_engine(conn_url)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
 
     # Save to PostgreSQL:
 
-    # with engine.begin() as conn:
-    #     df_full.to_sql(name="stock_mfc",
-    #                 con=conn,         
-    #                 schema="ecommdata",         
-    #                 if_exists='append',         
-    #                 index=False,         
-    #                 chunksize=20000,         
-    #                 method='multi')
+    df_full.to_sql(name="stock_mfc",
+                con=pg_connection,         
+                schema="ecommdata",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
 
+    pg_connection.close()
     print("Data saved to PostgreSQL. Table: ecommdata.stock_mfc")
 
     return
