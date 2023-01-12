@@ -200,7 +200,7 @@ with DAG(
     'etl_frogmi_chequeo_found_rate',
     default_args=default_args,
     description="Extracción y carga de stock DW para chequear foundrate de productos.",
-    schedule_interval="0 9 * * *",
+    schedule_interval="0 11 * * *",
     start_date=datetime(2022, 10, 26),
     catchup=False,
     max_active_runs = 1,
