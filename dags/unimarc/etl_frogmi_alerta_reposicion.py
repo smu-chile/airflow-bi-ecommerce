@@ -14,7 +14,9 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=00a40e62-9eb3-443c-bb12-7239d2f0547f&per_page=500&include=events,stores"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={ds}&filters[period][to]={macros.ds_add(ds, 1)}&filters[activity][]=00a40e62-9eb3-443c-bb12-7239d2f0547f&per_page=500&include=events,stores"
+    if ts.split("T")[1] == "21:30:00+00:00":
+        url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=00a40e62-9eb3-443c-bb12-7239d2f0547f&per_page=500&include=events,stores"
     print(url)
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
@@ -216,10 +218,15 @@ def _save_table_alerta_reposicion(ts, ti, ds):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
+    exec_date = ds
+
+    if ts.split("T")[1] == "21:30:00+00:00":
+        exec_date = macros.ds_add(ds, 1)
+
     with engine.begin() as conn:
         conn.execute(f"""
             DELETE FROM ecommdata.frogmi_alerta_reposicion
-            WHERE fecha_inicio::date = '{ds}'
+            WHERE fecha_inicio::date = '{exec_date}'
         """)
         df.to_sql(name="frogmi_alerta_reposicion",
                 con=engine,         
@@ -228,14 +235,7 @@ def _save_table_alerta_reposicion(ts, ti, ds):
                 index=False,         
                 chunksize=20000,         
                 method='multi')
-        conn.execute(f"""
-            UPDATE ecommdata.frogmi_alerta_reposicion
-            SET id_tienda = t.id
-            FROM ecommdata.tiendas t
-            WHERE fecha_inicio::date >= '{ds}' and tienda_frogmi = t.id_frogmi
-        """)
 
-    
     return
 
 
