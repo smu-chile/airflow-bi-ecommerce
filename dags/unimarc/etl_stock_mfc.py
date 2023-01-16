@@ -65,6 +65,7 @@ def _load_stock_mfc(ds):
     df_full = pd.concat(dataframe_list, ignore_index=True)
     df_full = df_full.rename(columns=column_names)
 
+    df_full["fecha_carga"] = macros.ds_add(ds, 1)
     print("Number of records to be loaded: "+str(len(df_full.index)))
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
