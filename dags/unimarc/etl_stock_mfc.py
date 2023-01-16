@@ -4,6 +4,7 @@ from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.python import PythonOperator
 
 
@@ -64,6 +65,7 @@ def _load_stock_mfc(ds):
     df_full = pd.concat(dataframe_list, ignore_index=True)
     df_full = df_full.rename(columns=column_names)
 
+    df_full["fecha_carga"] = macros.ds_add(ds, 1)
     print("Number of records to be loaded: "+str(len(df_full.index)))
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -121,4 +123,13 @@ with DAG(
         python_callable = _load_stock_mfc
     )
 
-    t0 >> t1
+    t2 = PostgresOperator(
+        task_id = "delete_old_data",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        DELETE FROM ecommdata.stock_mfc
+        WHERE fecha_carga < {{ds}}::date - interval '30 days';
+        """
+    )
+
+    t0 >> t1 >> t2
