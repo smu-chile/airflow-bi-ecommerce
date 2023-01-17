@@ -159,7 +159,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql=f"""
         delete from ecommdata.stock_nrt
-        where fecha_hora::date < '{{ds}}'::date - interval '4 weeks'
+        where fecha_hora::date < '{{ds}}'::date - interval '21 days'
         """,
     )
 
