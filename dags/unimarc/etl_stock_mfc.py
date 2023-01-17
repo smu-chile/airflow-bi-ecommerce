@@ -11,8 +11,24 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
 import pendulum
 
+def _check_for_s3_file_with_date(ds):
+    exec_date = datetime.strptime(ds, "%Y-%m-%d") + timedelta(days=1)
+    exec_date = f"{exec_date.year}/{exec_date.month}/{exec_date.day}"
+    prefix = f"datastage/stock_mfc/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    flag_key = prefix + "stock.trg"
+
+    print(f"Checking for key: {flag_key}")
+    if not s3_hook.check_for_key(flag_key, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % flag_key)
+    
+    print("Flag file found.")
+    return
+
 def _load_stock_mfc(ds):
     import pandas as pd
+    import sqlalchemy
 
     exec_date = datetime.strptime(ds, "%Y-%m-%d") + timedelta(days=1)
     exec_date = f"{exec_date.year}/{exec_date.month}/{exec_date.day}"
@@ -68,20 +84,24 @@ def _load_stock_mfc(ds):
     df_full["fecha_carga"] = macros.ds_add(ds, 1)
     print("Number of records to be loaded: "+str(len(df_full.index)))
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
 
     df_full.to_sql(name="stock_mfc",
-                con=pg_connection,         
+                con=engine,         
                 schema="ecommdata",         
                 if_exists='append',         
                 index=False,         
                 chunksize=20000,         
                 method='multi')
 
-    pg_connection.close()
     print("Data saved to PostgreSQL. Table: ecommdata.stock_mfc")
 
     return
@@ -108,14 +128,11 @@ with DAG(
     Extracción de archivos csv de Stock MFC desde bucket de S3, transformación y carga de datos en tabla ecommdata.stock_mfc. \n
     Un sensor espera por 30 minutos la presencia de un archivo bandera (.TRG) que indique que la carga del csv de datos está completa.
     """ 
-    t0 = S3KeySensor(
-        task_id = "wait_for_stock_mfc_flag_file",
-        bucket_key = "datastage/stock_mfc/{{macros.ds_add(ds, 1).replace('-','/')}}/stock.trg",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
-        aws_conn_id = "aws_s3_connection",
-        timeout = 60*10,
-        retries = 3,
-        retry_delay = timedelta(minutes=1),
+    t0 = PythonOperator(
+        task_id = "check_for_stock_mfc_flag_file",
+        python_callable = _check_for_s3_file_with_date,
+        retries = 6,
+        retry_delay = timedelta(minutes=5),
     )
 
     t1 = PythonOperator(
@@ -128,7 +145,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql="""
         DELETE FROM ecommdata.stock_mfc
-        WHERE fecha_carga < {{ds}}::date - interval '30 days';
+        WHERE fecha_carga < '{{ds}}'::date - interval '30 days';
         """
     )
 
