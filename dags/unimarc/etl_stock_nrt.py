@@ -1,6 +1,7 @@
 from airflow import DAG
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
@@ -153,4 +154,13 @@ with DAG(
         retry_delay = timedelta(minutes=1)
     )
 
-    t0 >> t1
+    t2 = PostgresOperator(
+        task_id = "delete_old_data",
+        postgres_conn_id="postgresql_conn",
+        sql=f"""
+        delete from ecommdata.stock_nrt
+        where fecha_hora::date < '{{ds}}'::date - interval '4 weeks'
+        """,
+    )
+
+    t0 >> t1 >> t2
