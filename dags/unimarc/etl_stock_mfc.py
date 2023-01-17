@@ -145,7 +145,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql="""
         DELETE FROM ecommdata.stock_mfc
-        WHERE fecha_carga < {{ds}}::date - interval '30 days';
+        WHERE fecha_carga < '{{ds}}'::date - interval '30 days';
         """
     )
 
