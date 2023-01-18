@@ -9,7 +9,8 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 09:30 -  prev_date at 17:00 to curr_date at 08:00 (+16 hrs 30 min)
+    # 13:00 -  curr_date at 09:30 to curr_date at 13:00 (+3 hrs 30 min)
+    # 17:00 -  curr_date at 13:00 to curr_date at 17:00 (+4 hrs)
 
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
@@ -18,8 +19,17 @@ def _get_time_interval(ts):
     exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
     print(exec_datetime_local_str)
 
-    task_start_date = exec_datetime_local + timedelta(days=1)
-    return exec_datetime_local_str, "interval '16 hours 30 minutes'", task_start_date
+    current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
+    if current_exec_hour == "17":
+        task_start_date = exec_datetime_local + timedelta(days=1)
+        task_start_date = task_start_date.replace(hour=13, minute=0, second=0)
+        exec_datetime_local = exec_datetime_local.replace(hour=9, minute=30, second=0) + timedelta(days=1)
+        exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+        return exec_datetime_local_str, "interval '3 hours 30 minutes'", task_start_date
+    else:
+        task_start_date = exec_datetime_local
+        task_start_date = task_start_date.replace(hour=17, minute=0, second=0)
+        return exec_datetime_local_str, "interval '4 hours'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
     if Variable.get("FROGMI_ENV") != "prod":
@@ -71,33 +81,10 @@ def _post_request_to_publish_task_endpoint(ts):
     
     exec_date_local, time_interval, task_start_date = _get_time_interval(ts)
     query = f"""
-        select *
-        from
-        (
-            select ref_id
-                , descripcion
-                , id_frogmi as id_tienda
-                , ordenes
-                , unidades_faltantes
-                , dense_rank() over (partition by id_frogmi order by ordenes desc, unidades_faltantes desc) as _rank
-            from 
-            (
-                select ref_id
-                    , frp.descripcion
-                    , id_frogmi 
-                    , count(1) as ordenes
-                    , sum(unidades_solicitadas - unidades_pickeadas) as unidades_faltantes --PAQ y DIS multiplicar por unidades_pack
-                from operaciones_unimarc.found_rate_productos frp 
-                join ecommdata.tiendas as t
-                    on frp.id_tienda = t.id and t.id_frogmi is not null
-                where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
-                and estado_foundrate <> 3
-                group by ref_id, frp.descripcion, id_frogmi
-            ) _t
-        ) _resultado
-        where _resultado._rank <= 5
-        order by id_tienda, _rank
-        ; 
+        select p.ref_id, p.nombre as descripcion, fafr.tienda_frogmi as id_tienda
+        from ecommdata.frogmi_alerta_found_rate fafr
+        inner join ecommdata.productos p on lpad(fafr.material, 18, '0') = p.material
+        where fafr.gondola is true and fecha_fin = date_trunc('hour','{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp);
     """
     print(query)
 
@@ -116,13 +103,13 @@ def _post_request_to_publish_task_endpoint(ts):
     tiendas = df["id_tienda"].drop_duplicates().tolist()
     print("Frogmi store ids:")
     print(tiendas)
-    payloads = []
+    payloads = [] 
 
     registros = df.to_records(index=False)
 
     for registro in registros:
         r_tienda = registro[2]
-        r_material = registro[6]
+        r_material = registro[3]
         r_descripcion = registro[1]
         product_body = {
             "product_code": r_material,
@@ -134,11 +121,11 @@ def _post_request_to_publish_task_endpoint(ts):
         }
         payloads.append(_pre_payload(
             id_tienda=r_tienda, 
-            product=product_body, 
+            product=product_body_e, 
             descr=r_descripcion,
             task_start_date=task_start_date,
-            template='a6dbc4bd-64e6-4628-bb6b-66902cba3a7e',
-            accountable_area_code='ADMIN_LOCAL_PILOTO'))
+            template='f1afd85f-a8dc-4aeb-8f3e-d91df8ab9444',
+            accountable_area_code='Encargado_ecommerce'))
 
     # Send payloads to S3
     print(payloads)
@@ -186,11 +173,11 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_frogmi_post_alerta_foundrate_930",
+    "proc_frogmi_post_alerta_foundrate_encargado_ecommerce",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate a Frogmi",
-    schedule_interval="30 9 * * *",
-    start_date=pendulum.datetime(2022, 12, 28, tz="America/Santiago"),
+    schedule_interval=None,
+    start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
@@ -198,11 +185,10 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Envía tareas (tipo SKU) de Alerta de Found Rate a Frogmi. \n
-    Por cada tienda, toma los 5 SKUs con mayor número de incidencias de falta de stock e impacto por unidades solicitadas. \n
+    Envía tareas (tipo SKU) de Alerta de Found Rate a Frogmi al encargado ecommerce. \n
+    Se toman las respuestas de la alerta found rate original y se envia una pregunta de validación al encargado ecommerce sobre los productos en gondola. \n
     Por cada tienda arma un payload y es enviado al endpoint Publish Task de Frogmi.\n
     Se genera una tarea por cada par Tienda / SKU. \n
-    Este proceso considerará todas aquellas tiendas que tengan un valor no nulo en la columna id_frogmi en la tabla ecommdata.tienda.\n
     Este proceso leerá la variable de entorno 'FROGMI_ENV' para determinar si usar tiendas reales o de prueba.
     """ 
     t0 = PythonOperator(

@@ -158,6 +158,10 @@ def get_stock(ts):
             print ('Respuesta 404, producto sin ID de inventario')
             continue
         response = r.json()
+        if 'inventory_id' not in response:
+            print ('producto sin columna inventory_id')
+            print (response)
+            continue
         total_inventory_id.append(response['inventory_id'])
         if z % 100 == 0:
             time.sleep(5)

@@ -152,13 +152,6 @@ def _post_request_to_publish_task_endpoint(ts):
             task_start_date=task_start_date, 
             template='a6dbc4bd-64e6-4628-bb6b-66902cba3a7e',
             accountable_area_code='ADMIN_LOCAL_PILOTO'))
-        payloads.append(_pre_payload(
-            id_tienda=r_tienda, 
-            product=product_body_e, 
-            descr=r_descripcion,
-            task_start_date=task_start_date,
-            template='f1afd85f-a8dc-4aeb-8f3e-d91df8ab9444',
-            accountable_area_code='Encargado_ecommerce'))
 
     # Send payloads to S3
     print(payloads)

@@ -3,6 +3,7 @@ from airflow import macros
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from datetime import datetime
 
@@ -14,7 +15,9 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={ds}&filters[period][to]={macros.ds_add(ds, 1)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
+    if ts.split("T")[1] == "22:00:00+00:00":
+        url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
     print(url)
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
@@ -172,7 +175,7 @@ with DAG(
     'etl_frogmi_alerta_found_rate',
     default_args=default_args,
     description="Extracción y carga de tabla alerta frogmi desde API.",
-    schedule_interval="0 21 * * *",
+    schedule_interval="0 15,18,22 * * *",
     start_date=datetime(2022, 10, 12),
     catchup=False,
     max_active_runs = 1,
@@ -193,5 +196,11 @@ with DAG(
         python_callable = _save_table_alerta_found_rate
     )
 
+    t2 = TriggerDagRunOperator(
+        task_id="trigger_alerta_fr_encargado",
+        trigger_dag_id="proc_frogmi_post_alerta_foundrate_encargado_ecommerce",
+        wait_for_completion=False
+    )
 
-t0 >> t1
+
+t0 >> t1 >> t2
