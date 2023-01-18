@@ -160,7 +160,7 @@ def get_stock(ts):
         response = r.json()
         if 'inventory_id' not in response:
             print ('producto sin columna inventory_id')
-            print (z)
+            print (response)
             continue
         total_inventory_id.append(response['inventory_id'])
         if z % 100 == 0:
