@@ -84,7 +84,7 @@ def _post_request_to_publish_task_endpoint(ts):
         select p.ref_id, p.nombre as descripcion, fafr.tienda_frogmi as id_tienda
         from ecommdata.frogmi_alerta_found_rate fafr
         inner join ecommdata.productos p on lpad(fafr.material, 18, '0') = p.material
-        where fafr.gondola is true and fecha_fin = '{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}';
+        where fafr.gondola is true and fecha_fin = date_trunc('hour','{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp);
     """
     print(query)
 
@@ -176,7 +176,7 @@ with DAG(
     "proc_frogmi_post_alerta_foundrate_encargado_ecommerce",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate a Frogmi",
-    schedule_interval="0 15,19 * * *",
+    schedule_interval=None,
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
