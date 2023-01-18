@@ -157,7 +157,7 @@ with DAG(
     t2 = PostgresOperator(
         task_id = "delete_old_data",
         postgres_conn_id="postgresql_conn",
-        sql=f"""
+        sql="""
         delete from ecommdata.stock_nrt
         where fecha_hora::date < '{{ds}}'::date - interval '21 days'
         """,
