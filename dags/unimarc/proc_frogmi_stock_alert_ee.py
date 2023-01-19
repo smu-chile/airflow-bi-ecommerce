@@ -18,6 +18,9 @@ def _get_time_interval(ts):
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
     exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
     print(exec_datetime_local_str)
+    current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
+    if current_exec_hour == "12":
+         exec_datetime_local = exec_datetime_local - timedelta(minutes=30)
     return exec_datetime_local_str, "interval '4 hours'", exec_datetime_local
 
 def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
@@ -69,6 +72,7 @@ def _post_request_to_publish_task_endpoint(ts):
     import requests
     
     exec_date_local, time_interval, task_start_date = _get_time_interval(ts)
+
     query = f"""
         select p.ref_id, p.nombre as descripcion, fafr.tienda_frogmi as id_tienda
         from ecommdata.frogmi_alerta_found_rate fafr
