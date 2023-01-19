@@ -73,7 +73,7 @@ def _post_request_to_publish_task_endpoint(ts):
         select p.ref_id, p.nombre as descripcion, fafr.tienda_frogmi as id_tienda
         from ecommdata.frogmi_alerta_found_rate fafr
         inner join ecommdata.productos p on lpad(fafr.material, 18, '0') = p.material
-        where fafr.gondola is true and fecha_fin = date_trunc('hour','{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp);
+        where fafr.gondola is true and fecha_fin = date_trunc('hour','{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp) + interval '3 hours';
     """
     print(query)
 
