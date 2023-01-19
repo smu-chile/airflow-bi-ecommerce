@@ -15,10 +15,11 @@ def _get_time_interval(ts):
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
-    print(exec_datetime_local_str)
-
     task_start_date = exec_datetime_local + timedelta(days=1)
+
+    exec_datetime_local = exec_datetime_local.replace(hour=17, minute=0)
+    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+    print(f"Exec datetime: {exec_datetime_local_str}")
     return exec_datetime_local_str, "interval '16 hours 30 minutes'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
