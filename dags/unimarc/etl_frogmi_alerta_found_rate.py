@@ -140,11 +140,19 @@ def _save_table_alerta_found_rate(ts, ti, ds):
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
+
+    exec_date = ds
+
+    if ts.split("T")[1] == "22:00:00+00:00":
+        exec_date = macros.ds_add(ds, 1)
     
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
-
     with engine.begin() as conn:
+        conn.execute(f"""
+            DELETE FROM ecommdata.frogmi_alerta_found_rate
+            WHERE fecha_inicio::date = '{exec_date}'
+        """)
         df.to_sql(name="frogmi_alerta_found_rate",
                 con=engine,         
                 schema="ecommdata",         
@@ -156,7 +164,7 @@ def _save_table_alerta_found_rate(ts, ti, ds):
             UPDATE ecommdata.frogmi_alerta_found_rate
             SET id_tienda = t.id
             FROM ecommdata.tiendas t
-            WHERE fecha_inicio::date >= '{ds}' and tienda_frogmi = t.id_frogmi
+            WHERE fecha_inicio::date >= '{exec_date}' and tienda_frogmi = t.id_frogmi
         """)
 
     
