@@ -22,7 +22,8 @@ def _get_daily_partitioned_tables(ti, ds):
         SELECT *
         FROM maintenance.periodic_partition as pp
         WHERE pp.period = '{PARTITION_PERIODS['daily']}' 
-        AND pp.updated_at <> '{exec_date}';
+        AND (pp.updated_at <> '{exec_date}'
+            OR pp.updated_at IS NULL);
     """ 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
