@@ -9,10 +9,6 @@ PARTITION_PERIODS = {
     "daily": "daily",
 }
 
-def _create_partition(table_name):
-
-    return
-
 def _get_daily_partitioned_tables(ti, ds):
     
     exec_date = macros.ds_add(ds, 1)
@@ -72,7 +68,6 @@ def _create_new_daily_partitions(ti, ds):
     
     cursor.close()
     pg_connection.close()
-
 
     return
 
