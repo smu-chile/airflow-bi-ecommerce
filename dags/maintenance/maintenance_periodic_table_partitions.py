@@ -15,7 +15,7 @@ def _create_partition(table_name):
 
 def _get_daily_partitioned_tables(ti, ds):
     
-    exec_date = macros.ds_add(ds)
+    exec_date = macros.ds_add(ds, 1)
     print(exec_date)
 
     query = f"""
@@ -37,7 +37,7 @@ def _get_daily_partitioned_tables(ti, ds):
 
 def _create_new_daily_partitions(ti, ds):
 
-    exec_date = macros.ds_add(ds)
+    exec_date = macros.ds_add(ds, 1)
     print(exec_date)
 
     daily_partitioned_tables = ti.xcom_pull(key="daily_partitioned_tables", task_ids=["get_daily_partitioned_tables"])
