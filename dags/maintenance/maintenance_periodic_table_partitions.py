@@ -55,7 +55,7 @@ def _create_new_daily_partitions(ti, ds):
         part_year = exec_date_split[0]
         part_month = exec_date_split[1]
         part_day = exec_date_split[2]
-        partition_name = f"{table_name}_y{part_year}_m{part_month}_d{part_day}"
+        partition_name = f"{table_name}_y{part_year}m{part_month}d{part_day}"
         print(partition_name)
 
         create_partition_query = f"""
@@ -66,7 +66,7 @@ def _create_new_daily_partitions(ti, ds):
 
         print(create_partition_query)
         cursor.execute(create_partition_query)
-        cursor.commit()
+        pg_connection.commit()
 
         print(f"Partition created: {partition_name}")
     
