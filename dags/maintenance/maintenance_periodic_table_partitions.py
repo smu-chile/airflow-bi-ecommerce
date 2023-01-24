@@ -30,6 +30,8 @@ def _get_daily_partitioned_tables(ti, ds):
     cursor = pg_connection.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
 
     print(results)
     ti.xcom_push(key="daily_partitioned_tables", value=results)
@@ -41,15 +43,36 @@ def _create_new_daily_partitions(ti, ds):
     exec_date = macros.ds_add(ds, 1)
     print(exec_date)
 
-    daily_partitioned_tables = ti.xcom_pull(key="daily_partitioned_tables", task_ids=["get_daily_partitioned_tables"])
-    for table in daily_partitioned_tables:
-        print(table)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+
+    daily_partitioned_tables = ti.xcom_pull(key="daily_partitioned_tables", task_ids=["get_daily_partitioned_tables"])[0]
+    for table_data in daily_partitioned_tables:
+        table_name = table_data[0]
+        print(table_name)
         exec_date_split = exec_date.split("-")
         part_year = exec_date_split[0]
         part_month = exec_date_split[1]
         part_day = exec_date_split[2]
-        partition_name = f"{table}_y{part_year}_m{part_month}_d{part_day}"
+        partition_name = f"{table_name}_y{part_year}_m{part_month}_d{part_day}"
         print(partition_name)
+
+        create_partition_query = f"""
+            CREATE TABLE ecommdata.{partition_name}
+            PARTITION OF ecommdata.{table_name}
+            FOR VALUES FROM ('{exec_date}') TO ('{macros.ds_add(ds, 2)}');
+        """
+
+        print(create_partition_query)
+        cursor.execute(create_partition_query)
+        cursor.commit()
+
+        print(f"Partition created: {partition_name}")
+    
+    cursor.close()
+    pg_connection.close()
+
 
     return
 
