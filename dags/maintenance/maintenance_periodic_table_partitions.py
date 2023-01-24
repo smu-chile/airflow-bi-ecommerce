@@ -27,7 +27,7 @@ def _get_daily_partitioned_tables(ti, ds):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.excecute(query)
+    cursor.execute(query)
     results = cursor.fetchall()
 
     print(results)
