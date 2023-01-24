@@ -66,7 +66,7 @@ def _create_new_daily_partitions(ti, ds):
 
         print(create_partition_query)
         cursor.execute(create_partition_query)
-        cursor.commit()
+        pg_connection.commit()
 
         print(f"Partition created: {partition_name}")
     
