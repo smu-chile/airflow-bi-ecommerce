@@ -176,7 +176,6 @@ def get_stock(ts):
     total_data_available = []
 
     for inventory_id_value in total_inventory_id:
-        print (inventory_id_value)
         r = requests.get(get_non_available_stock.format(str(inventory_id_value)), headers=header)
         if r.status_code != 200:
             print (r.status_code)
@@ -206,7 +205,6 @@ def get_stock(ts):
 
     for inventory_id_value in total_inventory_id:
         r = requests.get(get_non_available_stock.format(inventory_id_value), headers=header)
-        print (r.status_code)
         response = r.json()
 
         registro = []
