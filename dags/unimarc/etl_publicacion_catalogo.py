@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
@@ -118,19 +118,48 @@ def _store_daily_data(ts):
 
     return
 
-def _delete_daily_data(ts):
+def _delete_daily_data(ts, ds):
 
-    delete_query = f"""
-        delete
-        from ecommdata.publicacion_catalogo pc
-        where pc.fecha_hora < '{ts}'::timestamp - interval '28 days'
-    """
+    delete_date = macros.ds_add(ds, -28)
+    print(delete_date)
 
-    print(delete_query)
+    delete_date_split = delete_date.split("-")
+    part_year = delete_date_split[0]
+    part_month = delete_date_split[1]
+    part_day = delete_date_split[2]
+    partition_name = f"publicacion_catalogo_y{part_year}m{part_month}d{part_day}"
+    
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.execute(delete_query)
+
+    partition_exists_query = f"""
+        select exists(
+            select * 
+            from information_schema.tables 
+            where table_name='{partition_name}'
+        );
+    """
+
+    cursor.execute(partition_exists_query)
+    partition_exists = cursor.fetchone()[0]
+
+    if partition_exists:
+        drop_query = f"""
+            DROP TABLE ecommdata.{partition_name};
+        """
+        print(drop_query)
+        cursor.execute(drop_query)
+
+    else:
+        delete_query = f"""
+            delete
+            from ecommdata.publicacion_catalogo pc
+            where pc.fecha_hora < '{ts}'::timestamp - interval '28 days'
+        """
+
+        print(delete_query)
+        cursor.execute(delete_query)
     pg_connection.commit()
     cursor.close()
 
