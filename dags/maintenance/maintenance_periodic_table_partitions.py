@@ -45,18 +45,19 @@ def _create_new_daily_partitions(ti, ds):
 
     daily_partitioned_tables = ti.xcom_pull(key="daily_partitioned_tables", task_ids=["get_daily_partitioned_tables"])[0]
     for table_data in daily_partitioned_tables:
-        table_name = table_data[0]
+        schema_name = table_data[0]
+        table_name = table_data[1]
         print(table_name)
         exec_date_split = exec_date.split("-")
         part_year = exec_date_split[0]
         part_month = exec_date_split[1]
         part_day = exec_date_split[2]
-        partition_name = f"{table_name}_y{part_year}m{part_month}d{part_day}"
+        partition_name = f"{schema_name}.{table_name}_y{part_year}m{part_month}d{part_day}"
         print(partition_name)
 
         create_partition_query = f"""
-            CREATE TABLE ecommdata.{partition_name}
-            PARTITION OF ecommdata.{table_name}
+            CREATE TABLE {partition_name}
+            PARTITION OF {schema_name}.{table_name}
             FOR VALUES FROM ('{exec_date}') TO ('{macros.ds_add(ds, 2)}');
         """
 
