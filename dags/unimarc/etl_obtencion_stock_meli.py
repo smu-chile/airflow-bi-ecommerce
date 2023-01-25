@@ -236,16 +236,13 @@ def get_stock(ts):
                 registro_3.append(condition["quantity"])
 
                 total_data_available.append(registro_3)
-                # ("NIVEL 3")
 
             if len(conditions) == 0:
                 registro_2 = registro_2 + [None, None]
                 total_data_available.append(registro_2)
-                # ("NIVEL 2")
         if len(not_available_status) == 0:
             registro = registro + [None,None,None,None]
             total_data_available.append(registro)
-            # ("NIVEL 1")
         
         y = y+1
         if y % 100 == 0:
