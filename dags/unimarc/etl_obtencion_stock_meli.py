@@ -153,9 +153,9 @@ def get_stock(ts):
     for z in range(largo):
         product_id_value = df_get_id.iat[z]
         r = requests.get(products_api.format(product_id_value), headers=header)
-        print (r.status_code)
         if r.status_code == 404:
             print ('Respuesta 404, producto sin ID de inventario')
+            print (r.status_code)
             continue
         response = r.json()
         if 'inventory_id' not in response:
@@ -178,7 +178,10 @@ def get_stock(ts):
     for inventory_id_value in total_inventory_id:
         print (inventory_id_value)
         r = requests.get(get_non_available_stock.format(str(inventory_id_value)), headers=header)
-        print (r.status_code)
+        if r.status_code != 200:
+            print (r.status_code)
+            print (r.content)
+            continue
         response = r.json()
 
         registro = []
@@ -207,11 +210,17 @@ def get_stock(ts):
         response = r.json()
 
         registro = []
-        registro.append(response["total"])
-        registro.append(response["available_quantity"])
-        registro.append(response["inventory_id"])
-        registro.append(response["external_references"][0]["id"])
-        registro.append(fecha_exec)
+        try:
+            registro.append(response["total"])
+            registro.append(response["available_quantity"])
+            registro.append(response["inventory_id"])
+            registro.append(response["external_references"][0]["id"])
+            registro.append(fecha_exec)
+        except Exception as e:
+            print (str(e))
+            print (r.status_code)
+            print (r.content)
+            continue
         #segundo nivel
         not_available_status = response.get("not_available_detail",[])
         for not_available in not_available_status:
@@ -227,16 +236,16 @@ def get_stock(ts):
                 registro_3.append(condition["quantity"])
 
                 total_data_available.append(registro_3)
-                print("NIVEL 3")
+                # ("NIVEL 3")
 
             if len(conditions) == 0:
                 registro_2 = registro_2 + [None, None]
                 total_data_available.append(registro_2)
-                print("NIVEL 2")
+                # ("NIVEL 2")
         if len(not_available_status) == 0:
             registro = registro + [None,None,None,None]
             total_data_available.append(registro)
-            print("NIVEL 1")
+            # ("NIVEL 1")
         
         y = y+1
         if y % 100 == 0:
