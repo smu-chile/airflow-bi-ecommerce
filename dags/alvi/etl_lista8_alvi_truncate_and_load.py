@@ -94,8 +94,7 @@ def _load_lista8(ts):
         lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
         df = pd.read_csv(lista8_object.get()["Body"], sep=";")
         df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
-        df.loc[df["SUSTITUTO"] == "X", "SUSTITUTO"] = True
-        df.loc[df["SUSTITUTO"] == "", "SUSTITUTO"] = False
+        df['SUSTITUTO'] = df['SUSTITUTO'].map({'X': True, '': False})
         df = df.astype(column_types)
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
