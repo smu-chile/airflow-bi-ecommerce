@@ -65,7 +65,8 @@ def _load_lista8(ts):
         "PRECIO REGULAR": "int",
         "PRECIO PROMOCIONAL": "int",
         "DESCRIPCION": "str",
-        "STOCK X UMV": "float"
+        "STOCK X UMV": "float",
+        "SUSTITUTO": "bool"
     }
 
     column_names = {
@@ -80,7 +81,8 @@ def _load_lista8(ts):
         "PRECIO REGULAR": "precio_regular",
         "PRECIO PROMOCIONAL": "precio_promocional",
         "DESCRIPCION": "descripcion",
-        "STOCK X UMV": "stock_x_umv"
+        "STOCK X UMV": "stock_x_umv",
+        "SUSTITUTO": "sustituto"
     }
 
     dataframe_list = []
@@ -92,6 +94,8 @@ def _load_lista8(ts):
         lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
         df = pd.read_csv(lista8_object.get()["Body"], sep=";")
         df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
+        df.loc[df["SUSTITUTO"] == "X", "SUSTITUTO"] = True
+        df.loc[df["SUSTITUTO"] == "", "SUSTITUTO"] = False
         df = df.astype(column_types)
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
