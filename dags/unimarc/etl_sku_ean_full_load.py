@@ -26,13 +26,11 @@ def _full_load_table_to_workspace(ts, ti):
         "ean": "string",
         "ref_id": "string",
         "umv": "string",
-        "stock_erp_id": "string"
+        "material": "string"
     } 
 
     df = pd.read_csv(sku_ean_items_object.get()["Body"], dtype=column_types)
     print(f"Records found: {len(df.index)}")
-
-    df = df.rename(columns={"stock_erp_id": "material"})
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -66,7 +64,7 @@ with DAG(
     'etl_sku_ean_unimarc_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla sku_ean desde Janis Replica hasta Workspace.",
-    schedule_interval="0 10 * * *",
+    schedule_interval="0 8 * * *",
     start_date=pendulum.datetime(2022, 11, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -86,7 +84,7 @@ with DAG(
                 SELECT se.ean
                     , s.ref_id 
                     , SUBSTRING_INDEX(s.ref_id, "-", -1) as umv
-                    , s.stock_erp_id
+                    , SUBSTRING_INDEX(s.ref_id, "-", 1) as material
                 FROM janis_jackie.sku_ean se 
                 JOIN janis_jackie.skus s 
                     ON se.id_sku = s.id;
