@@ -64,9 +64,9 @@ def _create_new_daily_partitions(ti, ds):
             FOR VALUES FROM ('{exec_date}') TO ('{macros.ds_add(ds, 2)}');
 
             UPDATE maintenance.periodic_partition
-            SET updated_at = {exec_date}
-            WHERE schema_name = {schema_name}
-            AND table_name = {table_name};
+            SET updated_at = '{exec_date}'
+            WHERE schema_name = '{schema_name}'
+            AND table_name = '{table_name}';
             
             COMMIT;
         """
