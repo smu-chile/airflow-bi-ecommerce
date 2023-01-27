@@ -15,7 +15,8 @@ def _get_daily_partitioned_tables(ti, ds):
     print(exec_date)
 
     query = f"""
-        SELECT *
+        SELECT pp.schema_name
+            , pp.table_name
         FROM maintenance.periodic_partition as pp
         WHERE pp.period = '{PARTITION_PERIODS['daily']}' 
         AND (pp.updated_at <> '{exec_date}'
