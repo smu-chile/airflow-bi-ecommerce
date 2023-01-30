@@ -147,7 +147,9 @@ def _liberacion_diara(ts):
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata_meli.liberaciones ("""+columns_query+""") 
-        VALUES ("""+values_query+""");
+        VALUES ("""+values_query+""")
+        ON CONFLICT (order_id)
+        DO NOTHING;
     """
 
     print(incremental_query)
