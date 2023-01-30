@@ -160,7 +160,7 @@ def _liberacion_diara(ts):
     pg_connection.close()
     print("Data loaded to Postgres")
 
-    return df_releases
+    return "Carga a PSQL completada"
 
 
 def _orderid_packid_table():
@@ -228,7 +228,7 @@ def _orderid_packid_table():
     pg_connection.close()
     print("Data loaded to Postgres")
 
-    return df_packid_orderid
+    return "Tabla intermedia cargada a PSQL"
 
 default_args = {
     "owner": "capacity_and_planning",
