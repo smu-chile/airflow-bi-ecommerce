@@ -14,6 +14,7 @@ def _liberacion_diara(ts):
     import requests
     import time
     import pytz
+    import json
     # import time
     # import psycopg2
 
@@ -22,8 +23,8 @@ def _liberacion_diara(ts):
     localtimezone = pytz.timezone("America/Santiago")
     ayer = fecha_desde.replace(tzinfo = pytz.utc).astimezone(localtimezone)
     antes_de_ayer = fecha_desdemenos1.replace(tzinfo = pytz.utc).astimezone(localtimezone)
-    ayer = ayer.strftime('%Y-%m-%dT%H:%M:%SZ%z')
-    antes_de_ayer = antes_de_ayer.strftime('%Y-%m-%dT%H:%M:%SZ%z')
+    ayer = ayer.strftime('%Y-%m-%dT%H:%M:%SZ')
+    antes_de_ayer = antes_de_ayer.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     api_obtain_token = Variable.get('MELI_TOKEN_API')
     body_obtain_token = {
@@ -48,7 +49,8 @@ def _liberacion_diara(ts):
         "Content-Type" : "application/json",}
 
     data = {"begin_date": ayer, "end_date": ayer}
-    data = str(data)
+    data = json.dump(data)
+    print (data)
 
     response = requests.post(Variable.get('MERCADOPAGO_API_REPORT'), headers=headers, data=data)
     print (response)
@@ -59,12 +61,17 @@ def _liberacion_diara(ts):
         "Authorization": f"Bearer {bearer_token}",
     }
 
-    response = requests.get(Variable.get('MERCADOPAGO_API_REPORT_LIST'), headers=headers)
-    while (ayer[:10] != response.json()[0]['end_date'][:10]):
-        time.sleep(10)
-        print (response.json()[0])
+    contador = 0
+    while True:
+        response = requests.get('https://api.mercadopago.com/v1/account/release_report/list', headers=headers)
+        if ayer[:10] != response.json()[0]['end_date'][:10]:
+            time.sleep(10)
+            print (response.json()[0])
+            contador = contador + 1
         if ayer[:10] == response.json()[0]['end_date'][:10]:
             break
+        if contador == 15:
+            raise Exception('Error, el archivo con el rango de fechas no está disponible')
     print (response.json()[0])
     filename = response.json()[0]['file_name']
     print (response.json()[0]['file_name'])
