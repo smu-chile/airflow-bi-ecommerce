@@ -49,7 +49,7 @@ def _liberacion_diara(ts):
         "Content-Type" : "application/json",}
 
     data = {"begin_date": ayer, "end_date": ayer}
-    data = json.dump(data)
+    data = json.dumps(data)
     print (data)
 
     response = requests.post(Variable.get('MERCADOPAGO_API_REPORT'), headers=headers, data=data)
