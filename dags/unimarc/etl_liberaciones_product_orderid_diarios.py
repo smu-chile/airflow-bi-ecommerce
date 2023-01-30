@@ -98,7 +98,7 @@ def _liberacion_diara(ts):
         print (str(e)[:3000])
     
     columns_main_release = [
-        'fecha_de_liberacion', 'id_de_operacion_en_mercado_pago', 'numero_de_indentificacion',
+        'fecha_de_liberacion', 'id_de_operacion_en_mercado_pago', 'numero_de_identificacion',
         'tipo_de_registro', 'descripcion', 'monto_neto_acreditado',
         'monto_neto_debitado', 'monto_bruto_de_la_operacion', 'monto_recibido_por_compras_split',
         'comision_de_mercado_pago_o_mercado_libre', 'comision_por_ofrecer_cuotas_sin_interes',
@@ -111,7 +111,7 @@ def _liberacion_diara(ts):
     ]
 
     df_releases = df_releases.rename(columns={'DATE':'fecha_de_liberacion', 'SOURCE_ID':'id_de_operacion_en_mercado_pago',
-    'EXTERNAL_REFERENCE':'numero_de_indentificacion', 'RECORD_TYPE':'tipo_de_registro', 'DESCRIPTION':'descripcion',
+    'EXTERNAL_REFERENCE':'numero_de_identificacion', 'RECORD_TYPE':'tipo_de_registro', 'DESCRIPTION':'descripcion',
     'NET_CREDIT_AMOUNT':'monto_neto_acreditado', 'NET_DEBIT_AMOUNT':'monto_neto_debitado','GROSS_AMOUNT':'monto_bruto_de_la_operacion',
     'SELLER_AMOUNT':'monto_recibido_por_compras_split', 'MP_FEE_AMOUNT':'comision_de_mercado_pago_o_mercado_libre',
     'FINANCING_FEE_AMOUNT':'comision_por_ofrecer_cuotas_sin_interes','SHIPPING_FEE_AMOUNT':'costo_de_envio',
