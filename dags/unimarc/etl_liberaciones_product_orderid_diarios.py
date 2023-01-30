@@ -120,7 +120,8 @@ def _liberacion_diara(ts):
     'TRANSACTION_APPROVAL_DATE':'fecha_de_aprobacion','POS_ID':'id_de_caja','POS_NAME':'nombre_de_caja',
     'EXTERNAL_POS_ID':'id_de_caja_definido_por_el_usuario','STORE_ID':'id_de_la_sucursal','STORE_NAME':'nombre_de_la_sucursal',
     'EXTERNAL_STORE_ID':'id_de_sucursal_definido_por_el_usuario', 'CURRENCY':'moneda', 'TAXES_DISAGGREGATED':'impuestos_desagregados', 'SHIPPING_ID':'id_del_envio',
-    'ORDER_ID':'id_de_la_orden','PACK_ID':'id_del_paquete','METADATA':'datos_extra','EFFECTIVE_COUPON_AMOUNT':'costo_por_ofrecer_descuento'})
+    'SHIPMENT_MODE':'modo_de_envio', 'ORDER_ID':'id_de_la_orden','PACK_ID':'id_del_paquete',
+    'METADATA':'datos_extra','EFFECTIVE_COUPON_AMOUNT':'costo_por_ofrecer_descuento'})
 
     df_releases = df_releases[columns_main_release]
     df_releases = df_releases[df_releases['tipo_de_registro'] != 'total']
