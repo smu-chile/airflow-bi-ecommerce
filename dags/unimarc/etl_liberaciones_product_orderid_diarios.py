@@ -100,7 +100,7 @@ def _liberacion_diara(ts):
     columns_main_release = [
         'fecha_de_liberacion', 'id_de_operacion_en_mercado_pago', 'numero_de_identificacion',
         'tipo_de_registro', 'descripcion', 'monto_neto_acreditado',
-        'monto_neto_debitado', 'monto_bruto_de_la_operacion', 'monto_recibido_por_compras_split',
+        'monto_neto_debitado', 'monto_bruto_de_la_operacion', 'monto_recibido_por_compras_por_split',
         'comision_de_mercado_pago_o_mercado_libre', 'comision_por_ofrecer_cuotas_sin_interes',
         'costo_de_envio', 'impuestos_cobrados_por_retenciones_iibb', 'cupon_de_descuento',
         'cuota','medio_de_pago', 'detalle_de_impuestos','impuesto_descontado_del_valor_bruto',
@@ -113,7 +113,7 @@ def _liberacion_diara(ts):
     df_releases = df_releases.rename(columns={'DATE':'fecha_de_liberacion', 'SOURCE_ID':'id_de_operacion_en_mercado_pago',
     'EXTERNAL_REFERENCE':'numero_de_identificacion', 'RECORD_TYPE':'tipo_de_registro', 'DESCRIPTION':'descripcion',
     'NET_CREDIT_AMOUNT':'monto_neto_acreditado', 'NET_DEBIT_AMOUNT':'monto_neto_debitado','GROSS_AMOUNT':'monto_bruto_de_la_operacion',
-    'SELLER_AMOUNT':'monto_recibido_por_compras_split', 'MP_FEE_AMOUNT':'comision_de_mercado_pago_o_mercado_libre',
+    'SELLER_AMOUNT':'monto_recibido_por_compras_por_split', 'MP_FEE_AMOUNT':'comision_de_mercado_pago_o_mercado_libre',
     'FINANCING_FEE_AMOUNT':'comision_por_ofrecer_cuotas_sin_interes','SHIPPING_FEE_AMOUNT':'costo_de_envio',
     'TAXES_AMOUNT':'impuestos_cobrados_por_retenciones_iibb','COUPON_AMOUNT':'cupon_de_descuento','INSTALLMENTS':'cuota',
     'PAYMENT_METHOD':'medio_de_pago','TAX_DETAIL':'detalle_de_impuestos','TAX_AMOUNT_TELCO':'impuesto_descontado_del_valor_bruto',
