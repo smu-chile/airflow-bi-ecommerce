@@ -8,7 +8,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from datetime import datetime, timedelta
 import pendulum
 
-def liberacion_diara(ts):
+def _liberacion_diara(ts):
     import pandas as pd
     import numpy as np
     import requests
@@ -144,8 +144,10 @@ def liberacion_diara(ts):
     pg_connection.close()
     print("Data loaded to Postgres")
 
+    return df_releases
 
-def orderid_packid_table():
+
+def _orderid_packid_table():
 
     import pandas as pd
     import numpy as np
@@ -210,6 +212,8 @@ def orderid_packid_table():
     pg_connection.close()
     print("Data loaded to Postgres")
 
+    return df_packid_orderid
+
 default_args = {
     "owner": "capacity_and_planning",
     "depends_on_past": False,
@@ -225,7 +229,7 @@ with DAG(
     schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2023, 1, 27, tz="America/Santiago"),
     catchup=False,
-    tags=["OPS","AWS","ETL", "MELI", "forecast_and_planning", "liberaciones"],
+    tags=["MELI", "liberaciones", "conciliacion","MongoDB"],
 ) as dag:
 
     dag.doc_md = """
@@ -235,12 +239,12 @@ with DAG(
 
     t0 = PythonOperator(
         task_id = "liberacion_diara",
-        python_callable = liberacion_diara,
+        python_callable = _liberacion_diara,
     )
 
     t1 = PythonOperator(
         task_id = "tabla_packid_orderid",
-        python_callable = orderid_packid_table,
+        python_callable = _orderid_packid_table,
     )
 
 t0>>t1
