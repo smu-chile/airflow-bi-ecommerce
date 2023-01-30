@@ -61,20 +61,28 @@ def _liberacion_diara(ts):
         "Authorization": f"Bearer {bearer_token}",
     }
 
-    contador = 0
-    while True:
-        response = requests.get('https://api.mercadopago.com/v1/account/release_report/list', headers=headers)
-        if ayer[:10] != response.json()[0]['end_date'][:10]:
-            time.sleep(10)
-            print (response.json()[0])
-            contador = contador + 1
-        if ayer[:10] == response.json()[0]['end_date'][:10]:
-            break
-        if contador == 15:
-            raise Exception('Error, el archivo con el rango de fechas no está disponible')
+
+    #TODO: solucion temporal
+    time.sleep(150)
+    response = requests.get('https://api.mercadopago.com/v1/account/release_report/list', headers=headers)
     print (response.json()[0])
     filename = response.json()[0]['file_name']
     print (response.json()[0]['file_name'])
+
+    # contador = 0
+    # while True:
+    #     response = requests.get('https://api.mercadopago.com/v1/account/release_report/list', headers=headers)
+    #     if ayer[:10] != response.json()[0]['end_date'][:10]:
+    #         time.sleep(10)
+    #         print (response.json()[0])
+    #         contador = contador + 1
+    #     if ayer[:10] == response.json()[0]['end_date'][:10]:
+    #         break
+    #     if contador == 15:
+    #         raise Exception('Error, el archivo con el rango de fechas no está disponible')
+    # print (response.json()[0])
+    # filename = response.json()[0]['file_name']
+    # print (response.json()[0]['file_name'])
 
     headers = {
         "Authorization": f"Bearer {bearer_token}",
