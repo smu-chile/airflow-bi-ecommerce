@@ -47,7 +47,7 @@ def _liberacion_diara(ts):
         "Authorization": f"Bearer {bearer_token}",
         "Content-Type" : "application/json",}
 
-    data = {"begin_date": antes_de_ayer, "end_date": ayer}
+    data = {"begin_date": ayer, "end_date": ayer}
     data = str(data)
 
     response = requests.post(Variable.get('MERCADOPAGO_API_REPORT'), headers=headers, data=data)
