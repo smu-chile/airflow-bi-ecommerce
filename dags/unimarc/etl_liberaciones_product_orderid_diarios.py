@@ -199,7 +199,7 @@ def _orderid_packid_table():
     columns_query = ",".join(columns_main)
     values_query = ",".join(["%s" for column in columns_main])
     df_packid_orderid = df_packid_orderid.fillna("NULL")
-    df_packid_orderid = df_packid_orderid[~df_packid_orderid['pack_id'] == 'nan']
+    df_packid_orderid = df_packid_orderid[df_packid_orderid['pack_id'] != 'nan']
     records = list(df_packid_orderid.to_records(index=False))
 
     fixed_records = []
