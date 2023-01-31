@@ -93,7 +93,7 @@ with DAG(
         task_id = "truncate_table_sales_history",
         postgres_conn_id="postgresql_conn",
         sql="""
-            truncate historia_venta_dw
+            truncate ecommdata.historia_venta_dw
         """
     )
     
