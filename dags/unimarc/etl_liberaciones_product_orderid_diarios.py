@@ -148,9 +148,7 @@ def _liberacion_diara(ts):
     incremental_query = """
         INSERT INTO ecommdata_meli.liberaciones ("""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (order_id)
-        DO NOTHING;
-    """
+"""
 
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -217,7 +215,9 @@ def _orderid_packid_table():
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata_meli.orderid_packid ("""+columns_query+""") 
-        VALUES ("""+values_query+""");
+        VALUES ("""+values_query+""")
+        ON CONFLICT (order_id)
+        DO NOTHING;;
     """
 
     print(incremental_query)
