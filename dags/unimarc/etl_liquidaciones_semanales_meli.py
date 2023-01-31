@@ -26,7 +26,7 @@ def _liquidacion_semanal():
     
     liquidaciones_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
 
-    df_liquidaciones = pd.read_excel(liquidaciones_object.get()["Body"], decimal=',')
+    df_liquidaciones = pd.read_excel(liquidaciones_object.get()["Body"])
 
     columns = ['fecha, tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
     'variacion','folio_asociado','devolucion','venta']
