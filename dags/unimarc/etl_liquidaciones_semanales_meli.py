@@ -11,6 +11,7 @@ import pendulum
 def _liquidacion_semanal():
     import pandas as pd
     import numpy as np
+    import io
 
     # df_liquidaciones = pd.read_excel('liquidacion.xlsx', skiprows=1)
 
@@ -26,7 +27,7 @@ def _liquidacion_semanal():
     
     liquidaciones_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
 
-    df_liquidaciones = pd.read_excel(liquidaciones_object["Body"])
+    df_liquidaciones = pd.read_excel(io.BytesIO(liquidaciones_object["Body"].read()))
 
     columns = ['fecha, tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
     'variacion','folio_asociado','devolucion','venta']
