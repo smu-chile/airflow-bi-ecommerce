@@ -16,7 +16,7 @@ def _liquidacion_semanal():
 
     #directorio s3: /meli/liquidaciones/liquidaciones.xlsx
 
-    file_name = "meli/liquidaciones/liquidacionallin1.csv"
+    file_name = "meli/liquidaciones/liquidacionallin1.xlsx"
     s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -26,7 +26,7 @@ def _liquidacion_semanal():
     
     liquidaciones_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
 
-    df_liquidaciones = pd.read_csv(liquidaciones_object.get()["Body"], decimal=',', sep = ';', encoding='latin-1')
+    df_liquidaciones = pd.read_excel(liquidaciones_object["Body"])
 
     columns = ['fecha, tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
     'variacion','folio_asociado','devolucion','venta']
