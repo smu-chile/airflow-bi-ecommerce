@@ -81,30 +81,75 @@ def _liberacion_diara(ts):
         print (str(e)[:3000])
     
     columns_main_release = [
-        'fecha_de_liberacion', 'id_de_operacion_en_mercado_pago', 'numero_de_identificacion',
-        'tipo_de_registro', 'descripcion', 'monto_neto_acreditado',
-        'monto_neto_debitado', 'monto_bruto_de_la_operacion', 'monto_recibido_por_compras_por_split',
-        'comision_de_mercado_pago_o_mercado_libre', 'comision_por_ofrecer_cuotas_sin_interes',
-        'costo_de_envio', 'impuestos_cobrados_por_retenciones_iibb', 'cupon_de_descuento',
-        'cuota','medio_de_pago', 'detalle_de_impuestos','impuesto_descontado_del_valor_bruto',
-        'fecha_de_aprobacion','id_de_caja','nombre_de_caja','id_de_caja_definido_por_el_usuario', 'id_de_la_sucursal',
-        'nombre_de_la_sucursal','id_de_sucursal_definido_por_el_usuario','moneda',
-        'impuestos_desagregados', 'id_del_envio','modo_de_envio','id_de_la_orden',
-        'id_del_paquete','datos_extra','costo_por_ofrecer_descuento'
+        'fecha_de_liberacion', 
+        'id_de_operacion_en_mercado_pago', 
+        'numero_de_identificacion',
+        'tipo_de_registro', 
+        'descripcion', 
+        'monto_neto_acreditado',
+        'monto_neto_debitado', 
+        'monto_bruto_de_la_operacion', 
+        'monto_recibido_por_compras_por_split',
+        'comision_de_mercado_pago_o_mercado_libre', 
+        'comision_por_ofrecer_cuotas_sin_interes',
+        'costo_de_envio', 
+        'impuestos_cobrados_por_retenciones_iibb', 
+        'cupon_de_descuento',
+        'cuota',
+        'medio_de_pago', 
+        'detalle_de_impuestos',
+        'impuesto_descontado_del_valor_bruto',
+        'fecha_de_aprobacion',
+        'id_de_caja',
+        'nombre_de_caja',
+        'id_de_caja_definido_por_el_usuario', 
+        'id_de_la_sucursal',
+        'nombre_de_la_sucursal',
+        'id_de_sucursal_definido_por_el_usuario',
+        'moneda',
+        'impuestos_desagregados', 
+        'id_del_envio',
+        'modo_de_envio',
+        'id_de_la_orden',
+        'id_del_paquete',
+        'datos_extra',
+        'costo_por_ofrecer_descuento'
     ]
 
-    df_releases = df_releases.rename(columns={'DATE':'fecha_de_liberacion', 'SOURCE_ID':'id_de_operacion_en_mercado_pago',
-    'EXTERNAL_REFERENCE':'numero_de_identificacion', 'RECORD_TYPE':'tipo_de_registro', 'DESCRIPTION':'descripcion',
-    'NET_CREDIT_AMOUNT':'monto_neto_acreditado', 'NET_DEBIT_AMOUNT':'monto_neto_debitado','GROSS_AMOUNT':'monto_bruto_de_la_operacion',
-    'SELLER_AMOUNT':'monto_recibido_por_compras_por_split', 'MP_FEE_AMOUNT':'comision_de_mercado_pago_o_mercado_libre',
-    'FINANCING_FEE_AMOUNT':'comision_por_ofrecer_cuotas_sin_interes','SHIPPING_FEE_AMOUNT':'costo_de_envio',
-    'TAXES_AMOUNT':'impuestos_cobrados_por_retenciones_iibb','COUPON_AMOUNT':'cupon_de_descuento','INSTALLMENTS':'cuota',
-    'PAYMENT_METHOD':'medio_de_pago','TAX_DETAIL':'detalle_de_impuestos','TAX_AMOUNT_TELCO':'impuesto_descontado_del_valor_bruto',
-    'TRANSACTION_APPROVAL_DATE':'fecha_de_aprobacion','POS_ID':'id_de_caja','POS_NAME':'nombre_de_caja',
-    'EXTERNAL_POS_ID':'id_de_caja_definido_por_el_usuario','STORE_ID':'id_de_la_sucursal','STORE_NAME':'nombre_de_la_sucursal',
-    'EXTERNAL_STORE_ID':'id_de_sucursal_definido_por_el_usuario', 'CURRENCY':'moneda', 'TAXES_DISAGGREGATED':'impuestos_desagregados', 'SHIPPING_ID':'id_del_envio',
-    'SHIPMENT_MODE':'modo_de_envio', 'ORDER_ID':'id_de_la_orden','PACK_ID':'id_del_paquete',
-    'METADATA':'datos_extra','EFFECTIVE_COUPON_AMOUNT':'costo_por_ofrecer_descuento'})
+    df_releases = df_releases.rename(columns={
+        'DATE':'fecha_de_liberacion', 
+        'SOURCE_ID':'id_de_operacion_en_mercado_pago',
+        'EXTERNAL_REFERENCE':'numero_de_identificacion', 
+        'RECORD_TYPE':'tipo_de_registro', 
+        'DESCRIPTION':'descripcion',
+        'NET_CREDIT_AMOUNT':'monto_neto_acreditado', 
+        'NET_DEBIT_AMOUNT':'monto_neto_debitado',
+        'GROSS_AMOUNT':'monto_bruto_de_la_operacion',
+        'SELLER_AMOUNT':'monto_recibido_por_compras_por_split', 
+        'MP_FEE_AMOUNT':'comision_de_mercado_pago_o_mercado_libre',
+        'FINANCING_FEE_AMOUNT':'comision_por_ofrecer_cuotas_sin_interes',
+        'SHIPPING_FEE_AMOUNT':'costo_de_envio',
+        'TAXES_AMOUNT':'impuestos_cobrados_por_retenciones_iibb',
+        'COUPON_AMOUNT':'cupon_de_descuento',
+        'INSTALLMENTS':'cuota',
+        'PAYMENT_METHOD':'medio_de_pago',
+        'TAX_DETAIL':'detalle_de_impuestos',
+        'TAX_AMOUNT_TELCO':'impuesto_descontado_del_valor_bruto',
+        'TRANSACTION_APPROVAL_DATE':'fecha_de_aprobacion',
+        'POS_ID':'id_de_caja','POS_NAME':'nombre_de_caja',
+        'EXTERNAL_POS_ID':'id_de_caja_definido_por_el_usuario',
+        'STORE_ID':'id_de_la_sucursal',
+        'STORE_NAME':'nombre_de_la_sucursal',
+        'EXTERNAL_STORE_ID':'id_de_sucursal_definido_por_el_usuario',
+        'CURRENCY':'moneda', 
+        'TAXES_DISAGGREGATED':'impuestos_desagregados',
+        'SHIPPING_ID':'id_del_envio',
+        'SHIPMENT_MODE':'modo_de_envio',
+        'ORDER_ID':'id_de_la_orden',
+        'PACK_ID':'id_del_paquete',
+        'METADATA':'datos_extra',
+        'EFFECTIVE_COUPON_AMOUNT':'costo_por_ofrecer_descuento'}
+    )
 
     df_releases = df_releases[columns_main_release]
     df_releases = df_releases[df_releases['tipo_de_registro'] != 'total']
@@ -143,7 +188,7 @@ def _liberacion_diara(ts):
     pg_connection.close()
     print("Data loaded to Postgres")
 
-    return "Carga a PSQL completada"
+    return
 
 
 def _orderid_packid_table():
@@ -214,10 +259,10 @@ def _orderid_packid_table():
     pg_connection.close()
     print("Data loaded to Postgres")
 
-    return "Tabla intermedia cargada a PSQL"
+    return
 
 default_args = {
-    "owner": "capacity_and_planning",
+    "owner": "ecommerce_data",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
