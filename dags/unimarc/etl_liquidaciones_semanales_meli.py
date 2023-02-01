@@ -33,13 +33,31 @@ def _liquidacion_semanal():
         print(str(e))
         raise Exception("Deteniendo ejecución")
 
-    columns = ['fecha', 'tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
-    'variacion','folio_asociado','devolucion','venta']
+    columns = [
+        'fecha', 
+        'tipo_documento',
+        'folio',
+        'descripcion',
+        'cantidad',
+        'orden',
+        'monto',
+        'iva',
+        'sku',
+        'codigo_del_producto',
+        'variacion',
+        'folio_asociado',
+        'devolucion',
+        'venta'
+        ]
 
-    df_liquidaciones = df_liquidaciones.rename(columns={'tipo documento':'tipo_documento',
-    'descripción':'descripcion','código del producto':'codigo_del_producto',
-    'variación':'variacion','folio asociado':'folio_asociado',
-    'devolución':'devolucion'})
+    df_liquidaciones = df_liquidaciones.rename(columns={
+        'tipo documento':'tipo_documento',
+        'descripción':'descripcion',
+        'código del producto':'codigo_del_producto',
+        'variación':'variacion',
+        'folio asociado':'folio_asociado',
+        'devolución':'devolucion'}
+        )
 
     df_liquidaciones = df_liquidaciones[columns]
     print (df_liquidaciones.dtypes)
@@ -104,4 +122,3 @@ with DAG(
         task_id = "liquidacion_semanal",
         python_callable = _liquidacion_semanal,
     )
-    
