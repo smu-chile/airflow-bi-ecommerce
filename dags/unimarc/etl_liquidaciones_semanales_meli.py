@@ -11,23 +11,43 @@ import pendulum
 def _liquidacion_semanal():
     import pandas as pd
     import numpy as np
+    import boto3
     import io
 
     # df_liquidaciones = pd.read_excel('liquidacion.xlsx', skiprows=1)
 
     #directorio s3: /meli/liquidaciones/liquidaciones.xlsx
 
-    file_name = "meli/liquidaciones/liquidacionallin1.xlsx"
-    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    # file_name = "meli/liquidaciones/liquidacionallin1.csv"
+    # s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
+    # s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+file_name)
-    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % file_name)
+    # print("Searching file: "+file_name)
+    # if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+    #     raise Exception("Key %s does not exist." % file_name)
     
-    liquidaciones_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
+    # liquidaciones_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
 
-    df_liquidaciones = pd.read_excel(io.BytesIO(liquidaciones_object["Body"].read()))
+    file_name = "meli/liquidaciones/liquidacionallin1.csv"
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    obj = s3_client.get_object(Bucket = bucket_name, key=file_name)
+    data = obj['Body'].read()
+
+    try:
+        df_liquidaciones = pd.read_excel(io.BytesIO(data), skiprows=1)
+    except Exception as e:
+        print(str(e))
+        raise Exception("Deteniendo ejecución")
+
+    # df_liquidaciones = pd.read_csv(liquidaciones_object.get()["Body"], decimal=',', sep = ';', encoding='latin1')
 
     columns = ['fecha, tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
     'variacion','folio_asociado','devolucion','venta']
