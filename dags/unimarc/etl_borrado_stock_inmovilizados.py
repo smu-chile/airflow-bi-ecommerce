@@ -10,6 +10,7 @@ def _send_stock_0_to_janis(ds):
     import pandas as pd
     import sqlalchemy
     import requests
+    import json
 
     print(f"date: {ds}")
     host = Variable.get("POSTGRESQL_HOST")
@@ -63,13 +64,13 @@ def _send_stock_0_to_janis(ds):
         id_tienda = str(int(df['id_tienda'][ind])).zfill(4)
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
         payload.append(row)
-    payload = str(payload).replace("'", '"')
+    payload = json.dumps(payload)
     response = requests.request("POST", url, headers=headers, data=payload)
     print(response.text)
     return
 
 default_args = {
-    "owner": "ecommerce_data",
+    "owner": "ecommerce_ops",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
@@ -82,7 +83,7 @@ with DAG(
     schedule_interval="0 10 * * *",
     start_date=datetime(2023, 1, 30),
     catchup=False,
-    tags=["Janis", "ecommdata", "catalogo", "inmovilizados", "stock"],
+    tags=["Janis", "ecommdata", "catalogo", "inmovilizados", "stock", "OPS"],
 ) as dag:
 
     dag.doc_md = """
@@ -99,56 +100,8 @@ with DAG(
     
     t1 = PostgresOperator(
         task_id = "load_table_sales_history",
-        postgres_conn_id="postgresql_conn",
-        sql="""
-        insert into ecommdata.historia_venta_dw
-        select CONCAT(lnr.material,'-',lnr.umv), lnr.id_tienda,
-        case 
-            when '{{ds}}'::date = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_ayer,
-        case 
-            when '{{ds}}'::date - interval '1 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_2,
-        case 
-            when '{{ds}}'::date - interval '2 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_3,
-        case 
-            when '{{ds}}'::date - interval '3 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_4,
-        case 
-            when '{{ds}}'::date - interval '4 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_5,
-        case 
-            when '{{ds}}'::date - interval '5 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_6,
-        case 
-            when '{{ds}}'::date - interval '6 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_7,
-        case 
-            when '{{ds}}'::date - interval '7 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_8,
-        case 
-            when '{{ds}}'::date - interval '8 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_9,
-        case 
-            when '{{ds}}'::date - interval '9 day' = any (t1.fechas_facturacion) then true
-            else false
-        end as venta_10
-        from ecommdata.lista8 lnr
-        left join (
-            select LPAD(vst.material, 18, '0') as material, LPAD(vst.id_tienda, 4, '0') as id_tienda , array_agg(vst.fecha) as fechas_facturacion
-            from ecommdata.venta_sku_tienda vst
-            group by LPAD(vst.material, 18, '0'), LPAD(vst.id_tienda, 4, '0'))t1 on lnr.material = t1.material and lnr.id_tienda = t1.id_tienda;
-                """,
+        postgres_conn_id= "postgresql_conn",
+        sql= "sql/load_table_sales_history.sql"
     )
 
     t2 = PythonOperator(
