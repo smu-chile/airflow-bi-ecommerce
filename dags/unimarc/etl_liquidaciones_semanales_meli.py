@@ -36,8 +36,9 @@ def _liquidacion_semanal():
     columns = ['fecha', 'tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
     'variacion','folio_asociado','devolucion','venta']
 
-    df_liquidaciones = df_liquidaciones.rename(columns={'tipo documento':'tipo_documento', 'descripción':'descripcion',
-    'código del producto':'codigo_del_producto', 'variación':'variacion', 'folio asociado':'folio_asociado',
+    df_liquidaciones = df_liquidaciones.rename(columns={'tipo documento':'tipo_documento',
+    'descripción':'descripcion','código del producto':'codigo_del_producto',
+    'variación':'variacion','folio asociado':'folio_asociado',
     'devolución':'devolucion'})
 
     df_liquidaciones = df_liquidaciones[columns]
@@ -75,8 +76,10 @@ def _liquidacion_semanal():
     pg_connection.close()
     print("Data loaded to Postgres")
 
+    return
+
 default_args = {
-    "owner": "capacity_and_planning",
+    "owner": "ecommerce_data",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
