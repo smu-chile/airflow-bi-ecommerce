@@ -28,7 +28,7 @@ def _liquidacion_semanal():
     
     # liquidaciones_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
 
-    file_name = "meli/liquidaciones/liquidacionallin1.xlsx"
+    file_name = "meli/liquidaciones/liquidacionsemana.xlsx"
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
     bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
@@ -117,5 +117,4 @@ with DAG(
         task_id = "liquidacion_semanal",
         python_callable = _liquidacion_semanal,
     )
-
-t0
+    
