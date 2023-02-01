@@ -42,7 +42,7 @@ def _liquidacion_semanal():
     data = obj['Body'].read()
 
     try:
-        df_liquidaciones = pd.read_excel(io.BytesIO(data), skiprows=1)
+        df_liquidaciones = pd.read_excel(io.BytesIO(data), skiprows=1, engine='openpyxl')
     except Exception as e:
         print(str(e))
         raise Exception("Deteniendo ejecución")
