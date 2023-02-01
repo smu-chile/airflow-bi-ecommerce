@@ -15,8 +15,6 @@ def _liberacion_diara(ts):
     import time
     import pytz
     import json
-    # import time
-    # import psycopg2
 
     fecha_desde = datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')
     fecha_desdemenos1 = fecha_desde - timedelta(days=1)
@@ -68,21 +66,6 @@ def _liberacion_diara(ts):
     print (response.json()[0])
     filename = response.json()[0]['file_name']
     print (response.json()[0]['file_name'])
-
-    # contador = 0
-    # while True:
-    #     response = requests.get('https://api.mercadopago.com/v1/account/release_report/list', headers=headers)
-    #     if ayer[:10] != response.json()[0]['end_date'][:10]:
-    #         time.sleep(10)
-    #         print (response.json()[0])
-    #         contador = contador + 1
-    #     if ayer[:10] == response.json()[0]['end_date'][:10]:
-    #         break
-    #     if contador == 15:
-    #         raise Exception('Error, el archivo con el rango de fechas no está disponible')
-    # print (response.json()[0])
-    # filename = response.json()[0]['file_name']
-    # print (response.json()[0]['file_name'])
 
     headers = {
         "Authorization": f"Bearer {bearer_token}",
