@@ -235,8 +235,7 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Obtención de costos y kms en base a BDD \n
-    para exportar a BDD.
+    Obtención de liberaciones desde MELI, y obtención de tabla intermedia order_id y pack_id desde MongoDB.
     """ 
 
     t0 = PythonOperator(
