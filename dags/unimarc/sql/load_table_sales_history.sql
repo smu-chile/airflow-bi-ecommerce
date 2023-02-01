@@ -45,4 +45,5 @@ left join (
     select LPAD(vst.material, 18, '0') as material, LPAD(vst.id_tienda, 4, '0') as id_tienda , array_agg(vst.fecha) as fechas_facturacion
     from ecommdata.venta_sku_tienda vst
     group by LPAD(vst.material, 18, '0'), LPAD(vst.id_tienda, 4, '0'))t1 on lnr.material = t1.material and lnr.id_tienda = t1.id_tienda;
+    
         """
