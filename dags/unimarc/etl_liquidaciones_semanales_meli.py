@@ -42,22 +42,19 @@ def _liquidacion_semanal():
     data = obj['Body'].read()
 
     try:
-        df_liquidaciones = pd.read_excel(io.BytesIO(data), skiprows=1, engine='openpyxl',
-        usecols="A:O",names=['fecha, tipo_documento','folio','descripcion','cantidad','orden',
-        'monto','iva','sku','codigo_del_producto',
-        'variacion','folio_asociado','devolucion','venta'])
+        df_liquidaciones = pd.read_excel(io.BytesIO(data), skiprows=1, engine='openpyxl',usecols="A:O")
     except Exception as e:
         print(str(e))
         raise Exception("Deteniendo ejecución")
 
     # df_liquidaciones = pd.read_csv(liquidaciones_object.get()["Body"], decimal=',', sep = ';', encoding='latin1')
 
-    columns = ['fecha, tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
+    columns = ['fecha', 'tipo_documento','folio','descripcion','cantidad','orden','monto','iva','sku','codigo_del_producto',
     'variacion','folio_asociado','devolucion','venta']
 
-    # df_liquidaciones = df_liquidaciones.rename(columns={'tipo documento':'tipo_documento', 'descripción':'descripcion',
-    # 'código del producto':'codigo_del_producto', 'variación':'variacion', 'folio asociado':'folio_asociado',
-    # 'devolución':'devolucion'})
+    df_liquidaciones = df_liquidaciones.rename(columns={'tipo documento':'tipo_documento', 'descripción':'descripcion',
+    'código del producto':'codigo_del_producto', 'variación':'variacion', 'folio asociado':'folio_asociado',
+    'devolución':'devolucion'})
 
     df_liquidaciones = df_liquidaciones[columns]
     print (df_liquidaciones.dtypes)
