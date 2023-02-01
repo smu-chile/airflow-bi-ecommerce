@@ -38,7 +38,7 @@ def _liquidacion_semanal():
         aws_secret_access_key=secret_key,
         region_name = "us-east-1"
     )
-    obj = s3_client.get_object(Bucket = bucket_name, key=file_name)
+    obj = s3_client.get_object(Bucket = bucket_name, Key=file_name)
     data = obj['Body'].read()
 
     try:
