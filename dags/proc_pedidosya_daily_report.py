@@ -1,16 +1,17 @@
 from airflow import DAG
+from airflow import macros
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.hooks.S3_hook import S3Hook
 
 from datetime import datetime
 
-def _send_report_to_sftp():
+def _send_report_to_sftp(ds):
     import jaydebeapi
     import io
     import os
     import pandas as pd
     import pysftp
-    import paramiko
 
     ## FTP parameters
     ftp_host = Variable.get("PEYA_SFTP_HOST")
@@ -180,12 +181,28 @@ def _send_report_to_sftp():
         os.remove(localFile)
         print("Archivo local eliminado")
 
+        buffer = io.StringIO()
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
+
+        exec_date = macros.ds_add(ds, 1)
+        exec_date = exec_date.replace("-", "/")
+        aws_conn_id="aws_s3_connection"
+        file_name = f"peya/out/stock/{exec_date}/{dic_tiendas[tiendapeya]}.csv"
+        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+        s3_hook.load_string(buffer.getvalue(),
+                    key=file_name,
+                    bucket_name=s3_bucket,
+                    replace=True,
+                    encrypt=False)
+        print(f"Archivo respaldado en S3: {file_name}")
+
     cur.close()
     conn.close()
 
     os.remove("temp_peya_sftp_rsa_key")
 
-    print("OK")
     return
 
 default_args = {
