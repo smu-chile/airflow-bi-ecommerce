@@ -8,22 +8,21 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from datetime import datetime, timedelta
 import pendulum
 
-def liberacion_diara(ts):
+def _liberacion_diara(ts):
     import pandas as pd
     import numpy as np
     import requests
     import time
     import pytz
-    # import time
-    # import psycopg2
+    import json
 
     fecha_desde = datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')
     fecha_desdemenos1 = fecha_desde - timedelta(days=1)
     localtimezone = pytz.timezone("America/Santiago")
     ayer = fecha_desde.replace(tzinfo = pytz.utc).astimezone(localtimezone)
     antes_de_ayer = fecha_desdemenos1.replace(tzinfo = pytz.utc).astimezone(localtimezone)
-    ayer = ayer.strftime('%Y-%m-%dT%H:%M:%SZ%z')
-    antes_de_ayer = antes_de_ayer.strftime('%Y-%m-%dT%H:%M:%SZ%z')
+    ayer = ayer.strftime('%Y-%m-%dT%H:%M:%SZ')
+    antes_de_ayer = antes_de_ayer.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     api_obtain_token = Variable.get('MELI_TOKEN_API')
     body_obtain_token = {
@@ -47,8 +46,9 @@ def liberacion_diara(ts):
         "Authorization": f"Bearer {bearer_token}",
         "Content-Type" : "application/json",}
 
-    data = {"begin_date": antes_de_ayer, "end_date": ayer}
-    data = str(data)
+    data = {"begin_date": ayer, "end_date": ayer}
+    data = json.dumps(data)
+    print (data)
 
     response = requests.post(Variable.get('MERCADOPAGO_API_REPORT'), headers=headers, data=data)
     print (response)
@@ -59,12 +59,10 @@ def liberacion_diara(ts):
         "Authorization": f"Bearer {bearer_token}",
     }
 
-    response = requests.get(Variable.get('MERCADOPAGO_API_REPORT_LIST'), headers=headers)
-    while (ayer[:10] != response.json()[0]['end_date'][:10]):
-        time.sleep(10)
-        print (response.json()[0])
-        if ayer[:10] == response.json()[0]['end_date'][:10]:
-            break
+
+    #TODO: solucion temporal
+    time.sleep(150)
+    response = requests.get('https://api.mercadopago.com/v1/account/release_report/list', headers=headers)
     print (response.json()[0])
     filename = response.json()[0]['file_name']
     print (response.json()[0]['file_name'])
@@ -83,29 +81,75 @@ def liberacion_diara(ts):
         print (str(e)[:3000])
     
     columns_main_release = [
-        'fecha_de_liberacion', 'id_de_operacion_en_mercadopago', 'numero_de_indentificacion',
-        'tipo_de_registro', 'descripcion', 'monto_neto_acreditado',
-        'monto_neto_debitado', 'monto_bruto_de_la_operacion', 'monto_recibido_por_compras_split',
-        'comision_de_mercado_pago_o_mercado_libre', 'comision_por_ofrecer_cuotas_sin_interes',
-        'costo_de_envio', 'impuestos_cobrados_por_retenciones_iibb', 'cupon_de_descuento',
-        'cuota','medio_de_pago', 'detalle_de_impuestos','impuesto_descontado_del_valor_bruto',
-        'fecha_de_aprobacion','id_de_caja','nombre_de_caja','id_de_caja_definido_por_el_usuario', 'id_de_la_sucursal',
-        'nombre_de_la_sucursal','id_de_sucursal_definido_por_el_usuario','moneda',
-        'impuestos_desagregados', 'id_del_envio','modo_de_envio','id_de_la_orden',
-        'id_del_paquete','datos_extra','costo_por_ofrecer_descuento'
+        'fecha_de_liberacion', 
+        'id_de_operacion_en_mercado_pago', 
+        'numero_de_identificacion',
+        'tipo_de_registro', 
+        'descripcion', 
+        'monto_neto_acreditado',
+        'monto_neto_debitado', 
+        'monto_bruto_de_la_operacion', 
+        'monto_recibido_por_compras_por_split',
+        'comision_de_mercado_pago_o_mercado_libre', 
+        'comision_por_ofrecer_cuotas_sin_interes',
+        'costo_de_envio', 
+        'impuestos_cobrados_por_retenciones_iibb', 
+        'cupon_de_descuento',
+        'cuota',
+        'medio_de_pago', 
+        'detalle_de_impuestos',
+        'impuesto_descontado_del_valor_bruto',
+        'fecha_de_aprobacion',
+        'id_de_caja',
+        'nombre_de_caja',
+        'id_de_caja_definido_por_el_usuario', 
+        'id_de_la_sucursal',
+        'nombre_de_la_sucursal',
+        'id_de_sucursal_definido_por_el_usuario',
+        'moneda',
+        'impuestos_desagregados', 
+        'id_del_envio',
+        'modo_de_envio',
+        'id_de_la_orden',
+        'id_del_paquete',
+        'datos_extra',
+        'costo_por_ofrecer_descuento'
     ]
 
-    df_releases = df_releases.rename(columns={'DATE':'fecha_de_liberacion', 'SOURCE_ID':'id_de_operacion_en_mercadopago',
-    'EXTERNAL_REFERENCE':'numero_de_indentificacion', 'RECORD_TYPE':'tipo_de_registro', 'DESCRIPTION':'descripcion',
-    'NET_CREDIT_AMOUNT':'monto_neto_acreditado', 'NET_DEBIT_AMOUNT':'monto_neto_debitado','GROSS_AMOUNT':'monto_bruto_de_la_operacion',
-    'SELLER_AMOUNT':'monto_recibido_por_compras_split', 'MP_FEE_AMOUNT':'comision_de_mercado_pago_o_mercado_libre',
-    'FINANCING_FEE_AMOUNT':'comision_por_ofrecer_cuotas_sin_interes','SHIPPING_FEE_AMOUNT':'costo_de_envio',
-    'TAXES_AMOUNT':'impuestos_cobrados_por_retenciones_iibb','COUPON_AMOUNT':'cupon_de_descuento','INSTALLMENTS':'cuota',
-    'PAYMENT_METHOD':'medio_de_pago','TAX_DETAIL':'detalle_de_impuestos','TAX_AMOUNT_TELCO':'impuesto_descontado_del_valor_bruto',
-    'TRANSACTION_APPROVAL_DATE':'fecha_de_aprobacion','POS_ID':'id_de_caja','POS_NAME':'nombre_de_caja',
-    'EXTERNAL_POS_ID':'id_de_caja_definido_por_el_usuario','STORE_ID':'id_de_la_sucursal','STORE_NAME':'nombre_de_la_sucursal',
-    'EXTERNAL_STORE_ID':'id_de_sucursal_definido_por_el_usuario', 'CURRENCY':'moneda', 'TAXES_DISAGGREGATED':'impuestos_desagregados', 'SHIPPING_ID':'id_del_envio',
-    'ORDER_ID':'id_de_la_orden','PACK_ID':'id_del_paquete','METADATA':'datos_extra','EFFECTIVE_COUPON_AMOUNT':'costo_por_ofrecer_descuento'})
+    df_releases = df_releases.rename(columns={
+        'DATE':'fecha_de_liberacion', 
+        'SOURCE_ID':'id_de_operacion_en_mercado_pago',
+        'EXTERNAL_REFERENCE':'numero_de_identificacion', 
+        'RECORD_TYPE':'tipo_de_registro', 
+        'DESCRIPTION':'descripcion',
+        'NET_CREDIT_AMOUNT':'monto_neto_acreditado', 
+        'NET_DEBIT_AMOUNT':'monto_neto_debitado',
+        'GROSS_AMOUNT':'monto_bruto_de_la_operacion',
+        'SELLER_AMOUNT':'monto_recibido_por_compras_por_split', 
+        'MP_FEE_AMOUNT':'comision_de_mercado_pago_o_mercado_libre',
+        'FINANCING_FEE_AMOUNT':'comision_por_ofrecer_cuotas_sin_interes',
+        'SHIPPING_FEE_AMOUNT':'costo_de_envio',
+        'TAXES_AMOUNT':'impuestos_cobrados_por_retenciones_iibb',
+        'COUPON_AMOUNT':'cupon_de_descuento',
+        'INSTALLMENTS':'cuota',
+        'PAYMENT_METHOD':'medio_de_pago',
+        'TAX_DETAIL':'detalle_de_impuestos',
+        'TAX_AMOUNT_TELCO':'impuesto_descontado_del_valor_bruto',
+        'TRANSACTION_APPROVAL_DATE':'fecha_de_aprobacion',
+        'POS_ID':'id_de_caja','POS_NAME':'nombre_de_caja',
+        'EXTERNAL_POS_ID':'id_de_caja_definido_por_el_usuario',
+        'STORE_ID':'id_de_la_sucursal',
+        'STORE_NAME':'nombre_de_la_sucursal',
+        'EXTERNAL_STORE_ID':'id_de_sucursal_definido_por_el_usuario',
+        'CURRENCY':'moneda', 
+        'TAXES_DISAGGREGATED':'impuestos_desagregados',
+        'SHIPPING_ID':'id_del_envio',
+        'SHIPMENT_MODE':'modo_de_envio',
+        'ORDER_ID':'id_de_la_orden',
+        'PACK_ID':'id_del_paquete',
+        'METADATA':'datos_extra',
+        'EFFECTIVE_COUPON_AMOUNT':'costo_por_ofrecer_descuento'}
+    )
 
     df_releases = df_releases[columns_main_release]
     df_releases = df_releases[df_releases['tipo_de_registro'] != 'total']
@@ -131,8 +175,8 @@ def liberacion_diara(ts):
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata_meli.liberaciones ("""+columns_query+""") 
-        VALUES ("""+values_query+""");
-    """
+        VALUES ("""+values_query+""")
+"""
 
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -144,8 +188,10 @@ def liberacion_diara(ts):
     pg_connection.close()
     print("Data loaded to Postgres")
 
+    return
 
-def orderid_packid_table():
+
+def _orderid_packid_table():
 
     import pandas as pd
     import numpy as np
@@ -181,6 +227,7 @@ def orderid_packid_table():
     columns_query = ",".join(columns_main)
     values_query = ",".join(["%s" for column in columns_main])
     df_packid_orderid = df_packid_orderid.fillna("NULL")
+    df_packid_orderid = df_packid_orderid[df_packid_orderid['pack_id'] != 'nan']
     records = list(df_packid_orderid.to_records(index=False))
 
     fixed_records = []
@@ -197,7 +244,9 @@ def orderid_packid_table():
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO ecommdata_meli.orderid_packid ("""+columns_query+""") 
-        VALUES ("""+values_query+""");
+        VALUES ("""+values_query+""")
+        ON CONFLICT (order_id)
+        DO NOTHING;;
     """
 
     print(incremental_query)
@@ -210,8 +259,10 @@ def orderid_packid_table():
     pg_connection.close()
     print("Data loaded to Postgres")
 
+    return
+
 default_args = {
-    "owner": "capacity_and_planning",
+    "owner": "ecommerce_data",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
@@ -225,22 +276,21 @@ with DAG(
     schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2023, 1, 27, tz="America/Santiago"),
     catchup=False,
-    tags=["OPS","AWS","ETL", "MELI", "forecast_and_planning", "liberaciones"],
+    tags=["MELI", "liberaciones", "conciliacion","MongoDB"],
 ) as dag:
 
     dag.doc_md = """
-    Obtención de costos y kms en base a BDD \n
-    para exportar a BDD.
+    Obtención de liberaciones desde MELI, y obtención de tabla intermedia order_id y pack_id desde MongoDB.
     """ 
 
     t0 = PythonOperator(
         task_id = "liberacion_diara",
-        python_callable = liberacion_diara,
+        python_callable = _liberacion_diara,
     )
 
     t1 = PythonOperator(
         task_id = "tabla_packid_orderid",
-        python_callable = orderid_packid_table,
+        python_callable = _orderid_packid_table,
     )
 
 t0>>t1
