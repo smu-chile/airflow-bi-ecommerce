@@ -13,16 +13,6 @@ def _liberacion_diara(ts):
     import numpy as np
     import requests
     import time
-    import pytz
-    import json
-
-    fecha_desde = datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')
-    fecha_desdemenos1 = fecha_desde - timedelta(days=1)
-    localtimezone = pytz.timezone("America/Santiago")
-    ayer = fecha_desde.replace(tzinfo = pytz.utc).astimezone(localtimezone)
-    antes_de_ayer = fecha_desdemenos1.replace(tzinfo = pytz.utc).astimezone(localtimezone)
-    ayer = ayer.strftime('%Y-%m-%dT%H:%M:%SZ')
-    antes_de_ayer = antes_de_ayer.strftime('%Y-%m-%dT%H:%M:%SZ')
 
     api_obtain_token = Variable.get('MELI_TOKEN_API')
     body_obtain_token = {
@@ -46,13 +36,6 @@ def _liberacion_diara(ts):
         "Authorization": f"Bearer {bearer_token}",
         "Content-Type" : "application/json",}
 
-    data = {"begin_date": ayer, "end_date": ayer}
-    data = json.dumps(data)
-    print (data)
-
-    response = requests.post(Variable.get('MERCADOPAGO_API_REPORT'), headers=headers, data=data)
-    print (response)
-
 
     headers = { 
         'accept': 'application/json',
@@ -60,8 +43,6 @@ def _liberacion_diara(ts):
     }
 
 
-    #TODO: solucion temporal
-    time.sleep(150)
     response = requests.get('https://api.mercadopago.com/v1/account/release_report/list', headers=headers)
     print (response.json()[0])
     filename = response.json()[0]['file_name']
@@ -273,7 +254,7 @@ with DAG(
     'etl_liberaciones_ids_diarios_MELI',
     default_args=default_args,
     description="Automatización de obtención de liberaciones MELI, y de tabla intermedia pack_id y order_id",
-    schedule_interval="0 7 * * *",
+    schedule_interval="0 1 * * *",
     start_date=pendulum.datetime(2023, 1, 27, tz="America/Santiago"),
     catchup=False,
     tags=["MELI", "liberaciones", "conciliacion","MongoDB"],
