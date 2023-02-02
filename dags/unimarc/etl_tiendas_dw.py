@@ -9,7 +9,6 @@ from utils.netezza_utils import load_custom_query_to_s3
 from datetime import datetime
 
 def _load_stores_table(ti, ds):
-    import numpy as np
     import pandas as pd
     import sqlalchemy
     
