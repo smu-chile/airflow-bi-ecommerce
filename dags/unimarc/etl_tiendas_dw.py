@@ -92,7 +92,7 @@ with DAG(
         op_kwargs = {
             "query": """SELECT STORE_ID, STORE_NAME, OU_KEY, STORE_KEY, ORG_KEY, CANAL_DIST, ORG_COMPRAS, ORG_VENTAS, CITY_ID, COUNTY_DESC
             FROM SMU.VW_DIM_STORE
-            WHERE STORE_ID <> '200' AND CANAL_DIST IS NOT NULL;;
+            WHERE STORE_ID <> '200' AND CANAL_DIST IS NOT NULL;
             """,
             "query_name": "tiendas_dw",
         }
