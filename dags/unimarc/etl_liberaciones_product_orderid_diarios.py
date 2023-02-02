@@ -254,7 +254,7 @@ with DAG(
     'etl_liberaciones_ids_diarios_MELI',
     default_args=default_args,
     description="Automatización de obtención de liberaciones MELI, y de tabla intermedia pack_id y order_id",
-    schedule_interval="0 1 * * *",
+    schedule_interval="0 4 * * *",
     start_date=pendulum.datetime(2023, 1, 27, tz="America/Santiago"),
     catchup=False,
     tags=["MELI", "liberaciones", "conciliacion","MongoDB"],
