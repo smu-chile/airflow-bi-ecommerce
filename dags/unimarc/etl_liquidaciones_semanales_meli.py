@@ -39,7 +39,7 @@ def _liquidacion_semanal():
         'folio',
         'descripcion',
         'cantidad',
-        'orden',
+        'venta',
         'monto',
         'iva',
         'sku',
@@ -47,7 +47,6 @@ def _liquidacion_semanal():
         'variacion',
         'folio_asociado',
         'devolucion',
-        'venta'
         ]
 
     df_liquidaciones = df_liquidaciones.rename(columns={
