@@ -80,7 +80,7 @@ with DAG(
     'etl_borrado_stock_inmovilizados',
     default_args=default_args,
     description="Borrado de Stock Janis en base a historia de ventas en dw y parametros entregados en tabla catalogo.categoria_tienda_inmovilizada.",
-    schedule_interval="0 10 * * *",
+    schedule_interval="0 12 * * *",
     start_date=datetime(2023, 1, 30),
     catchup=False,
     tags=["Janis", "ecommdata", "catalogo", "inmovilizados", "stock", "OPS"],
