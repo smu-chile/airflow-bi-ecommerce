@@ -2,7 +2,6 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from utils.netezza_utils import load_custom_query_to_s3
