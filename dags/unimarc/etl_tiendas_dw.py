@@ -47,7 +47,7 @@ def _load_stores_table(ti, ds):
 
     df = df.astype({
         "id_tienda": "string",
-        "CANAL_DIST": "string"
+        "canal_dist": "string"
     }, errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
