@@ -45,21 +45,32 @@ def _calculate_delta_request_body(ds, ts):
     import pytz
 
     store_id_list = [
-        "0332", "0343", "0402", "0982", "0011",
-        "0375", "0022", "0030", "0086", "0046",
-        "0111", "0062", "0345", "0336", "0602",
-        "0058", "0953", "0009", "0477", "0344",
-        "0331", "0626", "0025", "0028", "0980",
-        "0326", "0475", "0476", "0357", "0903",
-        "0325", "0717", "0353", "0087", "0763",
-        "0961", "0328", "0916", "0683", "0017",
-        "0956", "0333", "0469", "0917", "0355",
-        "0761", "0939", "0645", "0581", "0931",
-        "0027", "0759", "0958", "0340", "0458",
-        "0051", "0644", "0008", "0714", "0954",
-        "0912", "0681", "0978", "0914", "0923",
-        "0960", "0957", "0905", "0445", "0902",
-        "0926",
+        '0469',
+        '0903',
+        '0333',
+        '0931',
+        '0717',
+        '0017',
+        '0681',
+        '0030',
+        '0375',
+        '0761',
+        '0345',
+        '0344',
+        '0917',
+        '0336',
+        '0956',
+        '0332',
+        '0581',
+        '0914',
+        '0111',
+        '0445',
+        '0953',
+        '0025',
+        '0086',
+        '0626',
+        '0051',
+        '0028',
     ]
 
     curr_working_directory = os.getcwd()
@@ -84,6 +95,12 @@ def _calculate_delta_request_body(ds, ts):
 
     for store_id in store_id_list:
         body_file_path = f"rappi/api/stock/post/delta/requests/{exec_datetime_string}_{store_id}"
+
+        # Check if file is already loaded
+        if s3_hook.check_for_key(body_file_path, bucket_name=s3_bucket):
+            print(f"File {body_file_path} already exists on S3 bucket. Skipping...")
+            continue
+
         rappi_stock_query_store = rappi_stock_query.replace("{store_id}", store_id)
 
         df_store = pd.read_sql_query(rappi_stock_query_store, pg_connection)
@@ -159,6 +176,12 @@ def _calculate_full_request_body(ts):
 
     for store_id in store_id_list:
         body_file_path = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/{store_id}.json"
+        
+        # Check if file is already loaded
+        if s3_hook.check_for_key(body_file_path, bucket_name=s3_bucket):
+            print(f"File {body_file_path} already exists on S3 bucket. Skipping...")
+            continue
+        
         stock_query = f"""
             SELECT P.ean AS ean --ean (PRIMARIO) ean_ppal / UPC
                     , CASE
