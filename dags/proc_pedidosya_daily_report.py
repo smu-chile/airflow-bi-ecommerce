@@ -23,52 +23,39 @@ def _send_report_to_sftp(ds):
         key_file.write(ftp_rsa_key)
 
     dic_tiendas = {
-        "277728": "0048",	
-        "277738": "0602",	
-        "138446": "0345",	
-        "89502": "0469",	
-        "60848": "0333",	
-        "277741": "0111",	
-        "277410": "0915",	
-        "277730": "0912",	
-        "92533": "0331",	
-        "115476": "0086",	
-        "277425": "0458",	
-        "59523": "0332",	
-        "277729": "0759",	
-        "105034": "0980",	
-        "277727": "0778",	
-        "138169": "0324",	
-        "67660": "0030",	
-        "288689": "0033",	
-        "277413": "0336",	
-        "277736": "0022",	
-        "105761": "0006",	
-        "277735": "0011",	
-        "277739": "0916",	
-        "132258": "0957",	
-        "106881": "0923",	
-        "132275": "0777",	
-        "277734": "0344",	
-        "277418": "0710",	
-        "277416": "0939",	
-        "277429": "0375",	
-        "277430": "0466",	
-        "303853": "0328",	
-        "277737": "0402",	
-        "277422": "0642",	
-        "277670": "0953",	
-        "277732": "0903",	
-        "141036": "0009",	
-        "140585": "0906",	
-        "304206": "0445",	
-        "277726": "0054",	
-        "138057": "0034",	
-        "315011": "0961",	
-        "329762": "0347",	
-        "63108": "0340",	
-        "277424": "0058",	
-        "105032": "0736"
+        "59523" : "0332",
+        "277429" : "0375",
+        "67660" : "0030",
+        "115476" : "0086",
+        "138446" : "0345",
+        "277413" : "0336",
+        "277424" : "0058",
+        "277670" : "0953",
+        "288689" : "0033",
+        "277734" : "0344",
+        "92533" : "0962",
+        "105032" : "0736",
+        "277425" : "0464",
+        "303853" : "0328",
+        "138057" : "0034",
+        "277738" : "0602",
+        "277726" : "0054",
+        "60848" : "0333",
+        "89502" : "0469",
+        "277422" : "0645",
+        "105034" : "0980",
+        "132275" : "0777",
+        "277729" : "0759",
+        "277410" : "0915",
+        "277741" : "0111",
+        "277730" : "0581",
+        "106881" : "0923",
+        "329762" : "0347",
+        "277737" : "0755",
+        "140585" : "0906",
+        "132258" : "0957",
+        "277736" : "0022",
+        "304206" : "0445",
     }
     data_type = {
         "SKU":"string",
@@ -89,6 +76,19 @@ def _send_report_to_sftp(ds):
     cur = conn.cursor()
     now = datetime.now().strftime('%Y%m%d')
     for tiendapeya in dic_tiendas.keys():
+
+        exec_date = macros.ds_add(ds, 1)
+        exec_date = exec_date.replace("-", "/")
+        aws_conn_id="aws_s3_connection"
+        file_name = f"peya/out/stock/{exec_date}/{dic_tiendas[tiendapeya]}.csv"
+        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+
+        # Check if file is already loaded
+        if s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+            print(f"File {file_name} already exists on S3 bucket. Skipping...")
+            continue
+
         sql_str = f"""
                         SELECT P.EAN AS SKU
                                 , CASE WHEN WF.PRECIO IS NULL THEN precio.PRECIO_MODAL
@@ -185,12 +185,6 @@ def _send_report_to_sftp(ds):
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
 
-        exec_date = macros.ds_add(ds, 1)
-        exec_date = exec_date.replace("-", "/")
-        aws_conn_id="aws_s3_connection"
-        file_name = f"peya/out/stock/{exec_date}/{dic_tiendas[tiendapeya]}.csv"
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_hook = S3Hook(aws_conn_id=aws_conn_id)
         s3_hook.load_string(buffer.getvalue(),
                     key=file_name,
                     bucket_name=s3_bucket,
