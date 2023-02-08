@@ -97,6 +97,8 @@ def _calculate_delta_request_body(ds, ts):
         body_file_path = f"rappi/api/stock/post/delta/requests/{exec_datetime_string}_{store_id}"
 
         # Check if file is already loaded
+        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
         if s3_hook.check_for_key(body_file_path, bucket_name=s3_bucket):
             print(f"File {body_file_path} already exists on S3 bucket. Skipping...")
             continue
@@ -109,9 +111,6 @@ def _calculate_delta_request_body(ds, ts):
         if len(df_store.index) == 0:
             print("NO RECORDS FOUND.")
             continue
-
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
         df_store = df_store.dropna()
         df_store["id"] = df_store["id"].astype("int").astype("str")
