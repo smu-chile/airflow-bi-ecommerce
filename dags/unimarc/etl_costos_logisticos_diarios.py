@@ -613,11 +613,11 @@ def _costos_logisticos_mfc():
         # credenciales aws
         try:
             conn = psycopg2.connect(
-                user="rmatos",
-                password="RKFNMr8EnRba",
-                host="bi-ecommerce-postgres-prod-master.cuuchupawrpt.us-east-1.rds.amazonaws.com",
-                port=5432,
-                database="postgres"
+            user=Variable.get('POSTGRESQL_USER'),
+            password=Variable.get('POSTGRESQL_PASSWORD'),
+            host=Variable.get('POSTGRESQL_HOST'),
+            port=5432,
+            database=Variable.get('POSTGRESQL_DB')
 
             )
         except (Exception, psycopg2.DatabaseError) as error:
