@@ -618,7 +618,6 @@ def _costos_logisticos_mfc():
             host=Variable.get('POSTGRESQL_HOST'),
             port=5432,
             database=Variable.get('POSTGRESQL_DB')
-
             )
         except (Exception, psycopg2.DatabaseError) as error:
                 print(error)
@@ -652,7 +651,13 @@ def _costos_logisticos_mfc():
         return df_venta_fact_geo
 
     def calendario():
-        conexion = psycopg2.connect(host="bi-ecommerce-postgres-prod-master.cuuchupawrpt.us-east-1.rds.amazonaws.com", database="postgres", user="fmacaya", password="PJfW#36DUPX", port = '5432')
+        conexion = psycopg2.connect(user=Variable.get('POSTGRESQL_USER'),
+            password=Variable.get('POSTGRESQL_PASSWORD'),
+            host=Variable.get('POSTGRESQL_HOST'),
+            port=5432,
+            database=Variable.get('POSTGRESQL_DB')
+            )        
+            
         cur = conexion.cursor()
 
         # Ejecutamos una consulta
@@ -666,7 +671,12 @@ def _costos_logisticos_mfc():
         return df_calendario
 
     def materiales_remuneraciones():
-        conexion = psycopg2.connect(host="bi-ecommerce-postgres-prod-master.cuuchupawrpt.us-east-1.rds.amazonaws.com", database="postgres", user="fmacaya", password="PJfW#36DUPX", port = '5432')
+        conexion = psycopg2.connect(user=Variable.get('POSTGRESQL_USER'),
+            password=Variable.get('POSTGRESQL_PASSWORD'),
+            host=Variable.get('POSTGRESQL_HOST'),
+            port=5432,
+            database=Variable.get('POSTGRESQL_DB')
+            ) 
         cur = conexion.cursor()
         # Ejecutamos una consulta
         cur.execute( "SELECT  * FROM forecast_and_planning.materiales_remuneraciones" )
@@ -679,7 +689,12 @@ def _costos_logisticos_mfc():
         return df_materiales_remuneraciones
 
     def mantenciones_servicios():
-        conexion = psycopg2.connect(host="bi-ecommerce-postgres-prod-master.cuuchupawrpt.us-east-1.rds.amazonaws.com", database="postgres", user="fmacaya", password="PJfW#36DUPX", port = '5432')
+        conexion = psycopg2.connect(user=Variable.get('POSTGRESQL_USER'),
+            password=Variable.get('POSTGRESQL_PASSWORD'),
+            host=Variable.get('POSTGRESQL_HOST'),
+            port=5432,
+            database=Variable.get('POSTGRESQL_DB')
+            )
         cur = conexion.cursor()
         # Ejecutamos una consulta
         cur.execute( "SELECT  * FROM forecast_and_planning.mantenciones_y_servicios_mfc" )
