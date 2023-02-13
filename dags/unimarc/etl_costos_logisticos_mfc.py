@@ -264,6 +264,8 @@ def _costos_logisticos_mfc():
     df_materiales_remuneraciones = df_materiales_remuneraciones.rename(columns={'id_mes': 'ID_MES', 'remuneraciones':'Remuneraciones', 'materiales':'Materiales'})
     df_materiales_remuneraciones = df_materiales_remuneraciones[['ID_MES', 'Remuneraciones', 'Materiales', 'id_tienda']]
     df_materiales_remuneraciones.columns = ['ID_MES', 'Remuneraciones_mes', 'Materiales_mes', 'id_tienda']
+    print (df_materiales_remuneraciones.dtypes)
+    print (df_venta_fact_geo_agg.dtypes)
     df_venta_fact_geo_agg = df_venta_fact_geo_agg.merge(df_materiales_remuneraciones[['ID_MES', 'Remuneraciones_mes', 'Materiales_mes', 'id_tienda']], on=['ID_MES','id_tienda'], how='left')
 
     # calcula cantidad de dias del mes en curso
