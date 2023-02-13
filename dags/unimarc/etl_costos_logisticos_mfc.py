@@ -4,7 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import pendulum
 
 def _costos_logisticos_mfc():
