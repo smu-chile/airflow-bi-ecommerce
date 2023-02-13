@@ -543,7 +543,7 @@ with DAG(
     'etl_costos_logisticos_diarios',
     default_args=default_args,
     description="Automatización de calculo de costos logisticos diarios",
-    schedule_interval="30 7 * * *",
+    schedule_interval="40 7 * * *",
     start_date=pendulum.datetime(2022, 11, 28, tz="America/Santiago"),
     catchup=False,
     tags=["OPS","AWS","ETL", "MFC", "unimarc", "forecast_and_planning", "costos_logisticos_solo_estim"],
