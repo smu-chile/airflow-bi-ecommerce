@@ -361,7 +361,7 @@ with DAG(
     'etl_obtencion_stock_meli',
     default_args=default_args,
     description="Automatización de obtención de stock de MELI",
-    schedule_interval="0 23 * * *",
+    schedule_interval="0 3 * * *",
     start_date=pendulum.datetime(2022, 12, 21, tz="America/Santiago"),
     catchup=False,
     tags=["OPS","AWS","ETL", "unimarc", "forecast_and_planning", "MELI", "obtencion stock"],
