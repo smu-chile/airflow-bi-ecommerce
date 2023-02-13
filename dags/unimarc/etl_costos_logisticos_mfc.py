@@ -540,9 +540,9 @@ default_args = {
 }
 
 with DAG(
-    'etl_costos_logisticos_diarios',
+    'etl_costos_logisticos_diarios_mfc',
     default_args=default_args,
-    description="Automatización de calculo de costos logisticos diarios",
+    description="Automatización de calculo de costos logisticos diarios_mfc",
     schedule_interval="40 7 * * *",
     start_date=pendulum.datetime(2022, 11, 28, tz="America/Santiago"),
     catchup=False,
