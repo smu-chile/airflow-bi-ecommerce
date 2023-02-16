@@ -4,7 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import pendulum
 
 
@@ -399,6 +399,48 @@ def _calcular_costos_logisticos(ds):
 
     return file_name
 
+def _subir_a_bdd(ti, ds):
+    import pandas as pd 
+
+    #### IMPORTA CSV
+    file_name = ti.xcom_pull(key = "return_value", task_ids = ['calcular_costos_logisticos'])[0]
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+file_name)
+    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % file_name)
+    
+    costos_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
+
+    df_costos_estimado = pd.read_csv(costos_object.get()["Body"], decimal=',', sep=';')
+    
+    # transforma fecha del estimado
+    df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'].notna()]
+    df_costos_estimado['fecha'] = df_costos_estimado['fecha'].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d') if str(x)[:3]=='202' else pd.to_datetime(x, format='%d-%m-%Y')).apply(lambda x: x.strftime('%Y-%m-%d'))
+    df_costos_estimado['id_tienda'] = df_costos_estimado['id_tienda'].apply(lambda x: str(int(float(x)))[0:4].rstrip(' ').zfill(4))
+    #### SUBE ARCHIVO TRANSFORMADO
+    
+    for col in df_costos_estimado.columns:
+        df_costos_estimado = df_costos_estimado.rename(columns = {col: col.lower()})
+    
+    df_costos_estimado = df_costos_estimado [["id_tienda","fecha","estimado_shoppers","estimado_asegurado",
+                        "estimado_picker","estimado_camiones","estimado_coordinador",
+                        "estimado_total","estimado_driver","estimado_gasto_extra","estimado_descuentos"]]
+
+
+    df_costos_estimado['estimado_shoppers'] = pd.to_numeric(df_costos_estimado['estimado_shoppers'], errors = 'ignore')
+    df_costos_estimado['estimado_asegurado'] = pd.to_numeric(df_costos_estimado['estimado_asegurado'], errors = 'ignore')
+    df_costos_estimado['estimado_picker'] = pd.to_numeric(df_costos_estimado['estimado_picker'], errors = 'ignore')
+    df_costos_estimado['estimado_camiones'] = pd.to_numeric(df_costos_estimado['estimado_camiones'], errors = 'ignore')
+    df_costos_estimado['estimado_coordinador'] = pd.to_numeric(df_costos_estimado['estimado_coordinador'], errors = 'ignore')
+    df_costos_estimado['estimado_total'] = pd.to_numeric(df_costos_estimado['estimado_total'], errors = 'ignore')
+    df_costos_estimado['estimado_driver'] = pd.to_numeric(df_costos_estimado['estimado_driver'], errors = 'ignore')
+    df_costos_estimado['estimado_gasto_extra'] = pd.to_numeric(df_costos_estimado['estimado_gasto_extra'], errors = 'ignore')
+    df_costos_estimado['estimado_descuentos'] = pd.to_numeric(df_costos_estimado['estimado_descuentos'], errors = 'ignore')
+    
+    print (df_costos_estimado.dtypes)
+    costos_to_sql(df_costos_estimado)
 
 def costos_to_sql(df_costos):
 
@@ -470,15 +512,6 @@ def costos_to_sql(df_costos):
     pg_connection.close()
     print("Data loaded to Postgres")
 
-    # df_costos.to_sql(name="costos_logisticos_diarios_soloestim",
-    # con=engine,
-    # schema="forecast_and_planning",
-    # if_exists='append',
-    # index=False,
-    # chunksize=20000,
-    # method='multi')
-    #### VALIDACION DE LA CARGA DE DATOS
-
     connection = engine.connect()
 
     engine = sqlalchemy.create_engine(conn_url)
@@ -493,49 +526,6 @@ def costos_to_sql(df_costos):
         print (str(e))
         raise Exception('Error, no se pudo cargar a la base de datos')
     connection.close()
-
-def _subir_a_bdd(ti, ds):
-    import pandas as pd 
-
-    #### IMPORTA CSV
-    file_name = ti.xcom_pull(key = "return_value", task_ids = ['calcular_costos_logisticos'])[0]
-    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    print("Searching file: "+file_name)
-    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % file_name)
-    
-    costos_object = s3_hook.get_key(file_name, bucket_name = s3_bucket)
-
-    df_costos_estimado = pd.read_csv(costos_object.get()["Body"], decimal=',', sep=';')
-    
-    # transforma fecha del estimado
-    df_costos_estimado = df_costos_estimado[df_costos_estimado['fecha'].notna()]
-    df_costos_estimado['fecha'] = df_costos_estimado['fecha'].apply(lambda x: pd.to_datetime(x, format='%Y-%m-%d') if str(x)[:3]=='202' else pd.to_datetime(x, format='%d-%m-%Y')).apply(lambda x: x.strftime('%Y-%m-%d'))
-    df_costos_estimado['id_tienda'] = df_costos_estimado['id_tienda'].apply(lambda x: str(int(float(x)))[0:4].rstrip(' ').zfill(4))
-    #### SUBE ARCHIVO TRANSFORMADO
-    
-    for col in df_costos_estimado.columns:
-        df_costos_estimado = df_costos_estimado.rename(columns = {col: col.lower()})
-    
-    df_costos_estimado = df_costos_estimado [["id_tienda","fecha","estimado_shoppers","estimado_asegurado",
-                        "estimado_picker","estimado_camiones","estimado_coordinador",
-                        "estimado_total","estimado_driver","estimado_gasto_extra","estimado_descuentos"]]
-
-
-    df_costos_estimado['estimado_shoppers'] = pd.to_numeric(df_costos_estimado['estimado_shoppers'], errors = 'ignore')
-    df_costos_estimado['estimado_asegurado'] = pd.to_numeric(df_costos_estimado['estimado_asegurado'], errors = 'ignore')
-    df_costos_estimado['estimado_picker'] = pd.to_numeric(df_costos_estimado['estimado_picker'], errors = 'ignore')
-    df_costos_estimado['estimado_camiones'] = pd.to_numeric(df_costos_estimado['estimado_camiones'], errors = 'ignore')
-    df_costos_estimado['estimado_coordinador'] = pd.to_numeric(df_costos_estimado['estimado_coordinador'], errors = 'ignore')
-    df_costos_estimado['estimado_total'] = pd.to_numeric(df_costos_estimado['estimado_total'], errors = 'ignore')
-    df_costos_estimado['estimado_driver'] = pd.to_numeric(df_costos_estimado['estimado_driver'], errors = 'ignore')
-    df_costos_estimado['estimado_gasto_extra'] = pd.to_numeric(df_costos_estimado['estimado_gasto_extra'], errors = 'ignore')
-    df_costos_estimado['estimado_descuentos'] = pd.to_numeric(df_costos_estimado['estimado_descuentos'], errors = 'ignore')
-    
-    print (df_costos_estimado.dtypes)
-    costos_to_sql(df_costos_estimado)
 
 
 default_args = {

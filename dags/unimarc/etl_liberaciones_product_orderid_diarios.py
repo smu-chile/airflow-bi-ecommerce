@@ -194,10 +194,8 @@ def _orderid_packid_table():
     mergeids = list(mergeids_cursor)    
     if len(mergeids) == 0:
         raise Exception('Error, lista vacía')
-    df_packid_orderid = pd.DataFrame(mergeids)
+    df_packid_orderid = pd.DataFrame(mergeids, dtype='object')
 
-    df_packid_orderid['id'] = df_packid_orderid['id'].astype(str)
-    df_packid_orderid['pack_id'] = df_packid_orderid['pack_id'].astype(str)
     columns_main = [
         'order_id', 'pack_id'
         ]
