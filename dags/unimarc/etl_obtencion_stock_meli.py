@@ -350,7 +350,7 @@ def get_stock(ts):
 
 
 default_args = {
-    "owner": "capacity_and_planning",
+    "owner": "ecommerce_data",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
@@ -364,7 +364,7 @@ with DAG(
     schedule_interval="0 3 * * *",
     start_date=pendulum.datetime(2022, 12, 21, tz="America/Santiago"),
     catchup=False,
-    tags=["OPS","AWS","ETL", "unimarc", "forecast_and_planning", "MELI", "obtencion stock"],
+    tags=["DATA", "unimarc", "ecommerce_data", "MELI", "obtencion stock"],
 ) as dag:
 
     dag.doc_md = """
