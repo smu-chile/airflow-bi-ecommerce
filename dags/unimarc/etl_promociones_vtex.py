@@ -482,7 +482,7 @@ with DAG(
     'etl_promociones_vtex',
     default_args=default_args,
     description="Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.",
-    schedule_interval="0 8, 17 * * *",
+    schedule_interval="0 8,17 * * *",
     start_date=datetime(2022, 10, 20),
     catchup=False,
     max_active_runs = 1,
