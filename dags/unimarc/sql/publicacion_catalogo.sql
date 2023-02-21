@@ -65,7 +65,7 @@ left join ecommdata.productos_tienda pt on s.ref_id = pt.ref_id and s.id_tienda 
 left join ecommdata.marcas m on p.id_marca = m.id
 left join ecommdata.lista_infaltables li on s.material = li.material
 left join ecommdata.top300 tp on s.material = tp.material
-left join ecommdata.stock_mfc sm on s.material = LPAD(sm.material, 18, '0')
+left join ecommdata.stock_mfc sm on s.material = LPAD(sm.material, 18, '0') and s.id_tienda = sm.id_tienda
 inner join lateral (select
 	case 
 	when foto.ref_id is null then false
