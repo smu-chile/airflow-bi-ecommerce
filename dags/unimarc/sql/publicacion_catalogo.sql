@@ -39,6 +39,10 @@ end as infaltable
 	when tp.material is not null then true
 	else false
 end as top_300
+, case
+	when sm.material is not null then true
+	else false
+end as mfc
 from ecommdata.stock s
 left join (select t1.ref_id
 	, t1.q_foto
@@ -61,6 +65,7 @@ left join ecommdata.productos_tienda pt on s.ref_id = pt.ref_id and s.id_tienda 
 left join ecommdata.marcas m on p.id_marca = m.id
 left join ecommdata.lista_infaltables li on s.material = li.material
 left join ecommdata.top300 tp on s.material = tp.material
+left join ecommdata.stock_mfc sm on s.material = LPAD(sm.material, 18, '0')
 inner join lateral (select
 	case 
 	when foto.ref_id is null then false
