@@ -139,7 +139,7 @@ with DAG(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
         op_kwargs = {
-            "table_name": "imagenes_sku",
+            "table_name": "sku_images",
         }
     )
 
