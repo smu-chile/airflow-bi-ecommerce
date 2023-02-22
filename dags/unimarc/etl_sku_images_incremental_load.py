@@ -2,18 +2,17 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import incremental_unixtime_load_table_s3
-from utils.postgres_utils import get_max_updated_at_value
+from utils.janis_utils import load_full_table_to_s3
+
 
 from datetime import datetime
 
-def _incremental_load_sku_images_table(ti):
-    import numpy as np
+def _truncate_and_load_sku_images_table(ti):
     import pandas as pd
+    import sqlalchemy
     
-    sku_images_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+    sku_images_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -67,8 +66,6 @@ def _incremental_load_sku_images_table(ti):
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
-    # Cast numeric values to int
-
     df = df.astype({
         "id": "int",
         "id_sku_janis": "int",
@@ -81,21 +78,6 @@ def _incremental_load_sku_images_table(ti):
         "creacion_usuario": "bool",
         "modificacion_usuario": "bool"
     }, errors="ignore")
-
-    columns = [
-        "ref_id",
-        "nombre_producto",
-        "id_sku_janis",
-        "imagen",
-        "etiqueta",
-        "orden",
-        "fecha_programada",
-        "creacion_usuario",
-        "modificacion_usuario",
-        "fecha_creacion",
-        "fecha_modificacion",
-        "fecha_modificacion_unixtime"
-    ]
 
     df = df[["id",
         "ref_id",
@@ -111,48 +93,24 @@ def _incremental_load_sku_images_table(ti):
         "fecha_modificacion",
         "fecha_modificacion_unixtime"
     ]]
-    columns_query = ",".join(columns)
-    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
-    records = list(df.to_records(index=False))
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
     
-    # Change data types to native python types
-    fixed_records = []
-    for record in records:
-        fixed_record = []
-        for value in record:
-            if isinstance(value, np.generic):
-                fixed_record.append(value.item())
-            elif value == "NULL":
-                fixed_record.append(None)
-            else:
-                fixed_record.append(value)
-        fixed_records.append(tuple(fixed_record))
-    print(f"Number of records to load: {str(len(fixed_records))}")
-    incremental_query = """
-        INSERT INTO ecommdata.imagenes_sku (id,"""+columns_query+""") 
-        VALUES ("""+values_query+""")
-        ON CONFLICT (id)
-        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
-    """
-    update_query = """
-        UPDATE ecommdata.imagenes_sku isk
-        SET ref_id = s.ref_id, nombre_producto = p.nombre
-        FROM ecommdata.skus s
-        LEFT JOIN ecommdata.productos p on s.ref_id = p.ref_id
-        WHERE isk.id_sku_janis = s.id;
-    """
-    print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.executemany(incremental_query, fixed_records)
-    cursor.execute(update_query)
-    pg_connection.commit()
-    cursor.close()
-    pg_connection.close()
-    print("Data loaded to Postgres")
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.imagenes_sku") 
+        df.to_sql(name="imagenes_sku",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
 
     return
 
@@ -167,7 +125,7 @@ with DAG(
     'etl_imagenes_sku_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla imagenes_sku desde Janis Unimarc Replica hasta Workspace.",
-    schedule_interval="30 * * * *",
+    schedule_interval="0 9 * * *",
     start_date=datetime(2022, 7, 1),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "imagenes_sku", "Unimarc"],
@@ -178,29 +136,16 @@ with DAG(
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
     t0 = PythonOperator(
-        task_id = "get_max_updated_at_date",
-        python_callable = get_max_updated_at_value,
+        task_id = "load_full_table_to_s3",
+        python_callable = load_full_table_to_s3,
         op_kwargs = {
-            "schema": "ecommdata",
-            "table_name": "imagenes_sku", 
-            "updated_at_field": "fecha_modificacion_unixtime",
-            "is_unixtime": True
+            "table_name": "imagenes_sku",
         }
     )
 
     t1 = PythonOperator(
-        task_id = "incremental_unixtime_load_table_to_s3",
-        python_callable = incremental_unixtime_load_table_s3,
-        op_kwargs = {
-            "table_name": "sku_images", 
-            "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_modified"
-        }
+        task_id = "truncate_and_load_sku_images_table",
+        python_callable = _truncate_and_load_sku_images_table
     )
 
-    t2 = PythonOperator(
-        task_id = "incremental_load_sku_images_table",
-        python_callable = _incremental_load_sku_images_table
-    )
-
-    t0 >> t1 >> t2
+    t0 >> t1
