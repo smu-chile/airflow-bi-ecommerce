@@ -111,6 +111,12 @@ def _truncate_and_load_sku_images_table(ti):
                     index=False,         
                     chunksize=20000,         
                     method='multi')
+        conn.execute("""
+                    update ecommdata.imagenes_sku sk
+                    set ref_id = s.ref_id, nombre_producto = s.nombre_sku
+                    from ecommdata.skus s 
+                    where s.id = sk.id_sku_janis;
+                    """)
 
     return
 
