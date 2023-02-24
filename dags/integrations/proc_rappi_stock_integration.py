@@ -1,5 +1,4 @@
 from airflow import DAG
-from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
@@ -23,7 +22,6 @@ def _get_rappi_active_stores():
     return results
 
 def _join_stock_and_promo_prices_from_s3(ds, ti):
-    import io
     import json
     import pandas as pd
 
@@ -156,8 +154,6 @@ def _send_joined_data_to_api(ds):
             print(e)
             print("Error on response.")
             break
-
-        break
 
     return
 
