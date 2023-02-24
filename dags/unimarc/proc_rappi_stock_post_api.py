@@ -15,7 +15,7 @@ def _check_time(ts):
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
     time_str = exec_datetime_local.strftime('%H%M')
     print(f"Local execution time: {exec_datetime_local.strftime('%Y/%m/%d %H:%M:%S')}")
-    if int(time_str[:2]) > 23 or int(time_str[:2]) < 8:
+    if int(time_str[:2]) > 23 or int(time_str[:2]) < 12:
         print("Outside execution hours. Skipping tasks.")
         return "skip_dag_run"
     else:
@@ -437,25 +437,25 @@ with DAG(
         python_callable = _check_time
     )
 
-    t1 = BranchPythonOperator(
-        task_id = "check_if_dag_ran_today",
-        python_callable = _check_if_dag_ran_today,
-    )
+    # t1 = BranchPythonOperator(
+    #     task_id = "check_if_dag_ran_today",
+    #     python_callable = _check_if_dag_ran_today,
+    # )
 
-    t2 = PythonOperator(
-        task_id = "calculate_full_request_body",
-        python_callable = _calculate_full_request_body
-    )
+    # t2 = PythonOperator(
+    #     task_id = "calculate_full_request_body",
+    #     python_callable = _calculate_full_request_body
+    # )
 
     t3 = PythonOperator(
         task_id = "calculate_delta_request_body",
         python_callable = _calculate_delta_request_body
     )
 
-    t4 = PythonOperator(
-        task_id = "stock_and_prices_full_post_request",
-        python_callable = _stock_and_prices_full_post_request,        
-    )
+    # t4 = PythonOperator(
+    #     task_id = "stock_and_prices_full_post_request",
+    #     python_callable = _stock_and_prices_full_post_request,        
+    # )
 
     t5 = PythonOperator(
         task_id = "stock_and_prices_delta_post_request",
@@ -466,7 +466,5 @@ with DAG(
         task_id = "skip_dag_run"
     )
 
-    t0 >> [t1, td]
-    t1 >> [t2, t3]
-    t2 >> t4
+    t0 >> [t3, td]
     t3 >> t5 
