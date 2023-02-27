@@ -67,6 +67,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         df_stock = pd.read_csv(stock_file.get()["Body"], dtype="object")
 
         print(f"Number of records found: {len(df_stock.index)}")
+        if len(df_stock.index) == 0:
+            print(f"No records found. Skipping...")
+            continue
         df_stock["UNIDAD_DE_MEDIDA"] = df_stock["UNIDAD_DE_MEDIDA"].apply(lambda x: "UN" if x == "ST" else x)
         df_stock["ref_id"] = df_stock.apply(lambda x: x["MATERIAL"] + "-" + x["UNIDAD_DE_MEDIDA"], axis=1)
         print(df_stock.columns)
