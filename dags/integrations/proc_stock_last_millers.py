@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow import macros
+from airflow.operators.dummy import DummyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
@@ -190,5 +191,16 @@ with DAG(
         wait_for_completion=False
     )
 
-    t0 >> t1 >> t3
-    t2 >> t3
+    t4 = TriggerDagRunOperator(
+        task_id="trigger_proc_rappi_stock_integration",
+        trigger_dag_id="proc_rappi_stock_integration",
+        wait_for_completion=False
+    )
+
+    td = DummyOperator(
+        task_id = "dummy_task"
+    )
+
+    t0 >> t1 >> td
+    t2 >> td
+    td >> [t3, t4]
