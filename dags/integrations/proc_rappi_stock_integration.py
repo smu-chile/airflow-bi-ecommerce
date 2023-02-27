@@ -111,7 +111,7 @@ def _send_joined_data_to_api(ds):
     import requests
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
+    prefix = f"integraciones/last_millers/stock/out/rappi/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -154,7 +154,6 @@ def _send_joined_data_to_api(ds):
             print(e)
             print("Error on response.")
             break
-
     return
 
 default_args = {
