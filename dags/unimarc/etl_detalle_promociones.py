@@ -17,7 +17,7 @@ with DAG(
     description="Carga de tabla detalle promociones",
     schedule_interval="0 10 * * *",
     start_date=datetime(2022, 12, 1),
-    catchup=False,
+    catchup=True,
     max_active_runs=1,
     tags=["detalle_promociones", "venta", "unimarc"],
 ) as dag:
