@@ -418,7 +418,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "Rappi", "API", "POST", "stock", "precios"],
+    tags=["OPS", "Rappi", "API", "POST", "delta", "stock", "precios"],
 ) as dag:
 
     dag.doc_md = """
@@ -427,8 +427,6 @@ with DAG(
     obtiene el stock y precios regulares desde ecommdata.stock y ecommdata.precios y se envían a un
     endpoint de Rappi mediante una POST request.\n
     Este proceso depende del DAG *etl_stock_incremental_load*.\n
-    El proceso cuenta con dos reglas de ejecución:\n
-    - Full load: la primera carga del día debe ser una carga completa por cada tienda activa.\n
     - Delta load: las cargas siguentes del día deben representar la variación de stock.
     """ 
 
