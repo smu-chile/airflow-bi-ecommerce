@@ -1,0 +1,43 @@
+from airflow import DAG
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+
+
+from datetime import datetime, timedelta
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+with DAG(
+    'etl_detalle_promociones',
+    default_args=default_args,
+    description="Carga de tabla detalle promociones",
+    schedule_interval="0 10 * * *",
+    start_date=datetime(2022, 12, 1),
+    catchup=False,
+    max_active_runs=1,
+    tags=["detalle_promociones", "venta", "unimarc"],
+) as dag:
+
+    dag.doc_md = """
+    Carga de tabla detalle promociones. Realizada a través de query de datos internos.
+    """ 
+    t0 = PostgresOperator(
+        task_id = "load_table_detalle_promociones",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/detalle_promociones.sql",
+    )
+
+    t1 = PostgresOperator(
+        task_id = "delete_old_data",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+            DELETE FROM ventas_unimarc.detalle_promociones
+            WHERE fecha_creacion < '{{ds}}'::date
+            """,
+    )
+
+    t0
