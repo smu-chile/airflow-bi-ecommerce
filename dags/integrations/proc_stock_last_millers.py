@@ -93,13 +93,13 @@ def _get_base_product_prices(ds):
 
     curr_working_directory = os.getcwd()
     print(os.getcwd())
-    with open(curr_working_directory+"/dags/integrations/sql/precios_modales.sql", "r") as query_file:
+    with open(curr_working_directory+"/dags/integrations/sql/precios_modales_no_ecommerce.sql", "r") as query_file:
         prices_query = query_file.read()
 
     exec_date = macros.ds_add(ds, 1)
     exec_date = exec_date.replace("-", "/")
 
-    file_name = f"integraciones/last_millers/stock/ecommdata/{exec_date}/precios_modales.csv"
+    file_name = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/precios_modales.csv"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -117,8 +117,11 @@ def _get_base_product_prices(ds):
     results = cursor.fetchall()
     cursor.close()
 
+    if len(results) == 0:
+        print("ERROR: No records found.")
+        raise Exception
+
     columns = [
-        "id_tienda",
         "ref_id",
         "material",
         "umv",
@@ -136,6 +139,73 @@ def _get_base_product_prices(ds):
                 bucket_name=s3_bucket,
                 replace=True,
                 encrypt=False)    
+
+    return
+
+def _get_ecommerce_prices_by_store(ds):
+    import io
+    import os
+    import pandas as pd
+
+    exec_date = macros.ds_add(ds, 1)
+    exec_date = exec_date.replace("-", "/")
+
+    active_stores_query = """
+        SELECT id
+        FROM ecommdata.tiendas
+        WHERE status = 1;
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+
+    cursor = pg_connection.cursor()
+    cursor.execute(active_stores_query)
+    results = cursor.fetchall()
+    cursor.close()
+
+    store_ids = [record[0] for record in results]
+
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
+    with open(curr_working_directory+"/dags/integrations/sql/precios_modales_ecommerce.sql", "r") as query_file:
+        prices_query = query_file.read()
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    for store_id in store_ids:
+        file_name = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/{store_id}.csv"
+        print(file_name)
+        store_prices_query = prices_query.replace('{store_id}', store_id)
+
+        cursor = pg_connection.cursor()
+        cursor.execute(store_prices_query)
+        results = cursor.fetchall()
+        cursor.close()
+
+        if len(results) == 0:
+            print("No records found. Skipping...")
+            continue
+
+        columns = [
+            "id_tienda",
+            "ref_id",
+            "material",
+            "umv",
+            "precio",
+        ]
+        df = pd.DataFrame(results, columns=columns)
+        print(f"Records found: {len(df.index)}")
+
+        buffer = io.StringIO()
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
+
+        s3_hook.load_string(buffer.getvalue(),
+                    key=file_name,
+                    bucket_name=s3_bucket,
+                    replace=True,
+                    encrypt=False)   
 
     return
 
@@ -162,7 +232,9 @@ with DAG(
     Extracción de stock, precios y precios promocionales simples para integraciones Last Millers. \n
     Se obtiene listado de tiendas activas en integraciones con Last Millers desde la tabla **integraciones.tiendas_last_millers**. \n
     Por cada tienda activa, se realiza una consulta al **data warehouse** para calcular stock y precios promocionales, mientras que 
-    en paralelo se calcula listado de precios modales a partir de stock de la tienda Mirador filtrado por el contenido de lista8. \n
+    en paralelo se calcula listado de precios modales. \n
+    **Cálculo de precios modales**: Para tiendas ecommerce se toman sus precios de la tabla **ecommdata.precios**, mientras que para el
+    resto de las tiendas (no-ecommerce) se usa el mayor valor de precio entre todas las tiendas ecommerce por cada producto. \n
     Todos los resultados son almacenados en S3 para posterior uso. \n
     Al finalizar, este DAG gatilla otros dos DAGs: [ **proc_integracion_stock_peya** , **proc_integracion_stock_rappi** ].
     """ 
@@ -185,13 +257,18 @@ with DAG(
         python_callable = _get_base_product_prices
     )
 
-    t3 = TriggerDagRunOperator(
+    t3 = PythonOperator(
+        task_id = "get_ecommerce_prices_by_store",
+        python_callable = _get_ecommerce_prices_by_store
+    )
+
+    t4 = TriggerDagRunOperator(
         task_id="trigger_peya_stock_integration",
         trigger_dag_id="proc_peya_stock_integration",
         wait_for_completion=False
     )
 
-    t4 = TriggerDagRunOperator(
+    t5 = TriggerDagRunOperator(
         task_id="trigger_proc_rappi_stock_integration",
         trigger_dag_id="proc_rappi_stock_integration",
         wait_for_completion=False
@@ -202,5 +279,5 @@ with DAG(
     )
 
     t0 >> t1 >> td
-    t2 >> td
-    td >> [t3, t4]
+    t2 >> t3 >> td
+    td >> [t4, t5]
