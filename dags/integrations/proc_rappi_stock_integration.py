@@ -34,26 +34,15 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    price_file_path = f"integraciones/last_millers/stock/ecommdata/{exec_date}/precios_modales.csv"
-    if not s3_hook.check_for_key(price_file_path, bucket_name=s3_bucket):
-        print(f"File {price_file_path} not found on bucket: {s3_bucket}")
-        raise Exception
-    
-    price_file = s3_hook.get_key(price_file_path, bucket_name=s3_bucket)
-
-    df_price = pd.read_csv(price_file.get()["Body"], dtype="object")
-    df_price = df_price[["ref_id", "precio"]]
-    print(f"Number of records found on price file: {len(df_price.index)}")
-
     stock_files_prefix = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/"
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=stock_files_prefix)
 
     print(f"Number of files found: {len(s3_file_list)}")
 
     for stock_file in s3_file_list:
-        print(stock_file)
         store_id = stock_file.split("/")[-1].replace(".csv", "")
         print(f"Store id: {store_id}")
+        print(f"Stock file: {stock_file}")
         if store_id not in rappi_store_ids:
             print("Store not active in RAPPI. Skipping...")
             continue
@@ -62,6 +51,22 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
+        
+        price_file_path = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/{store_id}.csv"
+        if not s3_hook.check_for_key(price_file_path, bucket_name=s3_bucket):
+            print(f"File {price_file_path} not found on bucket: {s3_bucket}. Using base prices file.")
+            price_file_path = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/precios_modales.csv"
+        if not s3_hook.check_for_key(price_file_path, bucket_name=s3_bucket):
+            print(f"ERROR: File {price_file_path} not found on bucket: {s3_bucket}.")
+            raise Exception
+        
+        print(f"Prices file: {price_file_path}")
+        price_file = s3_hook.get_key(price_file_path, bucket_name=s3_bucket)
+
+        df_price = pd.read_csv(price_file.get()["Body"], dtype="object")
+        df_price = df_price[["ref_id", "precio"]]
+        print(f"Number of records found on price file: {len(df_price.index)}")
+
         
         stock_file = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
         df_stock = pd.read_csv(stock_file.get()["Body"], dtype="object")
@@ -72,8 +77,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             continue
         df_stock["UNIDAD_DE_MEDIDA"] = df_stock["UNIDAD_DE_MEDIDA"].apply(lambda x: "UN" if x == "ST" else x)
         df_stock["ref_id"] = df_stock.apply(lambda x: x["MATERIAL"] + "-" + x["UNIDAD_DE_MEDIDA"], axis=1)
-        print(df_stock.columns)
-        print(df_stock.head(2))
 
         df_join = df_price.merge(df_stock, how="inner",on="ref_id")
         print(len(df_join.index))
@@ -95,8 +98,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         df_join["discount_price"] =  df_join["discount_price"].fillna(0).astype("float").astype("int")
         df_join["discount_price"] = df_join.apply(lambda x: x["price"] if x["discount_price"] == 0 else min(x["discount_price"], x["price"]), axis=1)
         df_join["is_available"] = True
-        print(df_join.columns)
-        print(df_join.head(2).to_records())
 
         dict_body = df_join.to_dict(orient="records")
         json_body = json.dumps(dict_body)
