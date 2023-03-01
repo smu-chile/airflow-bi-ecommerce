@@ -16,7 +16,7 @@ with DAG(
     'etl_detalle_promociones',
     default_args=default_args,
     description="Carga de tabla detalle promociones",
-    schedule_interval="0 10 * * *",
+    schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2022, 12, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
