@@ -36,5 +36,4 @@ SELECT oj.fecha_creacion,
      LEFT JOIN ecommdata.orden_productos op ON op.id_orden = oj.id
      LEFT JOIN ecommdata.categorias c ON op.ref_id_categoria = c.ref_id
      LEFT JOIN ecommdata.orden_producto_promociones opp ON op.id = opp.orden_producto
-  WHERE oj.fecha_creacion between '{{ts}}'::timestamp and '{{ts}}'::timestamp + '1 day'::interval;
-  
+  WHERE oj.fecha_creacion between '{{ts}}'::timestamptz and '{{ts}}'::timestamptz + '1 day'::interval;
