@@ -9,4 +9,4 @@ join ecommdata.tiendas t
 join ecommdata.lista8 l 
 	on l.material || '-' || l.umv = p.ref_id 
 	and l.id_tienda = t.id 
-where t.id in ('0581');
+where t.id in ('{store_id}');
