@@ -1,5 +1,6 @@
 from airflow import DAG
 from airflow.providers.postgres.operators.postgres import PostgresOperator
+import pendulum
 
 
 from datetime import datetime, timedelta
@@ -16,7 +17,7 @@ with DAG(
     default_args=default_args,
     description="Carga de tabla detalle promociones",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 12, 1),
+    start_date=pendulum.datetime(2022, 12, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
     tags=["detalle_promociones", "venta", "unimarc"],
