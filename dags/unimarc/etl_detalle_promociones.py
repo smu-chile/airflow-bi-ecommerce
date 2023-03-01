@@ -37,7 +37,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql="""
             DELETE FROM ventas_unimarc.detalle_promociones
-            WHERE fecha_creacion < '{{ds}}'::date
+            WHERE fecha_creacion < '{{ds}}'::date - interval '730 days'
             """,
     )
 
