@@ -32,6 +32,7 @@ def _get_stock_from_datawarehouse(ti, ds):
     import pandas as pd
 
     ids_tiendas = ti.xcom_pull(key="return_value", task_ids=["get_last_millers_stores"])[0]
+    ids_tiendas = [id[0] for id in ids_tiendas]
     
     curr_working_directory = os.getcwd()
     print(os.getcwd())
@@ -57,7 +58,8 @@ def _get_stock_from_datawarehouse(ti, ds):
     cur = conn.cursor()
 
     ids_tiendas_str = str(tuple(ids_tiendas))
-    stock_query = base_query.replace("{store_ids}", ids_tiendas_str).replace("{exec_date}", exec_date)
+    stock_query = base_query.replace("{store_ids}", ids_tiendas_str).replace("{exec_date}", exec_date.replace("/", "-"))
+    print(stock_query)
     
     file_name = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/stock_datawarehouse.csv"
 
