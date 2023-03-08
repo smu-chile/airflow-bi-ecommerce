@@ -1,0 +1,63 @@
+insert into integraciones.lm_stock_precio_promo 
+select _t.id_tienda,
+	_t.ean,
+	_t.material,
+	_t.unidad_de_medida,
+	_t.multiplicador_unidad,
+	_t.nombre,
+	_t.marca,
+	_t.stock_unitario,
+	_t2.precio,
+	_t3.precio_promocional
+from (
+	select s.sku_product as material 
+		, s.ou_id as id_tienda 
+		, s.nbr_itm as stock_unitario
+		, p.ean as ean 
+		, p.cont_conv_umb as multiplicador_unidad
+		, p.nm as nombre
+		, p.brand_desc as marca
+		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida   
+	from integraciones.stock s 
+	left join integraciones.productos p 
+		on p.sku_key = s.sku_key 
+	left join ecommdata.tiendas t 
+		on s.ou_id = t.id  
+	where p.ean is not null 
+	and p.cont_conv_umb is not null 
+	and p.nm is not null 
+	and p.brand_desc is not null 
+	and p.unidad_de_medida is not null) _t
+join (
+	select t.id as id_tienda
+		, p.ref_id
+		, split_part(p.ref_id, '-', 1) as material 
+		, split_part(p.ref_id, '-', 2) as umv
+		, p.precio
+	from ecommdata.precios p 
+	join ecommdata.tiendas t 
+		on p.id_tienda_janis = t.id_janis 
+	join ecommdata.lista8 l 
+		on l.material || '-' || l.umv = p.ref_id 
+		and l.id_tienda = t.id 
+	where p.fecha_carga = '{{ds}}'
+) _t2
+on _t.material = _t2.material 
+and _t.unidad_de_medida = _t2.umv
+and _t.id_tienda = _t2.id_tienda
+left join (
+	select ean
+            , min(precio_promocional) AS precio_promocional 
+    from ecommdata.workflow_promociones wp 
+    where wp.fecha_inicio_de_promocion <= '{{ds}}'
+    and wp.fecha_fin_de_promocion >= '{{ds}}'
+    and wp.tipo_promocion IN (1,4)
+    and wp.registro_valido = True
+    and wp.organizacion_ventas = '1000'
+    and wp.canal_distribucion = '10'
+    and wp.id_mecanica not in (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99)
+    group by wp.ean
+) _t3
+on _t.ean = _t3.ean
+where floor(_t.stock_unitario/_t.multiplicador_unidad) > 0
+;
