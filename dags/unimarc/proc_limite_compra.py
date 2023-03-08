@@ -26,7 +26,7 @@ def db_get_ref_id_atributos_producto():
         full outer join ecommdata.productos pro
             on pro.id = att.id_producto_janis
         where att.id_atributo = 2847610
-            and (att.valor not in ('12','11','10','9','8','7','6','5','4','3','2','1','12.0','17','1.0') or att.valor is null);
+            and (att.valor not in ('12','11','10','9','8','7','6','5','4','3','2','1','12.0','17','1.0', '24', '24.0') or att.valor is null);
         """
 
     mycursor.execute(query)
