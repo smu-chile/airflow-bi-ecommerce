@@ -18,7 +18,7 @@ def conn_ecommdata():
     return mycursor
 
 
-def get_sustitutos_and_not_sustitutos(ti):
+def get_sustitutos_and_not_sustitutos():
     import pandas as pd
     query_lista_sustitutos = """
         select
@@ -82,8 +82,7 @@ def get_sustitutos_and_not_sustitutos(ti):
     columns = [i[0] for i in mycursor.description]
     df = pd.DataFrame(results, columns=columns)
     mycursor.close()
-    ti.xcom_push(key = 'df', value = df)
-    return df
+    return df[['ref_id', 'sustituto_total', 'id_category']].to_json(orient='records')
 
 
 '''
@@ -93,38 +92,46 @@ respecto a atributos_producto.id_categoria, si son diferentes entonces se hace u
 del id_categoria a 'atributos_producto'. No considerar categorias "NO TRABAJAR",
 "INACTIVO", o con att.id_categoria = 'sustituto'.
 '''
-def check_if_update_att_category(df):
+def check_if_update_att_category(ti):
     import pandas as pd
     # CARGA DE INFORMACIÓN PARA ROLLBACK de Productos que entran a productos.categoria:sustituto
     # Checkear si hubo cambio de categoría en el producto
+    json_categories = ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos")[0]
+    df = pd.read_json(json_categories, orient='index')
     list_refid_to_change = list(df[df['sustituto_total' == True]]['ref_id'])
-    print("Actualizando att.id_categoria para aquellos productos que cambiarán de PRO.CAT.ID_CATEGORIA --> PRO.CAT.SUSTITUTOS")
-    list_refid_to_change = str(list_refid_to_change)[1:-1]
-    query_check = f"""
-        select pro.ref_id, pro.vtex_id, pro.id_categoria
-        from ecommdata.atributos_producto att
-        inner join ecommdata.productos pro on pro.id = att.id_producto_janis
-        where att.id_atributo = '11682839'
-        and	(pro.id_categoria != 10531456 -- No trabajar
-            or pro.id_categoria  != 11599085  -- Inactivo+
-            or pro.id_categoria != 48312581 )  -- no debiera tener efecto alguno
-        and pro.ref_id IN ({list_refid_to_change})
-        and split_part(att.valor,'.', 1)::INTEGER != pro.id_categoria
-        and split_part(att.valor,'.', 1)::INTEGER != 48312581;
-    """
-    columns_name = ['ref_id', 'vtex_id', 'id_categoria']
-    print(f"Iniciando obtencion de tabla...")
-    mycursor = conn_ecommdata()
-    mycursor.execute(query_check)
-    results = mycursor.fetchall()
-    columns = [i[0] for i in mycursor.description]
-    df = pd.DataFrame(results, columns=columns)
-    mycursor.close()
-    return df
+    if len(list_refid_to_change) == 0:
+        print("De los productos que entran a Categoria Sustitutos, todos mantienen su valor respecto a atributos_productos")
+        return
+    else:
+        print("Actualizando att.id_categoria para aquellos productos que cambiarán de PRO.CAT.ID_CATEGORIA --> PRO.CAT.SUSTITUTOS")
+        list_refid_to_change = tuple(list_refid_to_change)
+        query_check = f"""
+            select pro.ref_id, pro.vtex_id, pro.id_categoria
+            from ecommdata.atributos_producto att
+            inner join ecommdata.productos pro on pro.id = att.id_producto_janis
+            where att.id_atributo = '11682839'
+            and	(pro.id_categoria != 10531456 -- No trabajar
+                or pro.id_categoria  != 11599085  -- Inactivo+
+                or pro.id_categoria != 48312581 )  -- no debiera tener efecto alguno
+            and pro.ref_id IN {list_refid_to_change}
+            and split_part(att.valor,'.', 1)::INTEGER != pro.id_categoria
+            and split_part(att.valor,'.', 1)::INTEGER != 48312581;
+        """
+        print(f"Iniciando obtencion de tabla...")
+        mycursor = conn_ecommdata()
+        mycursor.execute(query_check)
+        results = mycursor.fetchall()
+        columns = [i[0] for i in mycursor.description]
+        df = pd.DataFrame(results, columns=columns)
+        mycursor.close()
+        return df.to_json(orient='records')
 
 
 def create_payload_set_att_categoria(ti, df):
     import json
+    import pandas as pd
+    df_json = ti.xcom_pull(task_ids="check_if_update_att_category")[0]
+    df = pd.read_json(df_json, orient='index')
 
     # Creación de big-json
     json_list = []
@@ -234,7 +241,6 @@ with DAG(
     t1 = PythonOperator(
         task_id='check_if_update_att_category',
         python_callable=check_if_update_att_category,
-        op_kwargs = {'df': '{{ ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos") }}'}
     )
 
     t2 = PythonOperator(
