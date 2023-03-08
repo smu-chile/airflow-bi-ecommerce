@@ -1,4 +1,5 @@
 from airflow import DAG
+from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
@@ -29,77 +30,61 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     rappi_store_ids = [rappi_store_id[0] for rappi_store_id in rappi_stores]
     print(rappi_store_ids)
 
-    exec_date = ds.replace("-", "/")
+    exec_date = macros.ds_add(ds, 1).replace("-", "/")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    stock_files_prefix = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/"
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=stock_files_prefix)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
 
-    print(f"Number of files found: {len(s3_file_list)}")
-
-    for stock_file in s3_file_list:
-        store_id = stock_file.split("/")[-1].replace(".csv", "")
-        print(f"Store id: {store_id}")
-        print(f"Stock file: {stock_file}")
-        if store_id not in rappi_store_ids:
-            print("Store not active in RAPPI. Skipping...")
-            continue
-
+    for store_id in rappi_store_ids:
+        
         join_file_name = f"integraciones/last_millers/stock/out/rappi/{exec_date}/{store_id}.json"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
-        
-        price_file_path = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/{store_id}.csv"
-        if not s3_hook.check_for_key(price_file_path, bucket_name=s3_bucket):
-            print(f"File {price_file_path} not found on bucket: {s3_bucket}. Using base prices file.")
-            price_file_path = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/precios_modales.csv"
-        if not s3_hook.check_for_key(price_file_path, bucket_name=s3_bucket):
-            print(f"ERROR: File {price_file_path} not found on bucket: {s3_bucket}.")
-            raise Exception
-        
-        print(f"Prices file: {price_file_path}")
-        price_file = s3_hook.get_key(price_file_path, bucket_name=s3_bucket)
 
-        df_price = pd.read_csv(price_file.get()["Body"], dtype="object")
-        df_price = df_price[["ref_id", "precio"]]
-        print(f"Number of records found on price file: {len(df_price.index)}")
+        peya_stock_query = f"""
+            select lspp.id_tienda as store_id
+                , case 
+                    when (lspp.multiplicador_unidad > 1 and lspp.unidad_de_medida not IN ('KG', 'KGV')) then (lspp.material::int)::varchar || '_' || lspp.multiplicador_unidad
+                    else (lspp.material::int)::varchar 
+                end as id
+                , case 
+                    when lspp.unidad_de_medida IN ('KG', 'KGV') then lspp.stock_unitario
+                    else (lspp.stock_unitario/lspp.multiplicador_unidad)::int
+                  end as stock
+                , lspp.nombre as "name"
+                , lspp.ean as ean 
+                , lspp.precio as price 
+                , least(lspp.precio_promocional, lspp.precio) as discount_price
+                , lspp.marca as trademark 
+                , case 
+                    when lspp.unidad_de_medida in ('KG', 'KGV') then 'WW'
+                    else 'U'
+                end as sale_type
+            from integraciones.lm_stock_precio_promo lspp
+            where lspp.id_tienda = '{store_id}';
+        ;
+        """
 
-        
-        stock_file = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
-        df_stock = pd.read_csv(stock_file.get()["Body"], dtype="object")
+        cursor.execute(peya_stock_query)
+        results = cursor.fetchall()
+        columns = [i[0] for i in cursor.description]
 
-        print(f"Number of records found: {len(df_stock.index)}")
-        if len(df_stock.index) == 0:
-            print(f"No records found. Skipping...")
+        if len(results) == 0:
+            print(f"No records found for Store Id: {store_id}. Skipping...")
             continue
-        df_stock["UNIDAD_DE_MEDIDA"] = df_stock["UNIDAD_DE_MEDIDA"].apply(lambda x: "UN" if x == "ST" else x)
-        df_stock["ref_id"] = df_stock.apply(lambda x: x["MATERIAL"] + "-" + x["UNIDAD_DE_MEDIDA"], axis=1)
 
-        df_join = df_price.merge(df_stock, how="inner",on="ref_id")
-        print(len(df_join.index))
-        df_join = df_join[[
-            "STORE_ID",
-            "ID",
-            "STOCK",
-            "NAME",
-            "EAN",
-            "precio",
-            "DISCOUNT_PRICE",
-            "TRADEMARK",
-            "SALE_TYPE"
-        ]]
-        df_join = df_join.rename(columns={"precio": "price"})
-        df_join.columns = map(str.lower, df_join.columns)
-        df_join["price"] = df_join["price"].astype("int")
-        df_join["stock"] = df_join["stock"].astype("int")
-        df_join["discount_price"] =  df_join["discount_price"].fillna(0).astype("float").astype("int")
-        df_join["discount_price"] = df_join.apply(lambda x: x["price"] if x["discount_price"] == 0 else min(x["discount_price"], x["price"]), axis=1)
-        df_join["is_available"] = True
+        df = pd.DataFrame(results, columns=columns)
+        print(f"Number of records found on stock: {len(df.index)}")
 
-        dict_body = df_join.to_dict(orient="records")
+        df.columns = map(str.lower, df.columns)
+        df["is_available"] = True
+
+        dict_body = df.to_dict(orient="records")
         json_body = json.dumps(dict_body)
 
         s3_hook.load_string(json_body,
@@ -108,13 +93,15 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     replace=True,
                     encrypt=False)
 
+    cursor.close()
+    pg_connection.close()
     return
 
 def _send_joined_data_to_api(ds):
     import json
     import requests
 
-    exec_date = ds.replace("-", "/")
+    exec_date = macros.ds_add(ds, 1).replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/rappi/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
