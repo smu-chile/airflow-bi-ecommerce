@@ -1,4 +1,5 @@
 from airflow import DAG
+from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
@@ -25,70 +26,52 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     import io
     import pandas as pd
 
+    exec_date = macros.ds_add(ds, 1).replace("-", "/")
+
     peya_stores = ti.xcom_pull(key="return_value", task_ids=["get_peya_active_stores"])[0]
     peya_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_stores])
     print(peya_store_ids)
 
-    exec_date = ds.replace("-", "/")
-
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    stock_files_prefix = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/"
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=stock_files_prefix)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
 
-    print(f"Number of files found: {len(s3_file_list)}")
-
-    for stock_file in s3_file_list:
-        store_id = stock_file.split("/")[-1].replace(".csv", "")
-        print(f"Store id: {store_id}")
-        print(f"Stock file: {stock_file}")
-        if store_id not in peya_store_ids.keys():
-            print("Store not active in PEYA. Skipping...")
-            continue
-
+    for store_id in peya_store_ids.keys():
         print(f"PEYA id: {peya_store_ids[store_id]}")
         join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
 
-        price_file_path = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/{store_id}.csv"
-        if not s3_hook.check_for_key(price_file_path, bucket_name=s3_bucket):
-            print(f"File {price_file_path} not found on bucket: {s3_bucket}. Using base prices file.")
-            price_file_path = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/precios_modales.csv"
-        if not s3_hook.check_for_key(price_file_path, bucket_name=s3_bucket):
-            print(f"ERROR: File {price_file_path} not found on bucket: {s3_bucket}.")
-            raise Exception
-        
-        print(f"Prices file: {price_file_path}")
-        price_file = s3_hook.get_key(price_file_path, bucket_name=s3_bucket)
+        peya_stock_query = f"""
+        select lspp.ean as ean
+            , least(lspp.precio, lspp.precio_promocional) as precio
+            , case when (lspp.stock_unitario/lspp.multiplicador_unidad) >= 15 then 1 else 0 end as stock 
+        from integraciones.lm_stock_precio_promo lspp 
+        join integraciones.tiendas_last_millers tlm 
+            on lspp.id_tienda = tlm.id 
+        where lspp.id_tienda = '{store_id}'
+        ;
+        """
 
-        df_price = pd.read_csv(price_file.get()["Body"], dtype="object")
-        df_price = df_price[["ref_id", "precio"]]
-        print(f"Number of records found on price file: {len(df_price.index)}")
+        cursor.execute(peya_stock_query)
+        results = cursor.fetchall()
+        columns = [i[0] for i in cursor.description]
 
-        stock_file = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
-        df_stock = pd.read_csv(stock_file.get()["Body"], dtype="object")
+        if len(results) == 0:
+            print(f"No records found for Store Id: {store_id}")
+            continue
 
-        print(f"Number of records found: {len(df_stock.index)}")
-        df_stock["UNIDAD_DE_MEDIDA"] = df_stock["UNIDAD_DE_MEDIDA"].apply(lambda x: "UN" if x == "ST" else x)
-        df_stock["ref_id"] = df_stock.apply(lambda x: x["MATERIAL"] + "-" + x["UNIDAD_DE_MEDIDA"], axis=1)
-        df_stock = df_stock[["EAN", "STOCK", "DISCOUNT_PRICE", "ref_id"]]
+        df = pd.DataFrame(results, columns=columns)
+        print(f"Number of records found on stock: {len(df.index)}")
 
-        df_join = df_price.merge(df_stock, how="inner",on="ref_id")
-        df_join["DISCOUNT_PRICE"] = df_join["DISCOUNT_PRICE"].fillna(0).astype("float").astype("int")
-        df_join["precio"] = df_join["precio"].astype("int")
-        df_join["STOCK"] = df_join["STOCK"].astype("int")
-        df_join["STOCK"] = df_join["STOCK"].apply(lambda x: 1 if x >= 15 else 0)
-        df_join["PRECIO"] = df_join.apply(lambda x: x["precio"] if x["DISCOUNT_PRICE"] == 0 else min(x["DISCOUNT_PRICE"], x["precio"]), axis=1)
-        df_join = df_join.rename(columns={"EAN": "SKU"})
-        df_join = df_join[["SKU", "PRECIO", "STOCK"]]
-        
-        print(len(df_join.index))
+        df.columns = map(str.upper, df.columns)
 
         buffer = io.StringIO()
-        df_join.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
 
         s3_hook.load_string(buffer.getvalue(),
@@ -97,6 +80,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     replace=True,
                     encrypt=False)
 
+    cursor.close()
+    pg_connection.close()
     return
 
 def _send_joined_data_to_stfp(ds):
@@ -111,7 +96,7 @@ def _send_joined_data_to_stfp(ds):
     with open("temp_peya_sftp_rsa_key", "w") as key_file:
         key_file.write(ftp_rsa_key)
 
-    exec_date = ds.replace("-", "/")
+    exec_date = macros.ds_add(ds, 1).replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
