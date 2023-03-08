@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.operators.dummy import DummyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
@@ -24,7 +25,7 @@ def _get_last_millers_stores():
     pg_connection.close()
     return results
 
-def _get_stock_and_promo_prices_from_datawarehouse(ds, ti):
+def _get_stock_from_datawarehouse(ti, ds):
     import io
     import jaydebeapi
     import os
@@ -34,7 +35,7 @@ def _get_stock_and_promo_prices_from_datawarehouse(ds, ti):
     
     curr_working_directory = os.getcwd()
     print(os.getcwd())
-    with open(curr_working_directory+"/dags/integrations/sql/stock_precio_promo.sql", "r") as query_file:
+    with open(curr_working_directory+"/dags/integrations/sql/stock_datawarehouse.sql", "r") as query_file:
         base_query = query_file.read()
 
     exec_date = macros.ds_add(ds, 1)
@@ -55,78 +56,18 @@ def _get_stock_and_promo_prices_from_datawarehouse(ds, ti):
     conn = jaydebeapi.connect(jdbc_driver_name, connection_string, {'user': dsn_uid, 'password': dsn_pwd},jars=jdbc_driver_loc)
     cur = conn.cursor()
 
-    for tienda in ids_tiendas:
-        id_tienda = tienda[0]
-        tienda_query = base_query.replace("{store_id}", id_tienda)
-        
-        file_name = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/{id_tienda}.csv"
+    ids_tiendas_str = str(tuple(ids_tiendas))
+    stock_query = base_query.replace("{store_ids}", ids_tiendas_str).replace("{exec_date}", exec_date)
+    
+    file_name = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/stock_datawarehouse.csv"
 
-        # Check if file is already loaded
-        if s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-            print(f"File {file_name} already exists on S3 bucket. Skipping...")
-            continue
-
-        print("Ejecutando tienda:" + id_tienda)
-
-        cur.execute(tienda_query)
-        results = cur.fetchall()
-        columns = [i[0] for i in cur.description]
-        df = pd.DataFrame(results, columns=columns)
-        print(f"Records found: {len(df.index)}")
-
-        buffer = io.StringIO()
-        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-        buffer.seek(0)
-
-        s3_hook.load_string(buffer.getvalue(),
-                    key=file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-
-    return
-
-def _get_base_product_prices(ds):
-    import io
-    import os
-    import pandas as pd
-
-    curr_working_directory = os.getcwd()
-    print(os.getcwd())
-    with open(curr_working_directory+"/dags/integrations/sql/precios_modales_no_ecommerce.sql", "r") as query_file:
-        prices_query = query_file.read()
-
-    exec_date = macros.ds_add(ds, 1)
-    exec_date = exec_date.replace("-", "/")
-
-    file_name = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/precios_modales.csv"
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    # Check if file is already loaded
     if s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
         print(f"File {file_name} already exists on S3 bucket. Skipping...")
-        return
+        return file_name
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-
-    cursor = pg_connection.cursor()
-    cursor.execute(prices_query)
-    results = cursor.fetchall()
-    cursor.close()
-
-    if len(results) == 0:
-        print("ERROR: No records found.")
-        raise Exception
-
-    columns = [
-        "ref_id",
-        "material",
-        "umv",
-        "precio",
-    ]
+    cur.execute(stock_query)
+    results = cur.fetchall()
+    columns = [i[0] for i in cur.description]
     df = pd.DataFrame(results, columns=columns)
     print(f"Records found: {len(df.index)}")
 
@@ -138,74 +79,136 @@ def _get_base_product_prices(ds):
                 key=file_name,
                 bucket_name=s3_bucket,
                 replace=True,
-                encrypt=False)    
+                encrypt=False)
 
-    return
+    return file_name
 
-def _get_ecommerce_prices_by_store(ds):
-    import io
-    import os
+def _load_stock_to_postgres(ti):
     import pandas as pd
+    from sqlalchemy import create_engine
 
-    exec_date = macros.ds_add(ds, 1)
-    exec_date = exec_date.replace("-", "/")
-
-    active_stores_query = """
-        SELECT id
-        FROM ecommdata.tiendas
-        WHERE status = 1;
-    """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-
-    cursor = pg_connection.cursor()
-    cursor.execute(active_stores_query)
-    results = cursor.fetchall()
-    cursor.close()
-
-    store_ids = [record[0] for record in results]
-
-    curr_working_directory = os.getcwd()
-    print(os.getcwd())
-    with open(curr_working_directory+"/dags/integrations/sql/precios_modales_ecommerce.sql", "r") as query_file:
-        prices_query = query_file.read()
+    file_name = ti.xcom_pull(key="return_value", task_ids="get_stock_from_datawarehouse")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    for store_id in store_ids:
-        file_name = f"integraciones/last_millers/stock/ecommdata/precios/{exec_date}/{store_id}.csv"
-        print(file_name)
-        store_prices_query = prices_query.replace('{store_id}', store_id)
+    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        print(f"ERROR: File {file_name} not found on S# bucket: {s3_bucket}")
+        return
+    
+    stock_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
+    df = pd.read_csv(stock_object.get()["Body"], dtype="object")
+    df.columns = map(str.lower, df.columns)
+    print(f"Number of records found: {len(df.index)}")
 
-        cursor = pg_connection.cursor()
-        cursor.execute(store_prices_query)
-        results = cursor.fetchall()
-        cursor.close()
+    print(df.isna().sum())
 
-        if len(results) == 0:
-            print("No records found. Skipping...")
-            continue
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = create_engine(conn_url)
 
-        columns = [
-            "id_tienda",
-            "ref_id",
-            "material",
-            "umv",
-            "precio",
-        ]
-        df = pd.DataFrame(results, columns=columns)
-        print(f"Records found: {len(df.index)}")
+    # Save to PostgreSQL:
+    df.to_sql(name="stock",
+                con=engine,         
+                schema="integraciones",
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+    return
 
-        buffer = io.StringIO()
-        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-        buffer.seek(0)
+def _get_products_from_datawarehouse(ds):
+    import io
+    import jaydebeapi
+    import os
+    import pandas as pd
 
-        s3_hook.load_string(buffer.getvalue(),
-                    key=file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)   
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
+    with open(curr_working_directory+"/dags/integrations/sql/productos.sql", "r") as query_file:
+        products_query = query_file.read()
+
+    exec_date = macros.ds_add(ds, 1)
+    exec_date = exec_date.replace("-", "/")
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    dsn_database = Variable.get("DW_SECRET_DATABASE") 
+    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
+    dsn_port = "5480" 
+    dsn_uid = Variable.get("DW_SECRET_USER")
+    dsn_pwd = Variable.get("DW_PASSWORD")
+    jdbc_driver_name = "org.netezza.Driver" 
+    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+
+    connection_string = 'jdbc:netezza://' + dsn_hostname + ':' + dsn_port + '/' + dsn_database
+    conn = jaydebeapi.connect(jdbc_driver_name, connection_string, {'user': dsn_uid, 'password': dsn_pwd},jars=jdbc_driver_loc)
+    cur = conn.cursor()
+
+    file_name = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/productos.csv"
+
+    if s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        print(f"File {file_name} already exists on S3 bucket. Skipping...")
+        return file_name
+
+    cur.execute(products_query)
+    results = cur.fetchall()
+    columns = [i[0] for i in cur.description]
+    df = pd.DataFrame(results, columns=columns)
+    print(f"Records found: {len(df.index)}")
+
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    s3_hook.load_string(buffer.getvalue(),
+                key=file_name,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+
+    return file_name
+
+def _load_products_to_postgres(ti):
+    import pandas as pd
+    from sqlalchemy import create_engine
+
+    file_name = ti.xcom_pull(key="return_value", task_ids="get_products_from_datawarehouse")
+    print(file_name)
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        print(f"ERROR: File {file_name} not found on S# bucket: {s3_bucket}")
+        return
+    
+    products_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
+    df = pd.read_csv(products_object.get()["Body"], dtype="object")
+    df.columns = map(str.lower, df.columns)
+    print(f"Number of records found: {len(df.index)}")
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = create_engine(conn_url)
+
+    # Save to PostgreSQL:
+    df.to_sql(name="productos",
+                con=engine,         
+                schema="integraciones",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
 
     return
 
@@ -239,45 +242,104 @@ with DAG(
     Al finalizar, este DAG gatilla otros dos DAGs: [ **proc_integracion_stock_peya** , **proc_integracion_stock_rappi** ].
     """ 
 
+    # Last millers stores
     t0 = PythonOperator(
         task_id = "get_last_millers_stores",
         python_callable = _get_last_millers_stores
     )
 
+    # Productos
     t1 = PythonOperator(
-        task_id = "get_stock_and_promo_prices_from_datawarehouse",
-        python_callable = _get_stock_and_promo_prices_from_datawarehouse,
-        execution_timeout = timedelta(minutes=30),
-        retries = 3,
-        retry_delay = timedelta(minutes=5)
+        task_id = "get_products_from_datawarehouse",
+        python_callable = _get_products_from_datawarehouse
     )
 
-    t2 = PythonOperator(
-        task_id = "get_base_product_prices",
-        python_callable = _get_base_product_prices
+    t2 = PostgresOperator(
+        task_id = "truncate_integraciones_productos_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE integraciones.productos;
+        """,
     )
 
     t3 = PythonOperator(
-        task_id = "get_ecommerce_prices_by_store",
-        python_callable = _get_ecommerce_prices_by_store
+        task_id = "load_products_to_postgres",
+        python_callable = _load_products_to_postgres
     )
 
-    t4 = TriggerDagRunOperator(
-        task_id="trigger_peya_stock_integration",
-        trigger_dag_id="proc_peya_stock_integration",
-        wait_for_completion=False
+    # Stock
+    t4 = PythonOperator(
+        task_id = "get_stock_from_datawarehouse",
+        python_callable = _get_stock_from_datawarehouse
     )
 
-    t5 = TriggerDagRunOperator(
-        task_id="trigger_proc_rappi_stock_integration",
-        trigger_dag_id="proc_rappi_stock_integration",
-        wait_for_completion=False
+    t5 = DummyOperator(
+        task_id = "datawarehouse_error_side_path",
+        trigger_rule = "one_failed"
+    )
+
+    t6 = PostgresOperator(
+        task_id = "truncate_integraciones_stock_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE integraciones.stock;
+        """
+    )
+
+    t7 = PythonOperator(
+        task_id = "load_stock_to_postgres",
+        python_callable = _load_stock_to_postgres
+    )
+
+    t8 = DummyOperator(
+        task_id = "join_paths",
+        trigger_rule = "one_success"
+    )
+
+    # Calculate joined table
+    t9 = PostgresOperator(
+        task_id = "truncate_stock_prices_promos",
+        postgres_conn_id = "postgresql_conn",
+        sql="""
+        TRUNCATE integraciones.lm_stock_precio_promo;
+        """
+    )
+
+    t10 = PostgresOperator(
+        task_id = "calculate_stock_prices_promos",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/insert_stock_prices_promos.sql"
+    )
+
+    t11 = PostgresOperator(
+        task_id = "calculate_stock_prices_promos_no_ecommerce",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/insert_stock_prices_promos_no_ecommerce.sql"
     )
 
     td = DummyOperator(
         task_id = "dummy_task"
     )
 
-    t0 >> t1 >> td
-    t2 >> t3 >> td
-    td >> [t4, t5]
+    # Trigger last miller's DAGs
+    t12 = TriggerDagRunOperator(
+        task_id="trigger_peya_stock_integration",
+        trigger_dag_id="proc_peya_stock_integration",
+        wait_for_completion=False
+    )
+
+    t13 = TriggerDagRunOperator(
+        task_id="trigger_proc_rappi_stock_integration",
+        trigger_dag_id="proc_rappi_stock_integration",
+        wait_for_completion=False
+    )
+
+    t0 >> [t1, t4]
+    t1 >> t2 >> t3
+    t4 >> [t5, t6] 
+    t6 >> t7 >> t8
+    t5 >> t8
+    t3 >> td
+    t8 >> td
+    td >> t9 >> t10 >> t11
+    t11 >> [t12, t13]
