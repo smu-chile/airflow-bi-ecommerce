@@ -4,22 +4,14 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 
 from datetime import datetime, timedelta
-
+import pendulum
 
 def db_get_ref_id_atributos_producto():
     import pandas as pd
-    import psycopg2
 
-    # Los registros obtengo los id_producto_janis de la tabla atributos_producto cuyo limite de compra (2847610) es NULL
     print(f"Iniciando obtencion de datos con limite de compra ...")
     print("Estableciendo conección con postgres db")
-    conn = psycopg2.connect(
-        host=Variable.get("POSTGRESQL_HOST"),
-        user=Variable.get("POSTGRESQL_USER"),
-        password=Variable.get("POSTGRESQL_PASSWORD"),
-        database=Variable.get("POSTGRESQL_DB")
-    )
-    mycursor = conn.cursor()
+
     query = """
         select pro.nombre, pro.ref_id, pro.vtex_id, att.valor
         from ecommdata.atributos_producto att
@@ -28,12 +20,18 @@ def db_get_ref_id_atributos_producto():
         where att.id_atributo = 2847610
             and (att.valor not in ('12','11','10','9','8','7','6','5','4','3','2','1','12.0','17','1.0', '24', '24.0') or att.valor is null);
         """
-
-    mycursor.execute(query)
-    results = mycursor.fetchall()
-    columns_name = [i[0] for i in mycursor.description]
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    results = cursor.fetchall()
+    columns_name = [i[0] for i in cursor.description]
+    cursor.close()
+    pg_connection.close()
+    print("Productos con valor sin Limite de Compra obtenidos")
     DF_atributos_producto_null = pd.DataFrame(results, columns=columns_name)
-    return list(DF_atributos_producto_null['ref_id'])
+    return DF_atributos_producto_null['ref_id'].to_list()
 
 
 def set_lim_compra(ti):
@@ -56,10 +54,16 @@ def set_lim_compra(ti):
     # Creación de big-json
     jst = []
     for x in lista_ref_id:
-        item = {"item_id": str(x), "attributes": [
-            {"id": "409", "values": ["12"]}]}
+        item = {
+            "item_id": str(x),
+            "attributes": [
+                {
+                    "id": "409",
+                    "values": ["12"]
+                }
+            ]
+        }
         jst.append(item)
-    jst = json.dumps(jst)
 
     # Partición de big-json
     lim_json = 500
@@ -67,6 +71,8 @@ def set_lim_compra(ti):
         jst = [json.dumps(jst[i:i+lim_json], indent=2)
                for i in range(0, len(jst), lim_json)]
         total_size = sum(len(lista) for lista in jst)
+    else:
+        total_size = len(jst)
 
     # Datos de conexión
     session = requests.Session()
@@ -81,11 +87,14 @@ def set_lim_compra(ti):
         r = requests.post(f'{API_JANIS}attribute_value', data=jsonString)
         r_status.add(str(r.status_code))
         cargado = cargado + (len(jsonString))
-        print(
-            f"Productos actualizados: {cargado} de {total_size} | Status_Code: {r.content}")
-        print(f"carga finalizada con resultados: {r_status}")
-
-    return r_status
+        
+        if r.status_code == 200:
+            print(f"Productos actualizados: {cargado} de {total_size} con EXITO")
+        else:
+            print(f"Carga sin éxito | Status_Code: {r.status_code} ")
+            print(f"Response Print: {r.content}")
+    print("La carga de límites a finalizado")          
+    return 
 
 
 default_args = {
@@ -101,7 +110,7 @@ with DAG(
     default_args=default_args,
     description="Obtención de productos que entran y sale de la categoría Sustitutos",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2023, 3, 8),
+    start_date=pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     tags=["limite_compra", "ecommdata_unimarc", "atributos_producto"],
