@@ -49,7 +49,10 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         peya_stock_query = f"""
         select lspp.ean as ean
             , least(lspp.precio, lspp.precio_promocional) as precio
-            , case when (lspp.stock_unitario/lspp.multiplicador_unidad) >= 15 then 1 else 0 end as stock 
+            , case when (lspp.unidad_de_medida not IN ('KG', 'KGV') and (lspp.stock_unitario/lspp.multiplicador_unidad) >= 15) then 1 
+                   when (lspp.unidad_de_medida IN ('KG', 'KGV') and lspp.stock_unitario >= 15) then 1
+                   else 0 
+              end as stock 
         from integraciones.lm_stock_precio_promo lspp 
         join integraciones.tiendas_last_millers tlm 
             on lspp.id_tienda = tlm.id 

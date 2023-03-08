@@ -49,10 +49,13 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         peya_stock_query = f"""
             select lspp.id_tienda as store_id
                 , case 
-                    when lspp.multiplicador_unidad > 1 then (lspp.material::int)::varchar || '_' || lspp.multiplicador_unidad 
+                    when (lspp.multiplicador_unidad > 1 and lspp.unidad_de_medida not IN ('KG', 'KGV')) then (lspp.material::int)::varchar || '_' || lspp.multiplicador_unidad
                     else (lspp.material::int)::varchar 
                 end as id
-                , (lspp.stock_unitario/lspp.multiplicador_unidad)::int as stock
+                , case 
+                    when lspp.unidad_de_medida IN ('KG', 'KGV') then lspp.stock_unitario
+                    else (lspp.stock_unitario/lspp.multiplicador_unidad)::int
+                  end as stock
                 , lspp.nombre as "name"
                 , lspp.ean as ean 
                 , lspp.precio as price 
