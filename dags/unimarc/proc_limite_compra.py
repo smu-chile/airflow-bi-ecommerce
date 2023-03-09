@@ -67,19 +67,18 @@ def set_lim_compra(ti):
 
     # Partición de big-json
     lim_json = 500
-    total_size = len(list(jst))
-    if total_size > 500:
-        jst = [json.dumps(jst[i:i+lim_json], indent=2)
-               for i in range(0, len(jst), lim_json)]
-  
+    total_size = len(jst)
+    if total_size > lim_json:
+        jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
+    else:
+        jst = [jst]
 
     # Seteo vía API al atriubuto limite de compra de la lista de refid
     API_JANIS = Variable.get("JANIS_API_URL")
     cargando = 0
-    for i, jsonString in enumerate(jst, start=1):
-        json_loads = json.loads(jsonString)
-        r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json=json_loads)
-        cargando += len(list(jsonString))
+    for arr_dic in jst:
+        r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json=arr_dic)
+        cargando += len(arr_dic )
         if r.status_code == 200:
             print(f"Productos actualizados: {cargando} de {total_size} con EXITO")
         else:
