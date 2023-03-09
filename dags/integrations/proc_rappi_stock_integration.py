@@ -30,7 +30,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     rappi_store_ids = [rappi_store_id[0] for rappi_store_id in rappi_stores]
     print(rappi_store_ids)
 
-    exec_date = macros.ds_add(ds, 1).replace("-", "/")
+    exec_date = ds.replace("-", "/")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -40,6 +40,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     cursor = pg_connection.cursor()
 
     for store_id in rappi_store_ids:
+        print(f"Store id: {store_id}")
         
         join_file_name = f"integraciones/last_millers/stock/out/rappi/{exec_date}/{store_id}.json"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
@@ -101,7 +102,7 @@ def _send_joined_data_to_api(ds):
     import json
     import requests
 
-    exec_date = macros.ds_add(ds, 1).replace("-", "/")
+    exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/rappi/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")

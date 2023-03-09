@@ -26,7 +26,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     import io
     import pandas as pd
 
-    exec_date = macros.ds_add(ds, 1).replace("-", "/")
+    exec_date = ds.replace("-", "/")
 
     peya_stores = ti.xcom_pull(key="return_value", task_ids=["get_peya_active_stores"])[0]
     peya_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_stores])
@@ -99,7 +99,7 @@ def _send_joined_data_to_stfp(ds):
     with open("temp_peya_sftp_rsa_key", "w") as key_file:
         key_file.write(ftp_rsa_key)
 
-    exec_date = macros.ds_add(ds, 1).replace("-", "/")
+    exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
