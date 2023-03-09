@@ -92,15 +92,6 @@ def check_if_update_att_category(ti):
                     ]
                 }
                 jst.append(item)
-
-            # Partición de big-json y envío de data
-            lim_json = 500
-            total_size = len(jst)
-            if total_size > lim_json:
-                jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
-            else:
-                jst = [jst]
-            # Actualizar atributos_producto.valor para productos que hayan cambiado de categoría
             return jst
 
 def set_by_api_att_category(ti):
@@ -112,41 +103,62 @@ def set_by_api_att_category(ti):
         "janis-client": Variable.get("JANIS_CLIENT"),
         "Connection": "keep-alive"
     }
-    API_JANIS = "https://janis.in/api/"
 
-    print(f"Se inicia seteo de atributos_producto.id_categoria")
     jst = ti.xcom_pull(task_ids="check_if_update_att_category")[0]
-    total_size = len(jst)
+    if jst == None:
+        print("No hay update de atributos_producto.id_categoria")
+        return
+    else:
+        total_size = len(jst)
+        print(f"""Cantidad de productos que se actualizarán{total_size} \n
+        Productos:   {jst}""")
+        # Partición de big-json y envío de data
+        lim_json = 500
+        total_size = len(jst)
+        if total_size > lim_json:
+            jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
+        else:
+            jst = [jst]
+        # Actualizar atributos_producto.valor para productos que hayan cambiado de categoría
+        cargando = 0
+        API_JANIS = Variable.get("JANIS_API_URL") #"https://janis.in/api/"
+        for arr_dict in jst:
+            r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json= arr_dict)
+            cargando += len(arr_dict)
+            if r.status_code == 200:
+                print(f"Productos actualizados: {cargando} de {total_size} con EXITO")
+            else:
+                print(f"Carga sin éxito | Status_Code: {r.status_code} ")
+                print(f"Response Print: {r.content}")
+                print("Los productos no_sustitutos -> sustitutos que deben actualizarse, no pasarán a sustituto")
+                return [item['item_id'] for item in jst ]
+        print("Actualizacion de atributos_producto.id_categoría Finalizado.")    
+        return
 
-    # Enviar solicitudes POST en bucle for
-    print(f"""Productos que se actualizarán att.categoria via API: \n
-           {total_size}""")
-    for arr_dict in jst:
-        endpoint = f'https://{API_JANIS}.in/api/attribute_value'
-        cargando += len(arr_dict)
-        r = requests.post(endpoint, headers = headers, json= arr_dict)
+def upload_refid_category(ti):
+    import pandas as pd
 
-        print(f"Productos actualizados: {cargando} de {total_size} | Status_Code: {r.content}")
-    print(f"carga finalizada con resultados: {r_status}")
-    elif total_size == 0:
-        print("No hay atributos_producto.valor que se deban actualizar")
-        r_status = {'200'}
-    ti.xcom_push(key = 'set_att', value= r_status )
+    json_categories = ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos")[0]
+    df = pd.read_json(json_categories, orient='index')
 
-def upload_refid_category(df, r_status, df_set_att_cat):
-    if r_status != {'200'}:
-        print("La actualización de atributos_producto.valor no fué exitosa, no se cargarán aquellos productos ")
-        df = df[ df['ref_id'] not in list(df_set_att_cat['ref_id'])]
+    list_refid_to_sustituto_sin_updatre = ti.xcom_pull(task_ids="set_by_api_att_category")[0]
+
+    print("La actualización de atributos_producto.valor no fué exitosa, no se cargarán aquellos productos ")
+    df = df[ df['ref_id'] not in list_refid_to_sustituto_sin_updatre]
     lista_de_tuplas = [tuple(x) for x in df.to_numpy()]
 
     query_insert = """
     INSERT INTO catalogo.sustitutos (refid, category, active)
     values ( %s, %s, %s) """
-    mycursor = conn_ecommdata()
-    mycursor.execute("TRUNCATE catalogo.sustitutos")
-    mycursor.execute(query_insert,  lista_de_tuplas)
-    mycursor.close()
-
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute("TRUNCATE catalogo.sustitutos")
+    cursor.execute(query_insert)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    return 
 
 default_args = {
     "owner": "ecommerce_data",
@@ -168,38 +180,29 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Cambia de categoría aquellos productos que entran y salen de la categoría sustitutos
+    Cambia de categoría aquellos productos que entran y salen de la categoría sustitutos, \n
+    actualizando atributos_producto.valor (id_categoria) si producto.id_categoria es  \n
+    diferente.
     """
 
     t0 = PythonOperator(
         task_id='get_sustitutos_and_not_sustitutos',
-        python_callable=get_sustitutos_and_not_sustitutos
+        python_callable = get_sustitutos_and_not_sustitutos
     )
 
     t1 = BranchPythonOperator(
         task_id='check_if_update_att_category',
-        python_callable=check_if_update_att_category,
+        python_callable = check_if_update_att_category,
     )
 
     t2 = PythonOperator(
-        task_id='create_payload_set_att_categoria',
-        python_callable = create_payload_set_att_categoria,
-        op_kwargs = {'df': '{{ ti.xcom_pull(task_ids="check_if_update_att_category") }}'}
+        task_id='set_by_api_att_category',
+        python_callable = set_by_api_att_category,
     )
 
     t3 = PythonOperator(
-        task_id='set_by_api_att_category',
-        python_callable = set_by_api_att_category,
-        op_kwargs = {'list_json': '{{ ti.xcom_pull(task_ids="create_payload_set_att_categoria") }}'}
-    )
-
-    t4 = PythonOperator(
         task_id='upload_refid_category',
         python_callable = upload_refid_category,
-        op_kwargs = {'df': '{{ ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos", key = "df") }}',
-                    'r_status': '{{ti.xcom_pull(task_ids="create_payload_set_att_categoria", key = "set_att")}}',
-                    'df_set_att_cat': '{{ti.xcom_pull(task_ids="check_if_update_att_category")}}'}
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4 
-    t0 >> t1 >> t4
+    t0 >> t1 >> t2 >> t3 
