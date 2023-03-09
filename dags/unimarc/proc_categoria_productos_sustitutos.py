@@ -35,100 +35,99 @@ su productos.id_categoria cambió. No considera categorias "NO TRABAJAR",
 '''
 def check_if_update_att_category(ti):
     import pandas as pd
+
     # Checkear si hubo cambio de categoría productos que van a sustitutos
     json_categories = ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos")[0]
     df = pd.read_json(json_categories, orient='index')
-    list_refid_to_change = list(df[df['sustituto_total' == True]]['ref_id'])
+    
+    list_refid_to_change = list(df[df['sustituto_total' == True]]['ref_id'])  # productos que deben estrar a sustituto
     if len(list_refid_to_change) == 0:
-        print("De los productos que entran a Categoria Sustitutos, todos mantienen su valor respecto a atributos_productos")
+        print("Ningún producto de Lista 8 entra a la categoría sustituto")
+        #print("De los productos que entran a Categoria Sustitutos, todos mantienen su valor respecto a atributos_productos")
         return
     else:
         print("Actualizando att.id_categoria para aquellos productos que cambiarán de PRO.CAT.ID_CATEGORIA --> PRO.CAT.SUSTITUTOS")
         list_refid_to_change = tuple(list_refid_to_change)
         query_check = f"""
-            select pro.ref_id, pro.vtex_id, pro.id_categoria
+            select pro.ref_id, pro.id_categoria
             from ecommdata.atributos_producto att
-            inner join ecommdata.productos pro on pro.id = att.id_producto_janis
+            inner join ecommdata.productos pro 
+                on pro.id = att.id_producto_janis
             where att.id_atributo = '11682839'
-            and	(pro.id_categoria != 10531456 -- No trabajar
-                or pro.id_categoria  != 11599085  -- Inactivo+
-                or pro.id_categoria != 48312581 )  -- no debiera tener efecto alguno
-            and pro.ref_id IN {list_refid_to_change}
-            and split_part(att.valor,'.', 1)::INTEGER != pro.id_categoria
-            and split_part(att.valor,'.', 1)::INTEGER != 48312581;
+                and	(pro.id_categoria != 10531456 -- No trabajar
+                    or pro.id_categoria  != 11599085  -- Inactivo+
+                    or pro.id_categoria != 48312581 )  -- no debiera tener efecto alguno
+                and pro.ref_id IN {list_refid_to_change}
+                and split_part(att.valor,'.', 1)::INTEGER != pro.id_categoria
+                and split_part(att.valor,'.', 1)::INTEGER != 48312581;
         """
         print(f"Iniciando obtencion de tabla...")
-        mycursor = conn_ecommdata()
-        mycursor.execute(query_check)
-        results = mycursor.fetchall()
-        columns = [i[0] for i in mycursor.description]
-        df = pd.DataFrame(results, columns=columns)
-        mycursor.close()
-        return df.to_json(orient='records')
+        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_connection = pg_hook.get_conn()
+        cursor = pg_connection.cursor()
+        cursor.execute(query_check)
+        results = cursor.fetchall()
+        columns_name = [i[0] for i in cursor.description]
+        cursor.close()
+        pg_connection.close()
+        DF_update_atr_pro_categoria = pd.DataFrame(results, columns=columns_name)
+        list_refid_to_update = list(DF_update_atr_pro_categoria['ref_id'] )
+        if DF_update_atr_pro_categoria['ref_id'].size == 0:
+            print("No hay productos que necesiten actualizar atributos_productos.id_categoria")
+            return
+        else:
+            print(f"""Se debe actualizar atributos_productos en los siguientes productos: \n 
+                  {list_refid_to_update}""")
 
-
-def create_payload_set_att_categoria(ti):
-    import json
-    import pandas as pd
-    df_json = ti.xcom_pull(task_ids="check_if_update_att_category")[0]
-    df = pd.read_json(df_json, orient='index')
-
-    # Creación de big-json
-    jst = []
-    for index, row in df.iterrows():
-        item = {
-            "item_id": row['ref_id'],
-            "attributes": [
-                {
-                    "id": "449",
-                    "values": [str(row['id_categoria'])]
+            # Creación de big-json
+            jst = []
+            for index, row in DF_update_atr_pro_categoria.iterrows():
+                item = {
+                    "item_id": row['ref_id'],
+                    "attributes": [
+                        {
+                            "id": "449",
+                            "values": [str(row['id_categoria'])]
+                        }
+                    ]
                 }
-            ]
-        }
-        jst.append(item)
+                jst.append(item)
 
-    ti.xcom_push(key = 'jst', value = jst)
-    # Partición de big-json y envío de data
-    lim_json = 500
-    total_size = len(list(jst))
-    if total_size > lim_json:
-        jst = [json.dumps(jst[i:i+lim_json], indent=2)
-               for i in range(0, len(jst), lim_json)]
-  
-    API_JANIS = "https://janis.in/api/"
+            # Partición de big-json y envío de data
+            lim_json = 500
+            total_size = len(jst)
+            if total_size > lim_json:
+                jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
+            else:
+                jst = [jst]
+            # Actualizar atributos_producto.valor para productos que hayan cambiado de categoría
+            return jst
 
-    # Actualizar atributos_producto.valor para productos que hayan cambiado de categoría
-    return list_json
-
-def set_by_api_att_category(ti, list_json):
+def set_by_api_att_category(ti):
     import requests
 
-    print(f"Se inicia seteo de atributos_producto.id_categoria")
-    # Crear sesión HTTP
     headers = {
         "janis-api-key": Variable.get("JANIS_API_KEY"),
         "janis-api-secret": Variable.get("JANIS_API_SECRET"),
         "janis-client": Variable.get("JANIS_CLIENT"),
         "Connection": "keep-alive"
     }
+    API_JANIS = "https://janis.in/api/"
 
-    session = requests.Session()
-    session.headers.update(headers)
-    environment = 'janis'
+    print(f"Se inicia seteo de atributos_producto.id_categoria")
+    jst = ti.xcom_pull(task_ids="check_if_update_att_category")[0]
+    total_size = len(jst)
 
     # Enviar solicitudes POST en bucle for
-    r_status = set()
-    total_size = sum(len(lista) for lista in list_json)
-    if total_size > 0:
-        print(
-            f"Productos que se actualizarán att.categoria via API: {total_size}")
-        for i, jsonString in enumerate(list_json, start=1):
-            endpoint = f'https://{environment}.in/api/attribute_value'
-            r = session.post(endpoint, data=jsonString)
-            r_status.add(str(r.status_code))
-            print(
-                f"Productos actualizados: {i} de {total_size} | Status_Code: {r.content}")
-        print(f"carga finalizada con resultados: {r_status}")
+    print(f"""Productos que se actualizarán att.categoria via API: \n
+           {total_size}""")
+    for arr_dict in jst:
+        endpoint = f'https://{API_JANIS}.in/api/attribute_value'
+        cargando += len(arr_dict)
+        r = requests.post(endpoint, headers = headers, json= arr_dict)
+
+        print(f"Productos actualizados: {cargando} de {total_size} | Status_Code: {r.content}")
+    print(f"carga finalizada con resultados: {r_status}")
     elif total_size == 0:
         print("No hay atributos_producto.valor que se deban actualizar")
         r_status = {'200'}
@@ -177,7 +176,7 @@ with DAG(
         python_callable=get_sustitutos_and_not_sustitutos
     )
 
-    t1 = PythonOperator(
+    t1 = BranchPythonOperator(
         task_id='check_if_update_att_category',
         python_callable=check_if_update_att_category,
     )
@@ -203,3 +202,4 @@ with DAG(
     )
 
     t0 >> t1 >> t2 >> t3 >> t4 
+    t0 >> t1 >> t4
