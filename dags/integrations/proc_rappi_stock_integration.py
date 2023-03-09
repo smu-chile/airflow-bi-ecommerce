@@ -53,7 +53,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     else (lspp.material::int)::varchar 
                 end as id
                 , case 
-                    when lspp.unidad_de_medida IN ('KG', 'KGV') then lspp.stock_unitario
+                    when lspp.unidad_de_medida IN ('KG', 'KGV') then lspp.stock_unitario::int
                     else (lspp.stock_unitario/lspp.multiplicador_unidad)::int
                   end as stock
                 , lspp.nombre as "name"
