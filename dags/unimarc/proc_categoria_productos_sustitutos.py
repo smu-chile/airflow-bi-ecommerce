@@ -1,26 +1,31 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 
 from datetime import datetime
 import pendulum
 
 def get_sustitutos_and_not_sustitutos():
     import pandas as pd
+    import os
+
+    print("""Iniciando obtención de productos que deban cambiar de categoria: \n
+            sustitutos <---> no sustitutos desde lista8""")
     curr_working_directory = os.getcwd()
-
     with open(curr_working_directory+f"/dags/unimarc/sql/proc_categoria_sustituto.sql", "r") as query_file:
-        rappi_stock_query = query_file.read()
+        query_lista_sustitutos = query_file.read()
     
-    mycursor = conn_ecommdata()
-    mycursor.execute(query_lista_sustitutos)
-    results = mycursor.fetchall()
-    columns = [i[0] for i in mycursor.description]
-    df = pd.DataFrame(results, columns=columns)
-    mycursor.close()
-    return df[['ref_id', 'sustituto_total', 'id_category']].to_json(orient='records')
-
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query_lista_sustitutos)
+    results = cursor.fetchall()
+    columns_name = [i[0] for i in cursor.description]
+    cursor.close()
+    pg_connection.close()
+    DF_sustitutos_l8 = pd.DataFrame(results, columns=columns_name)
+    return DF_sustitutos_l8.to_json(orient='records')
 
 '''
 Para aquellos productos donde producto.id_categoria --> 'sustituto'
@@ -30,8 +35,7 @@ su productos.id_categoria cambió. No considera categorias "NO TRABAJAR",
 '''
 def check_if_update_att_category(ti):
     import pandas as pd
-    # CARGA DE INFORMACIÓN PARA ROLLBACK de Productos que entran a productos.categoria:sustituto
-    # Checkear si hubo cambio de categoría en el producto
+    # Checkear si hubo cambio de categoría productos que van a sustitutos
     json_categories = ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos")[0]
     df = pd.read_json(json_categories, orient='index')
     list_refid_to_change = list(df[df['sustituto_total' == True]]['ref_id'])
