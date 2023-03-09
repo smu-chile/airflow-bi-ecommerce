@@ -74,7 +74,7 @@ def get_sustitutos_and_not_sustitutos():
                         '000000000000542755-KG', '000000000000542752-KG',
                         '000000000000752507-KG'
                     )
-                );"""
+            );"""
 
     mycursor = conn_ecommdata()
     mycursor.execute(query_lista_sustitutos)
@@ -87,10 +87,9 @@ def get_sustitutos_and_not_sustitutos():
 
 '''
 Para aquellos productos donde producto.id_categoria --> 'sustituto'
-antes de cambiar su categoría, veo si acaso cambió su productos.id_categoria
-respecto a atributos_producto.id_categoria, si son diferentes entonces se hace un update
-del id_categoria a 'atributos_producto'. No considerar categorias "NO TRABAJAR",
-"INACTIVO", o con att.id_categoria = 'sustituto'.
+antes de cambiar su categoría, actualizar atributos_producto.id_categoria si
+su productos.id_categoria cambió. No considera categorias "NO TRABAJAR",
+"INACTIVO", o con att.id_categoria = 48312581 (sustituto).
 '''
 def check_if_update_att_category(ti):
     import pandas as pd
@@ -127,17 +126,17 @@ def check_if_update_att_category(ti):
         return df.to_json(orient='records')
 
 
-def create_payload_set_att_categoria(ti, df):
+def create_payload_set_att_categoria(ti):
     import json
     import pandas as pd
     df_json = ti.xcom_pull(task_ids="check_if_update_att_category")[0]
     df = pd.read_json(df_json, orient='index')
 
     # Creación de big-json
-    json_list = []
+    jst = []
     for index, row in df.iterrows():
         item = {
-            "item_id": str(row['ref_id']),
+            "item_id": row['ref_id'],
             "attributes": [
                 {
                     "id": "449",
@@ -145,19 +144,18 @@ def create_payload_set_att_categoria(ti, df):
                 }
             ]
         }
-        json_list.append(item)
-    jst = json.dumps(json_list)
+        jst.append(item)
+
     ti.xcom_push(key = 'jst', value = jst)
     # Partición de big-json y envío de data
     lim_json = 500
-    sublists = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
-    list_json = []
-
-    # Convertir cada sublista a una cadena JSON
-    for i, sublist in enumerate(sublists):
-        json_string = json.dumps(sublist, indent=2)
-        list_json.append(json_string)
-
+    total_size = len(list(jst))
+    if total_size > lim_json:
+        jst = [json.dumps(jst[i:i+lim_json], indent=2)
+               for i in range(0, len(jst), lim_json)]
+  
+    API_JANIS = "https://janis.in/api/"
+    
     # Actualizar atributos_producto.valor para productos que hayan cambiado de categoría
     return list_json
 
