@@ -12,12 +12,13 @@ def db_get_ref_id_atributos_producto():
     print("Estableciendo conección con postgres db")
 
     query = """
-        select pro.nombre, pro.ref_id, pro.vtex_id, att.valor
-        from ecommdata.atributos_producto att
-        full outer join ecommdata.productos pro
-            on pro.id = att.id_producto_janis
-        where att.id_atributo = 2847610
-            and (att.valor not in ('12','11','10','9','8','7','6','5','4','3','2','1','12.0','17','1.0', '24', '24.0') or att.valor is null);
+        SELECT pro.ref_id
+        FROM ecommdata.atributos_producto att
+        FULL OUTER JOIN ecommdata.productos pro
+            ON pro.id = att.id_producto_janis
+        WHERE att.id_atributo = 2847610 
+            AND att.valor NOT IN ('12','11','10','9','8','7','6','5','4','3','2','1','12.0','17','1.0', '24', '24.0') 
+            OR att.valor IS NULL);
         """
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -25,13 +26,11 @@ def db_get_ref_id_atributos_producto():
     cursor = pg_connection.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
-    columns_name = [i[0] for i in cursor.description]
+    ref_id_list = [result[0] for result in results]
     cursor.close()
     pg_connection.close()
-    DF_atributos_producto_null = pd.DataFrame(results, columns=columns_name)
-    lista_refid = DF_atributos_producto_null['ref_id'].to_list()
-    print(f"Productos con valor sin Limite de Compra obtenidos: {lista_refid}")
-    return lista_refid
+    print(f"Productos con valor sin Limite de Compra obtenidos: {ref_id_list}")
+    return ref_id_list
 
 
 def set_lim_compra(ti):
@@ -58,7 +57,7 @@ def set_lim_compra(ti):
             "item_id": x,
             "attributes": [
                 {
-                    "id": "409",
+                    "id": "238",
                     "values": ["12"]
                 }
             ]
@@ -89,7 +88,7 @@ def set_lim_compra(ti):
 
 
 default_args = {
-    "owner": "ecommerce_data",
+    "owner": "ecommerce_ops",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
