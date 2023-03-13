@@ -70,5 +70,6 @@ and not exists (
 	select id
 	from ecommdata.tiendas t
 	where t.id = _t.id_tienda
+	and t.status = 1
 ) 
 ;
