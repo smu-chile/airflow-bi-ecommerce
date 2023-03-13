@@ -37,6 +37,7 @@ join (
 	from ecommdata.precios p 
 	join ecommdata.tiendas t 
 		on p.id_tienda_janis = t.id_janis 
+		and t.status = 1
 	join ecommdata.lista8 l 
 		on l.material || '-' || l.umv = p.ref_id 
 		and l.id_tienda = t.id 
