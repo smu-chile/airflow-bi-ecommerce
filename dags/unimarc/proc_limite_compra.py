@@ -6,9 +6,7 @@ from airflow.operators.python import PythonOperator
 import pendulum
 
 def db_get_ref_id_atributos_producto():
-    import pandas as pd
-
-    print(f"Iniciando obtencion de datos con limite de compra ...")
+    print(f"Iniciando obtencion de lista de ref_id de productos sin limite de compra ...")
     print("Estableciendo conección con postgres db")
 
     query = """
@@ -34,7 +32,6 @@ def db_get_ref_id_atributos_producto():
 
 
 def set_lim_compra(ti):
-    import json
     import requests
 
     lista_ref_id = ti.xcom_pull(
