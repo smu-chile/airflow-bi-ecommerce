@@ -16,7 +16,7 @@ def db_get_ref_id_atributos_producto():
             ON pro.id = att.id_producto_janis
         WHERE att.id_atributo = 2847610 
             AND att.valor NOT IN ('12','11','10','9','8','7','6','5','4','3','2','1','12.0','17','1.0', '24', '24.0') 
-            OR att.valor IS NULL);
+            OR att.valor IS NULL;
         """
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
