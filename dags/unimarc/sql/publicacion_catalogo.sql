@@ -76,7 +76,7 @@ end as foto_valida
 	else false
 end as categoria_valida
 , case
-	when s.stock_disponible_vtex > 0 then true
+	when (s.stock_disponible_vtex > 0) or (s.stock_infinito_vtex is true) then true 
 	else false
 end as stock_valido
 , case
