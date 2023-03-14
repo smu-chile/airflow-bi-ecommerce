@@ -22,6 +22,21 @@ def _get_peya_active_stores():
     pg_connection.close()
     return results
 
+def _get_peya_botilleria_active_stores():
+    peya_stores_query = """
+        SELECT id, id_peya_botilleria
+        FROM integraciones.tiendas_last_millers
+        WHERE id_peya_botilleria is not NULL;
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(peya_stores_query)
+    results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
+    return results
+
 def _join_stock_and_promo_prices_from_s3(ds, ti):
     import io
     import pandas as pd
@@ -31,6 +46,10 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     peya_stores = ti.xcom_pull(key="return_value", task_ids=["get_peya_active_stores"])[0]
     peya_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_stores])
     print(peya_store_ids)
+
+    peya_botilleria_stores = ti.xcom_pull(key="return_value", task_ids=["get_peya_botilleria_active_stores"])[0]
+    peya_botilleria_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_botilleria_stores])
+    print(f"Botilleria: {peya_botilleria_store_ids}")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -82,6 +101,20 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     bucket_name=s3_bucket,
                     replace=True,
                     encrypt=False)
+        print(f"File load on S3: {join_file_name}")
+        
+        if peya_botilleria_store_ids.get(store_id, False):
+            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
+            if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
+                print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
+                continue
+            s3_hook.load_string(buffer.getvalue(),
+                    key=join_file_name,
+                    bucket_name=s3_bucket,
+                    replace=True,
+                    encrypt=False)
+            print(f"File load on S3: {join_file_name}")
+
 
     cursor.close()
     pg_connection.close()
@@ -171,13 +204,20 @@ with DAG(
     )
 
     t1 = PythonOperator(
+        task_id = "get_peya_botilleria_active_stores",
+        python_callable = _get_peya_botilleria_active_stores
+    )
+
+    t2 = PythonOperator(
         task_id = "join_stock_and_promo_prices_from_s3",
         python_callable = _join_stock_and_promo_prices_from_s3
     )
 
-    t2 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "send_joined_data_to_stfp",
         python_callable = _send_joined_data_to_stfp
     )
 
-    t0 >> t1 >> t2
+    t0 >> t2
+    t1 >> t2
+    t2 >> t3
