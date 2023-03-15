@@ -92,9 +92,9 @@ default_args = {
 }
 
 with DAG(
-    'proc_categoria_productos_sustitutos',
+    'proc_limite_compra',
     default_args=default_args,
-    description="Obtención de productos que entran y sale de la categoría Sustitutos",
+    description="Setea en 12 el valor del atributo 'Limite de Compra' cuyos productos tienen valor = NULL ",
     schedule_interval="0 10 * * *",
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
