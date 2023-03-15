@@ -4,6 +4,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
+import pendulum
 
 
 from datetime import datetime, timedelta
@@ -143,23 +144,17 @@ def _save_lista8_exclusions_in_s3(ts):
         file_name = f"borrado_stock_alvi/{exec_date}/{id_tienda}/borrado_stock-{id_tienda}-{len_df}.csv"
         print(f"saving file {file_name}")
 
+        aws_conn_id="aws_s3_connection"
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
 
-        access_key = Variable.get("AWS_ACCESS_KEY")
-        secret_key = Variable.get("AWS_SECRET_KEY")
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name = "us-east-1"
-        )
-        response = s3_client.put_object(
-            Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
-        )
-
-    dir_name = f"borrado_stock_alvi/{exec_date}/"
+        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+        s3_hook.load_string(buffer.getvalue(),
+                  key=file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
 
     return
 
@@ -224,7 +219,7 @@ with DAG(
     default_args=default_args,
     description="Borrado de stock janis alvi en base a productos removidos de lista8.",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2023, 3, 15),
+    start_date=pendulum.datetime(2023, 3, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "SAP", "ecommdata_alvi", "lista8", "stock", "janis", "alvi"],
