@@ -10,7 +10,7 @@ def db_get_ref_id_atributos_producto():
     print("Estableciendo conección con postgres db")
 
     query = """
-            select * from ecommdata.atributos_producto 
+            select ref_id from ecommdata.atributos_producto 
             where id_atributo = 2847610 
             and valor is null;
         """
