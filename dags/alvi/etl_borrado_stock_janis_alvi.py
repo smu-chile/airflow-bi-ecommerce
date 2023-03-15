@@ -224,8 +224,8 @@ with DAG(
     default_args=default_args,
     description="Borrado de stock janis alvi en base a productos removidos de lista8.",
     schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 11, 1),
-    catchup=True,
+    start_date=datetime(2023, 3, 15),
+    catchup=False,
     max_active_runs = 1,
     tags=["DATA", "SAP", "ecommdata_alvi", "lista8", "stock", "janis", "alvi"],
 ) as dag:
