@@ -50,8 +50,8 @@ left join (
 	select ean
             , min(precio_promocional) AS precio_promocional 
     from ecommdata.workflow_promociones wp 
-    where wp.fecha_inicio_de_promocion <= '{{ds}}'
-    and wp.fecha_fin_de_promocion >= '{{ds}}'
+    where wp.fecha_inicio_de_promocion <= '{{macros.ds_add(ds,1)}}'
+    and wp.fecha_fin_de_promocion >= '{{macros.ds_add(ds,1)}}'
     and wp.tipo_promocion IN (1,4)
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
