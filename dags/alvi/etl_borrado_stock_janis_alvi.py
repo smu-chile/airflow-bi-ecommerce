@@ -77,8 +77,6 @@ def _yesterday_stopper_lista8(ts):
 
 def _save_lista8_exclusions_in_s3(ts):
     import pandas as pd
-    import sqlalchemy
-    import boto3
     from io import StringIO
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
