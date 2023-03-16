@@ -10,12 +10,9 @@ def db_get_ref_id_atributos_producto():
     print("Estableciendo conección con postgres db")
 
     query = """
-            SELECT pro.ref_id
-            FROM ecommdata.atributos_producto att
-            FULL OUTER JOIN ecommdata.productos pro
-                ON pro.id = att.id_producto_janis
-            WHERE att.id_atributo = 2847610 
-                AND att.valor IS NULL;
+            select ref_id from ecommdata.atributos_producto 
+            where id_atributo = 2847610 
+            and valor is null;
         """
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -92,18 +89,20 @@ default_args = {
 }
 
 with DAG(
-    'proc_limite_compra',
+    'proc_janis_limite_compra',
     default_args=default_args,
-    description="Setea en 12 el valor del atributo 'Limite de Compra' cuyos productos tienen valor = NULL ",
+    description=""" Busca en tabla ecommdata.atributos_producto productos que tengan su atributo 'Limite de Compra'  \n
+    con valor = NULL, a estos productos se les rescata su ref_id para setear su valor a 12 mediante la API de Janis """,
     schedule_interval="0 10 * * *",
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["limite_compra", "ecommdata_unimarc", "atributos_producto"],
+    tags=["janis", "limite_compra", "ecommdata_unimarc", "atributos_producto", "API"],
 ) as dag:
 
     dag.doc_md = """
-        Setea en 12 el valor del atributo "Limite de Compra" cuyos productos tienen valor = NULL 
+        Busca en tabla ecommdata.atributos_producto productos que tengan su atributo 'Limite de Compra'  \n
+        con valor = NULL, a estos productos se les rescata su ref_id para setear su valor a 12 mediante la API de Janis 
         """
 
     t0 = PythonOperator(
