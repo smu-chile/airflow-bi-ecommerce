@@ -104,11 +104,11 @@ def set_by_api_att_category(ti):
     ljst = ti.xcom_pull(task_ids="check_if_update_att_category")[0]
     if ljst == None:
         print("No hay update de atributos_producto.id_categoria")
-        return "Sin actualizacion"
-    update_productos = [item['item_id'] for item in ljst ]
-    total_size = len(update_productos)
+        return "Sin necesidad de actualizar"
+    update_products = [item['item_id'] for item in ljst ]
+    total_size = len(update_products)
     print(f"""Se deben actualizar {total_size} productos de ecommdata.atributos_producto. \n
-    Se actualizarán los siguientes productos: {update_productos}""")
+    Se actualizarán los siguientes productos: {update_products}""")
 
     # Partición de big-json y envío de data
     lim_json = 500
@@ -120,18 +120,26 @@ def set_by_api_att_category(ti):
     # Actualizar atributos_producto.valor para productos que hayan cambiado de categoría
     cargando = 0
     API_JANIS = Variable.get("JANIS_API_URL") 
+    set_response = {}
+    no_updated = []
     for arr_dict in jst:
         r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json= arr_dict)
         cargando += len(arr_dict)
+        set_response.add(r.status_code)
         if r.status_code == 200:
             print(f"Productos actualizados: {cargando} de {total_size} con EXITO")
         else:
             print(f"Carga sin éxito | Status_Code: {r.status_code} ")
             print(f"Response Print: {r.content}")
-            print("""Dado que no se actualizaron las categorías de los productos, o no se actualizaron todos, \n
-            estos productos no pasarán a categoría 'Sustitutos'""")
-    print("Actualizacion de atributos_producto.id_categoría Finalizado.")    
-    return update_productos
+            no_updated.append()
+    if set_response == {200}:
+        print("Se han finalizado con EXITO las actualizaciones de las categorías en atributos_producto")
+        return "Productos actualizados"
+    else:
+        print("""Dado que no se actualizaron las categorías de los productos, o no se actualizaron todos, \n
+        estos productos no pasarán a categoría 'Sustitutos' \n
+        Actualizacion de atributos_producto.id_categoría Finalizado.""")
+        return update_products
 
 def upload_refid_category(ti):
     import pandas as pd
@@ -139,16 +147,16 @@ def upload_refid_category(ti):
     from sqlalchemy import text
 
     json_categories = ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos")[0]
-    sustituto_sin_update =  ti.xcom_pull(task_ids="set_by_api_att_category")[0] 
+    response_update =  ti.xcom_pull(task_ids="set_by_api_att_category")[0] 
     print("json_categories: ", json_categories)
-    print("sustituto_sin_update: ", sustituto_sin_update)
+    print("response_update: ", response_update)
     
     if json_categories != '[]':
         json_categories = json_categories.replace("true", "True")
         df = pd.DataFrame(eval(json_categories))[['ref_id', 'id_category']]
-        if sustituto_sin_update != None:
+        if response_update != "Sin necesidad de actualizar" and  response_update != "Productos actualizados": 
             print("La actualización de atributos_producto.valor no fué exitosa, no se cargarán aquellos productos ")
-            df = df[ ~df['ref_id'].isin(sustituto_sin_update)]
+            df = df[ ~df['ref_id'].isin(response_update)]
         df = df.assign(active = 1)
         df = df.rename(columns={'ref_id': 'refid', 'id_category': 'category'})
 
@@ -162,9 +170,9 @@ def upload_refid_category(ti):
 
         # Save to PostgreSQL:
         print("Comienza la carga INSERT")
-        conn = engine.connect()
-        truncate_query = "TRUNCATE ecommdata.atributos_producto"
-        conn.execute(text(truncate_query))
+        connection = engine.connect()
+        truncate_query = "TRUNCATE catalogo.sustitutos"
+        connection.execute(text(truncate_query))
         df.to_sql(  name="sustitutos",
                     con=engine,         
                     schema="catalogo",         
@@ -186,20 +194,48 @@ default_args = {
 }
 
 with DAG(
-    'proc_categoria_productos_sustitutos',
+    'proc_janis_categoria_productos_sustitutos',
     default_args=default_args,
-    description="Obtención de productos que entran y sale de la categoría Sustitutos",
+    description= """
+    Obtiene desde ecommdata.lista8 aquellos productos que tienen la marca "sustitutos" : True en todas sus tiendas, \n
+    aquellos productos que cumplen esta condición, deben estár en dicha categoría, por lo que se compara contra \n
+    su categoría actual en ecommdata.productos:id_categoría. Si dichos productos no están en categoría 'sustituto' \n 
+    entonces entran al proceso de cambio de categoría. Previamente al cambio de categoría, se verifica que su categoría \n
+    original sea igual a la que se encuentra en ecommdata.atributos_producto:valor con id_atributo = 11682839 (ID Categoría), \n
+    de no ser así, se actualiza este dato mediante la API de Janis, ya que este se usará  para sacar el producto \n
+    de la categoría sustituto, volviendo a su categoría original. Si la actualización del id_categoria de respaldos no se actualiza, \n
+    entonces estos productos no cambiarán de categoría. \n \n
+
+    Aquellos productos que no tienen la marca 'sustitutos': True en todas sus tiendas, no debiesen estar en la categoría 'sustitutos',\n
+    por lo que de igual forma se contrasta con ecommdata.productos:id_categoria, aquellos que están en categoría sustitutos deben\n
+    pasar a su categoría original.\n \n
+
+    Actualmente el proceso de cambio categoria se encuentra en una primera etapa, la cual consiste en descargar la tabla catalogo.sustitutos \n
+    y cargarla desde la plataforma Janis
+    """,
     schedule_interval="0 10 * * *",
     start_date=datetime(2023, 3, 8),
     catchup=False,
     max_active_runs=1,
-    tags=["sustituto", "ecommdata_unimarc", "lista8", "atributos_producto"],
+    tags=["API", "ecommdata", "lista8", "janis", "atributos_producto", 'sustitutos', 'categorias'],
 ) as dag:
 
     dag.doc_md = """
-    Cambia de categoría aquellos productos que entran y salen de la categoría sustitutos, \n
-    actualizando atributos_producto.valor (id_categoria) si producto.id_categoria es  \n
-    diferente.
+    Obtiene desde ecommdata.lista8 aquellos productos que tienen la marca "sustitutos" : True en todas sus tiendas, \n
+    aquellos productos que cumplen esta condición, deben estár en dicha categoría, por lo que se compara contra \n
+    su categoría actual en ecommdata.productos:id_categoría. Si dichos productos no están en categoría 'sustituto' \n 
+    entonces entran al proceso de cambio de categoría. Previamente al cambio de categoría, se verifica que su categoría \n
+    original sea igual a la que se encuentra en ecommdata.atributos_producto:valor con id_atributo = 11682839 (ID Categoría), \n
+    de no ser así, se actualiza este dato mediante la API de Janis, ya que este se usará  para sacar el producto \n
+    de la categoría sustituto, volviendo a su categoría original. Si la actualización del id_categoria de respaldos no se actualiza, \n
+    entonces estos productos no cambiarán de categoría. \n \n
+
+    Aquellos productos que no tienen la marca 'sustitutos': True en todas sus tiendas, no debiesen estar en la categoría 'sustitutos',\n
+    por lo que de igual forma se contrasta con ecommdata.productos:id_categoria, aquellos que están en categoría sustitutos deben\n
+    pasar a su categoría original.\n \n
+
+    Actualmente el proceso de cambio categoria se encuentra en una primera etapa, la cual consiste en descargar la tabla catalogo.sustitutos \n
+    y cargarla desde la plataforma Janis
     """
 
     t0 = PythonOperator(
