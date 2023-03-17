@@ -214,7 +214,7 @@ with DAG(
     y cargarla desde la plataforma Janis
     """,
     schedule_interval="0 10 * * *",
-    start_date=datetime(2023, 3, 8),
+    start_date=pendulum.datetime(2023, 3, 17, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     tags=["API", "ecommdata", "lista8", "janis", "atributos_producto", 'sustitutos', 'categorias'],
