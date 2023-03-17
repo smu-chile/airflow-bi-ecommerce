@@ -36,6 +36,7 @@ def _incremental_load_skus_table(ti):
         "id",
         "ref_id",
         "vtex_id",
+        "stock_erp_id",
         "ean", 
         "product",
         "name", 
@@ -55,6 +56,7 @@ def _incremental_load_skus_table(ti):
 
     # Rename columns to match workspace schema:
     columns_rename = {
+        "stock_erp_id": "erp_id",
         "ean": "ean_primario",
         "product": "id_producto",
         "name": "nombre_sku",
@@ -65,10 +67,12 @@ def _incremental_load_skus_table(ti):
         "date_modified": "fecha_modificacion"
     }
     df = df.rename(columns=columns_rename)
+    df["erp_id"] = df["erp_id"].astype("string").str.replace(".0", "", regex=False).str.zfill(18)
 
     columns = [
         "ref_id",
         "vtex_id",
+        "erp_id",
         "ean_primario",
         "id_producto",
         "nombre_sku",
