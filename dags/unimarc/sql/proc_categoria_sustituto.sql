@@ -1,17 +1,17 @@
-select LPAD(cast(l8.material as text), 18, '0') || '-' || l8.umv as ref_id,
+select LPAD(l8.material, 18, '0') || '-' || l8.umv as ref_id,
     bool_and(l8.sustituto) as sustituto_total,
     case
         when bool_and(l8.sustituto) = false then pro.id_categoria
         else 48312581
     end as id_category
 from ecommdata.lista8 l8
-    left join ecommdata.productos pro on LPAD(cast(l8.material as text), 18, '0') || '-' || l8.umv = pro.ref_id
-group by LPAD(cast(l8.material as text), 18, '0') || '-' || l8.umv,
+    left join ecommdata.productos pro on LPAD(l8.material, 18, '0') || '-' || l8.umv = pro.ref_id
+group by LPAD(l8.material, 18, '0') || '-' || l8.umv,
     pro.id_categoria,
     l8.sustituto
 having (
         bool_and(l8.sustituto) = true
-        and LPAD(cast(l8.material as text), 18, '0') || '-' || l8.umv not in (
+        and LPAD(l8.material, 18, '0') || '-' || l8.umv not in (
             select distinct ref_id
             from ecommdata.productos pro
             where pro.id_categoria = 48312581
@@ -20,13 +20,13 @@ having (
     or (
         bool_and(l8.sustituto) = false
         and (
-            LPAD(cast(l8.material as text), 18, '0') || '-' || l8.umv in (
+            LPAD(l8.material, 18, '0') || '-' || l8.umv in (
                 select distinct ref_id
                 from ecommdata.productos pro
                 where pro.id_categoria = 48312581
             )
         )
-        and LPAD(cast(l8.material as text), 18, '0') || '-' || l8.umv not in (
+        and LPAD(l8.material, 18, '0') || '-' || l8.umv not in (
             '000000000000761296-KG',
             '000000000000752499-KG',
             '000000000000542749-KG',

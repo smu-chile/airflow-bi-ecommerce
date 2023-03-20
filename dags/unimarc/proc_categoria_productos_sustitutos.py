@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.operators.python import PythonOperator
 
 from datetime import datetime
 import pendulum
@@ -29,7 +29,7 @@ def get_sustitutos_and_not_sustitutos():
     return DF_sustitutos_l8.to_json(orient='records')
 
 '''
-Para aquellos productoa que cambian de categoría a sustitutto, previamente se hará una revisión
+Para aquellos productos que cambian de categoría a sustitutto, previamente se hará una revisión
 de su atributos_producto.valor para el id_atributo: 11682839 (ID Categoría),
 si este es diferente a su productos.id_categoria, se hará su actualización via API de Janis.
 '''
@@ -37,7 +37,7 @@ def check_if_update_att_category(ti):
     import pandas as pd
 
     # Checkear si hubo cambio de categoría en ecommdata.productos que van a sustitutos
-    json_categories = ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos")[0]
+    json_categories = ti.xcom_pull(task_ids=["get_sustitutos_and_not_sustitutos"])[0]
     if json_categories == '[]':
         print('No hay movimientos entre categoría sustitutos en lista8')
         return
@@ -60,8 +60,7 @@ def check_if_update_att_category(ti):
             where att.id_atributo = 11682839
                 and	pro.id_categoria NOT IN (10531456, 11599085, 48312581) -- No trabajar, inactivo, sustituto
                 and pro.ref_id IN {list_refid_to_change}
-                and att.valor::float::int != 48312581
-                and att.valor::float::int != pro.id_categoria;
+                and att.valor::float::int not in ( 48312581, pro.id_categoria);
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -101,7 +100,7 @@ def set_by_api_att_category(ti):
         "Connection": "keep-alive"
     }
 
-    ljst = ti.xcom_pull(task_ids="check_if_update_att_category")[0]
+    ljst = ti.xcom_pull(task_ids=["check_if_update_att_category"])[0]
     if ljst == None:
         print("No hay update de atributos_producto.id_categoria")
         return "Sin necesidad de actualizar"
@@ -146,8 +145,8 @@ def upload_refid_category(ti):
     import sqlalchemy
     from sqlalchemy import text
 
-    json_categories = ti.xcom_pull(task_ids="get_sustitutos_and_not_sustitutos")[0]
-    response_update =  ti.xcom_pull(task_ids="set_by_api_att_category")[0] 
+    json_categories = ti.xcom_pull(task_ids=["get_sustitutos_and_not_sustitutos"])[0]
+    response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
     print("json_categories: ", json_categories)
     print("response_update: ", response_update)
     
@@ -186,7 +185,7 @@ def upload_refid_category(ti):
     return 
 
 default_args = {
-    "owner": "ecommerce_data",
+    "owner": "ecommerce_ops",
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
@@ -196,46 +195,25 @@ default_args = {
 with DAG(
     'proc_janis_categoria_productos_sustitutos',
     default_args=default_args,
-    description= """
-    Obtiene desde ecommdata.lista8 aquellos productos que tienen la marca "sustitutos" : True en todas sus tiendas, \n
-    aquellos productos que cumplen esta condición, deben estár en dicha categoría, por lo que se compara contra \n
-    su categoría actual en ecommdata.productos:id_categoría. Si dichos productos no están en categoría 'sustituto' \n 
-    entonces entran al proceso de cambio de categoría. Previamente al cambio de categoría, se verifica que su categoría \n
-    original sea igual a la que se encuentra en ecommdata.atributos_producto:valor con id_atributo = 11682839 (ID Categoría), \n
-    de no ser así, se actualiza este dato mediante la API de Janis, ya que este se usará  para sacar el producto \n
-    de la categoría sustituto, volviendo a su categoría original. Si la actualización del id_categoria de respaldos no se actualiza, \n
-    entonces estos productos no cambiarán de categoría. \n \n
-
-    Aquellos productos que no tienen la marca 'sustitutos': True en todas sus tiendas, no debiesen estar en la categoría 'sustitutos',\n
-    por lo que de igual forma se contrasta con ecommdata.productos:id_categoria, aquellos que están en categoría sustitutos deben\n
-    pasar a su categoría original.\n \n
-
-    Actualmente el proceso de cambio categoria se encuentra en una primera etapa, la cual consiste en descargar la tabla catalogo.sustitutos \n
-    y cargarla desde la plataforma Janis
+    description= """"Products that should enter and exit the 'Sustitución' category are obtained 
+    by using the 'lista8' and 'productos' tables from the 'ecommdata'. 
+    Then, the category of the products listed in 'lista8' is updated using Janis API."
     """,
     schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2023, 3, 17, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["API", "ecommdata", "lista8", "janis", "atributos_producto", 'sustitutos', 'categorias'],
+    tags=["API", "ecommdata", "lista8", "janis", "atributos_producto","productos", 'sustitutos', 'categorias'],
 ) as dag:
 
     dag.doc_md = """
-    Obtiene desde ecommdata.lista8 aquellos productos que tienen la marca "sustitutos" : True en todas sus tiendas, \n
-    aquellos productos que cumplen esta condición, deben estár en dicha categoría, por lo que se compara contra \n
-    su categoría actual en ecommdata.productos:id_categoría. Si dichos productos no están en categoría 'sustituto' \n 
-    entonces entran al proceso de cambio de categoría. Previamente al cambio de categoría, se verifica que su categoría \n
-    original sea igual a la que se encuentra en ecommdata.atributos_producto:valor con id_atributo = 11682839 (ID Categoría), \n
-    de no ser así, se actualiza este dato mediante la API de Janis, ya que este se usará  para sacar el producto \n
-    de la categoría sustituto, volviendo a su categoría original. Si la actualización del id_categoria de respaldos no se actualiza, \n
-    entonces estos productos no cambiarán de categoría. \n \n
-
-    Aquellos productos que no tienen la marca 'sustitutos': True en todas sus tiendas, no debiesen estar en la categoría 'sustitutos',\n
-    por lo que de igual forma se contrasta con ecommdata.productos:id_categoria, aquellos que están en categoría sustitutos deben\n
-    pasar a su categoría original.\n \n
-
-    Actualmente el proceso de cambio categoria se encuentra en una primera etapa, la cual consiste en descargar la tabla catalogo.sustitutos \n
-    y cargarla desde la plataforma Janis
+    The products that must change categories are obtained, there are two cases:
+    Enter substitution: Product that is found with its initial category and in list8 has all its stores marked 'substitution' 
+    They come out of substitution: Product that is with a substitute category, in list8 not all of its stores marked 'substitution' 
+    For those products that leave their initial category, it is verified that their current Category ID is the same as the one they are in.
+    in ecommdata.product_attributes, which will be used as a backup for when it leaves the 'Substitution' category. If it's not the same,
+    it is updated using the Janis API. If the backup category_id update is not updated, then these products are not
+    they will be moved to the 'Substitution' category.
     """
 
     t0 = PythonOperator(
@@ -243,7 +221,7 @@ with DAG(
         python_callable = get_sustitutos_and_not_sustitutos
     )
 
-    t1 = BranchPythonOperator(
+    t1 = PythonOperator(
         task_id='check_if_update_att_category',
         python_callable = check_if_update_att_category,
     )
