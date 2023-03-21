@@ -122,7 +122,6 @@ from (
 		and p.nm is not null 
 		and p.brand_desc is not null 
 		and p.unidad_de_medida is not null
-		and s.ou_id = '0333'
 	) _t
 join (
 	select pm.ref_id
@@ -155,3 +154,4 @@ and not exists (
 	and t.status = 1
 ) 
 ;
+COMMIT;
