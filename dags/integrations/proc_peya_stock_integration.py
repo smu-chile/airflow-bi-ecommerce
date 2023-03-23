@@ -91,6 +91,26 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"Number of records found on stock: {len(df.index)}")
 
         df.columns = map(str.upper, df.columns)
+        df["EAN"] = df["EAN"].astype("int64")
+        
+        prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
+        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        print(f"Checking for previous executions on {prev_join_file_name}.")
+        if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
+            print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
+
+            prev_stock_file = s3_hook.get_key(prev_join_file_name, bucket_name=s3_bucket)
+            df_prev = pd.read_csv(prev_stock_file.get()["Body"])
+
+            df_prev = df_prev[~df_prev["EAN"].isin(df["EAN"])]
+            df_prev = df_prev[df_prev["STOCK"]==1]
+            df_prev["STOCK"] = 0
+
+            print(f"Adding {len(df_prev.index)} missing products as inactive: STOCK = 0.")
+
+            df = pd.concat([df, df_prev])
+            
+        print(f"Total number of records: {len(df.index)}.")
 
         buffer = io.StringIO()
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
