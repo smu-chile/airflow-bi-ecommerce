@@ -371,11 +371,5 @@ with DAG(
             WHERE fecha = '{{ds}}'::date - interval '21 days' """
     )
 
-    t8 = TriggerDagRunOperator(
-        task_id="trigger_rappi_stock_integration",
-        trigger_dag_id="proc_rappi_post_stock_precio",
-        wait_for_completion=False
-    )
 
-
-t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8
+t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7
