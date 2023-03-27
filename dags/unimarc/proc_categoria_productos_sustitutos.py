@@ -6,27 +6,24 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime
 import pendulum
 
-def get_sustitutos_and_not_sustitutos():
+def get_in_sustitutos():
     import pandas as pd
     import os
 
-    print("""Iniciando obtención de productos que deban cambiar de categoria: \n
-            sustitutos <---> no sustitutos desde lista8""")
+    print("Iniciando obtención de productos que deban pasar a categoría sustitución: ")
     curr_working_directory = os.getcwd()
-    with open(curr_working_directory+f"/dags/unimarc/sql/proc_categoria_sustituto.sql", "r") as query_file:
-        query_lista_sustitutos = query_file.read()
-    
+    with open(curr_working_directory+f"/dags/unimarc/sql/proc_categoria_in_sustituto.sql", "r") as query_file:
+        query_in_sustitutos = query_file.read()
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.execute(query_lista_sustitutos)
+    cursor.execute(query_in_sustitutos)
     results = cursor.fetchall()
-    columns_name = [i[0] for i in cursor.description]
+    ref_id_list = [result[0] for result in results]
     cursor.close()
     pg_connection.close()
-    DF_sustitutos_l8 = pd.DataFrame(results, columns=columns_name)
     print("Finalizada obtención de productos que deban cambiar de categoria")
-    return DF_sustitutos_l8.to_json(orient='records')
+    return ref_id_list
 
 '''
 Para aquellos productos que cambian de categoría a sustitutto, previamente se hará una revisión
@@ -37,23 +34,18 @@ def check_if_update_att_category(ti):
     import pandas as pd
 
     # Checkear si hubo cambio de categoría en ecommdata.productos que van a sustitutos
-    json_categories = ti.xcom_pull(task_ids=["get_sustitutos_and_not_sustitutos"])[0]
-    if json_categories == '[]':
-        print('No hay movimientos entre categoría sustitutos en lista8')
-        return
-    df = pd.read_json(json_categories, orient='records')
-    list_refid_to_change = list(df[df['sustituto_total' == True]]['ref_id'])  # productos que deben estrar a sustituto
+    list_refid_to_change = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
     if len(list_refid_to_change) == 0:
         print("Ningún producto de Lista 8 entra a la categoría sustituto")
-        return
-    print(f"""Se espera que los siguientes productos pasen a categoría sustitutos: \n
+        return 'Sin necesidad de actualizar'
+    print(f"""Se espera que los siguientes productos pasen a categoría sustitutos: 
     {list_refid_to_change}""")
-    print("""Iniciando revisión de diferencias entre ecommdata.productos:id_categoria y \n
+    print("""Iniciando revisión de diferencias entre ecommdata.productos:id_categoria y
     ecommdata.atributos_producto:valor (id_categoria)""")
     list_refid_to_change = tuple(list_refid_to_change)
     print(query_check)
     query_check = f"""
-            select pro.ref_id, pro.id_categoria
+            select pro.ref_id, pro.id_categoria, att.valor
             from ecommdata.atributos_producto att
             inner join ecommdata.productos pro 
                 on pro.id = att.id_producto_janis
@@ -71,10 +63,12 @@ def check_if_update_att_category(ti):
     cursor.close()
     pg_connection.close()
     DF_update_atr_pro_categoria = pd.DataFrame(results, columns=columns_name)
-    if DF_update_atr_pro_categoria['ref_id'].size == 0:
+    refid_to_update = DF_update_atr_pro_categoria['ref_id']
+    if refid_to_update.size == 0:
         print("No hay productos que necesiten actualizar atributos_productos.id_categoria")
-        return
-
+        return 'Sin necesidad de actualizar'
+    print(f"""Se debe actualizar atributos_productos en los siguientes productos: \n 
+        {list(refid_to_update)}""")
     # Creación de big-json
     jst = []
     for index, row in DF_update_atr_pro_categoria.iterrows():
@@ -92,6 +86,7 @@ def check_if_update_att_category(ti):
 
 def set_by_api_att_category(ti):
     import requests
+    import json
 
     headers = {
         "janis-api-key": Variable.get("JANIS_API_KEY"),
@@ -101,7 +96,7 @@ def set_by_api_att_category(ti):
     }
 
     ljst = ti.xcom_pull(task_ids=["check_if_update_att_category"])[0]
-    if ljst == None:
+    if ljst == 'Sin necesidad de actualizar':
         print("No hay update de atributos_producto.id_categoria")
         return "Sin necesidad de actualizar"
     update_products = [item['item_id'] for item in ljst ]
@@ -120,7 +115,7 @@ def set_by_api_att_category(ti):
     cargando = 0
     API_JANIS = Variable.get("JANIS_API_URL") 
     set_response = {}
-    no_updated = []
+    ref_ids_not_updated = []
     for arr_dict in jst:
         r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json= arr_dict)
         cargando += len(arr_dict)
@@ -129,44 +124,80 @@ def set_by_api_att_category(ti):
             print(f"Productos actualizados: {cargando} de {total_size} con EXITO")
         else:
             print(f"Carga sin éxito | Status_Code: {r.status_code} ")
-            print(f"Response Print: {r.content}")
-            no_updated.append()
+            print(f"Response Print: {r.text}")
+            ref_id = json.loads(r.text)['errors'][0]["item_id"]
+            print("ref_id not updated: ",ref_id)
+            ref_ids_not_updated.append(ref_id)
     if set_response == {200}:
         print("Se han finalizado con EXITO las actualizaciones de las categorías en atributos_producto")
+        productos_updated = [ id for id in update_products if id not in ref_ids_not_updated]
+        print ("Productos actualizados: ",productos_updated)
         return "Productos actualizados"
     else:
-        print("""Dado que no se actualizaron las categorías de los productos, o no se actualizaron todos, \n
-        estos productos no pasarán a categoría 'Sustitutos' \n
+        print(f"""Los siguientes productos no se lograron actualizar y no pasarán a categoría 'Sustitutos':
+        {ref_ids_not_updated}
         Actualizacion de atributos_producto.id_categoría Finalizado.""")
-        return update_products
+        return ref_ids_not_updated
+    
+def get_out_sustitutos():
+    import pandas as pd
+    import os
+    print("Getting ref_ids of products that are going out of sustitutive category:")
+    curr_working_directory = os.getcwd()
+    with open(curr_working_directory+f"/dags/unimarc/sql/proc_categoria_out_sustituto.sql", "r") as query_file:
+        query_out_sustitutos = query_file.read()
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query_out_sustitutos)
+    results = cursor.fetchall()
+    columns_name = [i[0] for i in cursor.description]
+    DF_update_atr_pro_categoria = pd.DataFrame(results, columns=columns_name)
+    cursor.close()
+    pg_connection.close()
+    print("Finalizada obtención de productos que deban cambiar de categoria")
+    return DF_update_atr_pro_categoria.to_json(orient='records')
 
 def upload_refid_category(ti):
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
 
-    json_categories = ti.xcom_pull(task_ids=["get_sustitutos_and_not_sustitutos"])[0]
-    response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
-    print("json_categories: ", json_categories)
-    print("response_update: ", response_update)
+    # Connection Data
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # Get products going out of substitutive  category
+    json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
+    if json_out_sustitutos != '[]':
+        df_out_sustituto = pd.read_json(json_out_sustitutos)
+        df_out_sustituto.assign(active = 1)
+
+    # Get products going in of substitutive  category
+    list_get_in_sustitutos = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
+    list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
     
-    if json_categories != '[]':
-        json_categories = json_categories.replace("true", "True")
-        df = pd.DataFrame(eval(json_categories))[['ref_id', 'id_category']]
-        if response_update != "Sin necesidad de actualizar" and  response_update != "Productos actualizados": 
-            print("La actualización de atributos_producto.valor no fué exitosa, no se cargarán aquellos productos ")
-            df = df[ ~df['ref_id'].isin(response_update)]
-        df = df.assign(active = 1)
-        df = df.rename(columns={'ref_id': 'refid', 'id_category': 'category'})
+    if list_get_in_sustitutos != '[]':
+        if list_response_update != "Sin necesidad de actualizar" and  list_response_update != "Productos actualizados": 
+            products_no_updated = list_response_update
+            list_in_sustituto = [ refid for refid in list_in_sustituto if refid not in products_no_updated ]
+            print("products_no_updated: ", products_no_updated)
+        df_in_sustitutos = pd.DataFrame(list_in_sustituto, columns=['refid']).assign(category = 48312581).assign(active = 1)
 
-        host = Variable.get("POSTGRESQL_HOST")
-        database = Variable.get("POSTGRESQL_DB")
-        username = Variable.get("POSTGRESQL_USER")
-        password = Variable.get("POSTGRESQL_PASSWORD")
-
-        conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-        engine = sqlalchemy.create_engine(conn_url)
-
+    if json_out_sustitutos == '[]' and list_in_sustituto == '[]':
+        print("Finalmente no hay movimientos de productos entre categorias")
+        return
+    elif json_out_sustitutos != '[]' and list_in_sustituto == '[]':
+        df = df_out_sustituto
+    elif json_out_sustitutos == '[]' and list_in_sustituto != '[]':
+        df = df_in_sustitutos
+    elif json_out_sustitutos != '[]' and list_in_sustituto != '[]':
+        df = pd.concat([df_in_sustitutos, df_out_sustituto])
+    
         # Save to PostgreSQL:
         print("Comienza la carga INSERT")
         connection = engine.connect()
@@ -218,7 +249,7 @@ with DAG(
 
     t0 = PythonOperator(
         task_id='get_sustitutos_and_not_sustitutos',
-        python_callable = get_sustitutos_and_not_sustitutos
+        python_callable = get_in_sustitutos
     )
 
     t1 = PythonOperator(
@@ -232,8 +263,13 @@ with DAG(
     )
 
     t3 = PythonOperator(
+        task_id='get_sustitutos_and_not_sustitutos',
+        python_callable = get_out_sustitutos
+    )
+
+    t4 = PythonOperator(
         task_id='upload_refid_category',
         python_callable = upload_refid_category,
     )
 
-    t0 >> t1 >> t2 >> t3 
+    t0 >> t1 >> t2 >> t3 >> t4
