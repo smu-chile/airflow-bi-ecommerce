@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
+from airflow.operators.postgres_operator import PostgresOperator
 
 from datetime import datetime
 import pendulum
@@ -37,7 +38,7 @@ def check_if_update_att_category(ti):
     list_refid_to_change = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
     if len(list_refid_to_change) == 0:
         print("Ningún producto de Lista 8 entra a la categoría sustituto")
-        return 'Sin necesidad de actualizar'
+        return []
     print(f"""Se espera que los siguientes productos pasen a categoría sustitutos: 
     {list_refid_to_change}""")
     print("""Iniciando revisión de diferencias entre ecommdata.productos:id_categoria y
@@ -66,7 +67,7 @@ def check_if_update_att_category(ti):
     refid_to_update = DF_update_atr_pro_categoria['ref_id']
     if refid_to_update.size == 0:
         print("No hay productos que necesiten actualizar atributos_productos.id_categoria")
-        return 'Sin necesidad de actualizar'
+        return [] 
     print(f"""Se debe actualizar atributos_productos en los siguientes productos: \n 
         {list(refid_to_update)}""")
     # Creación de big-json
@@ -96,12 +97,12 @@ def set_by_api_att_category(ti):
     }
 
     ljst = ti.xcom_pull(task_ids=["check_if_update_att_category"])[0]
-    if ljst == 'Sin necesidad de actualizar':
+    if ljst == []:
         print("No hay update de atributos_producto.id_categoria")
-        return "Sin necesidad de actualizar"
+        return []
     update_products = [item['item_id'] for item in ljst ]
     total_size = len(update_products)
-    print(f"""Se deben actualizar {total_size} productos de ecommdata.atributos_producto. \n
+    print(f"""Se deben actualizar {total_size} productos de ecommdata.atributos_producto. 
     Se actualizarán los siguientes productos: {update_products}""")
 
     # Partición de big-json y envío de data
@@ -173,36 +174,34 @@ def upload_refid_category(ti):
 
     # Get products going out of substitutive  category
     json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
+    # Get products going in of substitutive  category
+    list_get_in_sustitutos = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
+    list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
+
     if json_out_sustitutos != '[]':
         df_out_sustituto = pd.read_json(json_out_sustitutos)
         df_out_sustituto.assign(active = 1)
 
-    # Get products going in of substitutive  category
-    list_get_in_sustitutos = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
-    list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
     
-    if list_get_in_sustitutos != '[]':
-        if list_response_update != "Sin necesidad de actualizar" and  list_response_update != "Productos actualizados": 
+    if list_get_in_sustitutos != []:
+        if list_response_update != [] and  list_response_update != []: 
             products_no_updated = list_response_update
             list_in_sustituto = [ refid for refid in list_in_sustituto if refid not in products_no_updated ]
             print("products_no_updated: ", products_no_updated)
         df_in_sustitutos = pd.DataFrame(list_in_sustituto, columns=['refid']).assign(category = 48312581).assign(active = 1)
 
-    if json_out_sustitutos == '[]' and list_in_sustituto == '[]':
-        print("Finalmente no hay movimientos de productos entre categorias")
+    if json_out_sustitutos == [] and list_in_sustituto == []:
+        print("Finalmente no hay movimientos de productos entre categorias") 
         return
-    elif json_out_sustitutos != '[]' and list_in_sustituto == '[]':
+    elif json_out_sustitutos != [] and list_in_sustituto == []:
         df = df_out_sustituto
-    elif json_out_sustitutos == '[]' and list_in_sustituto != '[]':
+    elif json_out_sustitutos == [] and list_in_sustituto != []:
         df = df_in_sustitutos
-    elif json_out_sustitutos != '[]' and list_in_sustituto != '[]':
+    elif json_out_sustitutos != [] and list_in_sustituto != []:
         df = pd.concat([df_in_sustitutos, df_out_sustituto])
     
         # Save to PostgreSQL:
         print("Comienza la carga INSERT")
-        connection = engine.connect()
-        truncate_query = "TRUNCATE catalogo.sustitutos"
-        connection.execute(text(truncate_query))
         df.to_sql(  name="sustitutos",
                     con=engine,         
                     schema="catalogo",         
@@ -231,7 +230,7 @@ with DAG(
     Then, the category of the products listed in 'lista8' is updated using Janis API."
     """,
     schedule_interval="0 10 * * *",
-    start_date=pendulum.datetime(2023, 3, 17, tz="America/Santiago"),
+    start_date=pendulum.datetime(2023, 3, 28, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     tags=["API", "ecommdata", "lista8", "janis", "atributos_producto","productos", 'sustitutos', 'categorias'],
@@ -267,9 +266,15 @@ with DAG(
         python_callable = get_out_sustitutos
     )
 
-    t4 = PythonOperator(
+    t4 = PostgresOperator(
+        task_id='truncate_catalogo_sustitutos',
+        postgres_conn_id='pg_connection',
+        sql='TRUNCATE TABLE catalogo.sustitutos;'
+    )
+    
+    t5 = PythonOperator(
         task_id='upload_refid_category',
         python_callable = upload_refid_category,
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5
