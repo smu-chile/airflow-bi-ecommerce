@@ -50,7 +50,6 @@ def _incremental_load_pagos_janis(ti):
         "payment_system_name",
         "payment_group",
         "erp_id",
-        "erp_id_bk",
         "value",
         "value_original",
         "reference_value",
