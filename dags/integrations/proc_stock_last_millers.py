@@ -73,6 +73,9 @@ def _get_stock_from_datawarehouse(ti, ds):
     df = pd.DataFrame(results, columns=columns)
     print(f"Records found: {len(df.index)}")
 
+    if len(df.index) == 0:
+        raise Exception("ERROR: No records found.")
+
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
