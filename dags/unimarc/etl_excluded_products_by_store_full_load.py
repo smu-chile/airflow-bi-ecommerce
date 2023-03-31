@@ -8,6 +8,8 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _full_load_excluded_products_by_store_table(ti):
     import numpy as np
     import pandas as pd
@@ -108,8 +110,8 @@ with DAG(
     'etl_productos_excluidos_por_tienda_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla productos_excluidos_por_tienda desde Janis Unimarc Replica hasta Workspace.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 8, 11),
+    schedule_interval="0 4 * * *",
+    start_date=pendulum.datetime(2022, 8, 11, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "productos_excluidos_por_tienda", "Unimarc"],
 ) as dag:

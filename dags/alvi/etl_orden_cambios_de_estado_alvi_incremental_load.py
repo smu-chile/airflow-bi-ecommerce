@@ -8,6 +8,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+import pendulum
+
 def _incremental_load_order_status_changes(ti):
     import pandas as pd
     import sqlalchemy
@@ -96,7 +98,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla de cambios de estado de ordenes desde Janis Replica Alvi hasta Workspace.",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 1, 1),
+    start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "orden_cambios_de_estado", "Alvi"],
 ) as dag:

@@ -9,6 +9,8 @@ from utils.janis_alvi_utils import incremental_unixtime_load_table_s3, load_full
 
 from datetime import datetime, timezone
 
+import pendulum
+
 def _get_table_price_from_S3(ts, ti):
     import pandas as pd
 
@@ -220,8 +222,8 @@ with DAG(
     'etl_precios_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla precios desde Janis Alvi a S3 y ecommdata_alvi.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 6, 16),
+    schedule_interval="0 4 * * *",
+    start_date=pendulum.datetime(2022, 6, 16, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "precios", "alvi"],
 ) as dag:

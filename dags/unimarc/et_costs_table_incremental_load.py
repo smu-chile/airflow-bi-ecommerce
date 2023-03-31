@@ -8,6 +8,8 @@ from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _get_store_list():
     query = "SELECT id FROM ecommdata.tiendas"
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -123,8 +125,8 @@ with DAG(
     'etl_costs_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="30 10 * * *",
-    start_date=datetime(2022, 5, 1),
+    schedule_interval="30 7 * * *",
+    start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
     tags=["DATA", "DW", "S3", "workspace", "costos", "unimarc"],

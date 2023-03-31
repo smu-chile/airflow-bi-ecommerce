@@ -11,6 +11,8 @@ from utils.postgres_utils import is_empty_table
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _evaluate_full_load(ti, schema, table_name):
     if is_empty_table(schema, table_name):
         ti.xcom_push(key="load_method", value="full_load")
@@ -262,7 +264,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla despachos desde Janis Replica Alvi hasta Workspace.",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 2, 1),
+    start_date=pendulum.datetime(2022, 2, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata_alvi", "despachos", "alvi", "cumplimiento_despacho"],

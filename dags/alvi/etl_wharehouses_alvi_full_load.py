@@ -7,6 +7,8 @@ from utils.janis_alvi_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _full_load_bodegas_table(ti):
     import pandas as pd
     import sqlalchemy
@@ -78,8 +80,8 @@ with DAG(
     'etl_bodegas_alvi_full_load',
     default_args=default_args,
     description="Extracción y carga tabla bodegas y su relación con la tabla tiendas desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="0 9 * * *",
-    start_date=datetime(2022, 3, 15),
+    schedule_interval="0 6 * * *",
+    start_date=pendulum.datetime(2022, 3, 15, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "bodegas", "Alvi"],
 ) as dag:

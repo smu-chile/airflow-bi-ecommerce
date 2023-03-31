@@ -8,6 +8,8 @@ from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _sku_categorias_datawarehouse_unimarc_incremental_load(ti, ts):
     import numpy as np
     import pandas as pd
@@ -85,8 +87,8 @@ with DAG(
     'etl_sku_categorias_datawarehouse_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental sku_categories data from datawarehouse.",
-    schedule_interval="30 10 * * *",
-    start_date=datetime(2022, 8, 2),
+    schedule_interval="30 7 * * *",
+    start_date=pendulum.datetime(2022, 8, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     tags=["DATA", "DW", "S3", "ecommdata", "sku_categorias_datawarehouse", "Unimarc"],

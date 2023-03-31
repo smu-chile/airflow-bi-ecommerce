@@ -10,6 +10,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+import pendulum
+
 def _staging_transportadoras_table(ti):
     import pandas as pd
     import sqlalchemy
@@ -136,8 +138,8 @@ with DAG(
     'etl_transportadoras_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla transportadoras desde Janis Alvi Replica hasta Workspace.",
-    schedule_interval="30 7 * * *",
-    start_date=datetime(2022, 8, 8),
+    schedule_interval="30 4 * * *",
+    start_date=pendulum.datetime(2022, 8, 8, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "janis", "ecommdata_alvi", "transportadoras", "alvi"],
 ) as dag:

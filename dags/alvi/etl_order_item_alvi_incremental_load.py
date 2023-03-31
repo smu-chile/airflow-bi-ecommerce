@@ -9,6 +9,8 @@ from utils.janis_alvi_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _check_empty_table(ti):
     import pandas as pd
     import sqlalchemy
@@ -338,7 +340,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla orden_productos desde Janis Alvi Replica hasta Workspace.",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 1, 1),
+    start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "orden_productos", "Alvi"],
 ) as dag:

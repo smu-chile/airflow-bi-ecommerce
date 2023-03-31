@@ -9,6 +9,7 @@ from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
 
 def _promotions_table_incremental_load(ti, ts):
     import numpy as np
@@ -210,8 +211,8 @@ with DAG(
     'etl_workflow_promotions_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de datos incrementales de workflow_promociones de Alvi desde Datawarehouse",
-    schedule_interval="30 10 * * *",
-    start_date=datetime(2022, 4, 1),
+    schedule_interval="30 7 * * *",
+    start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
     tags=["DATA", "DW", "S3", "ecommdata_alvi", "workflow_promociones", "Alvi"],

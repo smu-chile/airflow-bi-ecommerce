@@ -8,6 +8,8 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _truncate_and_load_sku_images_table(ti):
     import pandas as pd
     import sqlalchemy
@@ -131,8 +133,8 @@ with DAG(
     'etl_imagenes_sku_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla imagenes_sku desde Janis Unimarc Replica hasta Workspace.",
-    schedule_interval="0 9 * * *",
-    start_date=datetime(2022, 7, 1),
+    schedule_interval="0 6 * * *",
+    start_date=pendulum.datetime(2022, 7, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "imagenes_sku", "Unimarc"],
 ) as dag:

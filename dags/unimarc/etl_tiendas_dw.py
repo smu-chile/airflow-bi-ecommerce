@@ -8,6 +8,8 @@ from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _load_stores_table(ti, ds):
     import pandas as pd
     import sqlalchemy
@@ -81,8 +83,8 @@ with DAG(
     'etl_tiendas_dw',
     default_args=default_args,
     description="Extracción y carga de tiendas desde DW hasta Workspace.",
-    schedule_interval="30 11 * * *",
-    start_date=datetime(2023, 2, 1),
+    schedule_interval="30 8 * * *",
+    start_date=pendulum.datetime(2022, 2, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DW", "ecommdata", "tiendas"],

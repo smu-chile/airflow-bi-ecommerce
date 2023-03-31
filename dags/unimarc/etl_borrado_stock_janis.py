@@ -8,6 +8,8 @@ from airflow.operators.python import PythonOperator
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _stopper_lista8(ts):
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
@@ -223,8 +225,8 @@ with DAG(
     'etl_borrado_stock_janis',
     default_args=default_args,
     description="Borrado de stock janis en base a productos removidos de lista8.",
-    schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 11, 1),
+    schedule_interval="0 7 * * *",
+    start_date=pendulum.datetime(2022, 11, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
     tags=["DATA", "SAP", "ecommdata", "lista8", "stock", "janis"],

@@ -9,6 +9,8 @@ from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 
 def _promotions_table_incremental_load(ti, ts):
     import numpy as np
@@ -213,8 +215,8 @@ with DAG(
     'workflow_promotions_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental workflow_promotion data.",
-    schedule_interval="30 10 * * *",
-    start_date=datetime(2022, 1, 1),
+    schedule_interval="30 7 * * *",
+    start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     tags=["DATA", "DW", "S3", "ecommdata", "workflow_promociones", "Unimarc"],

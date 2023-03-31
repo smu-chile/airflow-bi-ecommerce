@@ -9,6 +9,8 @@ from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _incremental_load_sales_table(ti, ds):
     import numpy as np
     import pandas as pd
@@ -179,8 +181,8 @@ with DAG(
     'etl_venta_sku_tienda_dw_load_and_truncate',
     default_args=default_args,
     description="Extracción y carga de vistas de venta por sku desde DW hasta Workspace.",
-    schedule_interval="30 11 * * *",
-    start_date=datetime(2022, 9, 1),
+    schedule_interval="30 8 * * *",
+    start_date=pendulum.datetime(2022, 9, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "DW", "ecommdata", "ventas"],
