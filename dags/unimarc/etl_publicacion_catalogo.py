@@ -9,9 +9,19 @@ from airflow.operators.dummy import DummyOperator
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _check_time(ts):
-    time_str = ts[11:16]
-    if (time_str == "23:00") or (time_str == "03:00"):
+    
+    exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
+    exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
+    local_tz = pendulum.timezone("America/Santiago")
+    exec_datetime_local = local_tz.convert(exec_datetime_utc)
+    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+    print(exec_datetime_local_str)
+
+    time_str = exec_datetime_local_str.split("T")[1]
+    if (time_str == "20:00") or (time_str == "00:00"):
         return "task_skip"
     else:
         return "load_table_publicacion_catalogo"
@@ -176,8 +186,8 @@ with DAG(
     'etl_publicacion_catalogo',
     default_args=default_args,
     description="Carga de tabla publicacion catalogo",
-    schedule_interval="0 3/4 * * *",
-    start_date=datetime(2022, 8, 18),
+    schedule_interval="0 0/4 * * *",
+    start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     tags=["DATA", "publicacion_catalogo", "ecommdata", "unimarc"],

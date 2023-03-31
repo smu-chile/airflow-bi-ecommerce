@@ -7,6 +7,8 @@ from airflow.sensors.external_task import ExternalTaskSensor
 
 from datetime import datetime
 
+import pendulum
+
 def _get_query_order_ids_from_s3(ts):
     import pandas as pd
 
@@ -43,7 +45,7 @@ with DAG(
     default_args=default_args,
     description="Carga de tabla found_rate_productos de Alvi",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 5, 1),
+    start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
     tags=["DATA", "found_rate_productos", "operaciones_alvi", "Alvi"],

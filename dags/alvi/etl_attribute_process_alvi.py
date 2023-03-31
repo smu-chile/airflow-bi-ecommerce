@@ -9,6 +9,7 @@ from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
+import pendulum
 
 def _incremental_load_attributes_table(ti):
     import numpy as np
@@ -431,7 +432,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla atributos, valores_atributo y atributos_producto desde Janis Alvi Replica hasta Workspace.",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 8, 1),
+    start_date=pendulum.datetime(2022, 8, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "atributos", "valores_atributo", "atributos_producto", "alvi"],
 ) as dag:

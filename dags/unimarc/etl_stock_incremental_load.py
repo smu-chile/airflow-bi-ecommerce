@@ -10,6 +10,8 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _get_table_stock_janis_from_S3(ts, ti):
     import pandas as pd
 
@@ -309,8 +311,8 @@ with DAG(
     'etl_stock_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla stock desde Vtex y Janis.",
-    schedule_interval="0 3/4 * * *",
-    start_date=datetime(2022, 7, 11),
+    schedule_interval="0 0/4 * * *",
+    start_date=pendulum.datetime(2022, 7, 11, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "vtex", "janis", "staging", "unimarc", "vtex_stock", "janis_stock", "stock"],

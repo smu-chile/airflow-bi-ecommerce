@@ -7,6 +7,8 @@ from utils.janis_alvi_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _generate_ff_profiles_table(ti):
     import pandas as pd
     import sqlalchemy
@@ -98,8 +100,8 @@ with DAG(
     'etl_ff_perfiles_alvi_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla ff_perfiles desde Janis Alvi Replica hasta Workspace.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 4, 1),
+    schedule_interval="0 4 * * *",
+    start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "ff_perfiles", "Alvi"],
 ) as dag:

@@ -6,6 +6,8 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from datetime import datetime
 
+import pendulum
+
 def _send_stock_0_to_janis(ds):
     import pandas as pd
     import sqlalchemy
@@ -80,8 +82,8 @@ with DAG(
     'etl_borrado_stock_inmovilizados',
     default_args=default_args,
     description="Borrado de Stock Janis en base a historia de ventas en dw y parametros entregados en tabla catalogo.categoria_tienda_inmovilizada.",
-    schedule_interval="0 12 * * *",
-    start_date=datetime(2023, 1, 30),
+    schedule_interval="0 9 * * *",
+    start_date=pendulum.datetime(2023, 1, 30, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "ecommdata", "catalogo", "inmovilizados", "stock", "OPS"],
 ) as dag:

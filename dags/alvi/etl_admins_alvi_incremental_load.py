@@ -3,6 +3,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+import pendulum
 
 from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
@@ -149,8 +150,8 @@ with DAG(
     'etl_administradores_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla administradores desde Janis Alvi Replica hasta Workspace.",
-    schedule_interval="0 8 * * *",
-    start_date=datetime(2022, 4, 1),
+    schedule_interval="0 5 * * *",
+    start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "administradores", "Alvi"],
 ) as dag:

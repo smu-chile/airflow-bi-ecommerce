@@ -8,6 +8,8 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from datetime import datetime
 
+import pendulum
+
 def _load_json_to_s3(ts, ds):
     import requests
     import json
@@ -482,8 +484,8 @@ with DAG(
     'etl_promociones_vtex',
     default_args=default_args,
     description="Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.",
-    schedule_interval="0 8,17 * * *",
-    start_date=datetime(2022, 10, 20),
+    schedule_interval="0 5,14 * * *",
+    start_date=pendulum.datetime(2022, 10, 20, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["vtex", "promociones"],

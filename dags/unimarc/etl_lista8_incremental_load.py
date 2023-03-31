@@ -9,6 +9,8 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _stopper_lista8(ts):
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
@@ -135,8 +137,8 @@ with DAG(
     'etl_lista8_datastage_incremental_load',
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
-    schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 7, 3),
+    schedule_interval="0 7 * * *",
+    start_date=pendulum.datetime(2022, 7, 3, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
     tags=["DATA", "SAP", "ecommdata_unimarc", "lista8"],

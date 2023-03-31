@@ -5,6 +5,7 @@ from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.hooks.postgres_hook import PostgresHook
 
 from datetime import datetime
+import pendulum
 
 def _insert_table_from_ecommdata_into_DM(ts, ds):
     import pandas as pd
@@ -127,8 +128,8 @@ with DAG(
     'dm_stock_soprole',
     default_args=default_args,
     description="Carga de stock de soprole en datamind",
-    schedule_interval="0 3/4 * * *",
-    start_date=datetime(2022, 7, 14),
+    schedule_interval="0 0/4 * * *",
+    start_date=pendulum.datetime(2022, 7, 14, tz="America/Santiago"),
     catchup=False,
     tags=["data", "datamind", "stock", "soprole"],
 ) as dag:

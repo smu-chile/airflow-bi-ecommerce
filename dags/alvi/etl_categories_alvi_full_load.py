@@ -9,6 +9,8 @@ from utils.janis_alvi_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 
 
 def process_categories_table(ti):
@@ -121,8 +123,8 @@ with DAG(
     'etl_categories_alvi_full_load',
     default_args=default_args,
     description="Extracción, transformación y carga de tabla categories desde Janis Alvi A Replica hasta Workspace.",
-    schedule_interval="0 3 * * *",
-    start_date=datetime(2021, 1, 1),
+    schedule_interval="0 0 * * *",
+    start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis_Alvi", "S3", "Alvi", "ecommdata_alvi"],
 ) as dag:
