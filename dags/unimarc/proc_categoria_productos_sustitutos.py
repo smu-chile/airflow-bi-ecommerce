@@ -28,8 +28,8 @@ def get_in_sustitutos():
 
 '''
 Para aquellos productos que cambian de categoría a sustitutto, previamente se hará una revisión
-de su atributos_producto.valor para el id_atributo: 11682839 (ID Categoría),
-si este es diferente a su productos.id_categoria, se hará su actualización via API de Janis.
+de su atributos_producto.valor para el atributo: ID Categoría, si este es diferente 
+a su productos.id_categoria, se actualizará via API de Janis.
 '''
 def check_if_update_att_category(ti):
     import pandas as pd
@@ -43,7 +43,11 @@ def check_if_update_att_category(ti):
     {list_refid_to_change}""")
     print("""Iniciando revisión de diferencias entre ecommdata.productos:id_categoria y
     ecommdata.atributos_producto:valor (id_categoria)""")
-    list_refid_to_change = tuple(list_refid_to_change)
+    tuple_refid_to_change = tuple(list_refid_to_change)
+    id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSITUTO") # 48312581
+    tuple_sustituto = tuple(id_category_sustutito)
+    id_category_static = Variable.get("JANIS_SUSTITUTOS_STATIC_CATEGORIES") # 10531456, 11599085, 
+    tuple_id_category_static = tuple(id_category_static, id_category_sustutito) #(10531456, 11599085, 48312581) 
     print(query_check)
     query_check = f"""
             select pro.ref_id, pro.id_categoria, att.valor
@@ -51,9 +55,9 @@ def check_if_update_att_category(ti):
             inner join ecommdata.productos pro 
                 on pro.id = att.id_producto_janis
             where att.id_atributo = 11682839
-                and	pro.id_categoria NOT IN (10531456, 11599085, 48312581) -- No trabajar, inactivo, sustituto
-                and pro.ref_id IN {list_refid_to_change}
-                and att.valor::float::int not in ( 48312581, pro.id_categoria);
+                and	pro.id_categoria NOT IN {tuple_id_category_static} -- No trabajar, inactivo, sustituto
+                and pro.ref_id IN {tuple_refid_to_change}
+                and att.valor::float::int not in ( {tuple_sustituto} , pro.id_categoria ); 
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -72,12 +76,13 @@ def check_if_update_att_category(ti):
         {list(refid_to_update)}""")
     # Creación de big-json
     jst = []
+
     for index, row in DF_update_atr_pro_categoria.iterrows():
         item = {
             "item_id": row['ref_id'],
             "attributes": [
                 {
-                    "id": "449",
+                    "id": Variable.get("REF_ID_JANIS_ATRIBUTO_CATEGORIA"), # DEV:293, PRO:449
                     "values": [str(row['id_categoria'])]
                 }
             ]
