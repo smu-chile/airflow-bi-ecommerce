@@ -86,8 +86,7 @@ def set_lim_compra(ti):
 default_args = {
     "owner": "ecommerce_ops",
     "depends_on_past": False,
-    "email_on_failure": True,
-    "email" : "nbonilla@smu.cl",
+    "email_on_failure": False,
     "email_on_retry": False,
     "retries": 0,
 }
