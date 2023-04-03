@@ -187,9 +187,9 @@ def upload_refid_category(ti):
         df_out_sustituto = pd.read_json(json_out_sustitutos)
         df_out_sustituto.assign(active = 1)
 
-    
+    products_no_updated = []
     if list_get_in_sustitutos != []:
-        if list_response_update != [] and  list_response_update != []: 
+        if list_response_update != []: 
             products_no_updated = list_response_update
             list_in_sustituto = [ refid for refid in list_in_sustituto if refid not in products_no_updated ]
             print("products_no_updated: ", products_no_updated)
@@ -205,24 +205,25 @@ def upload_refid_category(ti):
     elif json_out_sustitutos != [] and list_in_sustituto != []:
         df = pd.concat([df_in_sustitutos, df_out_sustituto])
     
-        # Save to PostgreSQL:
-        print("Comienza la carga INSERT")
-        df.to_sql(  name="sustitutos",
-                    con=engine,         
-                    schema="catalogo",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=10000,         
-                    method='multi')
-        print("Data loaded to Postgres")
-    else:
-        print("No hubo modificaciones en tabla Sustitutos")
+    # Save to PostgreSQL:
+    print("Comienza la carga INSERT")
+    df.to_sql(  name="sustitutos",
+                con=engine,         
+                schema="catalogo",         
+                if_exists='append',         
+                index=False,         
+                chunksize=10000,         
+                method='multi')
+    print("Data loaded to Postgres")
+    if products_no_updated != []:
+        raise ValueError (f"API Janis atributo_producto.valor not updated of {products_no_updated} ")
     return 
 
 default_args = {
     "owner": "ecommerce_ops",
     "depends_on_past": False,
-    "email_on_failure": False,
+    "email_on_failure": True,
+    "email": "nbonilla@smu.cl",
     "email_on_retry": False,
     "retries": 0,
 }
@@ -240,7 +241,6 @@ with DAG(
     max_active_runs=1,
     tags=["API", "ecommdata", "lista8", "janis", "atributos_producto","productos", 'sustitutos', 'categorias'],
 ) as dag:
-
     dag.doc_md = """
     The products that must change categories are obtained, there are two cases:
     Enter substitution: Product that is found with its initial category and in list8 has all its stores marked 'substitution' 
