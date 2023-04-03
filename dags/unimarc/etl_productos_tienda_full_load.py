@@ -8,6 +8,8 @@ from utils.janis_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _load_products_store_data(ti):
     import pandas as pd
     import sqlalchemy
@@ -71,8 +73,8 @@ with DAG(
     'etl_productos_tienda_unimarc_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla productos_tienda desde Janis Replica hasta Workspace.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 5, 1),
+    schedule_interval="0 4 * * *",
+    start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "productos_tienda", "Unimarc"],
 ) as dag:

@@ -7,6 +7,8 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime
 
+import pendulum
+
 def _load_dw_stock_to_s3(ds,ts):
     import pandas as pd
     import sqlalchemy
@@ -200,8 +202,8 @@ with DAG(
     'etl_frogmi_chequeo_found_rate',
     default_args=default_args,
     description="Extracción y carga de stock DW para chequear foundrate de productos.",
-    schedule_interval="0 11 * * *",
-    start_date=datetime(2022, 10, 26),
+    schedule_interval="0 8 * * *",
+    start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["frogmi", "foundrate"],

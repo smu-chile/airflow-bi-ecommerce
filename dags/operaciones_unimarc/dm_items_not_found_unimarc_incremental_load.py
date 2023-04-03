@@ -9,6 +9,8 @@ from airflow.hooks.postgres_hook import PostgresHook
 
 from datetime import datetime
 
+import pendulum
+
 def _upsert_table_from_ecommdata_into_DM(ti, ds):
     import pandas as pd
     import sqlalchemy
@@ -113,7 +115,7 @@ with DAG(
     default_args=default_args,
     description="Carga de tabla de productos no encontrados",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 6, 2),
+    start_date=pendulum.datetime(2022, 6, 2, tz="America/Santiago"),
     catchup=False,
     tags=["data", "datamind", "not_found", "unimarc"],
 ) as dag:
