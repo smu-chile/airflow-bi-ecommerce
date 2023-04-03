@@ -47,14 +47,15 @@ def check_if_update_att_category(ti):
     id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSITUTO") # 48312581
     tuple_sustituto = tuple(id_category_sustutito)
     id_category_static = Variable.get("JANIS_SUSTITUTOS_STATIC_CATEGORIES") # 10531456, 11599085, 
-    tuple_id_category_static = tuple(id_category_static, id_category_sustutito) #(10531456, 11599085, 48312581) 
+    tuple_id_category_static = tuple(id_category_static, id_category_sustutito) #dev: , prod: 10531456, 11599085, 48312581
+    id_atributo_idcategory = Variable.get("JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA") # dev: prod: 11682839
     print(query_check)
     query_check = f"""
             select pro.ref_id, pro.id_categoria, att.valor
             from ecommdata.atributos_producto att
             inner join ecommdata.productos pro 
                 on pro.id = att.id_producto_janis
-            where att.id_atributo = 11682839
+            where att.id_atributo = {id_atributo_idcategory}
                 and	pro.id_categoria NOT IN {tuple_id_category_static} -- No trabajar, inactivo, sustituto
                 and pro.ref_id IN {tuple_refid_to_change}
                 and att.valor::float::int not in ( {tuple_sustituto} , pro.id_categoria ); 
@@ -193,7 +194,8 @@ def upload_refid_category(ti):
             products_no_updated = list_response_update
             list_in_sustituto = [ refid for refid in list_in_sustituto if refid not in products_no_updated ]
             print("products_no_updated: ", products_no_updated)
-        df_in_sustitutos = pd.DataFrame(list_in_sustituto, columns=['refid']).assign(category = 48312581).assign(active = 1)
+        id_atributo_idcategory = Variable.get("JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA")
+        df_in_sustitutos = pd.DataFrame(list_in_sustituto, columns=['refid']).assign(category = id_atributo_idcategory).assign(active = 1)
 
     if json_out_sustitutos == [] and list_in_sustituto == []:
         print("Finalmente no hay movimientos de productos entre categorias") 
