@@ -8,6 +8,7 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from utils.netezza_utils import netezza_full_table_load_to_s3
 
 from datetime import datetime, timedelta
+import pendulum
 
 def write_s3_file(ti):
     dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
@@ -32,8 +33,8 @@ with DAG(
     'etl_stores_datawarehouse_raw_load',
     default_args=default_args,
     description="Extraction of raw data from data warehouse.",
-    schedule_interval="15 10 * * *",
-    start_date=datetime(2022, 5, 1),
+    schedule_interval="15 7 * * *",
+    start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "DW", "S3", "Tiendas"],
 ) as dag:

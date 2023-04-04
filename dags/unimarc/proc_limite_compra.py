@@ -9,9 +9,11 @@ def db_get_ref_id_atributos_producto():
     print(f"Iniciando obtencion de lista de ref_id de productos sin limite de compra ...")
     print("Estableciendo conección con postgres db")
 
-    query = """
+    id_atributo_limite_compra = Variable.get("JANIS_ID_ATRIBUTO_LIMITE_COMPRA") # dev:2839656 , prod:2847610 
+
+    query = f"""
             select ref_id from ecommdata.atributos_producto 
-            where id_atributo = 2847610 
+            where id_atributo = {id_atributo_limite_compra}
             and valor is null;
         """
     print(query)
@@ -50,7 +52,7 @@ def set_lim_compra(ti):
             "item_id": x,
             "attributes": [
                 {
-                    "id": "238",
+                    "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
                     "values": ["12"]
                 }
             ]
@@ -76,6 +78,7 @@ def set_lim_compra(ti):
         else:
             print(f"Carga sin éxito | Status_Code: {r.status_code} ")
             print(f"Response Print: {r.content}")
+            raise ValueError("Janis API response != 200")
     print("La carga de límites a finalizado")          
     return 
 
