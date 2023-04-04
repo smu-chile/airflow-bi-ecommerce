@@ -268,7 +268,7 @@ with DAG(
     )
 
     t3 = PythonOperator(
-        task_id='get_sustitutos_and_not_sustitutos',
+        task_id='get_out_sustitutos',
         python_callable = get_out_sustitutos
     )
 
