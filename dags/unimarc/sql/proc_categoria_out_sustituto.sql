@@ -1,10 +1,10 @@
 select p.ref_id as refid, att.valor as category
 from ecommdata.lista8 l
-    left join ecommdata.productos p on p.ref_id = LPAD(l.material, 18, '0') || '-' || l.umv
-    LEFT JOIN ecommdata.atributos_producto att on att.ref_id = LPAD(l.material, 18, '0') || '-' || l.umv
+    left join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
+    LEFT JOIN ecommdata.atributos_producto att on att.ref_id = l.material || '-' || l.umv
 where p.id_categoria = {id_sustitutive_category_id}
     and att.id_atributo = {id_atributo_idcategory}
-    and LPAD(l.material, 18, '0') || '-' || l.umv not in (
+    and l.material || '-' || l.umv not in (
         '000000000000761296-KG',
         '000000000000752499-KG',
         '000000000000542749-KG',

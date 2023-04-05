@@ -1,11 +1,11 @@
-select LPAD(l.material, 18, '0') || '-' || l.umv as refId 
+select l.material || '-' || l.umv as refId 
 from ecommdata.lista8 l
-    left join ecommdata.productos p on p.ref_id = LPAD(l.material, 18, '0') || '-' || l.umv
+    left join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
 where (
         p.id_categoria <> '{id_sustitutive_category_id}'
         or p.id_categoria is null
     )
-    and LPAD(l.material, 18, '0') || '-' || l.umv not in (
+    and l.material || '-' || l.umv not in (
         '000000000000761296-KG',
         '000000000000752499-KG',
         '000000000000542749-KG',
@@ -32,6 +32,6 @@ where (
         '000000000000542752-KG',
         '000000000000752507-KG'
     )
-group by LPAD(l.material, 18, '0') || '-' || l.umv,
+group by l.material || '-' || l.umv,
     p.id_categoria
 having bool_and(l.sustituto);

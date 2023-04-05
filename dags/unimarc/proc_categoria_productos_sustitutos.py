@@ -26,7 +26,6 @@ def get_in_sustitutos():
     cursor.close()
     pg_connection.close()
     print("Finalizada obtención de productos que deban cambiar de categoria")
-    print ('ref_id_list', ref_id_list)
     return ref_id_list
 
 '''
@@ -47,10 +46,9 @@ def check_if_update_att_category(ti):
     print("""Iniciando revisión de diferencias entre ecommdata.productos:id_categoria y
     ecommdata.atributos_producto:valor (id_categoria)""")
     print("list_refid_to_change", list_refid_to_change)
-
+    list_refid_to_change = str(list_refid_to_change)[1:-1]
     id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO") #dev: 3178669, prod: 48312581
-    id_category_static = (Variable.get("JANIS_SUSTITUTOS_STATIC_CATEGORIES") +", "+ id_category_sustutito).split(',') # dev : 10739173, prod: 10531456, 11599085, 
-    id_category_static = [ x.strip() for x in id_category_static]
+    id_category_static = Variable.get("JANIS_SUSTITUTOS_STATIC_CATEGORIES") +","+ id_category_sustutito # dev : 10739173, prod: 10531456, 11599085, 
 
     id_atributo_idcategory = Variable.get("JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA") # dev: 5814502, prod: 11682839
     query_check = f"""
@@ -59,8 +57,8 @@ def check_if_update_att_category(ti):
             inner join ecommdata.productos pro 
                 on pro.id = att.id_producto_janis
             where att.id_atributo = {id_atributo_idcategory}
-                and	pro.id_categoria NOT IN ({str(id_category_static)[1:-1]}) -- No trabajar, inactivo, sustituto
-                and pro.ref_id IN ({str(list_refid_to_change)[1:-1]})
+                and	pro.id_categoria NOT IN ({id_category_static}) -- No trabajar, inactivo, sustituto
+                and pro.ref_id IN ({list_refid_to_change})
                 and att.valor::float::int not in ( {id_category_sustutito} , pro.id_categoria ); 
     """ 
     print(query_check)
