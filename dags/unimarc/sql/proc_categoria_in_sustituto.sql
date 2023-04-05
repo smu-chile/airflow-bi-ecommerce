@@ -2,7 +2,7 @@ select LPAD(l.material, 18, '0') || '-' || l.umv as refId
 from ecommdata.lista8 l
     left join ecommdata.productos p on p.ref_id = LPAD(l.material, 18, '0') || '-' || l.umv
 where (
-        p.id_categoria <> 48312581
+        p.id_categoria <> '{id_sustitutive_category_id}'
         or p.id_categoria is null
     )
     and LPAD(l.material, 18, '0') || '-' || l.umv not in (

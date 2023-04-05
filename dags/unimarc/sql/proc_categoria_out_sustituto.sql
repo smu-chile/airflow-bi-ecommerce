@@ -2,7 +2,7 @@ select p.ref_id, att.valor as id_categoria
 from ecommdata.lista8 l
     left join ecommdata.productos p on p.ref_id = LPAD(l.material, 18, '0') || '-' || l.umv
     LEFT JOIN ecommdata.atributos_producto att on att.ref_id = LPAD(l.material, 18, '0') || '-' || l.umv
-where p.id_categoria = 48312581
+where p.id_categoria = {id_sustitutive_category_id}
     and LPAD(l.material, 18, '0') || '-' || l.umv not in (
         '000000000000761296-KG',
         '000000000000752499-KG',
@@ -33,4 +33,4 @@ where p.id_categoria = 48312581
 group by p.ref_id, p.id_categoria, att.valor, 
 att.id_atributo 
 having not bool_and(l.sustituto) and 
-att.id_atributo = 11682839;
+att.id_atributo = {id_atributo_idcategory};
