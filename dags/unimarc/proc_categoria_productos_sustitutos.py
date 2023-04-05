@@ -19,6 +19,7 @@ def get_in_sustitutos():
     cursor = pg_connection.cursor()
     id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
     query_in_sustitutos = query_in_sustitutos.replace('{id_sustitutive_category_id}', id_category_sustutito)
+    print(query_in_sustitutos)
     cursor.execute(query_in_sustitutos)
     results = cursor.fetchall()
     ref_id_list = [result[0] for result in results]
@@ -165,6 +166,7 @@ def get_out_sustitutos():
     query_out_sustitutos = query_out_sustitutos.replace('{id_atributo_idcategory}', id_atributo_idcategory)
     id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
     query_out_sustitutos = query_out_sustitutos.replace('{id_sustitutive_category_id}', id_category_sustutito)
+    print(query_out_sustitutos)
     cursor.execute(query_out_sustitutos)
     results = cursor.fetchall()
     columns_name = [i[0] for i in cursor.description]
@@ -204,7 +206,7 @@ def upload_refid_category(ti):
             print("products_no_updated: ", list_response_update)
 
         id_atributo_idcategory = Variable.get("JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA")
-        df_in_sustitutos = pd.DataFrame(list_in_sustitutos, columns=['refid']).assign(category = id_atributo_idcategory).assign(active = 1)
+        df_in_sustitutos = pd.DataFrame(list_in_sustitutos, columns=['refid']).assign(category = id_atributo_idcategory)
 
     if json_out_sustitutos == [] and list_in_sustitutos == []:
         print("Finalmente no hay movimientos de productos entre categorias") 
@@ -217,6 +219,7 @@ def upload_refid_category(ti):
         df = pd.concat([df_in_sustitutos, df_out_sustituto])
     
     print("list_response_update",list_response_update)
+    df = df.assign(active = 1)
     print(df)
     # Save to PostgreSQL:
     print("Comienza la carga INSERT")
