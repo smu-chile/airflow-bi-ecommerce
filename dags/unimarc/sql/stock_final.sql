@@ -24,7 +24,7 @@ select
 , svu.cantidad_ilimitada as stock_infinito_vtex
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
-, '{{ts}}'::timestamp + interval '1 hour' as ultima_actualizacion
+, '{{ts}}'::timestamp as ultima_actualizacion
 , l.material is not null and l.excluido is false as surtido_ecommerce
 , case
 	when li.material is null then false
