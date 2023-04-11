@@ -1,4 +1,4 @@
-select p.ref_id as refid, att.valor as category
+select p.ref_id as refId, att.valor as category, p.nombre as name
 from ecommdata.lista8 l
     left join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
     LEFT JOIN ecommdata.atributos_producto att on att.ref_id = l.material || '-' || l.umv
@@ -32,5 +32,5 @@ where p.id_categoria = {id_sustitutive_category_id}
         '000000000000752507-KG'
     )
 group by p.ref_id, p.id_categoria, att.valor, 
-att.id_atributo 
+att.id_atributo, p.nombre
 having not bool_and(l.sustituto);
