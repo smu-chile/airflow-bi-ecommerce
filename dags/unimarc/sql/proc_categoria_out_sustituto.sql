@@ -1,7 +1,7 @@
 select p.ref_id as refId, att.valor as category, p.nombre as name
 from ecommdata.lista8 l
-    left join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
-    LEFT JOIN ecommdata.atributos_producto att on att.ref_id = l.material || '-' || l.umv
+    inner join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
+    inner join ecommdata.atributos_producto att on att.ref_id = l.material || '-' || l.umv
 where p.id_categoria = {id_sustitutive_category_id}
     and att.id_atributo = {id_atributo_idcategory}
     and l.material || '-' || l.umv not in (

@@ -80,7 +80,6 @@ def check_if_update_att_category(ti):
     cursor.close()
     pg_connection.close()
     DF_update_atr_pro_categoria = pd.DataFrame(results, columns=columns_name)
-    print(DF_update_atr_pro_categoria)
     refid_to_update = DF_update_atr_pro_categoria['ref_id']
     print(refid_to_update)
     if refid_to_update.size == 0:
@@ -145,9 +144,9 @@ def set_by_api_att_category(ti):
         else:
             print(f"Carga sin éxito | Status_Code: {r.status_code} ")
             print(f"Response Print: {r.text}")
-            ref_id = json.loads(r.text)['errors'][0]["item_id"]
+            ref_id = [ x["item_id"] for x in json.loads(r.text)['errors'] ]
             print("ref_id not updated: ",ref_id)
-            ref_ids_not_updated.append(ref_id)
+            ref_ids_not_updated = ref_ids_not_updated + ref_id
     if set_response == {200}:
         print("Se han finalizado con EXITO las actualizaciones de las categorías en atributos_producto")
         productos_updated = [ id for id in update_products if id not in ref_ids_not_updated]
