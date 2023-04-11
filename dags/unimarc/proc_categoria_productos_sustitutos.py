@@ -9,6 +9,7 @@ import pendulum
 
 def get_in_sustitutos():
     import os
+    import pandas as pd
 
     print("Iniciando obtención de productos que deban pasar a categoría sustitución: ")
     curr_working_directory = os.getcwd()
@@ -17,16 +18,18 @@ def get_in_sustitutos():
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
-    query_in_sustitutos = query_in_sustitutos.replace('{id_sustitutive_category_id}', id_category_sustutito)
+    id_category_sustituto = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
+    query_in_sustitutos = query_in_sustitutos.replace('{id_sustitutive_category_id}', id_category_sustituto)
     print(query_in_sustitutos)
     cursor.execute(query_in_sustitutos)
     results = cursor.fetchall()
-    ref_id_list = [result[0] for result in results]
+    columns_name = [i[0] for i in cursor.description]
+    print(columns_name)
+    DF_in_sustitutos = pd.DataFrame(results, columns=columns_name)
     cursor.close()
     pg_connection.close()
     print("Finalizada obtención de productos que deban cambiar de categoria")
-    return ref_id_list
+    return DF_in_sustitutos.to_json(orient='records')
 
 '''
 Para aquellos productos que cambian de categoría a sustitutto, previamente se hará una revisión
@@ -37,7 +40,11 @@ def check_if_update_att_category(ti):
     import pandas as pd
 
     # Checkear si hubo cambio de categoría en ecommdata.productos que van a sustitutos
-    list_refid_to_change = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
+    json_refid_to_change = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
+    df_refid_to_change = pd.read_json(json_refid_to_change)
+    print(df_refid_to_change)
+    list_refid_to_change = list(df_refid_to_change['refid'])
+
     if len(list_refid_to_change) == 0:
         print("Ningún producto de Lista 8 entra a la categoría sustituto")
         return []
@@ -47,19 +54,22 @@ def check_if_update_att_category(ti):
     ecommdata.atributos_producto:valor (id_categoria)""")
     print("list_refid_to_change", list_refid_to_change)
     list_refid_to_change = str(list_refid_to_change)[1:-1]
-    id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO") #dev: 3178669, prod: 48312581
-    id_category_static = Variable.get("JANIS_SUSTITUTOS_STATIC_CATEGORIES") +","+ id_category_sustutito # dev : 10739173, prod: 10531456, 11599085, 
+    id_category_sustituto = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO") #dev: 3178669, prod: 48312581
+    id_category_static = Variable.get("JANIS_SUSTITUTOS_STATIC_CATEGORIES") +","+ id_category_sustituto # dev : 10739173, prod: 10531456, 11599085, 
+    ref_id_category_sustituto = Variable.get("JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
 
     id_atributo_idcategory = Variable.get("JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA") # dev: 5814502, prod: 11682839
     query_check = f"""
-            select pro.ref_id, pro.id_categoria, att.valor
-            from ecommdata.atributos_producto att
-            inner join ecommdata.productos pro 
-                on pro.id = att.id_producto_janis
+            select pro.ref_id as ref_id, c.ref_id as id_categoria
+            from ecommdata.productos pro
+            inner join ecommdata.atributos_producto att 
+                on pro.ref_id = att.ref_id
+            inner join ecommdata.categorias c
+                on pro.id_categoria = pro.id 
             where att.id_atributo = {id_atributo_idcategory}
                 and	pro.id_categoria NOT IN ({id_category_static}) -- No trabajar, inactivo, sustituto
                 and pro.ref_id IN ({list_refid_to_change})
-                and att.valor::float::int not in ( {id_category_sustutito} , pro.id_categoria ); 
+                and att.valor::float::int not in ( {ref_id_category_sustituto} , c.ref_id ); 
     """ 
     print(query_check)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -162,8 +172,8 @@ def get_out_sustitutos():
     cursor = pg_connection.cursor()
     id_atributo_idcategory = Variable.get("JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA") # dev: 5814502, prod: 11682839
     query_out_sustitutos = query_out_sustitutos.replace('{id_atributo_idcategory}', id_atributo_idcategory)
-    id_category_sustutito = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
-    query_out_sustitutos = query_out_sustitutos.replace('{id_sustitutive_category_id}', id_category_sustutito)
+    id_category_sustituto = Variable.get("JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
+    query_out_sustitutos = query_out_sustitutos.replace('{id_sustitutive_category_id}', id_category_sustituto)
     print(query_out_sustitutos)
     cursor.execute(query_out_sustitutos)
     results = cursor.fetchall()
@@ -189,35 +199,46 @@ def upload_refid_category(ti):
 
     # Get products going out of substitutive  category
     json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
-    # Get products going in of substitutive  category
-    list_in_sustitutos = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
-    list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
-
-    df_out_sustituto = pd.DataFrame()
+    df_out_sustitutos = pd.DataFrame()
     if json_out_sustitutos != '[]':
-        df_out_sustituto = pd.read_json(json_out_sustitutos)
-        df_out_sustituto.assign(active = 1)
-
+        df_out_sustitutos = pd.read_json(json_out_sustitutos)
+        print('df_out_sustitutos')
+        print(df_out_sustitutos)
+    
+    # Get products going in of substitutive  category
+    json_in_sustitutos = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
+    df_in_sustitutos = pd.DataFrame()
+    if json_in_sustitutos != '[]':
+        df_in_sustitutos = pd.read_json(json_in_sustitutos)
+        print('df_in_sustitutos')
+        print(df_in_sustitutos)
+    
+    list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
+    list_in_sustitutos = list(df_in_sustitutos['refid'])
     if list_in_sustitutos != []:
         if list_response_update != []: 
             list_in_sustitutos = [ refid for refid in list_in_sustitutos if refid not in list_response_update ]
+            df_in_sustitutos = df_in_sustitutos.query('refid' in list_in_sustitutos )
             print("products_no_updated: ", list_response_update)
 
-        id_atributo_idcategory = Variable.get("JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA")
-        df_in_sustitutos = pd.DataFrame(list_in_sustitutos, columns=['refid']).assign(category = id_atributo_idcategory)
+        ref_id_categoria_sustituto = Variable.get("JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
+        df_in_sustitutos = df_in_sustitutos.assign(category = ref_id_categoria_sustituto)
+        print('df_in_sustitutos')
+        print(df_in_sustitutos)
 
     if json_out_sustitutos == [] and list_in_sustitutos == []:
         print("Finalmente no hay movimientos de productos entre categorias") 
         return
     elif json_out_sustitutos != [] and list_in_sustitutos == []:
-        df = df_out_sustituto
+        df = df_out_sustitutos
     elif json_out_sustitutos == [] and list_in_sustitutos != []:
         df = df_in_sustitutos
     elif json_out_sustitutos != [] and list_in_sustitutos != []:
-        df = pd.concat([df_in_sustitutos, df_out_sustituto])
+        df = pd.concat([df_in_sustitutos, df_out_sustitutos])
     
     print("list_response_update",list_response_update)
     df = df.assign(active = 1)
+    df = df.rename(columns={'refid':'refId'})
     print(df)
     # Save to PostgreSQL:
     print("Comienza la carga INSERT")
