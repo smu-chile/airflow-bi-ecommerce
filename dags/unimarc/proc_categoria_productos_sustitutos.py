@@ -249,9 +249,9 @@ def upload_refid_category(ti):
                 method='multi')
 
     if list_response_update != []:
-        raise ValueError (f"API Janis atributo_producto.valor not updated of {list_response_update} ")
+        print(f"API Janis atributo_producto.valor not updated of {list_response_update}")
     else:
-        print("Data loaded to Postgres")
+        print("Data full loaded to Postgres")
     return 
 
 default_args = {
