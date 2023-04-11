@@ -217,7 +217,7 @@ def upload_refid_category(ti):
     if list_in_sustitutos != []:
         if list_response_update != []: 
             list_in_sustitutos = [ refid for refid in list_in_sustitutos if refid not in list_response_update ]
-            df_in_sustitutos = df_in_sustitutos.query('refid' in list_in_sustitutos )
+            df_in_sustitutos = df_in_sustitutos.query('refid in @list_in_sustitutos')
             print("products_no_updated: ", list_response_update)
 
         ref_id_categoria_sustituto = Variable.get("JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
