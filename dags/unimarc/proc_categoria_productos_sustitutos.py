@@ -62,14 +62,13 @@ def check_if_update_att_category(ti):
     query_check = f"""
             select pro.ref_id as ref_id, c.ref_id as id_categoria
             from ecommdata.productos pro
-            inner join ecommdata.atributos_producto att 
-                on pro.ref_id = att.ref_id
-            inner join ecommdata.categorias c
-                on pro.id_categoria = pro.id 
+            inner join ecommdata.atributos_producto att on pro.ref_id = att.ref_id
+            inner join ecommdata.categorias c on pro.id_categoria = c.id 
             where att.id_atributo = {id_atributo_idcategory}
                 and	pro.id_categoria NOT IN ({id_category_static}) -- No trabajar, inactivo, sustituto
                 and pro.ref_id IN ({list_refid_to_change})
-                and att.valor::float::int not in ( {ref_id_category_sustituto} , c.ref_id ); 
+                and ( att.valor::float::int not in ( {ref_id_category_sustituto} , c.ref_id )
+                    or att.valor is null); 
     """ 
     print(query_check)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
