@@ -197,6 +197,8 @@ def upload_refid_category(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     json_in_sustitutos = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
+    json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
+    df_out_sustitutos = pd.read_json(json_out_sustitutos)
     if json_in_sustitutos == '[]' and json_out_sustitutos == '[]':
         print("Finalmente no hay movimientos de productos entre categorias") 
         return
@@ -209,8 +211,6 @@ def upload_refid_category(ti):
     ref_id_categoria_sustituto = Variable.get("JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
     df_in_sustitutos = df_in_sustitutos.assign(category = ref_id_categoria_sustituto)
 
-    json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
-    df_out_sustitutos = pd.read_json(json_out_sustitutos)
     
     df = pd.concat([df_in_sustitutos, df_out_sustitutos])
     
