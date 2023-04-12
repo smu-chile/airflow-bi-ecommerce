@@ -41,11 +41,12 @@ def check_if_update_att_category(ti):
 
     # Checkear si hubo cambio de categoría en ecommdata.productos que van a sustitutos
     json_refid_to_change = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
-    df_refid_to_change = pd.read_json(json_refid_to_change)
-    print(df_refid_to_change)
-    list_refid_to_change = list(df_refid_to_change['refId'])
-
-    if len(list_refid_to_change) == 0:
+    list_refid_to_change = []
+    if json_refid_to_change != '[]':
+        df_refid_to_change = pd.read_json(json_refid_to_change)
+        print(df_refid_to_change)
+        list_refid_to_change = list(df_refid_to_change['refId'])
+    else:
         print("Ningún producto de Lista 8 entra a la categoría sustituto")
         return []
     print(f"""Se espera que los siguientes productos pasen a categoría sustitutos: 
