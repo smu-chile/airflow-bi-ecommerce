@@ -43,7 +43,7 @@ def check_if_update_att_category(ti):
     json_refid_to_change = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
     df_refid_to_change = pd.read_json(json_refid_to_change)
     print(df_refid_to_change)
-    list_refid_to_change = list(df_refid_to_change['refid'])
+    list_refid_to_change = list(df_refid_to_change['refId'])
 
     if len(list_refid_to_change) == 0:
         print("Ningún producto de Lista 8 entra a la categoría sustituto")
@@ -201,28 +201,20 @@ def upload_refid_category(ti):
         return
     
     df_in_sustitutos = pd.read_json(json_in_sustitutos)
-    print('df_in_sustitutos_sin_filtrar')
-    print(df_in_sustitutos)
-
     list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0]
     if list_response_update != []:
         print("products_no_updated: ", list_response_update)
         df_in_sustitutos = df_in_sustitutos.query('refid not in @list_response_update')
     ref_id_categoria_sustituto = Variable.get("JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
     df_in_sustitutos = df_in_sustitutos.assign(category = ref_id_categoria_sustituto)
-    
-    print('df_in_sustitutos_filtrado')
-    print(df_in_sustitutos)
 
     json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
     df_out_sustitutos = pd.read_json(json_out_sustitutos)
     
     df = pd.concat([df_in_sustitutos, df_out_sustitutos])
     
-    print("list_response_update",list_response_update)
     df = df.assign(active = 1)
     df = df.rename(columns={'refid':'refId'})
-    print(df)
     # Save to PostgreSQL:
     print("Comienza la carga INSERT")
     df.to_sql(  name="sustitutos",
@@ -234,7 +226,8 @@ def upload_refid_category(ti):
                 method='multi')
 
     if list_response_update != []:
-        print(f"API Janis atributo_producto.valor not updated of {list_response_update}")
+        print(f"""atributo_producto.valor not updated of categoría:
+        {list_response_update}""")
     else:
         print("Data full loaded to Postgres")
     return 
