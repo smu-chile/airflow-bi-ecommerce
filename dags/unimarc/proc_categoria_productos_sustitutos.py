@@ -45,7 +45,7 @@ def check_if_update_att_category(ti):
     if json_refid_to_change != '[]':
         df_refid_to_change = pd.read_json(json_refid_to_change)
         print(df_refid_to_change)
-        list_refid_to_change = list(df_refid_to_change['refId'])
+        list_refid_to_change = list(df_refid_to_change['refid'])
     else:
         print("Ningún producto de Lista 8 entra a la categoría sustituto")
         return []
