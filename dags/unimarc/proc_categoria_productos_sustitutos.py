@@ -217,7 +217,7 @@ def upload_refid_category(ti):
     json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
     df_out_sustitutos = pd.read_json(json_out_sustitutos)
     
-    df = pd.concat([pd.read_json(json_in_sustitutos), pd.read_json(json_out_sustitutos)])
+    df = pd.concat([df_in_sustitutos, df_out_sustitutos])
     
     print("list_response_update",list_response_update)
     df = df.assign(active = 1)
