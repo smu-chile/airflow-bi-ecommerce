@@ -81,7 +81,13 @@ def _post_request_to_publish_task_endpoint(ts):
     
     exec_date_local, time_interval, task_start_date = _get_time_interval(ts)
     query = f"""
-        select *
+        select ref_id,
+        descripcion,
+        id_tienda,
+        ordenes,
+        unidades_faltantes,
+        _rank,
+        cantidad
         from
         (
             select ref_id
@@ -89,6 +95,7 @@ def _post_request_to_publish_task_endpoint(ts):
                 , id_frogmi as id_tienda
                 , ordenes
                 , unidades_faltantes
+                , cantidad
                 , dense_rank() over (partition by id_frogmi order by ordenes desc, unidades_faltantes desc) as _rank
             from 
             (
@@ -97,18 +104,24 @@ def _post_request_to_publish_task_endpoint(ts):
                     , id_frogmi 
                     , count(1) as ordenes
                     , sum(unidades_solicitadas - unidades_pickeadas) as unidades_faltantes --PAQ y DIS multiplicar por unidades_pack
+                    , case 
+                        when cpf.id_tienda is null then 5
+                        else cpf.cantidad 
+                    end as cantidad
                 from operaciones_unimarc.found_rate_productos frp 
                 join ecommdata.tiendas as t
                     on frp.id_tienda = t.id and t.id_frogmi is not null
+                left join catalogo.cantidad_productos_frogmi cpf
+                    on frp.id_tienda = cpf.id_tienda
                 left join ecommdata.frogmi_alerta_reposicion far
-                	on substring(frp.ref_id,1,18) = lpad(far.material, 18, '0') and frp.id_tienda = far.id_tienda
+                    on substring(frp.ref_id,1,18) = lpad(far.material, 18, '0') and frp.id_tienda = far.id_tienda
                 where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
                 and ((far.fecha_inicio not between '{exec_date_local}'::timestamp + interval '3 hours' and '{exec_date_local}'::timestamp + {time_interval} + interval '3 hours') or far.fecha_inicio is null)
-                group by ref_id, frp.descripcion, id_frogmi
+                group by ref_id, frp.descripcion, id_frogmi, cpf.id_tienda, cpf.cantidad
             ) _t
         ) _resultado
-        where _resultado._rank <= 5
+        where _resultado._rank <= _resultado.cantidad
         order by id_tienda, _rank
         ; 
     """

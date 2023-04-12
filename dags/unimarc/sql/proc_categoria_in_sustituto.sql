@@ -1,6 +1,6 @@
-select l.material || '-' || l.umv as refId 
+select l.material || '-' || l.umv as refId, p.nombre as name
 from ecommdata.lista8 l
-    left join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
+    inner join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
 where (
         p.id_categoria <> '{id_sustitutive_category_id}'
         or p.id_categoria is null
@@ -33,5 +33,5 @@ where (
         '000000000000752507-KG'
     )
 group by l.material || '-' || l.umv,
-    p.id_categoria
+    p.id_categoria, p.nombre
 having bool_and(l.sustituto);
