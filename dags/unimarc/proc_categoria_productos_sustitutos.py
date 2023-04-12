@@ -195,44 +195,29 @@ def upload_refid_category(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    # Get products going out of substitutive  category
-    json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
-    df_out_sustitutos = pd.DataFrame()
-    if json_out_sustitutos != '[]':
-        df_out_sustitutos = pd.read_json(json_out_sustitutos)
-        print('df_out_sustitutos')
-        print(df_out_sustitutos)
-    
-    # Get products going in of substitutive  category
     json_in_sustitutos = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
-    df_in_sustitutos = pd.DataFrame()
-    if json_in_sustitutos != '[]':
-        df_in_sustitutos = pd.read_json(json_in_sustitutos)
-        print('df_in_sustitutos')
-        print(df_in_sustitutos)
-    
-    list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0] 
-    list_in_sustitutos = list(df_in_sustitutos['refid'])
-    if list_in_sustitutos != []:
-        if list_response_update != []: 
-            list_in_sustitutos = [ refid for refid in list_in_sustitutos if refid not in list_response_update ]
-            df_in_sustitutos = df_in_sustitutos.query('refid in @list_in_sustitutos')
-            print("products_no_updated: ", list_response_update)
-
-        ref_id_categoria_sustituto = Variable.get("JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
-        df_in_sustitutos = df_in_sustitutos.assign(category = ref_id_categoria_sustituto)
-        print('df_in_sustitutos')
-        print(df_in_sustitutos)
-
-    if json_out_sustitutos == [] and list_in_sustitutos == []:
+    if json_in_sustitutos == '[]' and json_out_sustitutos == '[]':
         print("Finalmente no hay movimientos de productos entre categorias") 
         return
-    elif json_out_sustitutos != [] and list_in_sustitutos == []:
-        df = df_out_sustitutos
-    elif json_out_sustitutos == [] and list_in_sustitutos != []:
-        df = df_in_sustitutos
-    elif json_out_sustitutos != [] and list_in_sustitutos != []:
-        df = pd.concat([df_in_sustitutos, df_out_sustitutos])
+    
+    df_in_sustitutos = pd.read_json(json_in_sustitutos)
+    print('df_in_sustitutos_sin_filtrar')
+    print(df_in_sustitutos)
+
+    list_response_update =  ti.xcom_pull(task_ids=["set_by_api_att_category"])[0]
+    if list_response_update != []:
+        print("products_no_updated: ", list_response_update)
+        df_in_sustitutos = df_in_sustitutos.query('refid not in @list_response_update')
+    ref_id_categoria_sustituto = Variable.get("JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
+    df_in_sustitutos = df_in_sustitutos.assign(category = ref_id_categoria_sustituto)
+    
+    print('df_in_sustitutos_filtrado')
+    print(df_in_sustitutos)
+
+    json_out_sustitutos = ti.xcom_pull(task_ids=["get_out_sustitutos"])[0]
+    df_out_sustitutos = pd.read_json(json_out_sustitutos)
+    
+    df = pd.concat([pd.read_json(json_in_sustitutos), pd.read_json(json_out_sustitutos)])
     
     print("list_response_update",list_response_update)
     df = df.assign(active = 1)
