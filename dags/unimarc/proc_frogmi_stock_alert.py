@@ -148,7 +148,7 @@ def _post_request_to_publish_task_endpoint(ts):
 
     for registro in registros:
         r_tienda = registro[2]
-        r_material = registro[6]
+        r_material = registro[7]
         r_descripcion = registro[1]
         product_body = {
             "product_code": r_material,
