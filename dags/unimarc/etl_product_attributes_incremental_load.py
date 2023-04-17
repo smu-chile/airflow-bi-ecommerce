@@ -243,4 +243,4 @@ with DAG(
         python_callable = _incremental_load_product_attributes_table
     )
 
-    [t0, t1] >> t2 >> t3 >> t4
+    [t0, t1] >> t_truncate >> t2 >> t3 >> t4
