@@ -4,6 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.sensors.external_task import ExternalTaskSensor
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from utils.janis_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
@@ -207,6 +208,14 @@ with DAG(
         allowed_states=['success'],
         failed_states=['failed']
     )
+
+    t_truncate = PostgresOperator(
+        task_id = "truncate_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        truncate ecommdata.atributos_producto
+        """,
+    )
     
     t2 = PythonOperator(
         task_id = "get_max_updated_at_date",
@@ -234,4 +243,4 @@ with DAG(
         python_callable = _incremental_load_product_attributes_table
     )
 
-    [t0, t1] >> t2 >> t3 >> t4
+    [t0, t1] >> t_truncate >> t2 >> t3 >> t4
