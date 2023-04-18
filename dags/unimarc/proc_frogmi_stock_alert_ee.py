@@ -92,7 +92,7 @@ def _post_request_to_publish_task_endpoint(ts):
         return
     
     df["material"] = df["ref_id"].str.split("-").str[0]
-    df = df.groupby("id_tienda").head(5).reset_index().drop(columns=["index"])
+    df = df.sort_values("id_tienda")
     tiendas = df["id_tienda"].drop_duplicates().tolist()
     print("Frogmi store ids:")
     print(tiendas)
