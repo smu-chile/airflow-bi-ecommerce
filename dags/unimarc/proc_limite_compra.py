@@ -11,11 +11,10 @@ def db_get_ref_id_atributos_producto():
 
     id_atributo_limite_compra = Variable.get("JANIS_ID_ATRIBUTO_LIMITE_COMPRA") # dev:2839656 , prod:2847610 
 
-    query = f"""
-            select ref_id from ecommdata.atributos_producto 
-            where id_atributo = {id_atributo_limite_compra}
-            and valor is null;
-        """
+    query = f""" select s.ref_id from ecommdata.skus s
+                where s.ref_id not in (
+                select att.ref_id from ecommdata.atributos_producto att
+                where att.id_atributo = {id_atributo_limite_compra} );"""
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
