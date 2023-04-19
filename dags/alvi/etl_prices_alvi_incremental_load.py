@@ -62,7 +62,8 @@ def _save_table_price(ts, ti):
         "user_created",
         "date_modified",
         "date_created",
-        "date_published"
+        "date_published",
+        "sku_min_quantity"
     ]]
 
     # Rename columns to match workspace schema:
@@ -84,7 +85,8 @@ def _save_table_price(ts, ti):
         "user_created": "creado_por",
         "date_modified": "fecha_modificacion",
         "date_created": "fecha_creacion",
-        "date_published": "fecha_publicacion"
+        "date_published": "fecha_publicacion",
+        "sku_min_quantity": "cantidad_minima_sku"
     }
     df = df.rename(columns=columns_rename)
 
@@ -120,7 +122,8 @@ def _save_table_price(ts, ti):
         "fecha_modificacion": "string",
         "fecha_creacion": "string",
         "fecha_publicacion": "string",
-        "fecha_modificacion_unixtime": "int"
+        "fecha_modificacion_unixtime": "int",
+        "cantidad_minima_sku": "int"
     }, errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -167,7 +170,8 @@ def _save_table_price(ts, ti):
         "fecha_modificacion",
         "fecha_creacion",
         "fecha_publicacion",
-        "fecha_modificacion_unixtime"
+        "fecha_modificacion_unixtime",
+        "cantidad_minima_sku"
     ]
 
     df = df[["id"] + columns]
