@@ -68,8 +68,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         peya_stock_query = f"""
         select lspp.ean as ean
             , least(lspp.precio, lspp.precio_promocional) as precio
-            , case when (lspp.unidad_de_medida not IN ('KG', 'KGV') and (lspp.stock_unitario/lspp.multiplicador_unidad) >= 15) then 1 
-                   when (lspp.unidad_de_medida IN ('KG', 'KGV') and lspp.stock_unitario >= 15) then 1
+            , case when (lspp.unidad_de_medida not IN ('KG', 'KGV') and (lspp.stock_unitario/lspp.multiplicador_unidad) >= 7) then 1 
+                   when (lspp.unidad_de_medida IN ('KG', 'KGV') and lspp.stock_unitario >= 7) then 1
                    else 0 
               end as stock 
         from integraciones.lm_stock_precio_promo lspp 
@@ -213,7 +213,7 @@ with DAG(
     ser almacenados en **S3**. 
     * En este caso, el formato de integración de los archivos es CSV con las columnas [**SKU**, **PRECIO**, **STOCK**], donde **SKU** corresponde al ean interno
     del producto, **PRECIO** es el menor valor entre precio modal y precio promocional y **STOCK** es un valor binario, donde 0 se asigna a aquellos
-    productos con stock menor a 15 unidades, y 1 a aquellos productos con 15 o más unidades. \n
+    productos con stock menor a 7 unidades, y 1 a aquellos productos con 7 o más unidades. \n
     * Finalmente, se itera sobre los archivos generados, dejando cada uno de estos en el servidor SFTP de Pedidos Ya.
     Este DAG depende del DAG: [ **proc_stock_last_millers** ].
     """ 
