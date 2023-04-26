@@ -199,6 +199,13 @@ def gsheets_to_sql(keys,today):
     print(df_fr.columns)
     print(df_fr.dtypes)
 
+
+    ################### Corrige los duplicados ####################
+
+    df_real_max = df_real.groupby(['fecha', 'id_tienda', 'modelo'])['dotacion'].max().reset_index()
+    df_fr_max = df_fr.groupby(['fecha', 'id_tienda', 'modelo'])['dotacion'].max().reset_index()
+    df_real = df_real.merge(df_real_max, on=['fecha', 'id_tienda', 'modelo','dotacion']).drop_duplicates()
+    df_fr = df_fr.merge(df_fr_max, on=['fecha', 'id_tienda', 'modelo','dotacion']).drop_duplicates()
     
     ############## CARGA DE DATOS #######################
 
