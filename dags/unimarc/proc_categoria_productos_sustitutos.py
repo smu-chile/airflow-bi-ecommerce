@@ -248,8 +248,8 @@ with DAG(
     by using the 'lista8' and 'productos' tables from the 'ecommdata'. 
     Then, the category of the products listed in 'lista8' is updated using Janis API."
     """,
-    schedule_interval="0 10 * * *",
-    start_date=pendulum.datetime(2023, 3, 28, tz="America/Santiago"),
+    schedule_interval="0 11 * * *",
+    start_date=datetime(2023, 3, 28),
     catchup=False,
     max_active_runs=1,
     tags=["API", "ecommdata", "lista8", "janis", "atributos_producto","productos", 'sustitutos', 'categorias'],
