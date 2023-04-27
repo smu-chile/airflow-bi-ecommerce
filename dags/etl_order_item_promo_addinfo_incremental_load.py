@@ -10,7 +10,7 @@ from utils.janis_utils import load_custom_query_to_s3
 from datetime import datetime
 
 def _get_new_orders_from_s3(ts):
-    import pandas as pd
+    import pandas as pda
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     orders_file = f"janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
