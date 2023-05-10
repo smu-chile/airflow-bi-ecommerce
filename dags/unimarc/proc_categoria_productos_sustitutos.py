@@ -249,6 +249,8 @@ with DAG(
     Then, the category of the products listed in 'lista8' is updated using Janis API."
     """,
     schedule_interval="0 11 * * *",
+    start_date=pendulum.datetime(2023, 3, 28, tz="America/Santiago"),
+    schedule_interval="0 11 * * *",
     start_date=datetime(2023, 3, 28),
     catchup=False,
     max_active_runs=1,
