@@ -21,8 +21,11 @@ def get_in_sustitutos():
     cursor = pg_connection.cursor()
     id_category_sustituto = Variable.get(
         "JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
+    id_category_static = Variable.get(
+        "JANIS_SUSTITUTOS_STATIC_CATEGORIES")
     query_in_sustitutos = query_in_sustitutos.replace(
-        '{ id_sustitutive_category_id }', id_category_sustituto)
+        '{ id_sustitutive_category_id }', id_category_sustituto).replace(
+        '{ id_category_static }', id_category_static)
     print(query_in_sustitutos)
     cursor.execute(query_in_sustitutos)
     results = cursor.fetchall()
@@ -61,13 +64,6 @@ def check_if_update_att_category(ti):
     ecommdata.atributos_producto:valor (id_categoria)""")
     print("list_refid_to_change", list_refid_to_change)
     list_refid_to_change = str(list_refid_to_change)[1:-1]
-    id_category_sustituto = Variable.get(
-        "JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
-    id_category_static = Variable.get(
-        "JANIS_SUSTITUTOS_STATIC_CATEGORIES") + "," + id_category_sustituto
-    ref_id_category_sustituto = Variable.get(
-        "JANIS_SUSTITUTOS_REFID_CATEGORIA_SUSTITUTO")
-
     id_atributo_idcategory = Variable.get(
         "JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA")  # dev: 5814502, prod: 11682839
     query_check = f"""
@@ -184,13 +180,14 @@ def get_out_sustitutos():
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     id_atributo_idcategory = Variable.get(
-        "JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA")  # dev: 5814502, prod: 11682839
-    query_out_sustitutos = query_out_sustitutos.replace(
-        '{ id_atributo_idcategory }', id_atributo_idcategory)
+        "JANIS_SUSTITUTOS_ID_ATT_IDCATEGORIA")
     id_category_sustituto = Variable.get(
         "JANIS_SUSTITUTOS_ID_CATEGORIA_SUSTITUTO")
+    id_category_static = Variable.get("JANIS_SUSTITUTOS_STATIC_CATEGORIES")
     query_out_sustitutos = query_out_sustitutos.replace(
-        '{ id_sustitutive_category_id }', id_category_sustituto)
+        '{ id_atributo_idcategory }', id_atributo_idcategory).replace(
+        '{ id_sustitutive_category_id }', id_category_sustituto).replace(
+        '{ id_category_static }', id_category_static)
     print(query_out_sustitutos)
     cursor.execute(query_out_sustitutos)
     results = cursor.fetchall()
