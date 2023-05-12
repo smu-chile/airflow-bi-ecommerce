@@ -1,9 +1,11 @@
-select p.ref_id as refId, att.valor as category, p.nombre as name
+select p.ref_id as refId,
+    att.valor as category,
+    p.nombre as name
 from ecommdata.lista8 l
     inner join ecommdata.productos p on p.ref_id = l.material || '-' || l.umv
     inner join ecommdata.atributos_producto att on att.ref_id = l.material || '-' || l.umv
-where p.id_categoria = {id_sustitutive_category_id}
-    and att.id_atributo = {id_atributo_idcategory}
+where p.id_categoria = { id_sustitutive_category_id }
+    and att.id_atributo = { id_atributo_idcategory }
     and l.material || '-' || l.umv not in (
         '000000000000761296-KG',
         '000000000000752499-KG',
@@ -31,6 +33,10 @@ where p.id_categoria = {id_sustitutive_category_id}
         '000000000000542752-KG',
         '000000000000752507-KG'
     )
-group by p.ref_id, p.id_categoria, att.valor, 
-att.id_atributo, p.nombre
+    and p.id_categoria not in ({ id_category_static })
+group by p.ref_id,
+    p.id_categoria,
+    att.valor,
+    att.id_atributo,
+    p.nombre
 having not bool_and(l.sustituto);
