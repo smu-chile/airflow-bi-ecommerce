@@ -88,10 +88,12 @@ def stock_ventas_tiendas_to_s3(ds):
 
     buffer = io.StringIO()
     df_stock_seguridad_aux.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = prefix + f"stock_seguridad{ds}.csv"
     buffer.seek(0)
-
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
     s3_hook.load_string(buffer.getvalue(),
-                key=prefix,
+                key=filename,
                 bucket_name=s3_bucket,
                 replace=True,
                 encrypt=False)
