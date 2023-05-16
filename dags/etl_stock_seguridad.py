@@ -36,8 +36,10 @@ def stock_ventas_tiendas_to_s3(ds):
     import numpy as np
     import io
     exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     tiendas = ['Mirador','Los Militares','Los Leones','Coyhaique','La Chimba']
@@ -88,7 +90,7 @@ def stock_ventas_tiendas_to_s3(ds):
 
     buffer = io.StringIO()
     df_stock_seguridad_aux.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = prefix + f"stock_seguridad{ds}.csv"
+    filename = f"stock_seguridad_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -98,12 +100,14 @@ def stock_ventas_tiendas_to_s3(ds):
                 replace=True,
                 encrypt=False)
     print(f"File load on S3: {prefix}")
+
     return
 
-def stock_ventas_tiendas_to_postgrest(ti):
+def stock_ventas_tiendas_to_postgres(ti):
     import numpy as np
     import pandas as pd
-    
+    import sqlalchemy
+    from sqlalchemy import text
     attributes_file = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -121,6 +125,24 @@ def stock_ventas_tiendas_to_postgrest(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    df.to_sql(name="stock_seguridad",
+                con=engine,         
+                schema="operaciones_unimarc",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+
+    print("Data saved to PostgreSQL.")
 
     return
 
