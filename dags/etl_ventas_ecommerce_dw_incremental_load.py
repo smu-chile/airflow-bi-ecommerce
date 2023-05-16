@@ -172,11 +172,32 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT VE.*, P.UNIDAD_DE_MEDIDA , S.SKU_PRODUCT, S.BRAND_DESC, SH.GRUPO_DSC, SH.CAT_DSC, SH.LIN_DESC, SH.SEC_DSC, SH.NEG_DSC 
+                SELECT VE.MARKET_BASKET_KEY,
+            VE.STORE_KEY,
+            VE.DATE_KEY,
+            VE.PRODUCT_KEY,
+            VE.CENTRO,
+            VE.TIPO_DOC,
+            VE.FECHA,
+            VE.PTR_CODPROD,
+            VE.CANAL_VENTA,
+            VE.NUM_TRXN,
+            VE.POS,
+            CASE 
+                WHEN VE.TIPO_DOC = 'NE' THEN CAST(FMB.VTX_SEQUENCE AS VARCHAR(14))
+                ELSE VE.PEDIDO
+            END AS PEDIDO,
+            VE.VENTA_UMV,
+            VE.VENTA_BRUTA,
+            VE.VENTA_NETA,
+            VE.MARKET_BASKET_NK,
+            DS_INSERTION,
+            P.UNIDAD_DE_MEDIDA , S.SKU_PRODUCT, S.BRAND_DESC, SH.GRUPO_DSC, SH.CAT_DSC, SH.LIN_DESC, SH.SEC_DSC, SH.NEG_DSC 
                 FROM NZ_BU.ECOMERCE.VW_FACT_VENTA_E_COMMERCE VE
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VE.PRODUCT_KEY = P.PRODUCT_KEY
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON P.SKU_KEY = S.SKU_KEY 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON SH.SKU_KEY = S.SKU_KEY 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON SH.SKU_KEY = S.SKU_KEY
+                LEFT JOIN NZ_BU.ECOMERCE.VW_FACT_MARKET_BASKET_E_COMMERCE FMB ON VE.MARKET_BASKET_KEY = FMB.MARKET_BASKET_KEY 
                 WHERE FECHA BETWEEN TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days'
                                     AND TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
             """,
