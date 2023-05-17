@@ -185,15 +185,18 @@ def carga_stock_seguridad_janis(ds,ti):
     dia_semana = datetime.datetime.today().weekday()
     payload=[]
     for i in df.index:
+        print(i)
         if df.dia[i] == dia_semana:
-            material = df.ref_id[i]
-            id_tienda = df.id_tienda[i]
-            stock_seguridad = df.nuevo_stock_seguridad[i]
-            row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
-            payload.append(row)
-    payload = str(payload).replace("'", '"')
-    response = requests.request("POST", url, headers=headers, data=payload)
-    print(response.text)
+            if i%400 == 0:
+                material = df.ref_id[i]
+                id_tienda = df.id_tienda[i]
+                stock_seguridad = df.nuevo_stock_seguridad[i]
+                row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
+                print(row)
+                payload.append(row)
+            payload = str(payload).replace("'", '"')
+            response = requests.request("POST", url, headers=headers, data=payload)
+        print(response.text)
     return
 
 default_args = {
