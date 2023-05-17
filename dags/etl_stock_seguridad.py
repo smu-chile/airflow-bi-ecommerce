@@ -223,8 +223,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "stock_ventas_tiendas_to_postgrest",
-        python_callable = stock_ventas_tiendas_to_postgrest,
+        task_id = "stock_ventas_tiendas_to_postgres",
+        python_callable = stock_ventas_tiendas_to_postgres,
         op_kwargs = {
             "table_name": "stock", 
             "xcom_updated_date_task_id": "get_max_updated_at_date_atributos", 
