@@ -146,21 +146,31 @@ def stock_ventas_tiendas_to_postgres(ti):
 
     return
 
-def carga_stock_seguridad_janis(ts):
+def carga_stock_seguridad_janis(ds,ti):
     import requests
     import pandas as pd
     import datetime
-    
-    exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
-    exec_date = exec_date.strftime("%Y/%m/%d")
+    exec_date = ds.replace("-", "/")
     prefix = f"stock_seguridad/{exec_date}/"
     print(prefix)
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
+
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
-    s3_file_list = list(filter(lambda x: (x[-3:] == 'csv'), s3_file_list))
-    print(f"Files detected: {s3_file_list}")
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
 
     base_url = Variable.get("JANIS_API_URL")
 
@@ -173,21 +183,17 @@ def carga_stock_seguridad_janis(ts):
         "Connection": "keep-alive"
     }
     dia_semana = datetime.datetime.today().weekday()
-    for s3_file in s3_file_list:
-        payload=[]
-        s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
-        df = pd.read_csv(s3_object.get()["Body"], sep=",")
-        for ind in df.index:
-            if df.dia == dia_semana:
-                material = df.ref_id
-                id_tienda = df.id_tienda
-                stock_seguridad = df.nuevo_stock_seguridad
-                row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
-                payload.append(row)
-        payload = str(payload).replace("'", '"')
-        response = requests.request("POST", url, headers=headers, data=payload)
-        #print("xd")
-        print(response.text)
+    payload=[]
+    for i in df.index:
+        if df.dia[i] == dia_semana:
+            material = df.ref_id[i]
+            id_tienda = df.id_tienda[i]
+            stock_seguridad = df.nuevo_stock_seguridad[i]
+            row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
+            payload.append(row)
+    payload = str(payload).replace("'", '"')
+    response = requests.request("POST", url, headers=headers, data=payload)
+    print(response.text)
     return
 
 default_args = {
