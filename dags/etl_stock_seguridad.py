@@ -101,25 +101,25 @@ def stock_ventas_tiendas_to_s3(ds):
                 encrypt=False)
     print(f"File load on S3: {prefix}")
 
-    return
+    return filename
 
 def stock_ventas_tiendas_to_postgres(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
-    attributes_file = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+attributes_file)
-    if not s3_hook.check_for_key(attributes_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % attributes_file)
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
 
-    attributes_object = s3_hook.get_key(attributes_file, bucket_name=s3_bucket)
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(attributes_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"])
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
