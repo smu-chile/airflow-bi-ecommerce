@@ -184,19 +184,21 @@ def carga_stock_seguridad_janis(ds,ti):
     }
     dia_semana = datetime.datetime.today().weekday()
     payload=[]
-    for i in df.index:
+    for i in range(len(df.index)):
         print(i)
         if df.dia[i] == dia_semana:
-            if i%400 == 0:
-                material = df.ref_id[i]
-                id_tienda = df.id_tienda[i]
-                stock_seguridad = df.nuevo_stock_seguridad[i]
-                row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
-                print(row)
-                payload.append(row)
+            material = df.ref_id[i]
+            id_tienda = df.id_tienda[i]
+            stock_seguridad = df.nuevo_stock_seguridad[i]
+            row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
+            print(row)
+            payload.append(row)
+            
+        if i % 400 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
-        print(response.text)
+            print(response.text)
+            payload = []
     return
 
 default_args = {
@@ -215,6 +217,7 @@ with DAG(
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc"],
 ) as dag:
+    
 
     dag.doc_md = """
     Extracción y carga de tabla ventas_skus y stock filtrado por lista 8 Replica hasta Workspace. \n
