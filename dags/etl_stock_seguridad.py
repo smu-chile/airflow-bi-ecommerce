@@ -36,8 +36,10 @@ def stock_ventas_tiendas_to_s3(ds):
     import numpy as np
     import io
     exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     tiendas = ['Mirador','Los Militares','Los Leones','Coyhaique','La Chimba']
@@ -88,7 +90,7 @@ def stock_ventas_tiendas_to_s3(ds):
 
     buffer = io.StringIO()
     df_stock_seguridad_aux.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = prefix + f"stock_seguridad{ds}.csv"
+    filename = f"stock_seguridad/{exec_date}/stock_seguridad_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -98,46 +100,77 @@ def stock_ventas_tiendas_to_s3(ds):
                 replace=True,
                 encrypt=False)
     print(f"File load on S3: {prefix}")
-    return
 
-def stock_ventas_tiendas_to_postgrest(ti):
+    return filename
+
+def stock_ventas_tiendas_to_postgres(ti):
     import numpy as np
     import pandas as pd
-    
-    attributes_file = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
+    import sqlalchemy
+    from sqlalchemy import text
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+attributes_file)
-    if not s3_hook.check_for_key(attributes_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % attributes_file)
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
 
-    attributes_object = s3_hook.get_key(attributes_file, bucket_name=s3_bucket)
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(attributes_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"])
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
     
     print(f"Number of records extracted: {len(df.index)}")
 
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    df.to_sql(name="stock_seguridad",
+                con=engine,         
+                schema="operaciones_unimarc",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+
+    print("Data saved to PostgreSQL.")
+
     return
 
-def carga_stock_seguridad_janis(ts):
+def carga_stock_seguridad_janis(ds,ti):
     import requests
     import pandas as pd
-    
-    exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
-    exec_date = exec_date.strftime("%Y/%m/%d")
-    prefix = f"borrado_stock/{exec_date}/"
+    import datetime
+    exec_date = ds.replace("-", "/")
+    prefix = f"stock_seguridad/{exec_date}/"
     print(prefix)
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
+
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
-    s3_file_list = list(filter(lambda x: (x[-3:] == 'csv'), s3_file_list))
-    print(f"Files detected: {s3_file_list}")
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
 
     base_url = Variable.get("JANIS_API_URL")
 
@@ -150,21 +183,22 @@ def carga_stock_seguridad_janis(ts):
         "Connection": "keep-alive"
     }
     dia_semana = datetime.datetime.today().weekday()
-    for s3_file in s3_file_list:
-        payload=[]
-        s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
-        df = pd.read_csv(s3_object.get()["Body"], sep=",")
-        for ind in df.index:
-            if df.dia == dia_semana:
-                material = df.ref_id
-                id_tienda = df.id_tienda
-                stock_seguridad = df.nuevo_stock_seguridad
-                row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
-                payload.append(row)
-        payload = str(payload).replace("'", '"')
-        response = requests.request("POST", url, headers=headers, data=payload)
-        #print("xd")
-        print(response.text)
+    payload=[]
+    for i in range(len(df.index)):
+        print(i)
+        if df.dia[i] == dia_semana:
+            material = df.ref_id[i]
+            id_tienda = df.id_tienda[i]
+            stock_seguridad = df.nuevo_stock_seguridad[i]
+            row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
+            print(row)
+            payload.append(row)
+            
+        if i % 400 == 0:
+            payload = str(payload).replace("'", '"')
+            response = requests.request("POST", url, headers=headers, data=payload)
+            print(response.text)
+            payload = []
     return
 
 default_args = {
@@ -183,6 +217,7 @@ with DAG(
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc"],
 ) as dag:
+    
 
     dag.doc_md = """
     Extracción y carga de tabla ventas_skus y stock filtrado por lista 8 Replica hasta Workspace. \n
@@ -201,8 +236,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "stock_ventas_tiendas_to_postgrest",
-        python_callable = stock_ventas_tiendas_to_postgrest,
+        task_id = "stock_ventas_tiendas_to_postgres",
+        python_callable = stock_ventas_tiendas_to_postgres,
         op_kwargs = {
             "table_name": "stock", 
             "xcom_updated_date_task_id": "get_max_updated_at_date_atributos", 
