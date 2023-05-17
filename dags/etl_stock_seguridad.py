@@ -177,9 +177,9 @@ def carga_stock_seguridad_janis(ds,ti):
     url = f"{base_url}stock"
 
     headers = {
-        "janis-api-key":"aa19fa61330a18fcebe83a288ea1109e0673d1bb",
-        "janis-api-secret":"c8ec5fdb8ed50dfc67115a5d8fb58105abe3b831064b3732d57f43e81e79e5e5",
-        "janis-client": "unimarcdev",
+        "janis-api-key":"JANIS_API_KEY",
+        "janis-api-secret":"JANIS_API_KEY_SECRET",
+        "janis-client": "JANIS_CLIENT",
         "Connection": "keep-alive"
     }
     dia_semana = datetime.datetime.today().weekday()
@@ -194,7 +194,7 @@ def carga_stock_seguridad_janis(ds,ti):
             print(row)
             payload.append(row)
             
-        if i % 400 == 0:
+        if i % 399 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
             print(response.text)
