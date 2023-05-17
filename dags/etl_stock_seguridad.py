@@ -90,7 +90,7 @@ def stock_ventas_tiendas_to_s3(ds):
 
     buffer = io.StringIO()
     df_stock_seguridad_aux.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_seguridad_{date_aux}.csv"
+    filename = f"stock_seguridad/{exec_date}/stock_seguridad_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
