@@ -184,10 +184,11 @@ def carga_stock_seguridad_janis(ds,ti):
         "Connection": "keep-alive"
     }
     dia_semana = datetime.datetime.today().weekday()
+    print(dia_semana, type(dia_semana))
     payload=[]
     for i in range(len(df.index)):
-        print(i)
         if df.dia[i] == dia_semana:
+            print(i)
             material = df.ref_id[i]
             id_tienda = f'{df.id_tienda[i]:04}'
             stock_seguridad = df.nuevo_stock_seguridad[i]
@@ -195,7 +196,7 @@ def carga_stock_seguridad_janis(ds,ti):
             print(row)
             payload.append(row)
             
-        if i % 199 == 0:
+        if i % 100 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
             print(response.text)
