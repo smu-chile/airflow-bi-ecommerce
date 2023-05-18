@@ -187,7 +187,7 @@ def carga_stock_seguridad_janis(ds,ti):
     print(dia_semana, type(dia_semana))
     payload=[]
     for i in range(len(df.index)):
-        if df.dia[i] == dia_semana:
+        if int(df.dia[i]) == dia_semana:
             print(i)
             material = df.ref_id[i]
             id_tienda = f'{df.id_tienda[i]:04}'
