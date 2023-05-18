@@ -181,7 +181,7 @@ def carga_stock_seguridad_janis(ds,ti):
     dia_semana = datetime.datetime.today().weekday()
     print(dia_semana, type(dia_semana))
 
-    df = df[df["dia"] == dia_semana]
+    print(df)
 
     base_url = Variable.get("JANIS_API_URL")
 
