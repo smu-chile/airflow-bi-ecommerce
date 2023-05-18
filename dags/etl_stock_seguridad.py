@@ -201,8 +201,7 @@ def carga_stock_seguridad_janis(ds,ti):
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
         print(row)
-        payload.append(row)
-            
+        payload.append(row)    
         if i % 99 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
