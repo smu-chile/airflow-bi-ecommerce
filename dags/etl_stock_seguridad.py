@@ -171,6 +171,7 @@ def carga_stock_seguridad_janis(ds,ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
 
     base_url = Variable.get("JANIS_API_URL")
 
@@ -188,13 +189,13 @@ def carga_stock_seguridad_janis(ds,ti):
         print(i)
         if df.dia[i] == dia_semana:
             material = df.ref_id[i]
-            id_tienda = df.id_tienda[i]
+            id_tienda = f'{df.id_tienda[i]:04}'
             stock_seguridad = df.nuevo_stock_seguridad[i]
             row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
             print(row)
             payload.append(row)
             
-        if i % 399 == 0:
+        if i % 199 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
             print(response.text)
