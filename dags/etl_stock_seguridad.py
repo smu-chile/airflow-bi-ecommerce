@@ -196,16 +196,12 @@ def carga_stock_seguridad_janis(ds,ti):
     print(dia_semana, type(dia_semana))
     payload=[]
     for i in range(len(df.index)):
-        print(i)
-        print(int(df.dia[i]))
-        if int(df.dia[i]) == dia_semana:
-            material = df.ref_id[i]
-            id_tienda = str(int(df['id_tienda'][i])).zfill(4)
-            stock_seguridad = int(df.nuevo_stock_seguridad[i])
-            row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
-            print(row)
-            payload.append(row)
-            
+        material = df.ref_id[i]
+        id_tienda = str(int(df['id_tienda'][i])).zfill(4)
+        stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
+        print(row)
+        payload.append(row)    
         if i % 99 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
