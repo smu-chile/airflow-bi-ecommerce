@@ -86,7 +86,11 @@ def stock_ventas_tiendas_to_s3(ds):
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
 
+    df_stock_seguridad_aux["dia"]=df_stock_seguridad_aux["dia"].astype(int)
+    df_stock_seguridad_aux["nuevo_stock_seguridad"]=df_stock_seguridad_aux["nuevo_stock_seguridad"].astype(int)
+
     print(df_stock_seguridad_aux)
+    print(df_stock_seguridad_aux.info())
 
     buffer = io.StringIO()
     df_stock_seguridad_aux.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -125,6 +129,7 @@ def stock_ventas_tiendas_to_postgres(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -191,7 +196,7 @@ def carga_stock_seguridad_janis(ds,ti):
             print(i)
             material = df.ref_id[i]
             id_tienda = f'{df.id_tienda[i]:04}'
-            stock_seguridad = df.nuevo_stock_seguridad[i]
+            stock_seguridad = int(df.nuevo_stock_seguridad[i])
             row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
             print(row)
             payload.append(row)
