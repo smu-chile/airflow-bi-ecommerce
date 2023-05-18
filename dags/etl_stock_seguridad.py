@@ -178,6 +178,11 @@ def carga_stock_seguridad_janis(ds,ti):
     print(f"Number of records extracted: {len(df.index)}")
     print(df.info())
 
+    dia_semana = datetime.datetime.today().weekday()
+    print(dia_semana, type(dia_semana))
+
+    df = df[df["dia"] == dia_semana]
+
     base_url = Variable.get("JANIS_API_URL")
 
     url = f"{base_url}stock"
@@ -192,10 +197,10 @@ def carga_stock_seguridad_janis(ds,ti):
     "janis-client" : JANIS_ALVI_CLIENT,
     "Connection" : "keep-alive"
     }
-    dia_semana = datetime.datetime.today().weekday()
-    print(dia_semana, type(dia_semana))
+    
     payload=[]
     for i in range(len(df.index)):
+        print(i)
         material = df.ref_id[i]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
