@@ -191,7 +191,7 @@ def carga_stock_seguridad_janis(ds,ti):
             print(i)
             material = df.ref_id[i]
             id_tienda = f'{df.id_tienda[i]:04}'
-            stock_seguridad = df.nuevo_stock_seguridad[i]
+            stock_seguridad = int(df.nuevo_stock_seguridad[i])
             row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad}
             print(row)
             payload.append(row)
