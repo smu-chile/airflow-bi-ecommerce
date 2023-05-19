@@ -43,7 +43,7 @@ def stock_ventas_tiendas_to_s3(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     tiendas = ['Mirador','Los Militares','Los Leones','Coyhaique','La Chimba']
-    id_tiendas = {'Los Militares':'0469','Los Leones':'0333','Coyhaique':'0442','Mirador':'0581','La Chimba': '0034'}
+    id_tiendas = {'Los Militares':'0813','Los Leones':'3097','Coyhaique':'1917','Mirador':'0581','La Chimba': '0034'}
     #diccionario_glosa = {'Los Militares':'0469 - LOS MILITARES','Los Leones':'0333 - LOS LEONES','Coyhaique':'0442 - COYHAIQUE','Mirador':'0581 - MIRADOR'}
     ventas_tiendas_data = []
     stock_data = []
