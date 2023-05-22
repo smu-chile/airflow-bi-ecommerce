@@ -9,7 +9,18 @@ import pendulum
 from datetime import datetime, timedelta
 
 def stock(tienda,ds):
-    stock_tiendas_query = "select id_tienda, glosa_tienda, ref_id, stock_janis, stock_seguridad_janis, date_part('dow',fecha) as dia, date_part('week',fecha) as semana  from ecommdata.stock   where fecha >= '"+ds+"'::date -30   and stock_janis is not null and surtido_ecommerce = 'True' and id_tienda ='"+tienda+"'"
+    stock_tiendas_query = """select id_tienda, 
+    glosa_tienda, 
+    ref_id, 
+    stock_janis, 
+    stock_seguridad_janis, 
+    date_part('dow',fecha) as dia, 
+    date_part('week',fecha) as semana 
+    from ecommdata.stock 
+    where fecha >= '"""+ds+"""'::date -30 
+    and stock_janis is not null 
+    and surtido_ecommerce = 'True' 
+    and id_tienda ='"""+tienda+"""'"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -21,7 +32,39 @@ def stock(tienda,ds):
     return results
 
 def venta_tienda(tienda,ds):
-    ventas_skus_tienda_query = "select _t.* from ( select LPAD(v.id_tienda , 4, '0') as id_tienda, CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id, case 	when (v.umv in ('UN','DIS','KG')) then round(v.venta_bruta/v.venta_umv,0) 	else v.venta_bruta end as precio_venta, p.precio_lista, v.venta_umv, date_part('dow',v.fecha) as dia, date_part('week',v.fecha) as semana from ecommdata.venta_sku_tienda as v   left join ecommdata.tiendas as t on LPAD(v.id_tienda , 4, '0') = t.id  left join ecommdata.precios as p on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id  and p.id_tienda_janis = t.id_janis  where v.fecha >= '"+ds+"'::date -30  and v.venta_umv > 0  and v.venta_bruta <> 0  and v.organizacion = 'Unimarc' and p.precio_lista is not null and LPAD(v.id_tienda , 4, '0') = '"+tienda+"') as _t where precio_venta/precio_lista > 0.8 group by _t.id_tienda, _t.ref_id, _t.precio_venta, _t.precio_lista, _t.venta_umv, _t.dia, _t.semana"
+    ventas_skus_tienda_query = """select _t.* 
+    from ( 
+        select LPAD(v.id_tienda , 4, '0') as id_tienda, 
+        CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id, 
+        case
+            when (v.umv in ('UN','DIS','KG')) then round(v.venta_bruta/v.venta_umv,0)
+            else v.venta_bruta 
+            end as precio_venta, 
+        p.precio_lista, 
+        v.venta_umv, 
+        date_part('dow',v.fecha) as dia, 
+        date_part('week',v.fecha) as semana 
+        from ecommdata.venta_sku_tienda as v   
+        left join ecommdata.tiendas as t 
+        on LPAD(v.id_tienda , 4, '0') = t.id  
+        left join ecommdata.precios as p 
+        on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id  
+        and p.id_tienda_janis = t.id_janis  
+        where v.fecha >= '"""+ds+"""'::date -30  
+        and v.venta_umv > 0  
+        and v.venta_bruta <> 0  
+        and v.organizacion = 'Unimarc' 
+        and p.precio_lista is not null 
+        and LPAD(v.id_tienda , 4, '0') = '"""+tienda+"""') as _t 
+        where precio_venta/precio_lista > 0.8 
+        group by 
+        _t.id_tienda, 
+        _t.ref_id, 
+        _t.precio_venta, 
+        _t.precio_lista, 
+        _t.venta_umv, 
+        _t.dia, 
+        _t.semana"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
