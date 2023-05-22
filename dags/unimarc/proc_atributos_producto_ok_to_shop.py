@@ -16,8 +16,6 @@ def last_file_ok_to_shop(ti):
     import numpy as np
     from sqlalchemy import text
 
-    from datetime import datetime
-
     date_dir = datetime.now().strftime("/%Y/%m/")
     date_name = datetime.now().strftime("%Y%m%d")
     # file_dir = "/2023/05/20230520_ok_to_shop.zip"
@@ -336,4 +334,4 @@ with DAG(
         python_callable=set_janis_atributos,
     )
 
-    # t0 >> t1 >> t2
+t0 >> t1 >> t2
