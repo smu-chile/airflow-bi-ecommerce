@@ -244,8 +244,8 @@ def carga_stock_seguridad_janis(ds,ti):
     payload=[]
     for i in range(len(df.index)):
         print(i)
-        material = df.ref_id[i]
-        id_tienda = str(int(df['id_tienda'][i])).zfill(4).split("-")[0]
+        material = df.ref_id[i].split("-")[0]
+        id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
         print(row)
