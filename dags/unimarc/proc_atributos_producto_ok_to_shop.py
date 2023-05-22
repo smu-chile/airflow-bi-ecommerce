@@ -133,10 +133,6 @@ def last_file_ok_to_shop(ti):
 def check_update_attributes_products(ti):
     from datetime import datetime, timedelta
     import pandas as pd
-    import json
-    import requests
-    from typing import List
-    import utils
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -202,17 +198,17 @@ def check_update_attributes_products(ti):
         from ecommdata.atributos_producto ap
         where ap.nombre_atributo = 'sellos';"""
 
-    cursor.close()
-    pg_connection.close()
-
     def get_atributos(query):  # atributos: alergias, sellos
         print(f"Iniciando obtencion de atributos...")
+        print(query)
         cursor.execute(query)
         pg_connection.commit()
         results = cursor.fetchall()
         columns_name = [i[0] for i in cursor.description]
         print(columns_name)
         df = pd.DataFrame(results, columns=columns_name)
+        cursor.close()
+        pg_connection.close()
         return df
 
     df_alergias = get_atributos(query_alergias)
