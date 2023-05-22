@@ -242,30 +242,30 @@ def carga_stock_seguridad_janis(ds,ti):
     }
     
     payload=[]
-    #for i in range(len(df.index)):
-    #    print(i)
-    #    material = df.ref_id[i]
-    #    id_tienda = str(int(df['id_tienda'][i])).zfill(4)
-    #    stock_seguridad = int(df.nuevo_stock_seguridad[i])
-    #    row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
-    #    print(row)
-    #    payload.append(row)    
-    #    if i % 99 == 0:
-    #        payload = str(payload).replace("'", '"')
-    #        response = requests.request("POST", url, headers=headers, data=payload)
-    #        print(response.text)
-    #        payload = []
-    #payload = str(payload).replace("'", '"')
-    #response = requests.request("POST", url, headers=headers, data=payload)
-    #print(response.text)
-    material = df.ref_id[0]
-    id_tienda = str(int(df['id_tienda'][0])).zfill(4)
-    stock_seguridad = int(df.nuevo_stock_seguridad[0])
-    row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
-    print(row)
-    payload.append(row)
+    for i in range(len(df.index)):
+        print(i)
+        material = df.ref_id[i]
+        id_tienda = str(int(df['id_tienda'][i])).zfill(4).split("-")[0]
+        stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
+        print(row)
+        payload.append(row)    
+        if i % 99 == 0:
+            payload = str(payload).replace("'", '"')
+            response = requests.request("POST", url, headers=headers, data=payload)
+            print(response.text)
+            payload = []
+    payload = str(payload).replace("'", '"')
     response = requests.request("POST", url, headers=headers, data=payload)
     print(response.text)
+    #material = df.ref_id[0].split("-")[0]
+    #id_tienda = str(int(df['id_tienda'][0])).zfill(4)
+    #stock_seguridad = int(df.nuevo_stock_seguridad[0])
+    #row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
+    #print(row)
+    #payload.append(row)
+    #response = requests.request("POST", url, headers=headers, data=payload)
+    #print(response.text)
 
     return
 
