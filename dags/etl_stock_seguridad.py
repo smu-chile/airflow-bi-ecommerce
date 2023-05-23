@@ -163,14 +163,14 @@ def stock_ventas_tiendas_to_s3(ds):
     df_stock_seguridad_aux["dia"]=df_stock_seguridad_aux["dia"].astype(int)
     df_stock_seguridad_aux["nuevo_stock_seguridad"]=df_stock_seguridad_aux["nuevo_stock_seguridad"].astype(int)
 
-    promociones = promociones()
+    promociones = promociones(ds)
     promociones=promociones.drop_duplicates(subset='ref_id')
 
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
-    dia = f"{ds}::date"
-    dia = ds.today().weekday()
+    dia = ds
+    dia = dia.today().weekday()
     dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
