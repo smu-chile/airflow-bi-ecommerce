@@ -110,7 +110,7 @@ def last_file_ok_to_shop(ti):
             fixed_records.append(tuple(fixed_record))
         print(f"Number of records to load: {str(len(fixed_records))}")
         incremental_query = """
-            INSERT INTO catalogo.ok_to_shop (id,"""+columns_query+""") 
+            INSERT INTO catalogo.ok_to_shop (product_ean,"""+columns_query+""") 
             VALUES ("""+values_query+""")
             ON CONFLICT (product_ean)
             DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
