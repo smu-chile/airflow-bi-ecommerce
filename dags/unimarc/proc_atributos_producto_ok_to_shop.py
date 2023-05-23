@@ -110,7 +110,7 @@ def last_file_ok_to_shop(ti):
             fixed_records.append(tuple(fixed_record))
         print(f"Number of records to load: {str(len(fixed_records))}")
         incremental_query = """
-            INSERT INTO ecommdata.administradores (id,"""+columns_query+""") 
+            INSERT INTO catalogo.ok_to_shop (id,"""+columns_query+""") 
             VALUES ("""+values_query+""")
             ON CONFLICT (product_ean)
             DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -136,23 +136,26 @@ def check_update_attributes_products(ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     print("Data loaded to Postgres")
+    id_atributo_alergias = Variable.get('JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_ALERGIAS')
+    id_atributo_sellos = Variable.get('JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_SELLOS')
+    
     query_alergias = """
         select s.ref_id as ref_id, concat_ws(',',
-            CASE when ok.aplv_suitable = 1 then 'Apto para APLV' ELSE NULL END,
-            CASE when ok.gluten_free = 1 then 'Libre de Gluten' ELSE NULL END, --CASE when ok.halal = 1 then 'Halal' ELSE NULL END, CASE when ok.kosher = 1 then 'Kosher' ELSE NULL END,
-            CASE when ok.lactose_free = 1 then 'Libre de Lactosa' ELSE NULL END,
+           CASE when ok.vegetarian = 1 then 'Vegetariano' ELSE NULL END,
             CASE when ok.vegan = 1 then 'Vegano' ELSE NULL END,
-            CASE when ok.vegetarian = 1 then 'Vegetariano' ELSE NULL END,
-            CASE when ok.diabetes_suitable = 1 then 'Apto para Diabéticos' ELSE NULL END,
+            CASE when ok.wheat_free = 1 then 'Libre de Trigo' ELSE NULL END,
+            CASE when ok.sulphite_free = 1 then 'Libre de Sulfitos' ELSE NULL END,
             CASE when ok.soy_free = 1 then 'Libre de Soya' ELSE NULL END,
-            CASE when ok.egg_free = 1 then 'Libre de Huevo' ELSE NULL END,
             CASE when ok.fish_free = 1 then 'Libre de Peces' ELSE NULL END,
+            CASE when ok.walnuts_free = 1 then 'Libre de Nuez' ELSE NULL END,
             CASE when ok.seafood_free = 1 then 'Libre de Mariscos' ELSE NULL END,
             CASE when ok.peanut_free = 1 then 'Libre de Maní' ELSE NULL END,
+            CASE when ok.lactose_free = 1 then 'Libre de Lactosa' ELSE NULL END,
+            CASE when ok.egg_free = 1 then 'Libre de Huevo' ELSE NULL END,            
+            CASE when ok.gluten_free = 1 then 'Libre de Gluten' ELSE NULL END, --CASE when ok.halal = 1 then 'Halal' ELSE NULL END, CASE when ok.kosher = 1 then 'Kosher' ELSE NULL END,
             CASE when ok.nuts_free = 1 then 'Libre de Frutos Secos' ELSE NULL END,
-            CASE when ok.walnuts_free = 1 then 'Libre de Nuez' ELSE NULL END,
-            CASE when ok.sulphite_free = 1 then 'Libre de Sulfitos' ELSE NULL END,
-            CASE when ok.wheat_free = 1 then 'Libre de Trigo' ELSE NULL END
+            CASE when ok.diabetes_suitable = 1 then 'Apto para Diabéticos' ELSE NULL END,
+            CASE when ok.aplv_suitable = 1 then 'Apto para APLV' ELSE NULL END
             ) as Alergias 
         from catalogo.ok_to_shop oK
         left join ecommdata.sku_ean se on ok.product_ean::text = se.ean 
@@ -176,10 +179,11 @@ def check_update_attributes_products(ti):
         and se.ean is not null;"""
     query_sellos = """
         select s.ref_id, concat_ws(',',
-            CASE when ok.minsal_cl_high_sugar = 1 then 'Alto en Azúcares' ELSE NULL END,
             CASE when ok.minsal_cl_high_sodium  = 1 then 'Alto en Sodio' ELSE NULL END,
             CASE when ok.minsal_cl_high_saturated_fat  = 1 then 'Alto en Grasas Saturadas' ELSE NULL END,
-            CASE when ok.minsal_cl_high_calories = 1 then 'Alto en Calorías' ELSE NULL END) as sellos 
+            CASE when ok.minsal_cl_high_calories = 1 then 'Alto en Calorías' ELSE NULL END,
+            CASE when ok.minsal_cl_high_sugar = 1 then 'Alto en Azúcares' ELSE NULL END
+            ) as sellos 
         from catalogo.ok_to_shop oK
         left join ecommdata.sku_ean se on ok.product_ean::text = se.ean 
         left join ecommdata.skus s on s.ref_id = se.ref_id
@@ -189,15 +193,18 @@ def check_update_attributes_products(ti):
             or ok.minsal_cl_high_calories = 1 )
             AND NOT EXISTS ( select distinct s.ean_primario from ecommdata.skus s where ok.product_ean::text = s.ean_primario  )
             AND se.ean is not null;"""
-    query_alergias_atr_pro = """select ap.ref_id, concat_ws(',',ap.valor) as alergias
+    query_alergias_atr_pro = F"""select ap.ref_id, 
+        string_agg(ap.valor_atributo,',' ORDER BY ap.valor_atributo DESC) as alergias
         from ecommdata.atributos_producto ap
-        where ap.nombre_atributo = 'alergias';"""
-    query_sellos_atr_pro = """select ap.ref_id, concat_ws(',',ap.valor) as sellos
+        where ap.id_atributo = {id_atributo_alergias}
+        group by ap.ref_id;"""
+    query_sellos_atr_pro = f"""select ap.ref_id,
+        string_agg(ap.valor_atributo,',' ORDER BY ap.valor_atributo DESC ) as sellos
         from ecommdata.atributos_producto ap
-        where ap.nombre_atributo = 'sellos';"""
+        where ap.id_atributo = {id_atributo_sellos}
+        group by ap.ref_id;"""
 
     def get_atributos(query):  # atributos: alergias, sellos
-        print(f"Iniciando obtencion de atributos...")
         print(query)
         cursor.execute(query)
         pg_connection.commit()
@@ -209,33 +216,27 @@ def check_update_attributes_products(ti):
         pg_connection.close()
         return df
 
+    print("Iniciando obtencion de ok_to_shop_alergias")
     df_alergias = get_atributos(query_alergias)
+    print("Iniciando obtencion de ok_to_shop_sellos")
     df_sellos = get_atributos(query_sellos)
+    print("Iniciando obtencion de atributos_producto_alergias")
     df_alergias_atr = get_atributos(query_alergias_atr_pro)
+    print("Iniciando obtencion de atributos_producto_sellos")
     df_sellos_atr = get_atributos(query_sellos_atr_pro)
 
-    if df_alergias.equals(df_alergias_atr):
+    if df_alergias.equals(df_alergias_atr) and  df_sellos.equals(df_sellos_atr):
         print("La data no presenta actualizaciones en cuanto a ALERGIAS")
-    elif df_sellos.equals(df_sellos_atr):
-        print("La data no presenta actualizaciones en cuanto a SELLOS")
-    elif ~df_alergias.equals(df_alergias_atr) and df_alergias.size >= df_alergias_atr.size:
-        print("Se añaden atributos ALERGIAS nuevos")
-        modified_rows_alergias = df_alergias.merge(
-            df_alergias_atr, on='alergias', indicator=True, how='outer')
-        modified_rows_alergias = modified_rows_alergias[modified_rows_alergias['_merge'] != 'left_only']
-    elif ~df_alergias.equals(df_alergias_atr) and df_alergias.size <= df_alergias_atr.size:
-        print("Checkear, hay menos datos en la tabla ok_to_shop que en atributos_producto de en cuanto ALERGIAS")
-    elif ~df_sellos.equals(df_sellos_atr) and df_sellos.size >= df_sellos_atr.size:
-        print("Se añaden atributos SELLOS nuevos")
-        modified_rows_sellos = df_sellos.merge(
-            df_sellos_atr, on='sellos',  indicator=True, how='outer')
-        modified_rows_sellos = modified_rows_sellos[modified_rows_sellos['_merge'] != 'left_only']
-    elif ~df_sellos.equals(df_sellos_atr) and df_sellos.size <= df_sellos_atr.size:
-        print("Checkear, hay menos datos en la tabla ok_to_shop que en atributos_producto de en cuanto SELLOS")
+        print("FINALIZADO")
+        return
+    
+    df_new_alergias = df_alergias[~df_alergias.isin(df_alergias_atr)].dropna()
+    df_new_sellos = df_sellos[~df_sellos.isin(df_sellos_atr)].dropna()
+    df_new_total = df_new_alergias.merge(df_new_sellos, on='ref_id', how='outer')
+    print("Datos que se actualizarán")
 
-    df_final = modified_rows_alergias.merge(modified_rows_sellos, how='outer')
     jst = []
-    for index, row in df_final.iterrows():
+    for index, row in df_new_total.iterrows():
         item = dict()
         item["item_id"] = row['ref_id']
         item["attributes"] = []
@@ -252,7 +253,6 @@ def check_update_attributes_products(ti):
             attributes['values'] = row['sellos'].split(',')
             item["attributes"].append(attributes)
         jst.append(item)
-
     return jst
 
 
