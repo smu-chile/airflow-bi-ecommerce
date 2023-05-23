@@ -30,6 +30,37 @@ def stock(tienda,ds):
     cursor.close()
     pg_connection.close()
     return results
+def promociones(ds):
+    import pandas as pd
+    stock_tiendas_query = """select CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv),
+_t.fecha_inicio_de_promocion,
+_t.fecha_fin_de_promocion
+from(select  material,
+	case
+		when (umv = 'ST') then 'UN'
+		else umv
+	end as umv,
+	fecha_inicio_de_promocion,
+	fecha_fin_de_promocion
+	from ecommdata.workflow_promociones 
+	where fecha_inicio_de_promocion >= """+ds+"""::date
+	or fecha_fin_de_promocion <= """+ds+"""::date) as _t
+	group by
+	_t.material,
+	_t.umv,
+	_t.fecha_inicio_de_promocion,
+	_t.fecha_fin_de_promocion"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    #print(stock_tiendas_query)
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(stock_tiendas_query)
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["ref_id","fecha_inicio","fecha_final"]
+    cursor.close()
+    pg_connection.close()
+    return results
 
 def venta_tienda(tienda,ds):
     ventas_skus_tienda_query = """select _t.* 
@@ -132,11 +163,28 @@ def stock_ventas_tiendas_to_s3(ds):
     df_stock_seguridad_aux["dia"]=df_stock_seguridad_aux["dia"].astype(int)
     df_stock_seguridad_aux["nuevo_stock_seguridad"]=df_stock_seguridad_aux["nuevo_stock_seguridad"].astype(int)
 
-    print(df_stock_seguridad_aux)
-    print(df_stock_seguridad_aux.info())
+    promociones = promociones()
+    promociones=promociones.drop_duplicates(subset='ref_id')
+
+    ###############################################
+    #        filtrado por dia y promociones       #
+    ###############################################
+    dia = f"{ds}::date"
+    dia = ds.today().weekday()
+    dia = (dia + 1) % 7
+    df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
+
+    df_final=(df_stock_seguridad_aux.merge(promociones, on='ref_id', how='left', indicator=True)
+        .query('_merge == "left_only"')
+        .drop('_merge', 1))
+
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+
+    print(df_final)
+    print(df_final.info())
 
     buffer = io.StringIO()
-    df_stock_seguridad_aux.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"stock_seguridad/{exec_date}/stock_seguridad_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
