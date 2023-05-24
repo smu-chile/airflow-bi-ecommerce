@@ -62,16 +62,16 @@ def promociones(ds):
                         xd.fecha_fin_de_promocion,
                         xd.id_mecanica"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","fecha_inicio","fecha_final"]
+    results.columns = ["ref_id","fecha_inicio","fecha_final","id_mecanica"]
     cursor.close()
     pg_connection.close()
     return results
+
 
 def venta_tienda(tienda,ds):
     ventas_skus_tienda_query = """select _t.* 
