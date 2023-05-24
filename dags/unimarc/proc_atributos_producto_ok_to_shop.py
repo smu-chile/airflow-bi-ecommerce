@@ -18,17 +18,18 @@ def last_file_ok_to_shop(ti):
 
     date_dir = datetime.now().strftime("/%Y/%m/")
     date_name = datetime.now().strftime("%Y%m%d")
-    # file_dir = "/2023/05/20230520_ok_to_shop.zip"
     file_dir = date_dir+date_name+"_ok_to_shop.zip"
     print(f"Checking file: {file_dir}")
     df = pd.DataFrame()
     # Establecer la conexión FTP
     ip_ftp_ok_to_shop = Variable.get(
-        "JANIS_OK_TO_SHOP_ATRIBUTOS_PRODUCTOS_IP_FTP")
+        "OK_TO_SHOP_IP_FTP")
+    user_ftp_ok_to_shop = Variable.get(
+        "OK_TO_SHOP_USER_FTP")
     password_ftp_ok_to_shop = Variable.get(
-        "JANIS_OK_TO_SHOP_ATRIBUTOS_PRODUCTOS_PASSWORD_FTP")
+        "OK_TO_SHOP_PASSWORD_FTP")
     with ftplib.FTP(ip_ftp_ok_to_shop) as ftp:
-        ftp.login(user='unimarc_cl@okto.shop', passwd=password_ftp_ok_to_shop)
+        ftp.login(user=user_ftp_ok_to_shop, passwd=password_ftp_ok_to_shop)
         print("Adentro de FTP")
         if file_dir in ftp.nlst(date_dir):
             with io.BytesIO() as zip_buffer:  # file_dir = '/2023/02/20230209_ok_to_shop.zip'
@@ -82,13 +83,11 @@ def last_file_ok_to_shop(ti):
                     'vegetarian', 'diabetes_suitable', 'soy_free', 'egg_free', 'fish_free', 'seafood_free',
                     'peanut_free', 'nuts_free', 'walnuts_free', 'sulphite_free', 'wheat_free']
         time_cols = ['date_in', 'date_last_update']
-        df['date_in'] = pd.to_datetime(df['date_in'])
-        df['date_l ast_update'] = pd.to_datetime(df['date_last_update'])
         types = {x: 'float' for x in int_cols}
         type_str = {x: 'str' for x in columns if x not in int_cols+time_cols}
         types.update(type_str)
         df = df.astype(types)
-        df = df.replace("nan", None)
+        df = df.replace("nan", "NULL")
 
         columns.remove("product_ean")
 
@@ -99,12 +98,14 @@ def last_file_ok_to_shop(ti):
 
         # Change data types to native python types
         fixed_records = []
-        print(records[:10])
-        for record in records[:10]:
+        print(records[:100])
+        for record in records[:100]:
             fixed_record = []
             for value in record:
                 if isinstance(value, np.generic):
                     fixed_record.append(value.item())
+                elif value == "NULL" or value == np.nan:
+                    fixed_record.append(None)
                 else:
                     fixed_record.append(value)
             fixed_records.append(tuple(fixed_record))
@@ -133,12 +134,11 @@ def check_update_attributes_products(ti):
     import pandas as pd
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    print("Data loaded to Postgres")
-    id_atributo_alergias = Variable.get('JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_ALERGIAS')
+
+    id_atributo_alergias = Variable.get(
+        'JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_ALERGIAS')
     id_atributo_sellos = Variable.get('JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_SELLOS')
-    
+
     query_alergias = """
         select s.ref_id as ref_id, concat_ws(',',
            CASE when ok.vegetarian = 1 then 'Vegetariano' ELSE NULL END,
@@ -175,7 +175,6 @@ def check_update_attributes_products(ti):
             or ok.walnuts_free = 1
             or ok.sulphite_free = 1
             or ok.wheat_free = 1)
-        AND NOT EXISTS ( select distinct s.ean_primario from ecommdata.skus s where ok.product_ean::text = s.ean_primario  )
         and se.ean is not null;"""
     query_sellos = """
         select s.ref_id, concat_ws(',',
@@ -191,7 +190,6 @@ def check_update_attributes_products(ti):
             or ok.minsal_cl_high_sodium = 1 
             or ok.minsal_cl_high_saturated_fat = 1 
             or ok.minsal_cl_high_calories = 1 )
-            AND NOT EXISTS ( select distinct s.ean_primario from ecommdata.skus s where ok.product_ean::text = s.ean_primario  )
             AND se.ean is not null;"""
     query_alergias_atr_pro = F"""select ap.ref_id, 
         string_agg(ap.valor_atributo,',' ORDER BY ap.valor_atributo DESC) as alergias
@@ -206,34 +204,42 @@ def check_update_attributes_products(ti):
 
     def get_atributos(query):  # atributos: alergias, sellos
         print(query)
+        pg_connection = pg_hook.get_conn()
+        cursor = pg_connection.cursor()
         cursor.execute(query)
         pg_connection.commit()
         results = cursor.fetchall()
         columns_name = [i[0] for i in cursor.description]
-        print(columns_name)
         df = pd.DataFrame(results, columns=columns_name)
+        print("Data obtenida")
         cursor.close()
         pg_connection.close()
         return df
 
     print("Iniciando obtencion de ok_to_shop_alergias")
     df_alergias = get_atributos(query_alergias)
+    print(df_alergias)
     print("Iniciando obtencion de ok_to_shop_sellos")
     df_sellos = get_atributos(query_sellos)
+    print(df_sellos)
     print("Iniciando obtencion de atributos_producto_alergias")
     df_alergias_atr = get_atributos(query_alergias_atr_pro)
+    print(df_alergias_atr)
     print("Iniciando obtencion de atributos_producto_sellos")
     df_sellos_atr = get_atributos(query_sellos_atr_pro)
+    print(df_sellos_atr)
 
-    if df_alergias.equals(df_alergias_atr) and  df_sellos.equals(df_sellos_atr):
+    if df_alergias.equals(df_alergias_atr) and df_sellos.equals(df_sellos_atr):
         print("La data no presenta actualizaciones en cuanto a ALERGIAS")
         print("FINALIZADO")
-        return
-    
+        return []
+
     df_new_alergias = df_alergias[~df_alergias.isin(df_alergias_atr)].dropna()
     df_new_sellos = df_sellos[~df_sellos.isin(df_sellos_atr)].dropna()
-    df_new_total = df_new_alergias.merge(df_new_sellos, on='ref_id', how='outer')
+    df_new_total = df_new_alergias.merge(
+        df_new_sellos, on='ref_id', how='outer')
     print("Datos que se actualizarán")
+    print(df_new_total)
 
     jst = []
     for index, row in df_new_total.iterrows():
@@ -267,6 +273,8 @@ def set_janis_atributos(ti):
         "Connection": "keep-alive"}
 
     def set_attributes(jst):
+        print("Iniciando carga a Janis")
+        print(jst)
         lim_json = 500
         total_size = len(jst)
         if total_size > lim_json:
@@ -286,6 +294,9 @@ def set_janis_atributos(ti):
                 print(f"Response Print: {r.content}")
 
     json_data = ti.xcom_pull(task_ids=[check_update_attributes_products])[0]
+    if json_data == []:
+        print("No hay atributos para cargar a JANIS, FINALIZADO")
+        return
     json_clean = [{'item_id': x['item_id'], 'attributes': [
         {'id': atributo['id'], 'values': []} for atributo in x['attributes']]} for x in json_data]
 
