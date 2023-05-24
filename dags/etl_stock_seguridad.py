@@ -174,8 +174,8 @@ def stock_ventas_tiendas_to_s3(ds):
     df_stock_seguridad_aux["dia"]=df_stock_seguridad_aux["dia"].astype(int)
     df_stock_seguridad_aux["nuevo_stock_seguridad"]=df_stock_seguridad_aux["nuevo_stock_seguridad"].astype(int)
 
-    promocion = promociones(ds)
-    promociones = promocion.drop_duplicates(subset='ref_id')
+    df_promocion = promociones(ds)
+    df_promociones_clean = df_promocion.drop_duplicates(subset='ref_id')
 
     ###############################################
     #        filtrado por dia y promociones       #
@@ -188,7 +188,7 @@ def stock_ventas_tiendas_to_s3(ds):
     dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
-    df_final=(df_stock_seguridad_aux.merge(promociones, on='ref_id', how='left', indicator=True)
+    df_final=(df_stock_seguridad_aux.merge(df_promociones_clean, on='ref_id', how='left', indicator=True)
         .query('_merge == "left_only"')
         .drop('_merge', 1))
 
