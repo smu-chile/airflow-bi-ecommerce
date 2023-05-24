@@ -98,8 +98,8 @@ def last_file_ok_to_shop(ti):
 
         # Change data types to native python types
         fixed_records = []
-        print(records[:100])
-        for record in records[:100]:
+        print(records)
+        for record in records:
             fixed_record = []
             for value in record:
                 if isinstance(value, np.generic):
@@ -246,13 +246,13 @@ def check_update_attributes_products(ti):
         item = dict()
         item["item_id"] = row['ref_id']
         item["attributes"] = []
-        if row['alergias'] is not 'NaN':
+        if isinstance(row['alergias'], str):
             attributes = dict()
             attributes['id'] = Variable.get(
                 "JANIS_API_REF_ID_ATTRIBUTE_ALERGIAS")
             attributes['values'] = row['alergias'].split(',')
             item["attributes"].append(attributes)
-        if row['sellos'] is not 'NaN':
+        if isinstance(row['sellos'], str):
             attributes = dict()
             attributes['id'] = Variable.get(
                 "JANIS_API_REF_ID_ATTRIBUTE_SELLOS")
@@ -293,7 +293,7 @@ def set_janis_atributos(ti):
                 print(f"Carga sin éxito | Status_Code: {r.status_code} ")
                 print(f"Response Print: {r.content}")
 
-    json_data = ti.xcom_pull(task_ids=[check_update_attributes_products])[0]
+    json_data = ti.xcom_pull(task_ids=["check_update_attributes_products"])[0]
     if json_data == []:
         print("No hay atributos para cargar a JANIS, FINALIZADO")
         return
