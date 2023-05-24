@@ -98,8 +98,8 @@ def last_file_ok_to_shop(ti):
 
         # Change data types to native python types
         fixed_records = []
-        print(records[:100])
-        for record in records[:100]:
+        print(records)
+        for record in records:
             fixed_record = []
             for value in record:
                 if isinstance(value, np.generic):
