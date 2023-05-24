@@ -32,7 +32,7 @@ def stock(tienda,ds):
     return results
 def promociones(ds):
     import pandas as pd
-    stock_tiendas_query = """select xd.*
+    promociones_query = """select xd.*
                     from(select 
                         CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv) as ref_id,
                         _t.fecha_inicio_de_promocion,
@@ -64,7 +64,7 @@ def promociones(ds):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.execute(stock_tiendas_query)
+    cursor.execute(promociones_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["ref_id","fecha_inicio","fecha_final","id_mecanica"]
@@ -174,8 +174,8 @@ def stock_ventas_tiendas_to_s3(ds):
     df_stock_seguridad_aux["dia"]=df_stock_seguridad_aux["dia"].astype(int)
     df_stock_seguridad_aux["nuevo_stock_seguridad"]=df_stock_seguridad_aux["nuevo_stock_seguridad"].astype(int)
 
-    promociones = promociones(ds)
-    promociones=promociones.drop_duplicates(subset='ref_id')
+    promocion = promociones(ds)
+    promociones = promocion.drop_duplicates(subset='ref_id')
 
     ###############################################
     #        filtrado por dia y promociones       #
