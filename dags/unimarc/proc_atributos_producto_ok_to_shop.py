@@ -246,13 +246,13 @@ def check_update_attributes_products(ti):
         item = dict()
         item["item_id"] = row['ref_id']
         item["attributes"] = []
-        if row['alergias'] is not None:
+        if row['alergias'] is not 'NaN':
             attributes = dict()
             attributes['id'] = Variable.get(
                 "JANIS_API_REF_ID_ATTRIBUTE_ALERGIAS")
             attributes['values'] = row['alergias'].split(',')
             item["attributes"].append(attributes)
-        if row['sellos'] is not None:
+        if row['sellos'] is not 'NaN':
             attributes = dict()
             attributes['id'] = Variable.get(
                 "JANIS_API_REF_ID_ATTRIBUTE_SELLOS")
