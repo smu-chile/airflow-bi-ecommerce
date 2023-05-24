@@ -30,6 +30,7 @@ def stock(tienda,ds):
     cursor.close()
     pg_connection.close()
     return results
+
 def promociones(ds):
     import pandas as pd
     promociones_query = """select xd.*
@@ -70,6 +71,7 @@ def promociones(ds):
     results.columns = ["ref_id","fecha_inicio","fecha_final","id_mecanica"]
     cursor.close()
     pg_connection.close()
+
     return results
 
 
@@ -175,6 +177,7 @@ def stock_ventas_tiendas_to_s3(ds):
     df_stock_seguridad_aux["nuevo_stock_seguridad"]=df_stock_seguridad_aux["nuevo_stock_seguridad"].astype(int)
 
     df_promocion = promociones(ds)
+    print(df_promocion)
     df_promociones_clean = df_promocion.drop_duplicates(subset='ref_id')
 
     ###############################################
