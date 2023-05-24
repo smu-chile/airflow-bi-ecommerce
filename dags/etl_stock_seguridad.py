@@ -32,24 +32,35 @@ def stock(tienda,ds):
     return results
 def promociones(ds):
     import pandas as pd
-    stock_tiendas_query = """select CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv),
-_t.fecha_inicio_de_promocion,
-_t.fecha_fin_de_promocion
-from(select  material,
-	case
-		when (umv = 'ST') then 'UN'
-		else umv
-	end as umv,
-	fecha_inicio_de_promocion,
-	fecha_fin_de_promocion
-	from ecommdata.workflow_promociones 
-	where fecha_inicio_de_promocion >= """+ds+"""::date
-	or fecha_fin_de_promocion <= """+ds+"""::date) as _t
-	group by
-	_t.material,
-	_t.umv,
-	_t.fecha_inicio_de_promocion,
-	_t.fecha_fin_de_promocion"""
+    stock_tiendas_query = """select xd.*
+                    from(select 
+                        CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv) as ref_id,
+                        _t.fecha_inicio_de_promocion,
+                        _t.fecha_fin_de_promocion,
+                        _t.id_mecanica
+                        from(select distinct(material),
+                            case
+                                when (umv = 'ST') then 'UN'
+                                else umv
+                            end as umv,
+                            fecha_inicio_de_promocion,
+                            fecha_fin_de_promocion,
+                            id_mecanica
+                            from ecommdata.workflow_promociones 
+                            where id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
+                            and fecha_inicio_de_promocion <= '"""+ds+"""'
+                            and fecha_fin_de_promocion >= '"""+ds+"""') as _t
+                            group by
+                            _t.material,
+                            _t.umv,
+                            _t.fecha_inicio_de_promocion,
+                            _t.fecha_fin_de_promocion,
+                            _t.id_mecanica) as xd
+                        group by
+                        xd.ref_id,
+                        xd.fecha_inicio_de_promocion,
+                        xd.fecha_fin_de_promocion,
+                        xd.id_mecanica"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -169,8 +180,11 @@ def stock_ventas_tiendas_to_s3(ds):
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
-    dia = ds
-    dia = dia.today().weekday()
+    fecha_str = ds
+    formato_str = "%Y-%m-%d"
+
+    dia = datetime.strptime(fecha_str, formato_str) 
+    dia = dia.weekday()
     dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
