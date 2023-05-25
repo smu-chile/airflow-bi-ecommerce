@@ -42,5 +42,5 @@ SELECT pc.fecha_hora,
         END) AS con_tienda,
     pc.mfc
 FROM ecommdata.publicacion_catalogo pc
-WHERE (pc.surtido_ecommerce IS TRUE or pc.mfc is true) and pc.fecha_hora = '{{ts}}'::timestamp
+WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '{{ts}}'::timestamp
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.mfc;
