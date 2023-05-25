@@ -42,7 +42,7 @@ def mongo_to_postgres():
 
     df = pd.DataFrame(data)
     df.columns = ["_id","sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
-# # Ensure correct datatypes:
+    # # Ensure correct datatypes:
     df["_id"] = df["_id"].astype("str", errors="ignore")
     df["sap_code"] = df["sap_code"].astype("str", errors="ignore")
     df["ean_code"] = df["ean_code"].astype("str", errors="ignore")
@@ -101,7 +101,7 @@ with DAG(
         description="carga a postgres desde mongodb",
         schedule_interval=None,    #preguntar a mati k va por acá
         start_date=pendulum.datetime(2023, 5, 24, tz="America/Santiago"),
-        catchup=True,
+        catchup=False,
         max_active_runs = 1,
         tags=["mongo", "postgres"],
     ) as dag:
@@ -114,4 +114,5 @@ with DAG(
             task_id = "mongo_to_postgres",
             python_callable = mongo_to_postgres,
         )
+
         t0
