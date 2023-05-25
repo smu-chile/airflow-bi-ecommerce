@@ -100,8 +100,9 @@ with DAG(
         default_args=default_args,
         description="carga a postgres desde mongodb",
         schedule_interval=None,    #preguntar a mati k va por acá
-        start_date=pendulum.datetime(2022, 8, 1, tz="America/Santiago"),
-        catchup=False,
+        start_date=pendulum.datetime(2023, 5, 24, tz="America/Santiago"),
+        catchup=True,
+        max_active_runs = 1,
         tags=["mongo", "postgres"],
     ) as dag:
         dag.doc_md = """
@@ -113,3 +114,4 @@ with DAG(
             task_id = "mongo_to_postgres",
             python_callable = mongo_to_postgres,
         )
+        t0
