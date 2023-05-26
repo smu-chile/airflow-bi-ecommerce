@@ -17,11 +17,11 @@ def mongo_to_postgres():
     from pymongo import MongoClient
     import numpy as np
 
-    mongo_user = Variable.get("MONGODB_USER")
-    mongo_pass = Variable.get("MONGODB_PASSWORD")
-    mongo_cluster_name = Variable.get("MONGODB_CLUSTER")
-    mongo_db = Variable.get("MONGODB_DATABASE")
-    mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".lppxi.mongodb.net/"+mongo_db+"?retryWrites=true&w=majority&authSource=admin")
+    mongo_user = Variable.get("MONGODB_ORQ_USER")
+    mongo_pass = Variable.get("MONGODB_ORQ_PASSWORD")
+    mongo_cluster_name = Variable.get("MONGODB_ORQ_CLUSTER")
+    mongo_db = Variable.get("MONGODB_ORQ_DATABASE")
+    mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
     mongo_collection = mongo_client[mongo_db]["im_products"]
     documents = mongo_collection.find()
     
