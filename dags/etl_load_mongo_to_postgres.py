@@ -21,6 +21,7 @@ def mongo_to_postgres():
     mongo_pass = Variable.get("MONGODB_ORQ_PASSWORD")
     mongo_cluster_name = Variable.get("MONGODB_ORQ_CLUSTER")
     mongo_db = Variable.get("MONGODB_ORQ_DATABASE")
+
     mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
     mongo_collection = mongo_client[mongo_db]["im_products"]
     documents = mongo_collection.find()
@@ -72,7 +73,7 @@ def mongo_to_postgres():
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.orquestador_mfc (_id,"""+columns_query+""") 
+        INSERT INTO ecommdata.orquestador_mfc_test (_id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (_id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -85,7 +86,7 @@ def mongo_to_postgres():
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Data loaded to Postgres: ecommdata.orquestador_mfc")
+    print("Data loaded to Postgres: ecommdata.orquestador_mfc_test")
     return
 
 default_args = {
@@ -106,7 +107,7 @@ with DAG(
         tags=["mongo", "postgres"],
     ) as dag:
         dag.doc_md = """
-        soloquieroirmeacasaporfavorseñorpool. \n
+        funciona. \n
         UPSERT incremental basado en fecha_modificacion_unixtime.
         """ 
 
