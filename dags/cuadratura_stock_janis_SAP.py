@@ -41,12 +41,13 @@ def stock_lista8(ds):
                     _t.stock_sap,
                     _t.multiplicador_unidad_medida"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(stock_tiendas_query)
+    print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["fecha","ref_id","id_tienda","stock_l8","stock_janis","stock_calculado","multiplicador_medida"]
     cursor.close()
     pg_connection.close()
@@ -54,7 +55,7 @@ def stock_lista8(ds):
 
 def skus_carnes_padre_hijo():
     import pandas as pd
-    stock_tiendas_query = """select s.erp_id,s.ref_id,s.nombre_sku,c.n1, pt.id_tienda
+    stock_carnes_padre_hijo = """select s.erp_id,s.ref_id,s.nombre_sku,c.n1, pt.id_tienda
                             from ecommdata.skus as s
                             left join ecommdata.productos as p
                             on s.ref_id = p.ref_id
@@ -65,10 +66,12 @@ def skus_carnes_padre_hijo():
                             where c.n1 = 'Carnes'"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
+    print(stock_carnes_padre_hijo)
     cursor = pg_connection.cursor()
-    cursor.execute(stock_tiendas_query)
+    cursor.execute(stock_carnes_padre_hijo)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["material","ref_id","descripcion","categoria","id_tienda"]
     cursor.close()
     pg_connection.close()
@@ -113,6 +116,7 @@ def render_netezza_view(id_tienda,id_material,ds):
                                 jars=jdbc_driver_loc)
 
     cur = conn.cursor()
+    print(sql_str)
     cur.execute(sql_str)
     df = cur.fetchall()
     cur.close()
