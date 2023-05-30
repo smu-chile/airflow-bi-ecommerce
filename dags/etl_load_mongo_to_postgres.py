@@ -25,6 +25,9 @@ def mongo_to_postgres():
     mongo_client = MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
     mongo_collection = mongo_client[mongo_db]["im_products"]
     documents = mongo_collection.find()
+
+    print("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
+    print("se ha conectado a mongodb")
     
     data = []
 
@@ -42,7 +45,12 @@ def mongo_to_postgres():
         data.append(row)
 
     df = pd.DataFrame(data)
+    print(df)
+    print("se va a renombras las columnas ")
     df.columns = ["_id","sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
+    print("se han renombrado las columnas ")
+    print(df)
+
     # # Ensure correct datatypes:
     df["_id"] = df["_id"].astype("str", errors="ignore")
     df["sap_code"] = df["sap_code"].astype("str", errors="ignore")
@@ -50,6 +58,7 @@ def mongo_to_postgres():
     df["store"] = df["store"].astype("str", errors="ignore")
     df["measurement_unit"] = df["measurement_unit"].astype("str", errors="ignore")
     df["mfc_is_item_side"] = df["mfc_is_item_side"].astype("str", errors="ignore")
+
 
     columns = ["sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
 
