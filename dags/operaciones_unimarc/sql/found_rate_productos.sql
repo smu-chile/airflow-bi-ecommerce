@@ -40,7 +40,7 @@ orden
 	when li.material is null then false
 	else true
 end as infaltable
-, sp.mfc
+, sp.mfc_is_item_side as mfc
 from (
 select 	distinct oj.id			as orden
 	    , op.id					as id_producto_orden
