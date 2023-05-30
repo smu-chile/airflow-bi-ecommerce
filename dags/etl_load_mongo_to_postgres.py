@@ -4,12 +4,12 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from pymongo import MongoClient
+
 
 import pendulum
 
-from datetime import datetime, timedelta, date
-import pymongo
+from datetime import datetime, date
+
 
 
 def mongo_to_postgres():
@@ -22,7 +22,7 @@ def mongo_to_postgres():
     mongo_cluster_name = Variable.get("MONGODB_ORQ_CLUSTER")
     mongo_db = Variable.get("MONGODB_ORQ_DATABASE")
 
-    mongo_client = pymongo.MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
+    mongo_client = MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
     mongo_collection = mongo_client[mongo_db]["im_products"]
     documents = mongo_collection.find()
     
