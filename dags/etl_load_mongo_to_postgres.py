@@ -42,6 +42,7 @@ def mongo_to_postgres():
         "createdAt": doc["createdAt"],
         "updatedAt": doc["updatedAt"]
         }
+        print(row)
         data.append(row)
 
     df = pd.DataFrame(data)
