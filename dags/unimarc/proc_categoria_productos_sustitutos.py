@@ -3,6 +3,7 @@ from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.operators.postgres_operator import PostgresOperator
+from airflow.sensors.external_task import ExternalTaskSensor
 
 from datetime import datetime
 import pendulum
@@ -286,6 +287,7 @@ with DAG(
     they will be moved to the 'Substitution' category.
     """
 
+
     t0 = PythonOperator(
         task_id='get_in_sustitutos',
         python_callable=get_in_sustitutos
@@ -301,20 +303,28 @@ with DAG(
         python_callable=set_by_api_att_category,
     )
 
-    t3 = PythonOperator(
+    t3 = ExternalTaskSensor(
+        task_id="wait_for_atributos_producto",
+        external_dag_id='etl_atributos_producto_incremental_load',
+        external_task_id=None,
+        allowed_states=['success'],
+        failed_states=['failed']
+    )
+
+    t4 = PythonOperator(
         task_id='get_out_sustitutos',
         python_callable=get_out_sustitutos
     )
 
-    t4 = PostgresOperator(
+    t5 = PostgresOperator(
         task_id='truncate_catalogo_sustitutos',
         postgres_conn_id='postgresql_conn',
         sql='TRUNCATE TABLE catalogo.sustitutos;'
     )
 
-    t5 = PythonOperator(
+    t6 = PythonOperator(
         task_id='upload_refid_category',
         python_callable=upload_refid_category,
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
