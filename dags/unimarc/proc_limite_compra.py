@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
+from airflow.sensors.external_task import ExternalTaskSensor
 
 import pendulum
 
@@ -109,14 +110,22 @@ with DAG(
         con valor = NULL, a estos productos se les rescata su ref_id para setear su valor a 12 mediante la API de Janis 
         """
 
-    t0 = PythonOperator(
+    t0 = ExternalTaskSensor(
+        task_id="wait_for_atributos_producto",
+        external_dag_id='etl_atributos_producto_incremental_load',
+        external_task_id=None,
+        allowed_states=['success'],
+        failed_states=['failed']
+    )
+
+    t1 = PythonOperator(
         task_id='db_get_ref_id_atributos_producto',
         python_callable=db_get_ref_id_atributos_producto
     )
 
-    t1 = PythonOperator(
+    t2 = PythonOperator(
         task_id='set_lim_compra',
         python_callable=set_lim_compra
     )
 
-    t0 >> t1
+    t0 >> t1 >> t2
