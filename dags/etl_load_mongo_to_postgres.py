@@ -33,18 +33,18 @@ def mongo_to_postgres():
 
     for doc in documents:
         row = {
-        "_id": str(doc["_id"]),
-        "SapCode": doc["SapCode"],
-        "EanCode": doc["EanCode"],
-        "Store": doc["Store"],
-        "MeasurementUnit": doc["MeasurementUnit"],
-        "MFCIsItemInside": doc["MFCIsItemInside"],
-        "createdAt": doc["createdAt"],
-        "updatedAt": doc["updatedAt"]
+            "_id": str(doc["_id"]),
+            "SapCode": doc["SapCode"],
+            "EanCode": doc["EanCode"],
+            "Store": doc["Store"],
+            "MeasurementUnit": doc["MeasurementUnit"],
+            "MFCIsItemInside": doc["MFCIsItemInside"],
+            "createdAt": doc["createdAt"],
+            "updatedAt": doc["updatedAt"]
         }
         print(row)
         data.append(row)
-
+    print(data)
     df = pd.DataFrame(data)
     print(df)
     print("se va a renombras las columnas ")
