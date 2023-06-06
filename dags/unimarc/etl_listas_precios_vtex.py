@@ -1,11 +1,9 @@
 from airflow import DAG
 from airflow.models import Variable
-from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 import pendulum
-
 
 def get_fixed_prices(ti):
     import pandas as pd
@@ -131,18 +129,17 @@ with DAG(
         task_id="get_fixed_prices",
         python_callable=get_fixed_prices
     )
+ t1 = PostgresOperator(
+        task_id = "truncate_listas_precios",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE catalogo.listas_precios_vtex
+        """,
+    )
 
-    # t1 = PostgresOperator(
-    #     task_id = "truncate_listas_precios",
-    #     postgres_conn_id="postgresql_conn",
-    #     sql="""
-    #     TRUNCATE catalogo.listas_precios
-    #     """,
-    # )
-
-    t1 = PythonOperator(
+    t2 = PythonOperator(
         task_id="upload_fixed_prices",
         python_callable=upload_fixed_prices
     )
 
-    t0 >> t1
+    t0 >> t1 >> t2
