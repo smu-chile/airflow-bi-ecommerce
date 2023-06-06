@@ -42,14 +42,15 @@ def mongo_to_postgres():
             "createdAt": doc["createdAt"],
             "updatedAt": doc["updatedAt"]
         }
-        print(row)
+
         data.append(row)
-    print(data)
     df = pd.DataFrame(data)
     print(df)
     print("se va a renombras las columnas ")
     df.columns = ["_id","sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
     print("se han renombrado las columnas ")
+    df['created_date'] = df['created_date'].apply(lambda x: x.strftime('%Y-%m-%d'))
+    df['update_date'] = df['update_date'].apply(lambda x: x.strftime('%Y-%m-%d'))
     print(df)
 
     # # Ensure correct datatypes:
