@@ -5,7 +5,11 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from io import StringIO
+import os
 import pendulum
+import jaydebeapi
+
 
 def stock_x_l8(ds):
     #esta funcion se consulta las tablas stock y lista8
@@ -85,8 +89,123 @@ def sku_erp_padre():
     pg_connection.close()
     return results
 
+def stock_mfc(ds):
+    import pandas as pd
+    stock_mfc_query = """SELECT id_tienda,
+                    CONCAT(LPAD(material, 18, '0'), '-', unidad_venta) as ref_id,
+                    stock as stock_janis,
+                    fecha_carga
+                    from ecommdata.stock_mfc
+                    where fecha_carga = '"""+ds+"""'::date 
+                    and id_tienda = '1917'"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    #print(stock_mfc_query)
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(stock_mfc_query)
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","ref_id","stock_mfc","fecha_carga"]
+    print(results)
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def l8_0917(ds):
+    import pandas as pd
+    l8_0917_query = """select material||'-'||umv as ref_id, stock_x_umv
+                    from ecommdata.lista8
+                    where fecha = '"""+ds+"""'::date 
+                    and id_tienda = '0917'"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    #print(l8_0917_query)
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(l8_0917_query)
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","ref_id","stock_mfc","fecha_carga"]
+    print(results)
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def ubicaciones_mfc(ds):
+    import pandas as pd
+    ubi_mfc_query = """
+                    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    #print(ubi_mfc_query)
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(ubi_mfc_query)
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","ref_id","stock_mfc","fecha_carga"]
+    print(results)
+    cursor.close()
+    pg_connection.close()
+    return results
+
+
+def render_netezza_view(id_material,ds):
+
+    sql_str= """SELECT sa.SKU_PRODUCT AS material ,
+                NBR_ITM AS stock ,
+                ou.ou_id AS id_tienda ,
+                SA.NM AS nombre ,
+                DATE_VALUE as fecha
+                FROM DWC_SMU.SMU.VW_FACT_STOCK S 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA
+                ON SA.SKU_KEY = S.SKU_KEY 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU 
+                ON OU.OU_KEY = S.OU_KEY 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A 
+                ON A.ALMACEN_KEY =S.ALMACEN_KEY 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART 
+                ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY 
+                WHERE A.ALMACEN_COD = '0001' 
+                AND S.APLICA_STOCK = 'S' 
+                AND DATE_VALUE = '"""+ds+"""' ::date
+                AND OU.OU_ID in ('1917','0917') 
+                AND PART.PARTICULARIDAD_COD = 'A' 
+                AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683) 
+                AND sa.SKU_PRODUCT in ('"""+id_material+"""');"""
+    
+    dsn_database = Variable.get("DW_SECRET_DATABASE") 
+    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
+    dsn_port = "5480" 
+    dsn_uid = Variable.get("DW_SECRET_USER")
+    dsn_pwd = Variable.get("DW_PASSWORD")
+    jdbc_driver_name = "org.netezza.Driver" 
+    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+
+    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
+    
+    conn = jaydebeapi.connect(jdbc_driver_name, 
+                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
+                                jars=jdbc_driver_loc)
+
+    cur = conn.cursor()
+    print(sql_str)
+    cur.execute(sql_str)
+    df = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    return df
+
 def funcion_crear_data():
     #
+    df_stock_l8_0917 = l8_0917()
+    print("se ha cargado stock janis y L8 de la tienda 0917\n")
+    df_stock_mfc = stock_mfc()
+    print("se ha cargado stock TOM de la tienda 1917\n")
+    df_stock_l8_1917 = stock_x_l8()
+    df_stock_l8_1917.stock_janis = df_stock_l8_1917.stock_janis.fillna(0)
+    print("se ha cargado stock janis y L8 de la tienda 1917\n")
+
+
 
 
     return

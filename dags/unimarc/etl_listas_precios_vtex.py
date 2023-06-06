@@ -5,7 +5,6 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 import pendulum
 
-
 def get_fixed_prices(ti):
     import pandas as pd
     import sqlalchemy
@@ -130,8 +129,7 @@ with DAG(
         task_id="get_fixed_prices",
         python_callable=get_fixed_prices
     )
-
-    t1 = PostgresOperator(
+ t1 = PostgresOperator(
         task_id = "truncate_listas_precios",
         postgres_conn_id="postgresql_conn",
         sql="""
