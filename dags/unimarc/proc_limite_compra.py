@@ -98,7 +98,7 @@ with DAG(
     default_args=default_args,
     description=""" Busca en tabla ecommdata.atributos_producto productos que tengan su atributo 'Limite de Compra'  \n
     con valor = NULL, a estos productos se les rescata su ref_id para setear su valor a 12 mediante la API de Janis """,
-    schedule_interval="0 10 * * *",
+    schedule_interval="45 7 * * *",
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -115,7 +115,10 @@ with DAG(
         external_dag_id='etl_atributos_producto_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
-        failed_states=['failed']
+        failed_states=['failed'],
+        mode='reschedule',
+        poke_interval=120,
+        timeout = 1200
     )
 
     t1 = PythonOperator(
@@ -129,3 +132,4 @@ with DAG(
     )
 
     t0 >> t1 >> t2
+
