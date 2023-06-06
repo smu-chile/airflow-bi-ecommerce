@@ -2,15 +2,22 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.sensors.external_task import ExternalTaskSensor
-
+from utils.postgres_utils import is_empty_table
 import pendulum
 
 def db_get_ref_id_atributos_producto():
+    import time
+
     print(f"Iniciando obtencion de lista de ref_id de productos sin limite de compra ...")
     print("Estableciendo conección con postgres db")
 
     id_atributo_limite_compra = Variable.get("JANIS_ID_ATRIBUTO_LIMITE_COMPRA") # dev:2839656 , prod:2847610 
+    i = 0
+    while is_empty_table("ecommdata","atributos_producto") == True:
+        time.sleep(300)
+        i +=1
+        if i == 4:
+            raise Exception("No se encuentra disponible la tabla ecommdata.atributos_producto")
 
     query = f""" select p.ref_id from ecommdata.productos p
                 left join ecommdata.atributos_producto att on att.ref_id = p.ref_id 
@@ -98,7 +105,7 @@ with DAG(
     default_args=default_args,
     description=""" Busca en tabla ecommdata.atributos_producto productos que tengan su atributo 'Limite de Compra'  \n
     con valor = NULL, a estos productos se les rescata su ref_id para setear su valor a 12 mediante la API de Janis """,
-    schedule_interval="0 10 * * *",
+    schedule_interval="55 8 * * *",
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -110,22 +117,14 @@ with DAG(
         con valor = NULL, a estos productos se les rescata su ref_id para setear su valor a 12 mediante la API de Janis 
         """
 
-    t0 = ExternalTaskSensor(
-        task_id="wait_for_atributos_producto",
-        external_dag_id='etl_atributos_producto_incremental_load',
-        external_task_id=None,
-        allowed_states=['success'],
-        failed_states=['failed']
-    )
-
-    t1 = PythonOperator(
+    t0 = PythonOperator(
         task_id='db_get_ref_id_atributos_producto',
         python_callable=db_get_ref_id_atributos_producto
     )
 
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id='set_lim_compra',
         python_callable=set_lim_compra
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1
