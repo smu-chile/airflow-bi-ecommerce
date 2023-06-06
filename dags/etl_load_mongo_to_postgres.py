@@ -84,7 +84,7 @@ def mongo_to_postgres():
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.orquestador_mfc_test (_id,"""+columns_query+""") 
+        INSERT INTO ecommdata.ubicacion_mfc (_id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (_id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -97,7 +97,7 @@ def mongo_to_postgres():
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Data loaded to Postgres: ecommdata.orquestador_mfc_test")
+    print("Data loaded to Postgres: ecommdata.ubicacion_mfc")
     return
 
 default_args = {
@@ -111,7 +111,7 @@ with DAG(
         'etl_load_mongo_to_postgres',
         default_args=default_args,
         description="carga a postgres desde mongodb",
-        schedule_interval=None,    #preguntar a mati k va por acá
+        schedule_interval=None,
         start_date=pendulum.datetime(2023, 5, 24, tz="America/Santiago"),
         catchup=False,
         max_active_runs = 1,
