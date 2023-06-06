@@ -11,6 +11,7 @@ from datetime import datetime
 
 def _proc_mfc_sustitucion(ts):
         import requests
+        import json
         
         query = f"""
             select orden, ref_id, unidades_pickeadas
@@ -59,6 +60,7 @@ def _proc_mfc_sustitucion(ts):
                    }
                 }
             print(payload)
+            payload = json.dumps(payload, default=str)
             response = requests.post(MFC_API_SUST_URL, json=payload, headers=headers, auth=(MFC_API_SUST_USER, MFC_API_SUST_PASS))
             print(response)
 
