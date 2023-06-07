@@ -5,6 +5,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 import pendulum
 
+
 def get_fixed_prices(ti):
     import pandas as pd
     import sqlalchemy
@@ -45,7 +46,7 @@ def get_fixed_prices(ti):
     df_final = pd.DataFrame()
     for itemId in list_skus:
         df = pd.DataFrame()
-        GET_FIXED_PRICES = f"https://api.vtex.com/{accountName}/pricing/prices/{itemId}/fixed"
+        GET_FIXED_PRICES = f"https://api.vtex.com/{accountName}/pricing/prices/{str(itemId)}/fixed"
         print(GET_FIXED_PRICES)
         r = requests.get(GET_FIXED_PRICES, headers=headers)
         print("status_code: ", r.status_code)
@@ -111,7 +112,7 @@ default_args = {
 }
 
 with DAG(
-    'etl_vtex_listas_precios',
+    'etl_listas_precios_vtex',
     default_args=default_args,
     description="Extracción y carga de la tabla listas_precios_vtex desde API.",
     schedule_interval="0 4 * * *",
@@ -129,12 +130,11 @@ with DAG(
         task_id="get_fixed_prices",
         python_callable=get_fixed_prices
     )
- t1 = PostgresOperator(
-        task_id = "truncate_listas_precios",
+
+    t1 = PostgresOperator(
+        task_id="truncate_listas_precios",
         postgres_conn_id="postgresql_conn",
-        sql="""
-        TRUNCATE catalogo.listas_precios_vtex
-        """,
+        sql="TRUNCATE catalogo.listas_precios_vtex",
     )
 
     t2 = PythonOperator(

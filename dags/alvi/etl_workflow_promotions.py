@@ -77,7 +77,13 @@ def _promotions_table_incremental_load(ti, ts):
 		"PROMOEVENTMECHANISM": "str",
 		"DESCUENTOFINAL": "float",
 		"FECHA_MODIFICACION": "str",
-        "REGISTRO_VALIDO": "str"
+        "REGISTRO_VALIDO": "str",
+        "PRECIO_PROMOCIONAL_2": "float",
+        "PRECIO_TOTAL_PROMOCIONAL_2": "float",
+        "CANTIDAD_N2": "int",
+        "FACTOR_2": "float",
+        "IMPORTE_NEGOCIADO_2": "float",
+        "PORCENTAJE_FINANCIAMIENTO_2": "float"
     }
     df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
     df = df[["ID_WORKFLOW", "N_PROMOCION", "NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
@@ -89,9 +95,11 @@ def _promotions_table_incremental_load(ti, ts):
 		    "TIPO_FINANCIAMIENTO", "IMPORTE_NEGOCIADO", "PORCENTAJE_FINANCIAMIENTO", "COSTO_NETO_UMP",
 		    "PORCENTAJE_COSTO_PROMOCIONAL", "DESDE_SELL_IN", "HASTA_SELL_IN", "FECHA_INICIO_DE_PROMOCION",
 		    "FECHA_FIN_DE_PROMOCION", "PORCENTAJE_DE_DESCUENTO", "PROMOEVENTMECHANISM", "DESCUENTOFINAL",
-		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT", "FACTOR"]]
+		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT", "FACTOR", 
+            "PRECIO_PROMOCIONAL_2", "PRECIO_TOTAL_PROMOCIONAL_2", "CANTIDAD_N2", "FACTOR_2", "IMPORTE_NEGOCIADO_2", "PORCENTAJE_FINANCIAMIENTO_2"]]
     df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
     df["FACTOR"] = df["FACTOR"].astype("int", errors="ignore")
+    df["FACTOR_2"] = df["FACTOR_2"].astype("int", errors="ignore")
     
     # Fix date types:
     print("Fixing date datatype columns...")
@@ -105,6 +113,7 @@ def _promotions_table_incremental_load(ti, ts):
     print("Fixing percentage columns...")
     df["PORCENTAJE_N"] = df["PORCENTAJE_N"]/100
     df["PORCENTAJE_FINANCIAMIENTO"] = df["PORCENTAJE_FINANCIAMIENTO"]/100
+    df["PORCENTAJE_FINANCIAMIENTO_2"] = df["PORCENTAJE_FINANCIAMIENTO_2"]/100
     df["PORCENTAJE_COSTO_PROMOCIONAL"] = df["PORCENTAJE_COSTO_PROMOCIONAL"]/100
     df["PORCENTAJE_DE_DESCUENTO"] = df["PORCENTAJE_DE_DESCUENTO"]/100
     df["DESCUENTOFINAL"] = df["DESCUENTOFINAL"]/100
@@ -167,7 +176,13 @@ def _promotions_table_incremental_load(ti, ts):
         "REGISTRO_VALIDO": "registro_valido",
         "NOMBRE_DEL_PROVEEDOR_SELL_OUT": "nombre_proveedor_sell_out",
         "PROVEEDOR_SELL_OUT": "proveedor_sell_out",
-        "FACTOR": "factor"
+        "FACTOR": "factor",
+        "PRECIO_PROMOCIONAL_2": "precio_promocional_2",
+        "PRECIO_TOTAL_PROMOCIONAL_2": "precio_total_promocional_2",
+        "CANTIDAD_N2": "cantidad_n2",
+        "FACTOR_2": "factor_2",
+        "IMPORTE_NEGOCIADO_2": "importe_negociado_2",
+        "PORCENTAJE_FINANCIAMIENTO_2": "porcentaje_financiamiento_2"
     }
 
     df = df.rename(columns=columns_rename)
