@@ -389,7 +389,7 @@ with DAG(
     
     dag.doc_md = """
     construir y cargar cuadratura mfc. \n
-    Delete and INSERT en tabla catalogo.cuadratura_mfc.
+    Upsert en tabla catalogo.cuadratura_mfc.
     """ 
 
     t0 = PythonOperator(
