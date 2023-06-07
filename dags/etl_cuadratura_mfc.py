@@ -132,8 +132,7 @@ def l8_0917(ds):
 
 def ubicaciones_mfc(ds):
     import pandas as pd
-    ubi_mfc_query = """
-                    """
+    ubi_mfc_query = """select * from ecommdata.ubicacion_mfc"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(ubi_mfc_query)
     pg_connection = pg_hook.get_conn()
@@ -141,12 +140,11 @@ def ubicaciones_mfc(ds):
     cursor.execute(ubi_mfc_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["id_tienda","ref_id","stock_mfc","fecha_carga"]
+    results.columns = ["_id","sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
     print(results)
     cursor.close()
     pg_connection.close()
     return results
-
 
 def render_netezza_view(id_material,ds):
 
@@ -195,26 +193,179 @@ def render_netezza_view(id_material,ds):
 
     return df
 
-def funcion_crear_data():
-    #
-    df_stock_l8_0917 = l8_0917()
+def create_and_load_s3(ds):
+    import pandas as pd
+    import numpy as np
+    import io
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"stock_seguridad/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    df_stock_l8_0917 = l8_0917(ds)
     print("se ha cargado stock janis y L8 de la tienda 0917\n")
-    df_stock_mfc = stock_mfc()
+    df_stock_mfc = stock_mfc(ds)
     print("se ha cargado stock TOM de la tienda 1917\n")
-    df_stock_l8_1917 = stock_x_l8()
+    df_stock_l8_1917 = stock_x_l8(ds)
     df_stock_l8_1917.stock_janis = df_stock_l8_1917.stock_janis.fillna(0)
     print("se ha cargado stock janis y L8 de la tienda 1917\n")
+    df_erp_padre = sku_erp_padre()
+    print("se ha cargado erp padre hijo\n")
+    df_orquestador = ubicaciones_mfc(ds)
+    df_orquestador["sap_code"] = df_orquestador["sap_code"].astype("str", errors="ignore")
+    df_orquestador["store"] = df_orquestador["store"].astype("str", errors="ignore")
+    df_orquestador['sap_code'] = df_orquestador['sap_code'].apply(lambda x: str(x).zfill(18))
+    df_orquestador["ref_id"] = df_orquestador["sap_code"]+"-"+df_orquestador["measurement_unit"]
+    df_orquestador = df_orquestador[["ref_id","store","mfc_is_item_side"]]
+    df_orquestador.columns = ["ref_id","id_tienda","mfc_is_item_side"]
+    print("se ha cargado ubicaciones mfc\n")
+
+    dw_material = []
+    dw_tiendas = []
+    for i in range(len(df_erp_padre)):
+        if(df_erp_padre.iloc[i]["categoria"] == 'Carnes'):
+            data = df_erp_padre.iloc[i]["material"]
+            data2 = df_erp_padre.iloc[i]["id_tienda"]
+            dw_material.append(data)
+            dw_tiendas.append(data2)
+    unique_sweets = []
+    for dw_tiendas in dw_tiendas:
+        if dw_tiendas not in unique_sweets:
+            unique_sweets.append(dw_tiendas)
+    unique_sweets1 = []
+    for dw_material in dw_material:
+        if dw_material not in unique_sweets1:
+            unique_sweets1.append(dw_material)
+    unique_sweets1 = ' '.join(unique_sweets1)
+    unique_sweets1 = unique_sweets1.replace(" ", "','")
+    unique_sweets = ' '.join(unique_sweets)
+    unique_sweets = unique_sweets.replace(" ", "','")
+    lista_dw = render_netezza_view(unique_sweets,unique_sweets1)
+    df_aux = pd.DataFrame(lista_dw)
+    df_aux.columns = ["material","stock","id_tienda","nombre","fecha"]
+
+    print("se ha cargado stock DW\n")
+
+    df_final = df_stock_l8_1917.merge(df_stock_mfc, how = "left", on = ["id_tienda","ref_id"])
+    df_final = df_final[["fecha_carga","id_tienda","ref_id","stock_mfc","stock_l8","stock_calculado","stock_janis","multiplicador_medida"]]
+    df_final = df_final.merge(df_orquestador, how = "left", on = ["id_tienda","ref_id"])
+
+    df_final = df_final.merge(df_erp_padre, how = "left", on = ["id_tienda","ref_id"])
+    df_final = df_final.merge(df_aux, how = "left", on = ["material","id_tienda"])
+    df_final = df_final.drop_duplicates()
+    df_final = df_final[["fecha_carga","id_tienda","ref_id","material","stock_mfc","stock_l8","stock_janis","stock_calculado","mfc_is_item_side","stock","multiplicador_medida"]]
+
+    df_final['stock_calculado'] = pd.to_numeric(df_final['stock_calculado'],errors = 'coerce')
+    df_final['multiplicador_medida'] = pd.to_numeric(df_final['multiplicador_medida'],errors = 'coerce')
+    df_final['stock_calculado'] = pd.to_numeric(df_final['stock_calculado'],errors = 'coerce')
+
+    condlist = [df_final["stock"].isnull() == False,
+                df_final["stock"].isnull() == True]
+    choicelist = [df_final["stock"]/df_final["multiplicador_medida"], df_final["stock_calculado"]]
+    df_final["stock_calculado"] = np.select(condlist, choicelist)
+    df_final["stock_calculado"] = round(df_final["stock_calculado"],0)
+
+    df_final = df_final.merge(df_stock_l8_0917, how = "left", on = "ref_id")
+
+    df_final["stock_l8_0917"] = pd.to_numeric(df_final["stock_l8_0917"],errors = 'coerce')
+
+    df_final["stock_l8_0917_calculado"] = round(df_final["stock_l8_0917"]/df_final["multiplicador_medida"],0)
+
+    df_final = df_final[["fecha_carga","ref_id","material","id_tienda","stock_mfc","stock_l8","stock_janis","stock_calculado","stock_l8_0917","stock_l8_0917_calculado","mfc_is_item_side"]]
+
+    df_final.columns = ["fecha","ref_id","erp_id","id_tienda","stock_mfc","stock_l8","stock_janis","stock_calculado","stock_l8_0917","stock_l8_0917_calculado","mfc_is_item_side"]
+
+    df_final["ref_id"]= df_final["ref_id"].astype(str)
+    df_final["id_tienda"]= df_final["id_tienda"].astype("str", errors="ignore")
+    df_final["mfc_is_item_side"]= df_final["mfc_is_item_side"].astype("str", errors="ignore")
+    df_final["stock_calculado"]= pd.to_numeric(df_final['stock_calculado'], errors='coerce')
+    df_final["stock_calculado"].fillna(0, inplace=True)
+    df_final["stock_calculado"] = df_final["stock_calculado"].astype(int)
+    df_final["fecha"] = ds
+    print(df_final)
+    print(df_final.info())
+
+    buffer = io.StringIO()
+    df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"cuadratura_mfc/{exec_date}/cuadratura_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {prefix}")
+
+    return filename
 
 
+def upsert_postgres(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
 
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
+
+    columns = ["sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.orquestador_mfc_test (_id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (_id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres: ecommdata.orquestador_mfc_test")
     return
 
-def funcion_subir_s3():
-
-    return
-
-def funcion_subir_postgres():
 
     return
 
@@ -238,22 +389,16 @@ with DAG(
     
     dag.doc_md = """
     construir y cargar cuadratura mfc. \n
-    Delete and INSERT en tabla catalogo.cuadratura_mfc.
+    Upsert en tabla catalogo.cuadratura_mfc.
     """ 
 
     t0 = PythonOperator(
-        task_id = "funcion_crear_data",
-        python_callable = funcion_crear_data,
+        task_id = "create_and_load_s3 y ca",
+        python_callable = create_and_load_s3,
     )
 
     t1 = PythonOperator(
-        task_id = "funcion_subir_s3",
-        python_callable = funcion_subir_s3,
+        task_id = "upsert_postgres",
+        python_callable = upsert_postgres,
     )
-
-    t2 = PythonOperator(
-        task_id = "funcion_subir_postgres",
-        python_callable = funcion_subir_postgres
-    )
-
-    t0 >> t1 >> t2
+    t0 >> t1
