@@ -288,6 +288,8 @@ def create_and_load_s3(ds):
     print(df_final)
     print(df_final.info())
 
+    print("todo bien hasta acá")
+
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"cuadratura_mfc/{exec_date}/cuadratura_{date_aux}.csv"
