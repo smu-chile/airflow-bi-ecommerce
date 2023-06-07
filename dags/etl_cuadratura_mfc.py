@@ -309,7 +309,7 @@ def upsert_postgres(ti):
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
-    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
+    filename = ti.xcom_pull(key="return_value", task_ids=["create_and_load_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -390,7 +390,7 @@ with DAG(
     """ 
 
     t0 = PythonOperator(
-        task_id = "create_and_load_s3 y ca",
+        task_id = "create_and_load_s3",
         python_callable = create_and_load_s3,
     )
 
