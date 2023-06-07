@@ -6,7 +6,6 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 import pendulum
 
-
 def get_fixed_prices(ti):
     import pandas as pd
     import requests
@@ -43,7 +42,11 @@ def get_fixed_prices(ti):
         df = pd.DataFrame()
         GET_FIXED_PRICES = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
         print("GET_FIXED_PRICES: ", GET_FIXED_PRICES)
-        try:
+        if r.status_code == 404:
+            print("Error 404: Recurso no encontrado")
+            print(r.content)
+            continue
+        elif r.status_code == 200:
             r = requests.get(GET_FIXED_PRICES, headers=headers)
             r.raise_for_status()
             print("content: ", r.content)
@@ -68,11 +71,9 @@ def get_fixed_prices(ti):
             df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value',
                             'listPrice', 'minQuantity', 'Date From', 'Date To'])
             df_final = pd.concat([df_final, df])
-        except requests.exceptions.HTTPError as err:
-            if r.status_code == 404:
-                print("Error 404: Recurso no encontrado")
-            else:
-                print("Error en la solicitud: ", str(err))
+        else:
+            print(f"No se obtuvo info del producto {itemId}")
+        
     df_final = df_final.rename(columns={'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy',
                                         'value': 'Price', 'listPrice': 'List Price',
                                         'minQuantity': 'Min Quantity'})
@@ -104,7 +105,6 @@ def upload_fixed_prices(ti):
                    chunksize=20000,
                    method='multi')
     return
-
 
 default_args = {
     "owner": "ecommerce_data",
