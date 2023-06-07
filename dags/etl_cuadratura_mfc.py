@@ -367,9 +367,6 @@ def upsert_postgres(ti):
     return
 
 
-    return
-
-
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
