@@ -130,6 +130,7 @@ def l8_0917(ds):
     pg_connection.close()
     return results
 
+
 def ubicaciones_mfc(ds):
     import pandas as pd
     ubi_mfc_query = """select * from ecommdata.ubicacion_mfc"""
@@ -400,4 +401,5 @@ with DAG(
         task_id = "upsert_postgres",
         python_callable = upsert_postgres,
     )
+    
     t0 >> t1
