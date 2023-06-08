@@ -23,7 +23,8 @@ def get_fixed_prices(ti):
     list_skus = [result[0] for result in results]
     cursor.close()
     pg_connection.close()
-
+    print(f"Se obtuvieron {len(list_skus)} skus")
+    
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
@@ -36,18 +37,17 @@ def get_fixed_prices(ti):
     }
 
     # list_skus = list(df_skus['vtex_id'])[:10]
-    print(list_skus)
     df_final = pd.DataFrame()
-    for itemId in list_skus:
+    for itemId in list_skus[:10]:
         df = pd.DataFrame()
         GET_FIXED_PRICES = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
         print("GET_FIXED_PRICES: ", GET_FIXED_PRICES)
+        r = requests.get(GET_FIXED_PRICES, headers=headers)
         if r.status_code == 404:
             print("Error 404: Recurso no encontrado")
             print(r.content)
             continue
         elif r.status_code == 200:
-            r = requests.get(GET_FIXED_PRICES, headers=headers)
             r.raise_for_status()
             print("content: ", r.content)
             data = r.json()
