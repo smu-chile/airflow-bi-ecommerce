@@ -77,8 +77,7 @@ def get_fixed_prices(ti):
     df_final = df_final.rename(columns={'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy',
                                         'value': 'Price', 'listPrice': 'List Price',
                                         'minQuantity': 'Min Quantity'})
-    df_final = df_final.astype({'SKU ID': 'int', 'Price': 'int64', 'List Price': 'int64',
-                                'Min Quantity': 'int64'})
+    df_final = df_final.astype({'SKU ID': 'int', 'Price': 'int64', 'Min Quantity': 'int64'})
     return df_final.to_json(orient='records')
 
 
