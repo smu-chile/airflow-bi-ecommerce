@@ -54,7 +54,7 @@ def _proc_mfc_sustitucion(ts):
                        "reason": "JN",                
                        "datetime": ts,      
                        "movementid": "",            
-                       "quantity": quantity,                 
+                       "quantity": str(quantity),                 
                        "referencedoc": order,     
                        "mfcid": "1917"
                    }
