@@ -17,7 +17,7 @@ def stock(ds):
                    date_part('dow',fecha) as dia,
                    date_part('week',fecha) as semana
                    from ecommdata.stock
-                   where fecha = """+ds+"""::date 
+                   where fecha = '"""+ds+"""'::date 
                    and surtido_ecommerce is true
                     and stock_infinito_janis is not true
                    and id_tienda in ('0347','0581','0333','0334','0469')"""
@@ -49,8 +49,8 @@ def promociones(ds):
                             id_mecanica
                             from ecommdata.workflow_promociones 
                             where id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
-                            and fecha_inicio_de_promocion <= """+ds+"""::date
-                            and fecha_fin_de_promocion >= """+ds+"""::date) as _t
+                            and fecha_inicio_de_promocion <= '"""+ds+"""'::date
+                            and fecha_fin_de_promocion >= '"""+ds+"""'::date) as _t
                             group by
                             _t.material,
                             _t.umv,
@@ -94,7 +94,7 @@ def venta_tienda(ds):
                         left join ecommdata.precios as p
                         on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id
                         and p.id_tienda_janis = t.id_janis  
-                        where v.fecha >= """+ds+"""::date -30
+                        where v.fecha >= '"""+ds+"""'::date -30
                         and v.venta_umv > 0 
                         and v.venta_bruta <> 0 
                         and v.organizacion = 'Unimarc'
@@ -139,6 +139,10 @@ def stock_ventas_tiendas_to_s3(ds):
     print("se ha cargado promociones \n")
 
     print("se ha terminado de extraer data \n")
+
+    #########################
+    #transformacion de datos#
+    #########################
 
     df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
@@ -186,6 +190,10 @@ def stock_ventas_tiendas_to_s3(ds):
     df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
 
     print("transformacion de datos listo \n")
+
+    ##############
+    #cargar datos#
+    ##############
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
