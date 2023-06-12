@@ -140,6 +140,10 @@ def stock_ventas_tiendas_to_s3(ds):
 
     print("se ha terminado de extraer data \n")
 
+    #########################
+    #transformacion de datos#
+    #########################
+
     df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
@@ -186,6 +190,10 @@ def stock_ventas_tiendas_to_s3(ds):
     df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
 
     print("transformacion de datos listo \n")
+
+    ##############
+    #cargar datos#
+    ##############
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
