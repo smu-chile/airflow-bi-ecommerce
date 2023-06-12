@@ -128,17 +128,19 @@ def stock_ventas_tiendas_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    df_stock = pd.DataFrame(stock())
-    df_venta_tienda = pd.DataFrame(venta_tienda())
+    df_stock = pd.DataFrame(stock(ds))
+    print("se ha cargado stock\n")
+    df_venta_tienda = pd.DataFrame(venta_tienda(ds))
+    print("se ha cargado ventas\n")
     df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
     df_venta_tienda.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
     df_promociones = promociones()
     df_promociones=df_promociones.drop_duplicates(subset='ref_id')
+    print("se ha cargado promociones \n")
+
+    print("se ha terminado de extraer data \n")
 
     df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
-    df_venta_tienda["venta"] = df_venta_tienda["venta"].astype(str).astype(int)
-    df_venta_tienda["promo"] = ((df_venta_tienda["venta"]/df_venta_tienda["precio_lista"])-1)*-100
-    df_venta_tienda = df_venta_tienda[df_venta_tienda["promo"] <= 20]
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
@@ -183,7 +185,7 @@ def stock_ventas_tiendas_to_s3(ds):
     df_final["dia"]=df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
 
-    df_final
+    print("transformacion de datos listo \n")
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
