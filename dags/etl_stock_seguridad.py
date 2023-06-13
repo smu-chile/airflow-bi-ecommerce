@@ -134,7 +134,7 @@ def stock_ventas_tiendas_to_s3(ds):
     print("se ha cargado ventas\n")
     df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
     df_venta_tienda.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
-    df_promociones = promociones()
+    df_promociones = promociones(ds)
     df_promociones=df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
 
