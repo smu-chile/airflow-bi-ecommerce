@@ -109,6 +109,7 @@ def stock_mfc(ds):
 
 def l8_0917(ds):
     import pandas as pd
+    print("se está extrayendo información de lista8 para la 0917\n")
     l8_0917_query = """select material||'-'||umv as ref_id, stock_x_umv
                     from ecommdata.lista8
                     where fecha = '"""+ds+"""'::date 
@@ -119,7 +120,7 @@ def l8_0917(ds):
     cursor = pg_connection.cursor()
     cursor.execute(l8_0917_query)
     results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = pd.DataFrame(results)
     results.columns = ["ref_id","stock_l8_0917"]
     cursor.close()
     pg_connection.close()
@@ -194,7 +195,7 @@ def create_and_load_s3(ds):
 
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
-    prefix = f"stock_seguridad/{exec_date}/"
+    prefix = f"cuadratura_mfc/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
