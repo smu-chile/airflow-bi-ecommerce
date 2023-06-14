@@ -17,6 +17,7 @@ def stock_x_l8(ds):
     # de stock se extrar Janis y de lista8 se extrar SAP
     #si el UMV del sku es KG o KGV se divide por multiplicador_unidad_medida para transformar el dato a unidades
     import pandas as pd
+    print("se está extrayendo la info de stock y lista 8\n")
     stock_l8_query = """select _t.*
                     from( 
                     select s.fecha,
@@ -44,15 +45,13 @@ def stock_x_l8(ds):
                     _t.stock_janis,
                     _t.stock_sap,
                     _t.multiplicador_unidad_medida"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(stock_l8_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_l8_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["fecha","ref_id","id_tienda","stock_l8","stock_janis","stock_calculado","multiplicador_medida"]
-    print(results)
     cursor.close()
     pg_connection.close()
     return results
@@ -76,15 +75,13 @@ def sku_erp_padre():
                     or s.ref_id LIKE '%-KGV'
                     or c.n1 = 'Carnes'
                     or p.material <> s.erp_id;"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(sku_erp_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(sku_erp_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["material","ref_id","descripcion","categoria","id_tienda"]
-    print(results)
     cursor.close()
     pg_connection.close()
     return results
@@ -98,7 +95,7 @@ def stock_mfc(ds):
                     from ecommdata.stock_mfc
                     where fecha_carga = '"""+ds+"""'::date 
                     and id_tienda = '1917'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     #print(stock_mfc_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -106,7 +103,6 @@ def stock_mfc(ds):
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["id_tienda","ref_id","stock_mfc","fecha_carga"]
-    print(results)
     cursor.close()
     pg_connection.close()
     return results
@@ -117,15 +113,14 @@ def l8_0917(ds):
                     from ecommdata.lista8
                     where fecha = '"""+ds+"""'::date 
                     and id_tienda = '0917'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     #print(l8_0917_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(l8_0917_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["id_tienda","ref_id","stock_mfc","fecha_carga"]
-    print(results)
+    results.columns = ["ref_id","stock_l8_0917"]
     cursor.close()
     pg_connection.close()
     return results
@@ -134,7 +129,7 @@ def l8_0917(ds):
 def ubicaciones_mfc(ds):
     import pandas as pd
     ubi_mfc_query = """select * from ecommdata.ubicacion_mfc"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     #print(ubi_mfc_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -142,7 +137,6 @@ def ubicaciones_mfc(ds):
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["_id","sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
-    print(results)
     cursor.close()
     pg_connection.close()
     return results
@@ -186,7 +180,6 @@ def render_netezza_view(id_material,ds):
                                 jars=jdbc_driver_loc)
 
     cur = conn.cursor()
-    print(sql_str)
     cur.execute(sql_str)
     df = cur.fetchall()
     cur.close()
@@ -208,6 +201,7 @@ def create_and_load_s3(ds):
 
     df_stock_l8_0917 = l8_0917(ds)
     print("se ha cargado stock janis y L8 de la tienda 0917\n")
+    print(df_stock_l8_0917)
     df_stock_mfc = stock_mfc(ds)
     print("se ha cargado stock TOM de la tienda 1917\n")
     df_stock_l8_1917 = stock_x_l8(ds)
@@ -244,7 +238,7 @@ def create_and_load_s3(ds):
     unique_sweets1 = unique_sweets1.replace(" ", "','")
     unique_sweets = ' '.join(unique_sweets)
     unique_sweets = unique_sweets.replace(" ", "','")
-    lista_dw = render_netezza_view(unique_sweets,unique_sweets1)
+    lista_dw = render_netezza_view(unique_sweets1,ds)
     df_aux = pd.DataFrame(lista_dw)
     df_aux.columns = ["material","stock","id_tienda","nombre","fecha"]
 
@@ -271,13 +265,15 @@ def create_and_load_s3(ds):
 
     df_final = df_final.merge(df_stock_l8_0917, how = "left", on = "ref_id")
 
-    df_final["stock_l8_0917"] = pd.to_numeric(df_final["stock_l8_0917"],errors = 'coerce')
+    print(df_final.columns)
+
+    df_final["stock_l8_0917"] = pd.to_numeric(df_final['stock_l8_0917'],errors = 'coerce')
 
     df_final["stock_l8_0917_calculado"] = round(df_final["stock_l8_0917"]/df_final["multiplicador_medida"],0)
 
-    df_final = df_final[["fecha_carga","ref_id","material","id_tienda","stock_mfc","stock_l8","stock_janis","stock_calculado","stock_l8_0917","stock_l8_0917_calculado","mfc_is_item_side"]]
+    df_final = df_final[["ref_id","material","id_tienda","stock_mfc","stock_l8","stock_janis","stock_calculado","stock_l8_0917","stock_l8_0917_calculado","mfc_is_item_side","fecha_carga"]]
 
-    df_final.columns = ["fecha","ref_id","erp_id","id_tienda","stock_mfc","stock_l8","stock_janis","stock_calculado","stock_l8_0917","stock_l8_0917_calculado","mfc_is_item_side"]
+    df_final.columns = ["ref_id","erp_id","id_tienda","stock_mfc","stock_l8","stock_janis","stock_calculado","stock_l8_0917","stock_l8_0917_calculado","mfc_is_item_side","fecha"]
 
     df_final["ref_id"]= df_final["ref_id"].astype(str)
     df_final["id_tienda"]= df_final["id_tienda"].astype("str", errors="ignore")
@@ -307,7 +303,7 @@ def create_and_load_s3(ds):
     return filename
 
 
-def upsert_postgres(ti):
+def truncate_and_load_postgres(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
@@ -330,43 +326,27 @@ def upsert_postgres(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
     print(df.info())
-
-    columns = ["sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
-
-    columns_query = ",".join(columns)
-    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
-    records = list(df.to_records(index=False))
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
     
-    # Change data types to native python types
-    fixed_records = []
-    for record in records:
-        fixed_record = []
-        for value in record:
-            if isinstance(value, np.generic):
-                fixed_record.append(value.item())
-            elif value == "NULL":
-                fixed_record.append(None)
-            else:
-                fixed_record.append(value)
-        fixed_records.append(tuple(fixed_record))
-    print(f"Number of records to load: {str(len(fixed_records))}")
-    incremental_query = """
-        INSERT INTO ecommdata.orquestador_mfc_test (_id,"""+columns_query+""") 
-        VALUES ("""+values_query+""")
-        ON CONFLICT (_id)
-        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
-    """
-    print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.executemany(incremental_query, fixed_records)
-    pg_connection.commit()
-    cursor.close()
-    pg_connection.close()
-    print("Data loaded to Postgres: ecommdata.orquestador_mfc_test")
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # Save to PostgreSQL:
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE catalogo.cuadratura_stock_mfc") 
+        df.to_sql(name="cuadratura_stock_mfc",
+                    con=conn,         
+                    schema="catalogo",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data loaded to Postgres: catalogo.cuadratura_stock_mfc")
     return
 
 
@@ -398,8 +378,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "upsert_postgres",
-        python_callable = upsert_postgres,
+        task_id = "truncate_and_load_postgres",
+        python_callable = truncate_and_load_postgres,
     )
     
     t0 >> t1
