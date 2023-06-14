@@ -40,14 +40,12 @@ def stock_lista8(ds):
                     _t.stock_janis,
                     _t.stock_sap,
                     _t.multiplicador_unidad_medida"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    print(stock_tiendas_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    print(results)
     results.columns = ["fecha","ref_id","id_tienda","stock_l8","stock_janis","stock_calculado","multiplicador_medida"]
     cursor.close()
     pg_connection.close()
@@ -64,14 +62,12 @@ def skus_carnes_padre_hijo():
                             left join ecommdata.productos_tienda as pt
                             on s.ref_id = pt.ref_id
                             where c.n1 = 'Carnes'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     pg_connection = pg_hook.get_conn()
-    print(stock_carnes_padre_hijo)
     cursor = pg_connection.cursor()
     cursor.execute(stock_carnes_padre_hijo)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    print(results)
     results.columns = ["material","ref_id","descripcion","categoria","id_tienda"]
     cursor.close()
     pg_connection.close()
@@ -116,7 +112,6 @@ def render_netezza_view(id_tienda,id_material,ds):
                                 jars=jdbc_driver_loc)
 
     cur = conn.cursor()
-    print(sql_str)
     cur.execute(sql_str)
     df = cur.fetchall()
     cur.close()
@@ -137,11 +132,9 @@ def cuadratura_to_s3(ds):
 
     df = stock_lista8(ds)
     df.stock_janis = df.stock_janis.fillna(0)
-    print(df)
-    print("se ha descargado correctamente el stock filtrado por lista 8! ")
+    print("se ha descargado correctamente el stock filtrado por lista 8! \n")
     df_padre_hijo = skus_carnes_padre_hijo()
-    print(df_padre_hijo)
-    print("se ha descargado correctamente la tabla de skus padre e hijo")
+    print("se ha descargado correctamente la tabla de skus padre e hijo \n")
     dw_material = []
     dw_tiendas = []
     for i in range(len(df_padre_hijo)):
@@ -162,13 +155,12 @@ def cuadratura_to_s3(ds):
     unique_sweets1 = unique_sweets1.replace(" ", "','")
     unique_sweets = ' '.join(unique_sweets)
     unique_sweets = unique_sweets.replace(" ", "','")
-    xd = render_netezza_view(unique_sweets,unique_sweets1,ds)
-    df_aux = pd.DataFrame(xd)
+    df_dw = render_netezza_view(unique_sweets,unique_sweets1,ds)
+    df_aux = pd.DataFrame(df_dw)
     df_aux.columns = ["material","stock","id_tienda","nombre","fecha"]
-    print(df_aux)
-    print("se ha descargado correctamente la data de DW")
-    df_final = df.merge(df_padre_hijo, how = "left", on = ["id_tienda","ref_id"])
+    print("se ha descargado correctamente la data de DW\n")
 
+    df_final = df.merge(df_padre_hijo, how = "left", on = ["id_tienda","ref_id"])
     df_final = df_final.drop_duplicates()
     df_final = df_final.merge(df_aux, how = "left", on = ["id_tienda","material"])
     df_final = df_final.drop_duplicates()
@@ -192,7 +184,8 @@ def cuadratura_to_s3(ds):
     df_final["stock_sap"] = df_final["stock_sap"].astype(int)
     df_final['stock_x_umv'] = df_final['stock_x_umv'].astype(float, errors = 'raise')
     
-    print(df_final)
+    print("transformación de datos lista! \n")
+    print(df_final.info())
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -205,9 +198,10 @@ def cuadratura_to_s3(ds):
                 bucket_name=s3_bucket,
                 replace=True,
                 encrypt=False)
+    
     print(f"File load on S3: {prefix}")
 
-    return df_final
+    return filename
 
 
 def cuadratura_to_postgres(ti):
@@ -215,6 +209,7 @@ def cuadratura_to_postgres(ti):
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
+
     filename = ti.xcom_pull(key="return_value", task_ids=["cuadratura_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -242,13 +237,15 @@ def cuadratura_to_postgres(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    df.to_sql(name="cuadratura",
-                con=engine,         
-                schema="catalogo",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE catalogo.cuadratura_stock")
+        df.to_sql(name="cuadratura_stock",
+                    con=conn,         
+                    schema="catalogo",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
 
     print("Data saved to PostgreSQL.")
 
@@ -265,8 +262,8 @@ with DAG(
     'etl_cuadratura_tiendas',
     default_args=default_args,
     description="cargar tabla cuadratura",
-    schedule_interval=None,    #preguntar a mati k va por acá
-    start_date=pendulum.datetime(2022, 8, 1, tz="America/Santiago"),
+    schedule_interval=None,
+    start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_unimarc", "cuadratura","unimarc"],
 ) as dag:
