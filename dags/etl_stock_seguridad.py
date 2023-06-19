@@ -20,7 +20,7 @@ def stock(ds):
                    where fecha = '"""+ds+"""'::date 
                    and surtido_ecommerce is true
                     and stock_infinito_janis is not true
-                   and id_tienda in ('0332','0442','0581','0333')"""
+                   and id_tienda not in ('1917','0917')"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     #print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -99,7 +99,7 @@ def venta_tienda(ds):
                         and v.venta_bruta <> 0 
                         and v.organizacion = 'Unimarc'
                         and p.precio_lista is not null
-                        and LPAD(v.id_tienda , 4, '0') in ('0332','0442','0581','0333')) as _t
+                        and LPAD(v.id_tienda , 4, '0') not in ('1917','0917')) as _t
                         where precio_venta/precio_lista > 0.8 
                         group by _t.id_tienda,
                         _t.ref_id,
@@ -266,7 +266,7 @@ def carga_stock_seguridad_janis(ds,ti):
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
         print(row)
         payload.append(row)    
-        if i % 99 == 0:
+        if i % 499 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
             print(response.text)
