@@ -21,7 +21,7 @@ def stock(ds):
                    and surtido_ecommerce is true
                     and stock_infinito_janis is not true
                    and id_tienda in ('0332','0442','0581','0333')"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -62,7 +62,7 @@ def promociones(ds):
                         df.fecha_inicio_de_promocion,
                         df.fecha_fin_de_promocion,
                         df.id_mecanica"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
@@ -108,7 +108,7 @@ def venta_tienda(ds):
                         _t.venta_umv, 
                         _t.dia,
                         _t.semana"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -287,8 +287,8 @@ default_args = {
 with DAG(
     'etl_stock_seguridad',
     default_args=default_args,
-    description="cargar stock de sugirdad",
-    schedule_interval=None,    #preguntar a mati k va por acá
+    description="cargar stock de seguridad",
+    schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc"],
