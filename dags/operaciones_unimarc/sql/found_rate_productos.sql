@@ -40,7 +40,7 @@ orden
 	when li.material is null then false
 	else true
 end as infaltable
-, sp.mfc
+, sp.mfc_is_item_side as mfc
 from (
 select 	distinct oj.id			as orden
 	    , op.id					as id_producto_orden
@@ -97,7 +97,7 @@ left join ecommdata.ff_perfiles fp ON admins.perfil = fp.id
 left join ecommdata.categorias c on a.id_categoria = c.id
 left join ecommdata.tiendas t on a.id_tienda = t.id_janis
 left join ecommdata.lista_infaltables li on SUBSTRING(a.ref_id, 1, 18) = li.material
-left join mfc_unimarc.sector_picking sp on substring(a.ref_id, 1, 18) = sp.material and t.id = sp.id_tienda
+left join ecommdata.ubicacion_mfc sp on a.ref_id = CONCAT(sp.sap_code,'-', sp.measurement_unit) and t.id = sp.store
 on conflict on constraint found_rate_pk
 do
 update set orden = excluded.orden
