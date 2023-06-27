@@ -12,6 +12,18 @@ from datetime import datetime
 
 import pendulum
 
+def _save_table_stock_janis ():
+
+    return
+
+def _save_vtex_stock_in_ecommdata ():
+
+    return
+
+def _vtex_get_stock_retries ():
+
+    return
+
 
 
 
