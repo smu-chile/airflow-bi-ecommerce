@@ -45,7 +45,7 @@ def stock_x_l8(ds):
                     _t.stock_janis,
                     _t.stock_sap,
                     _t.multiplicador_unidad_medida"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_l8_query)
@@ -75,7 +75,7 @@ def sku_erp_padre():
                     or s.ref_id LIKE '%-KGV'
                     or c.n1 = 'Carnes'
                     or p.material <> s.erp_id;"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(sku_erp_query)
@@ -95,7 +95,7 @@ def stock_mfc(ds):
                     from ecommdata.stock_mfc
                     where fecha_carga = '"""+ds+"""'::date 
                     and id_tienda = '1917'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(stock_mfc_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -114,7 +114,7 @@ def l8_0917(ds):
                     from ecommdata.lista8
                     where fecha = '"""+ds+"""'::date 
                     and id_tienda = '0917'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(l8_0917_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -130,7 +130,7 @@ def l8_0917(ds):
 def ubicaciones_mfc(ds):
     import pandas as pd
     ubi_mfc_query = """select * from ecommdata.ubicacion_mfc"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(ubi_mfc_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
