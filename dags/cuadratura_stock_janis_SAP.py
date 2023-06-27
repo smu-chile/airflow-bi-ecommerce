@@ -262,7 +262,7 @@ with DAG(
     'etl_cuadratura_tiendas',
     default_args=default_args,
     description="cargar tabla cuadratura",
-    schedule_interval=None,
+    schedule_interval= "30 9 * * *",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_unimarc", "cuadratura","unimarc"],
