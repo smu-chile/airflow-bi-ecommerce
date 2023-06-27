@@ -40,7 +40,7 @@ def stock_lista8(ds):
                     _t.stock_janis,
                     _t.stock_sap,
                     _t.multiplicador_unidad_medida"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
@@ -62,7 +62,7 @@ def skus_carnes_padre_hijo():
                             left join ecommdata.productos_tienda as pt
                             on s.ref_id = pt.ref_id
                             where c.n1 = 'Carnes'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_carnes_padre_hijo)
