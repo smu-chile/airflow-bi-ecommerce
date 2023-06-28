@@ -15,10 +15,11 @@ def get_fixed_prices(ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     print("Getting vtex_ids of products within lista8")
-    query = """SELECT distinct r.vtex_id FROM public.wp_rank r
+    query = """SELECT distinct wp.vtex_id 
+                FROM ecommdata.worflow_promociones wp
                 WHERE r.tipo_promocion = 4
-                AND r.umv NOT IN ('KG','KGV')
-                AND r.vtex_id IS NOT NULL; """
+                AND wp.umv NOT IN ('KG','KGV')
+                AND wp.vtex_id IS NOT NULL; """
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]
