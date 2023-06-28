@@ -162,7 +162,7 @@ def cuadratura_to_s3(ds):
     list_material = ' '.join(list_material)
     list_material = list_material.replace(" ", "','")
     
-    df_dw = render_netezza_view(list_material,list_tienda,ds)
+    df_dw = render_netezza_view(list_tienda,list_material,ds)
     df_aux = pd.DataFrame(df_dw)
     df_aux.columns = ["material","stock","id_tienda","nombre","fecha"]
     print("se ha descargado correctamente la data de DW\n")
