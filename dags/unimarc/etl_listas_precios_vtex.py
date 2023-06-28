@@ -86,7 +86,6 @@ def get_fixed_prices(ti):
 def upload_fixed_prices(ti):
     import pandas as pd
     import sqlalchemy
-    from sqlalchemy import text
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -98,11 +97,6 @@ def upload_fixed_prices(ti):
     engine = sqlalchemy.create_engine(conn_url)
     json_data = ti.xcom_pull(task_ids=["get_fixed_prices"])[0]
     df_data = pd.read_json(json_data, orient='records')
-
-    connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE catalogo.listas_precios_vtex"
-    connection.execute(text(truncate_query))
-    connection.close()
 
     df_data.to_sql(name="listas_precios_vtex",
                    con=engine,
