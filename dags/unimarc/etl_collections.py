@@ -54,6 +54,12 @@ def get_all_collections(ti):
     conn_url = "postgresql+psycopg2://"+username + \
         ":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
+
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE catalogo.vtex_collections"
+    connection.execute(text(truncate_query))
+    connection.close()
+
     df_final.to_sql(name="vtex_collections",
                     con=engine,
                     schema="catalogo",
@@ -139,13 +145,14 @@ def upload_products_from_collections(ti):
         ":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdata.calendario"
-    connection.execute(text(truncate_query))
-    connection.close()
-
     json_data = ti.xcom_pull(task_ids=["get_products_from_collection"])[0]
     df_data = pd.read_json(json_data, orient='records')
+
+    if ~df_data.empty:
+        connection = engine.connect()
+        truncate_query = "TRUNCATE TABLE catalogo.vtex_products_collections"
+        connection.execute(text(truncate_query))
+        connection.close()
     df_data.to_sql(name="vtex_products_collections",
                    con=engine,
                    schema="catalogo",
@@ -154,7 +161,6 @@ def upload_products_from_collections(ti):
                    chunksize=20000,
                    method='multi')
     return
-
 
 default_args = {
     "owner": "ecommerce_data",
