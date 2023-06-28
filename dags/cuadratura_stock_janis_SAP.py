@@ -4,10 +4,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from io import StringIO
-import os
 
-import jaydebeapi
 
 import pendulum
 from datetime import datetime, timedelta
@@ -75,6 +72,8 @@ def skus_carnes_padre_hijo():
     return results
 
 def render_netezza_view(id_tienda,id_material,ds):
+    import jaydebeapi
+    import os
 
     sql_str= """SELECT sa.SKU_PRODUCT AS material ,
                 NBR_ITM AS stock ,
@@ -124,6 +123,7 @@ def cuadratura_to_s3(ds):
     import pandas as pd
     import numpy as np
     import io
+    from io import StringIO
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"cuadratura/{exec_date}/"
@@ -136,27 +136,24 @@ def cuadratura_to_s3(ds):
     print("se ha descargado correctamente el stock filtrado por lista 8! \n")
     df_padre_hijo = skus_carnes_padre_hijo()
     print("se ha descargado correctamente la tabla de skus padre e hijo \n")
-    dw_material = []
-    dw_tiendas = []
-    for i in range(len(df_padre_hijo)):
-        if(df_padre_hijo.iloc[i]["categoria"] == 'Carnes'):
-            data = df_padre_hijo.iloc[i]["material"]
-            data2 = df_padre_hijo.iloc[i]["id_tienda"]
-            dw_material.append(data)
-            dw_tiendas.append(data2)
-    unique_sweets = []
-    for dw_tiendas in dw_tiendas:
-        if dw_tiendas not in unique_sweets:
-            unique_sweets.append(dw_tiendas)
-        unique_sweets1 = []
-    for dw_material in dw_material:
-        if dw_material not in unique_sweets1:
-            unique_sweets1.append(dw_material)
-    unique_sweets1 = ' '.join(unique_sweets1)
-    unique_sweets1 = unique_sweets1.replace(" ", "','")
-    unique_sweets = ' '.join(unique_sweets)
-    unique_sweets = unique_sweets.replace(" ", "','")
-    df_dw = render_netezza_view(unique_sweets,unique_sweets1,ds)
+
+    list_material = []
+    list_tienda = []
+
+    df_temp = df_padre_hijo[df_padre_hijo["categoria"] == 'Carnes']
+    list_material = df_temp['material'].tolist()
+    list_tienda = df_temp['id_tienda'].tolist()
+
+    list_material = list(dict.fromkeys(list_material))
+    list_tienda = list(dict.fromkeys(list_tienda))
+
+    
+    list_tienda = ' '.join(list_tienda)
+    list_tienda = list_tienda.replace(" ", "','")
+    list_material = ' '.join(list_material)
+    list_material = list_material.replace(" ", "','")
+    
+    df_dw = render_netezza_view(list_material,list_tienda,ds)
     df_aux = pd.DataFrame(df_dw)
     df_aux.columns = ["material","stock","id_tienda","nombre","fecha"]
     print("se ha descargado correctamente la data de DW\n")
