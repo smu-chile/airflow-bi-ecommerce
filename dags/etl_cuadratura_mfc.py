@@ -362,7 +362,7 @@ with DAG(
     'etl_cuadratura_mfc',
     default_args=default_args,
     description="crear y cargar cuadratura del dia para MFC",
-    schedule_interval=None,    #preguntar a mati k va por acá
+    schedule_interval="30 9 * * *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["catalogo", "cuadratura", "MFC", "unimarc"],
