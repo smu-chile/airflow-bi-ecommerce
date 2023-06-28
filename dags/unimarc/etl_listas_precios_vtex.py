@@ -2,38 +2,32 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 import pendulum
 
-
 def get_fixed_prices(ti):
     import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
     import requests
 
-    host = Variable.get('POSTGRESQL_HOST')
-    database = Variable.get('POSTGRESQL_DB')
-    username = Variable.get('POSTGRESQL_USER')
-    password = Variable.get('POSTGRESQL_PASSWORD')
-    conn_url = "postgresql+psycopg2://"+username + \
-        ":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-    connection = engine.connect()
-
-    print("Getting vtex_ids from ecommdata.skus of products within lista8")
-    query = """SELECT distinct s.vtex_id FROM ecommdata.lista8 l8
-        INNER JOIN ecommdata.skus s ON s.ref_id = l8.material||'-'||l8.umv"""
-    df_skus = pd.read_sql(query, con=engine)
-    df_skus = df_skus.dropna()
-    df_skus = df_skus.astype({'vtex_id': 'int64'})
-    print(df_skus)
-    connection.close()
-
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    print("Getting vtex_ids of products within lista8")
+    query = """SELECT distinct r.vtex_id FROM public.wp_rank r
+                WHERE r.tipo_promocion = 4
+                AND r.umv NOT IN ('KG','KGV')
+                AND r.vtex_id IS NOT NULL; """
+    cursor.execute(query)
+    results = cursor.fetchall()
+    list_skus = [result[0] for result in results]
+    cursor.close()
+    pg_connection.close()
+    print(f"Se obtuvieron {len(list_skus)} skus")
+    
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
-
     headers = {
         'Accept': "application/json",
         'Content-Type': "application/json",
@@ -42,39 +36,48 @@ def get_fixed_prices(ti):
         "Connection": "keep-alive"
     }
 
-    list_skus = list(df_skus)[:10]
+    # list_skus = list(df_skus['vtex_id'])[:10]
     df_final = pd.DataFrame()
-    for itemId in list_skus:
+    for itemId in list_skus[:10]:
         df = pd.DataFrame()
-        GET_FIXED_PRICES = f"https://api.vtex.com/{accountName}/pricing/prices/{str(itemId)}/fixed"
-        print(GET_FIXED_PRICES)
+        GET_FIXED_PRICES = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
+        print("GET_FIXED_PRICES: ", GET_FIXED_PRICES)
         r = requests.get(GET_FIXED_PRICES, headers=headers)
-        print("status_code: ", r.status_code)
-        data = r.json()
-        df = pd.DataFrame(data)
-        df = df.assign(vtex_id=itemId)
-        if 'dateRange' not in df.columns:
-            # Si no existe, crear la columna y llenarla con una marca
-            df['dateRange'] = 'No existe'
-        for index, row in df.iterrows():
-            if pd.isna(row['dateRange']):
-                df.at[index, 'date-from'] = ''
-                df.at[index, 'date-to'] = ''
-            elif row['dateRange'] == '':
-                df.at[index, 'date-from'] = ''
-                df.at[index, 'date-to'] = ''
-            else:
-                df.at[index, 'date-from'] = row['dateRange']['from']
-                df.at[index, 'date-to'] = row['dateRange']['to']
-        df = df.drop('dateRange', axis=1)
-        df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value',
-                        'listPrice', 'minQuantity', 'date-from', 'date-to'])
-        df = df.rename({'value': 'price'})
-        df_final = pd.concat([df_final, df])
-    df_final.rename({'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy',
-                    'value': 'Price', 'listPrice': 'List Price',
-                     'minQuantity': 'Min Quantity', 'date-from': 'Date From',
-                     'date-to': 'Date To'})
+        if r.status_code == 404:
+            print("Error 404: Recurso no encontrado")
+            print(r.content)
+            continue
+        elif r.status_code == 200:
+            r.raise_for_status()
+            print("content: ", r.content)
+            data = r.json()
+            print(data)
+            df = pd.DataFrame(data)
+            df = df.assign(vtex_id=itemId)
+            if 'dateRange' not in df.columns:
+                # Si no existe, crear la columna y llenarla con una marca
+                df['dateRange'] = 'NULL'
+            for index, row in df.iterrows():
+                if pd.isna(row['dateRange']):
+                    df.at[index, 'Date From'] = 'NULL'
+                    df.at[index, 'Date To'] = 'NULL'
+                elif row['dateRange'] == '':
+                    df.at[index, 'Date From'] = 'NULL'
+                    df.at[index, 'Date To'] = 'NULL'
+                else:
+                    df.at[index, 'Date From'] = row['dateRange']['from']
+                    df.at[index, 'Date To'] = row['dateRange']['to']
+            df = df.drop('dateRange', axis=1)
+            df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value',
+                            'listPrice', 'minQuantity', 'Date From', 'Date To'])
+            df_final = pd.concat([df_final, df])
+        else:
+            print(f"No se obtuvo info del producto {itemId}")
+        
+    df_final = df_final.rename(columns={'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy',
+                                        'value': 'Price', 'listPrice': 'List Price',
+                                        'minQuantity': 'Min Quantity'})
+    df_final = df_final.astype({'SKU ID': 'int', 'Price': 'int64', 'Min Quantity': 'int64'})
     return df_final.to_json(orient='records')
 
 
@@ -101,7 +104,6 @@ def upload_fixed_prices(ti):
                    chunksize=20000,
                    method='multi')
     return
-
 
 default_args = {
     "owner": "ecommerce_data",

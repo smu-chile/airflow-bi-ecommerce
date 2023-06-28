@@ -8,19 +8,19 @@ from airflow.models import Variable
 import pendulum
 from datetime import datetime, timedelta
 
-def stock(tienda,ds):
-    stock_tiendas_query = """select id_tienda, 
-    glosa_tienda, 
-    ref_id, 
-    stock_janis, 
-    stock_seguridad_janis, 
-    date_part('dow',fecha) as dia, 
-    date_part('week',fecha) as semana 
-    from ecommdata.stock 
-    where fecha >= '"""+ds+"""'::date -30 
-    and stock_janis is not null 
-    and surtido_ecommerce = 'True' 
-    and id_tienda ='"""+tienda+"""'"""
+def stock(ds):
+    stock_tiendas_query = """select id_tienda,
+                   glosa_tienda,
+                   ref_id,
+                   stock_janis,
+                   stock_seguridad_janis,
+                   date_part('dow',fecha) as dia,
+                   date_part('week',fecha) as semana
+                   from ecommdata.stock
+                   where fecha = '"""+ds+"""'::date 
+                   and surtido_ecommerce is true
+                   and stock_infinito_janis is not true
+                   and id_tienda not in ('1917','0917')"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     #print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -33,7 +33,7 @@ def stock(tienda,ds):
 
 def promociones(ds):
     import pandas as pd
-    promociones_query = """select xd.*
+    promociones_query = """select df.*
                     from(select 
                         CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv) as ref_id,
                         _t.fecha_inicio_de_promocion,
@@ -49,19 +49,19 @@ def promociones(ds):
                             id_mecanica
                             from ecommdata.workflow_promociones 
                             where id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
-                            and fecha_inicio_de_promocion <= '"""+ds+"""'
-                            and fecha_fin_de_promocion >= '"""+ds+"""') as _t
+                            and fecha_inicio_de_promocion <= '"""+ds+"""'::date
+                            and fecha_fin_de_promocion >= '"""+ds+"""'::date) as _t
                             group by
                             _t.material,
                             _t.umv,
                             _t.fecha_inicio_de_promocion,
                             _t.fecha_fin_de_promocion,
-                            _t.id_mecanica) as xd
+                            _t.id_mecanica) as df
                         group by
-                        xd.ref_id,
-                        xd.fecha_inicio_de_promocion,
-                        xd.fecha_fin_de_promocion,
-                        xd.id_mecanica"""
+                        df.ref_id,
+                        df.fecha_inicio_de_promocion,
+                        df.fecha_fin_de_promocion,
+                        df.id_mecanica"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -75,40 +75,39 @@ def promociones(ds):
     return results
 
 
-def venta_tienda(tienda,ds):
-    ventas_skus_tienda_query = """select _t.* 
-    from ( 
-        select LPAD(v.id_tienda , 4, '0') as id_tienda, 
-        CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id, 
-        case
-            when (v.umv in ('UN','DIS','KG')) then round(v.venta_bruta/v.venta_umv,0)
-            else v.venta_bruta 
-            end as precio_venta, 
-        p.precio_lista, 
-        v.venta_umv, 
-        date_part('dow',v.fecha) as dia, 
-        date_part('week',v.fecha) as semana 
-        from ecommdata.venta_sku_tienda as v   
-        left join ecommdata.tiendas as t 
-        on LPAD(v.id_tienda , 4, '0') = t.id  
-        left join ecommdata.precios as p 
-        on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id  
-        and p.id_tienda_janis = t.id_janis  
-        where v.fecha >= '"""+ds+"""'::date -30  
-        and v.venta_umv > 0  
-        and v.venta_bruta <> 0  
-        and v.organizacion = 'Unimarc' 
-        and p.precio_lista is not null 
-        and LPAD(v.id_tienda , 4, '0') = '"""+tienda+"""') as _t 
-        where precio_venta/precio_lista > 0.8 
-        group by 
-        _t.id_tienda, 
-        _t.ref_id, 
-        _t.precio_venta, 
-        _t.precio_lista, 
-        _t.venta_umv, 
-        _t.dia, 
-        _t.semana"""
+def venta_tienda(ds):
+    ventas_skus_tienda_query = """select _t.*
+                    from ( 
+                        select LPAD(v.id_tienda , 4, '0') as id_tienda,
+                        CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
+                        case
+                            when (v.umv in ('UN','DIS','KG')) then round(v.venta_bruta/v.venta_umv,0)
+                            else v.venta_bruta
+                        end as precio_venta,
+                        p.precio_lista,
+                        v.venta_umv,
+                        date_part('dow',v.fecha) as dia,
+                        date_part('week',v.fecha) as semana
+                        from ecommdata.venta_sku_tienda as v
+                        left join ecommdata.tiendas as t
+                        on LPAD(v.id_tienda , 4, '0') = t.id
+                        left join ecommdata.precios as p
+                        on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id
+                        and p.id_tienda_janis = t.id_janis  
+                        where v.fecha >= '"""+ds+"""'::date -30
+                        and v.venta_umv > 0 
+                        and v.venta_bruta <> 0 
+                        and v.organizacion = 'Unimarc'
+                        and p.precio_lista is not null
+                        and LPAD(v.id_tienda , 4, '0') not in ('1917','0917')) as _t
+                        where precio_venta/precio_lista > 0.8 
+                        group by _t.id_tienda,
+                        _t.ref_id,
+                        _t.precio_venta,
+                        _t.precio_lista,
+                        _t.venta_umv, 
+                        _t.dia,
+                        _t.semana"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -129,57 +128,44 @@ def stock_ventas_tiendas_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    tiendas = ['Mirador','Los Militares','Los Leones','Coyhaique','La Chimba']
-    id_tiendas = {'Los Militares':'0813','Los Leones':'3097','Coyhaique':'1917','Mirador':'0581','La Chimba': '0034'}
-    #diccionario_glosa = {'Los Militares':'0469 - LOS MILITARES','Los Leones':'0333 - LOS LEONES','Coyhaique':'0442 - COYHAIQUE','Mirador':'0581 - MIRADOR'}
-    ventas_tiendas_data = []
-    stock_data = []
-    for x in tiendas:
-        print(x+" "+id_tiendas[x]+" ventas")
-        #print(ds)
-        data = pd.DataFrame(venta_tienda(id_tiendas[x],ds))
-        #print(data)
-        ventas_tiendas_data.append(data)
-        print(x+" "+id_tiendas[x]+" stock")
-        data1 = pd.DataFrame(stock(id_tiendas[x],ds))
-        stock_data.append(data1)
-        #print(data1)
-    ventas_tiendas_data = pd.concat(ventas_tiendas_data)
-    stock_data = pd.concat(stock_data)
-    stock_data.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
-    ventas_tiendas_data.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
+    df_stock = pd.DataFrame(stock(ds))
+    print("se ha cargado stock\n")
+    df_venta_tienda = pd.DataFrame(venta_tienda(ds))
+    print("se ha cargado ventas\n")
+    df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
+    df_venta_tienda.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
+    df_promociones = promociones(ds)
+    df_promociones=df_promociones.drop_duplicates(subset='ref_id')
+    print("se ha cargado promociones \n")
 
-    ventas_tiendas_data.precio_lista.fillna(ventas_tiendas_data.venta, inplace=True)
-    ventas_tiendas_data["venta"]=ventas_tiendas_data["venta"].astype(str).astype(int)
-    ventas_tiendas_data["promo"] = ((ventas_tiendas_data["venta"]/ventas_tiendas_data["precio_lista"])-1)*-100
-    ventas_tiendas_data = ventas_tiendas_data[ventas_tiendas_data["promo"] <= 20]
-    ventas_tiendas_data=ventas_tiendas_data[["id_tienda","ref_id","cantidad","dia","semana"]]
+    print("se ha terminado de extraer data \n")
 
-    aux1 = ventas_tiendas_data.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
-    axu2 = aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
-    axu2=axu2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    #########################
+    #transformacion de datos#
+    #########################
 
-    df_stock_seguridad = stock_data.merge(axu2, how='left', on=["id_tienda","ref_id","dia"])
+    df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
+    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
+
+    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
+    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+    df_aux2=df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+
+    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad=df_stock_seguridad.fillna(0)
+    df_stock_seguridad
 
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
     choicelist = [df_stock_seguridad["cantidad"], 2]
-    
+
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
-    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
-
-    df_stock_seguridad_aux["dia"]=df_stock_seguridad_aux["dia"].astype(int)
-    df_stock_seguridad_aux["nuevo_stock_seguridad"]=df_stock_seguridad_aux["nuevo_stock_seguridad"].astype(int)
-
-    df_promocion = promociones(ds)
-    print(df_promocion)
-    df_promociones_clean = df_promocion.drop_duplicates(subset='ref_id')
-
+    df_stock_seguridad_aux
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
@@ -191,14 +177,23 @@ def stock_ventas_tiendas_to_s3(ds):
     dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
-    df_final=(df_stock_seguridad_aux.merge(df_promociones_clean, on='ref_id', how='left', indicator=True)
+    df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
         .query('_merge == "left_only"')
         .drop('_merge', 1))
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-
+    df_final = df_final[["id_tienda","ref_id","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
     print(df_final)
-    print(df_final.info())
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    print(df_final)
+
+    df_final["dia"]=df_final["dia"].astype(int)
+    df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
+
+    print("transformacion de datos listo \n")
+
+    ##############
+    #cargar datos#
+    ##############
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -214,50 +209,6 @@ def stock_ventas_tiendas_to_s3(ds):
     print(f"File load on S3: {prefix}")
 
     return filename
-
-def stock_ventas_tiendas_to_postgres(ti):
-    import numpy as np
-    import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
-    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3"])[0]
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    print("Searching file: "+filename)
-    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % filename)
-
-    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
-
-    df = pd.read_csv(s_stock_object.get()["Body"])
-    if len(df.index) == 0:
-        print("There are no new nor updated records to load. Task will exit as successfull.")
-        return
-    
-    print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
-
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
-    
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    df.to_sql(name="stock_seguridad",
-                con=engine,         
-                schema="operaciones_unimarc",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
-    print("Data saved to PostgreSQL.")
-
-    return
 
 def carga_stock_seguridad_janis(ds,ti):
     import requests
@@ -315,7 +266,7 @@ def carga_stock_seguridad_janis(ds,ti):
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
         print(row)
         payload.append(row)    
-        if i % 99 == 0:
+        if i % 499 == 0:
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
             print(response.text)
@@ -323,14 +274,6 @@ def carga_stock_seguridad_janis(ds,ti):
     payload = str(payload).replace("'", '"')
     response = requests.request("POST", url, headers=headers, data=payload)
     print(response.text)
-    #material = df.ref_id[0].split("-")[0]
-    #id_tienda = str(int(df['id_tienda'][0])).zfill(4)
-    #stock_seguridad = int(df.nuevo_stock_seguridad[0])
-    #row = {"IdSku": material, "Quantity": 0, "Store": id_tienda, "MinStock": stock_seguridad, "Type": 2}
-    #print(row)
-    #payload.append(row)
-    #response = requests.request("POST", url, headers=headers, data=payload)
-    #print(response.text)
 
     return
 
@@ -344,45 +287,29 @@ default_args = {
 with DAG(
     'etl_stock_seguridad',
     default_args=default_args,
-    description="cargar stock de sugirdad",
-    schedule_interval=None,    #preguntar a mati k va por acá
-    start_date=pendulum.datetime(2022, 8, 1, tz="America/Santiago"),
+    description="cargar stock de seguridad",
+    schedule_interval="0 10 * * *",
+    start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc"],
 ) as dag:
     
 
     dag.doc_md = """
-    Extracción y carga de tabla ventas_skus y stock filtrado por lista 8 Replica hasta Workspace. \n
-    UPSERT incremental basado en fecha_modificacion_unixtime.
+    Carga stock de seguridad \n
+    guardar en S3.
     """ 
 
     t0 = PythonOperator(
         task_id = "stock_ventas_tiendas_to_s3",
         python_callable = stock_ventas_tiendas_to_s3,
-        op_kwargs = {
-            "schema": "ecommdata_unimarc",
-            "table_name": "stock", 
-            "updated_at_field": "fecha_modificacion_unixtime",
-            "is_unixtime": True
-        }
     )
 
     t1 = PythonOperator(
-        task_id = "stock_ventas_tiendas_to_postgres",
-        python_callable = stock_ventas_tiendas_to_postgres,
-        op_kwargs = {
-            "table_name": "stock", 
-            "xcom_updated_date_task_id": "get_max_updated_at_date_atributos", 
-            "updated_column": "date_modified"
-        }
-    )
-
-    t2 = PythonOperator(
         task_id = "carga_stock_seguridad_janis",
         python_callable = carga_stock_seguridad_janis
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1
 
 
