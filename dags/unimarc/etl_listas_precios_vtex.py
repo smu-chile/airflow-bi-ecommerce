@@ -6,6 +6,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 import pendulum
 
+
 def get_fixed_prices(ti):
     import pandas as pd
     import requests
@@ -24,7 +25,7 @@ def get_fixed_prices(ti):
     cursor.close()
     pg_connection.close()
     print(f"Se obtuvieron {len(list_skus)} skus")
-    
+
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
@@ -36,9 +37,8 @@ def get_fixed_prices(ti):
         "Connection": "keep-alive"
     }
 
-    # list_skus = list(df_skus['vtex_id'])[:10]
     df_final = pd.DataFrame()
-    for itemId in list_skus[:10]:
+    for itemId in list_skus:
         df = pd.DataFrame()
         GET_FIXED_PRICES = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
         print("GET_FIXED_PRICES: ", GET_FIXED_PRICES)
@@ -73,11 +73,12 @@ def get_fixed_prices(ti):
             df_final = pd.concat([df_final, df])
         else:
             print(f"No se obtuvo info del producto {itemId}")
-        
+
     df_final = df_final.rename(columns={'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy',
                                         'value': 'Price', 'listPrice': 'List Price',
                                         'minQuantity': 'Min Quantity'})
-    df_final = df_final.astype({'SKU ID': 'int', 'Price': 'int64', 'Min Quantity': 'int64'})
+    df_final = df_final.astype(
+        {'SKU ID': 'int', 'Price': 'int64', 'Min Quantity': 'int64'})
     return df_final.to_json(orient='records')
 
 
@@ -96,6 +97,12 @@ def upload_fixed_prices(ti):
     engine = sqlalchemy.create_engine(conn_url)
     json_data = ti.xcom_pull(task_ids=["get_fixed_prices"])[0]
     df_data = pd.read_json(json_data, orient='records')
+
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE catalogo.listas_precios_vtex"
+    connection.execute(text(truncate_query))
+    connection.close()
+
     df_data.to_sql(name="listas_precios_vtex",
                    con=engine,
                    schema="catalogo",
@@ -104,6 +111,7 @@ def upload_fixed_prices(ti):
                    chunksize=20000,
                    method='multi')
     return
+
 
 default_args = {
     "owner": "ecommerce_data",
