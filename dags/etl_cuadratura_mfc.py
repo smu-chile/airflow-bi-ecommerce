@@ -5,10 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-from io import StringIO
-import os
 import pendulum
-import jaydebeapi
 
 
 def stock_x_l8(ds):
@@ -143,6 +140,8 @@ def ubicaciones_mfc(ds):
     return results
 
 def render_netezza_view(id_material,ds):
+    import jaydebeapi
+    import os
 
     sql_str= """SELECT sa.SKU_PRODUCT AS material ,
                 NBR_ITM AS stock ,
@@ -192,6 +191,7 @@ def create_and_load_s3(ds):
     import pandas as pd
     import numpy as np
     import io
+    from io import StringIO
 
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
@@ -309,6 +309,7 @@ def truncate_and_load_postgres(ti):
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
+
     filename = ti.xcom_pull(key="return_value", task_ids=["create_and_load_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
