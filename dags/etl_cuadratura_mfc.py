@@ -42,12 +42,14 @@ def stock_x_l8(ds):
                     _t.stock_janis,
                     _t.stock_sap,
                     _t.multiplicador_unidad_medida"""
+    print(stock_l8_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_l8_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["fecha","ref_id","id_tienda","stock_l8","stock_janis","stock_calculado","multiplicador_medida"]
     cursor.close()
     pg_connection.close()
@@ -72,12 +74,14 @@ def sku_erp_padre():
                     or s.ref_id LIKE '%-KGV'
                     or c.n1 = 'Carnes'
                     or p.material <> s.erp_id;"""
+    print(sku_erp_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(sku_erp_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["material","ref_id","descripcion","categoria","id_tienda"]
     cursor.close()
     pg_connection.close()
@@ -92,13 +96,14 @@ def stock_mfc(ds):
                     from ecommdata.stock_mfc
                     where fecha_carga = '"""+ds+"""'::date 
                     and id_tienda = '1917'"""
+    print(stock_mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(stock_mfc_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_mfc_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["id_tienda","ref_id","stock_mfc","fecha_carga"]
     cursor.close()
     pg_connection.close()
@@ -111,13 +116,14 @@ def l8_0917(ds):
                     from ecommdata.lista8
                     where fecha = '"""+ds+"""'::date 
                     and id_tienda = '0917'"""
+    print(l8_0917_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(l8_0917_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(l8_0917_query)
     results = cursor.fetchall()
     results = pd.DataFrame(results)
+    print(results)
     results.columns = ["ref_id","stock_l8_0917"]
     cursor.close()
     pg_connection.close()
@@ -127,13 +133,14 @@ def l8_0917(ds):
 def ubicaciones_mfc(ds):
     import pandas as pd
     ubi_mfc_query = """select * from ecommdata.ubicacion_mfc"""
+    print(ubi_mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(ubi_mfc_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ubi_mfc_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["_id","sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
     cursor.close()
     pg_connection.close()
@@ -164,7 +171,7 @@ def render_netezza_view(id_material,ds):
                 AND PART.PARTICULARIDAD_COD = 'A' 
                 AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683) 
                 AND sa.SKU_PRODUCT in ('"""+id_material+"""');"""
-    
+    print(sql_str)
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
     dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
     dsn_port = "5480" 
@@ -182,6 +189,7 @@ def render_netezza_view(id_material,ds):
     cur = conn.cursor()
     cur.execute(sql_str)
     df = cur.fetchall()
+    print(df)
     cur.close()
     conn.close()
 
