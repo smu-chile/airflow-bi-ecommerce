@@ -7,6 +7,7 @@ from airflow.models import Variable
 
 
 import pendulum
+
 from datetime import datetime, timedelta
 
 def stock_lista8(ds):
@@ -38,12 +39,14 @@ def stock_lista8(ds):
                     _t.stock_janis,
                     _t.stock_sap,
                     _t.multiplicador_unidad_medida"""
+    print(stock_tiendas_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["fecha","ref_id","id_tienda","stock_l8","stock_janis","stock_calculado","multiplicador_medida"]
     cursor.close()
     pg_connection.close()
@@ -60,12 +63,14 @@ def skus_carnes_padre_hijo():
                             left join ecommdata.productos_tienda as pt
                             on s.ref_id = pt.ref_id
                             where c.n1 = 'Carnes'"""
+    print(stock_carnes_padre_hijo)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_carnes_padre_hijo)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    print(results)
     results.columns = ["material","ref_id","descripcion","categoria","id_tienda"]
     cursor.close()
     pg_connection.close()
@@ -96,7 +101,7 @@ def render_netezza_view(id_tienda,id_material,ds):
                 AND PART.PARTICULARIDAD_COD = 'A' 
                 AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683) 
                 AND sa.SKU_PRODUCT in ('"""+id_material+"""');"""
-    
+    print(sql_str)
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
     dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
     dsn_port = "5480" 
@@ -114,6 +119,7 @@ def render_netezza_view(id_tienda,id_material,ds):
     cur = conn.cursor()
     cur.execute(sql_str)
     df = cur.fetchall()
+    print(df)
     cur.close()
     conn.close()
 
@@ -145,9 +151,12 @@ def cuadratura_to_s3(ds):
     list_tienda = df_temp['id_tienda'].tolist()
 
     list_material = list(dict.fromkeys(list_material))
+    print("lista de materiales\n")
+    print(list_material)
     list_tienda = list(dict.fromkeys(list_tienda))
+    print("lista de tiendas\n")
+    print(list_tienda)
 
-    
     list_tienda = ' '.join(list_tienda)
     list_tienda = list_tienda.replace(" ", "','")
     list_material = ' '.join(list_material)
