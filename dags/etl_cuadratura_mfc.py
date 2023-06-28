@@ -219,27 +219,22 @@ def create_and_load_s3(ds):
     df_orquestador.columns = ["ref_id","id_tienda","mfc_is_item_side"]
     print("se ha cargado ubicaciones mfc\n")
 
-    dw_material = []
-    dw_tiendas = []
-    for i in range(len(df_erp_padre)):
-        if(df_erp_padre.iloc[i]["categoria"] == 'Carnes'):
-            data = df_erp_padre.iloc[i]["material"]
-            data2 = df_erp_padre.iloc[i]["id_tienda"]
-            dw_material.append(data)
-            dw_tiendas.append(data2)
-    unique_sweets = []
-    for dw_tiendas in dw_tiendas:
-        if dw_tiendas not in unique_sweets:
-            unique_sweets.append(dw_tiendas)
-    unique_sweets1 = []
-    for dw_material in dw_material:
-        if dw_material not in unique_sweets1:
-            unique_sweets1.append(dw_material)
-    unique_sweets1 = ' '.join(unique_sweets1)
-    unique_sweets1 = unique_sweets1.replace(" ", "','")
-    unique_sweets = ' '.join(unique_sweets)
-    unique_sweets = unique_sweets.replace(" ", "','")
-    lista_dw = render_netezza_view(unique_sweets1,ds)
+    list_material = []
+    list_tienda = []
+
+    df_temp = df_erp_padre[df_erp_padre["categoria"] == 'Carnes']
+    list_material = df_temp['material'].tolist()
+    list_tienda = df_temp['id_tienda'].tolist()
+
+    list_material = list(dict.fromkeys(list_material))
+    list_tienda = list(dict.fromkeys(list_tienda))
+
+    list_tienda = ' '.join(list_tienda)
+    list_tienda = list_tienda.replace(" ", "','")
+    list_material = ' '.join(list_material)
+    list_material = list_material.replace(" ", "','")
+
+    lista_dw = render_netezza_view(list_material,ds)
     df_aux = pd.DataFrame(lista_dw)
     df_aux.columns = ["material","stock","id_tienda","nombre","fecha"]
 
