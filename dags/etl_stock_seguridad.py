@@ -17,15 +17,28 @@ def stock(ds):
                    date_part('dow',fecha) as dia,
                    date_part('week',fecha) as semana
                    from ecommdata.stock
-                   where fecha = '"""+ds+"""'::date 
+                   where fecha = '"""+ds+"""'::date +1
                    and surtido_ecommerce is true
                    and stock_infinito_janis is not true
                    and id_tienda not in ('1917','0917')"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    #print(stock_tiendas_query)
+    print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
+    results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def matriz_ss():
+    matriz_query = """select *
+                    from catalogo.matriz_ss ms """
+    print(matriz_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(matriz_query)
     results = cursor.fetchall()
     cursor.close()
     pg_connection.close()
@@ -49,8 +62,8 @@ def promociones(ds):
                             id_mecanica
                             from ecommdata.workflow_promociones 
                             where id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
-                            and fecha_inicio_de_promocion <= '"""+ds+"""'::date
-                            and fecha_fin_de_promocion >= '"""+ds+"""'::date) as _t
+                            and fecha_inicio_de_promocion <= '"""+ds+"""'::date +1
+                            and fecha_fin_de_promocion >= '"""+ds+"""'::date +1) as _t
                             group by
                             _t.material,
                             _t.umv,
@@ -62,6 +75,7 @@ def promociones(ds):
                         df.fecha_inicio_de_promocion,
                         df.fecha_fin_de_promocion,
                         df.id_mecanica"""
+    print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -94,7 +108,7 @@ def venta_tienda(ds):
                         left join ecommdata.precios as p
                         on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id
                         and p.id_tienda_janis = t.id_janis  
-                        where v.fecha >= '"""+ds+"""'::date -30
+                        where v.fecha >= '"""+ds+"""'::date -29
                         and v.venta_umv > 0 
                         and v.venta_bruta <> 0 
                         and v.organizacion = 'Unimarc'
@@ -108,6 +122,7 @@ def venta_tienda(ds):
                         _t.venta_umv, 
                         _t.dia,
                         _t.semana"""
+    print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -174,7 +189,7 @@ def stock_ventas_tiendas_to_s3(ds):
 
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
-    dia = (dia + 1) % 7
+    dia = (dia + 2) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
     df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
@@ -190,6 +205,17 @@ def stock_ventas_tiendas_to_s3(ds):
     df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
 
     print("transformacion de datos listo \n")
+    #################
+    #Matrix de Pesos#
+    #################
+    
+    df_matriz = matriz_ss()
+    df_matriz.columns = ["id_tienda","peso"]
+
+    df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"] * df_final["peso"]
+
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
 
     ##############
     #cargar datos#
