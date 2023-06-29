@@ -31,7 +31,7 @@ def stock_x_l8(ds):
                     from ecommdata.lista8 as l
                     inner Join ecommdata.stock as s
                     on l.fecha = s.fecha and l.id_tienda = s.id_tienda and s.ref_id = CONCAT(LPAD(l.material, 18, '0'), '-', l.umv)  
-                    where l.fecha = '"""+ds+"""'::date 
+                    where l.fecha = '"""+ds+"""'::date +1
                     and l.umv <> 'PAQ'
                     and l.id_tienda = '1917') as _t 
                     group by 
@@ -94,7 +94,7 @@ def stock_mfc(ds):
                     stock as stock_janis,
                     fecha_carga
                     from ecommdata.stock_mfc
-                    where fecha_carga = '"""+ds+"""'::date 
+                    where fecha_carga = '"""+ds+"""'::date  +1
                     and id_tienda = '1917'"""
     print(stock_mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -114,7 +114,7 @@ def l8_0917(ds):
     print("se está extrayendo información de lista8 para la 0917\n")
     l8_0917_query = """select material||'-'||umv as ref_id, stock_x_umv
                     from ecommdata.lista8
-                    where fecha = '"""+ds+"""'::date 
+                    where fecha = '"""+ds+"""'::date +1
                     and id_tienda = '0917'"""
     print(l8_0917_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -166,7 +166,7 @@ def render_netezza_view(id_material,ds):
                 ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY 
                 WHERE A.ALMACEN_COD = '0001' 
                 AND S.APLICA_STOCK = 'S' 
-                AND DATE_VALUE = '"""+ds+"""' ::date
+                AND DATE_VALUE = '"""+ds+"""' ::date +1
                 AND OU.OU_ID in ('1917','0917') 
                 AND PART.PARTICULARIDAD_COD = 'A' 
                 AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683) 
