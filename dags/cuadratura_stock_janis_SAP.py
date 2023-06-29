@@ -27,8 +27,7 @@ def stock_lista8(ds):
                     s.multiplicador_unidad_medida
                     from ecommdata.lista8 as l
                     inner Join ecommdata.stock as s
-                    on l.fecha = s.fecha and l.id_tienda = s.id_tienda and s.ref_id = CONCAT(LPAD(l.material, 18, '0'), '-', l.umv)  
-                    where l.fecha = '"""+ds+"""'::date
+                    on l.fecha = s.fecha and l.id_tienda = s.id_tienda and s.ref_id = CONCAT(LPAD(l.material, 18, '0'), '-', l.umv)
                     and l.umv <> 'PAQ'
                     and l.id_tienda not in ('1917','0917')) as _t 
                     group by 
@@ -96,7 +95,7 @@ def render_netezza_view(id_tienda,id_material,ds):
                 ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY 
                 WHERE A.ALMACEN_COD = '0001' 
                 AND S.APLICA_STOCK = 'S' 
-                AND DATE_VALUE = '"""+ds+"""'::date
+                AND DATE_VALUE = '"""+ds+"""'::date + 1
                 AND OU.OU_ID in ('"""+id_tienda+"""') 
                 AND PART.PARTICULARIDAD_COD = 'A' 
                 AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683) 

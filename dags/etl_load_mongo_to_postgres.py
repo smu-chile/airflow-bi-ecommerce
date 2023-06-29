@@ -111,7 +111,7 @@ with DAG(
         'etl_load_mongo_to_postgres',
         default_args=default_args,
         description="carga a postgres desde mongodb",
-        schedule_interval=None,
+        schedule_interval="0 5 * * *",
         start_date=pendulum.datetime(2023, 5, 24, tz="America/Santiago"),
         catchup=False,
         max_active_runs = 1,

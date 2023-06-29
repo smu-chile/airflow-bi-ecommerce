@@ -183,6 +183,35 @@ def _save_table_alerta_found_rate(ts, ti, ds):
             FROM ecommdata.tiendas t
             WHERE fecha_inicio::date >= '{exec_date}' and tienda_frogmi = t.id_frogmi
         """)
+        conn.execute(f"""
+            DELETE FROM ecommdata.frogmi_alerta_found_rate
+            WHERE id_tienda is NULL
+        """)
+    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+    with engine.begin() as conn:
+        conn.execute(f"""
+            DELETE FROM ecommdata_alvi.frogmi_alerta_found_rate
+            WHERE fecha_inicio::date = '{exec_date}'
+        """)
+        df.to_sql(name="frogmi_alerta_found_rate",
+                con=engine,         
+                schema="ecommdata_alvi",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+        conn.execute(f"""
+            UPDATE ecommdata_alvi.frogmi_alerta_found_rate
+            SET id_tienda = t.id
+            FROM ecommdata_alvi.tiendas t
+            WHERE fecha_inicio::date >= '{exec_date}' and tienda_frogmi = t.id_frogmi
+        """)
+        conn.execute(f"""
+            DELETE FROM ecommdata_alvi.frogmi_alerta_found_rate
+            WHERE id_tienda is NULL
+        """)
+
 
     
     return
