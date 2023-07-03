@@ -198,7 +198,7 @@ def check_update_attributes_products(ti):
         where ap.id_atributo = {id_atributo_alergias}
         group by ap.ref_id;"""
     query_sellos_atr_pro = f"""select ap.ref_id, 
-        TRIM(TRAILING ',' array_to_string(array_agg(ap.valor_atributo ORDER BY ap.valor_atributo DESC), ',')) AS sellos
+        TRIM(TRAILING ',' FROM array_to_string(array_agg(ap.valor_atributo ORDER BY ap.valor_atributo DESC), ',')) AS sellos
         from ecommdata.atributos_producto ap
         where ap.id_atributo = {id_atributo_sellos}
         group by ap.ref_id;"""
