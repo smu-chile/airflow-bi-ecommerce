@@ -49,21 +49,19 @@ def get_fixed_prices(ti):
         elif r.status_code == 200:
             r.raise_for_status()
             data = r.json()
-            print(data)
             df = pd.DataFrame(data)
-            df = df.assign(vtex_id=itemId)
-            if 'dateRange' not in df.columns:
-                # Si no existe, crear la columna y llenarla con una marca
-                df['dateRange'] = 'NULL'
-            for index, row in df.iterrows():
-                if pd.isna(row['dateRange']) or (row['dateRange'] == ''):
-                    df.at[index, 'Date From'] = 'NULL'
-                    df.at[index, 'Date To'] = 'NULL'
-                else:
-                    date_range = json.loads(row['dateRange'])
-                    df.at[index, 'Date From'] = date_range['dateRange']['from']
-                    df.at[index, 'Date To'] = date_range['dateRange']['to']
-            df = df.drop('dateRange', axis=1)
+            if not df.empty:
+                if 'dateRange' not in df.columns:
+                    continue
+                df = df.assign(vtex_id=itemId)
+                for index, row in df.iterrows():
+                    if pd.isna(row['dateRange']) or (row['dateRange'] == ''):
+                        df.at[index, 'Date From'] = 'NULL'
+                        df.at[index, 'Date To'] = 'NULL'
+                    else:
+                        df.at[index, 'Date From'] = row['dateRange']['from']
+                        df.at[index, 'Date To'] = row['dateRange']['to']
+                df = df.drop('dateRange', axis=1)
             df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value',
                             'listPrice', 'minQuantity', 'Date From', 'Date To'])
             df_final = pd.concat([df_final, df])
