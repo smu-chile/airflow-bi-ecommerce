@@ -48,6 +48,8 @@ a su productos.id_categoria, se actualizará via API de Janis.
 
 def check_if_update_att_category(ti):
     import pandas as pd
+    import time
+    from utils.postgres_utils import is_empty_table
 
     # Checkear si hubo cambio de categoría en ecommdata.productos que van a sustitutos
     json_refid_to_change = ti.xcom_pull(task_ids=["get_in_sustitutos"])[0]
@@ -77,6 +79,15 @@ def check_if_update_att_category(ti):
             and ( att.valor::float::int != c.ref_id or att.valor is null); 
     """
     print(query_check)
+    
+    i = 0
+    while is_empty_table("ecommdata", "atributos_producto") == True:
+        time.sleep(300)
+        i += 1
+        if i == 4:
+            raise Exception(
+                "No se encuentra disponible la tabla ecommdata.atributos_producto")
+
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -287,7 +298,6 @@ with DAG(
     they will be moved to the 'Substitution' category.
     """
 
-
     t0 = PythonOperator(
         task_id='get_in_sustitutos',
         python_callable=get_in_sustitutos
@@ -303,28 +313,20 @@ with DAG(
         python_callable=set_by_api_att_category,
     )
 
-    t3 = ExternalTaskSensor(
-        task_id="wait_for_atributos_producto",
-        external_dag_id='etl_atributos_producto_incremental_load',
-        external_task_id=None,
-        allowed_states=['success'],
-        failed_states=['failed']
-    )
-
-    t4 = PythonOperator(
+    t3 = PythonOperator(
         task_id='get_out_sustitutos',
         python_callable=get_out_sustitutos
     )
 
-    t5 = PostgresOperator(
+    t4 = PostgresOperator(
         task_id='truncate_catalogo_sustitutos',
         postgres_conn_id='postgresql_conn',
         sql='TRUNCATE TABLE catalogo.sustitutos;'
     )
 
-    t6 = PythonOperator(
+    t5 = PythonOperator(
         task_id='upload_refid_category',
         python_callable=upload_refid_category,
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5
