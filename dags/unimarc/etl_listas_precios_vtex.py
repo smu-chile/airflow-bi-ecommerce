@@ -16,7 +16,7 @@ def get_fixed_prices(ti):
     cursor = pg_connection.cursor()
     print("Getting vtex_ids of products within lista8")
     query = """SELECT s.vtex_id FROM ecommdata.skus s 
-    WHERE s.vtex_id IS NOT NULL """
+    WHERE s.vtex_id IS NOT NULL; """
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]
