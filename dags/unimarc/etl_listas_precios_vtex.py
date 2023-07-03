@@ -15,11 +15,8 @@ def get_fixed_prices(ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     print("Getting vtex_ids of products within lista8")
-    query = """SELECT distinct wp.vtex_id 
-                FROM ecommdata.worflow_promociones wp
-                WHERE r.tipo_promocion = 4
-                AND wp.umv NOT IN ('KG','KGV')
-                AND wp.vtex_id IS NOT NULL; """
+    query = """SELECT s.vtex_id FROM ecommdata.skus s 
+    WHERE s.vtex_id IS NOT NULL """
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]
@@ -44,13 +41,12 @@ def get_fixed_prices(ti):
         GET_FIXED_PRICES = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
         print("GET_FIXED_PRICES: ", GET_FIXED_PRICES)
         r = requests.get(GET_FIXED_PRICES, headers=headers)
+        print(r.content)
         if r.status_code == 404:
             print("Error 404: Recurso no encontrado")
-            print(r.content)
             continue
         elif r.status_code == 200:
             r.raise_for_status()
-            print("content: ", r.content)
             data = r.json()
             print(data)
             df = pd.DataFrame(data)
@@ -59,10 +55,7 @@ def get_fixed_prices(ti):
                 # Si no existe, crear la columna y llenarla con una marca
                 df['dateRange'] = 'NULL'
             for index, row in df.iterrows():
-                if pd.isna(row['dateRange']):
-                    df.at[index, 'Date From'] = 'NULL'
-                    df.at[index, 'Date To'] = 'NULL'
-                elif row['dateRange'] == '':
+                if pd.isna(row['dateRange']) or (row['dateRange'] == ''):
                     df.at[index, 'Date From'] = 'NULL'
                     df.at[index, 'Date To'] = 'NULL'
                 else:
@@ -95,6 +88,7 @@ def upload_fixed_prices(ti):
     conn_url = "postgresql+psycopg2://"+username + \
         ":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
+
     json_data = ti.xcom_pull(task_ids=["get_fixed_prices"])[0]
     df_data = pd.read_json(json_data, orient='records')
 
