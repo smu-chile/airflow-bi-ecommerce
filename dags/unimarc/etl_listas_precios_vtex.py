@@ -55,7 +55,10 @@ def get_fixed_prices(ti):
                 # Si no existe, crear la columna y llenarla con una marca
                 df['dateRange'] = 'NULL'
             for index, row in df.iterrows():
-                if pd.isna(row['dateRange']) or (row['dateRange'] == ''):
+                if pd.isna(row['dateRange']):
+                    df.at[index, 'Date From'] = 'NULL'
+                    df.at[index, 'Date To'] = 'NULL'
+                elif (row['dateRange'] == ''):
                     df.at[index, 'Date From'] = 'NULL'
                     df.at[index, 'Date To'] = 'NULL'
                 else:
