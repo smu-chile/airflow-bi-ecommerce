@@ -10,6 +10,7 @@ import pendulum
 def get_fixed_prices(ti):
     import pandas as pd
     import requests
+    import json
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -55,15 +56,13 @@ def get_fixed_prices(ti):
                 # Si no existe, crear la columna y llenarla con una marca
                 df['dateRange'] = 'NULL'
             for index, row in df.iterrows():
-                if pd.isna(row['dateRange']):
-                    df.at[index, 'Date From'] = 'NULL'
-                    df.at[index, 'Date To'] = 'NULL'
-                elif (row['dateRange'] == ''):
+                if pd.isna(row['dateRange']) or (row['dateRange'] == ''):
                     df.at[index, 'Date From'] = 'NULL'
                     df.at[index, 'Date To'] = 'NULL'
                 else:
-                    df.at[index, 'Date From'] = row['dateRange']['from']
-                    df.at[index, 'Date To'] = row['dateRange']['to']
+                    date_range = json.loads(row['dateRange'])
+                    df.at[index, 'Date From'] = date_range['dateRange']['from']
+                    df.at[index, 'Date To'] = date_range['dateRange']['to']
             df = df.drop('dateRange', axis=1)
             df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value',
                             'listPrice', 'minQuantity', 'Date From', 'Date To'])
