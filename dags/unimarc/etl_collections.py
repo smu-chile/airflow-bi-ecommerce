@@ -98,7 +98,8 @@ def get_products_from_collection(ti):
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     environment = Variable.get("VTEX_ENV")
     URL_VTEX = f'https://{accountName}.{environment}.com.br'
-
+    
+    df_final = pd.DataFrame()
     for index, row in df_all_collections.iterrows():
         if row['totalSku'] > 0:
             collectionId = row['id']
@@ -108,7 +109,6 @@ def get_products_from_collection(ti):
             pages = requests.request("GET", url_pages, headers=headers).json()[
                 'TotalPage']
             print("Pages: ", pages)
-            df_final = pd.DataFrame()
             page = 1
             while page <= pages:
                 url_page = f"{URL_VTEX}{GET_PRODUCTS_FROM_COLLECTION}?page={page}"
