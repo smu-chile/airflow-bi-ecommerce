@@ -32,6 +32,7 @@ def stock(ds):
     return results
 
 def matriz_ss():
+    import pandas as pd
     matriz_query = """select *
                     from catalogo.matriz_ss ms """
     print(matriz_query)
@@ -40,6 +41,8 @@ def matriz_ss():
     cursor = pg_connection.cursor()
     cursor.execute(matriz_query)
     results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","peso"]
     cursor.close()
     pg_connection.close()
     return results
@@ -210,7 +213,6 @@ def stock_ventas_tiendas_to_s3(ds):
     #################
     
     df_matriz = matriz_ss()
-    df_matriz.columns = ["id_tienda","peso"]
 
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
