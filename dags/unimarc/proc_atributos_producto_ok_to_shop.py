@@ -130,8 +130,9 @@ def last_file_ok_to_shop(ti):
 
 
 def check_update_attributes_products(ti):
-    from datetime import datetime, timedelta
+    import time
     import pandas as pd
+    from utils.postgres_utils import is_empty_table
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
 
@@ -192,12 +193,12 @@ def check_update_attributes_products(ti):
             or ok.minsal_cl_high_calories = 1 )
             AND se.ean is not null;"""
     query_alergias_atr_pro = F"""select ap.ref_id, 
-        string_agg(ap.valor_atributo,',' ORDER BY ap.valor_atributo DESC) as alergias
+        TRIM(TRAILING ',' FROM string_agg(ap.valor_atributo,',' ORDER BY ap.valor_atributo DESC)) as alergias
         from ecommdata.atributos_producto ap
         where ap.id_atributo = {id_atributo_alergias}
         group by ap.ref_id;"""
-    query_sellos_atr_pro = f"""select ap.ref_id,
-        string_agg(ap.valor_atributo,',' ORDER BY ap.valor_atributo DESC ) as sellos
+    query_sellos_atr_pro = f"""select ap.ref_id, 
+        TRIM(TRAILING ',' FROM array_to_string(array_agg(ap.valor_atributo ORDER BY ap.valor_atributo DESC), ',')) AS sellos
         from ecommdata.atributos_producto ap
         where ap.id_atributo = {id_atributo_sellos}
         group by ap.ref_id;"""
@@ -223,6 +224,14 @@ def check_update_attributes_products(ti):
     df_sellos = get_atributos(query_sellos)
     print(df_sellos)
     print("Iniciando obtencion de atributos_producto_alergias")
+    i = 0
+    while is_empty_table("ecommdata", "atributos_producto") == True:
+        print("La tabla ecommdata.atributos_producto se encuentra vacia, se reintentará en 5 minumetos más")
+        time.sleep(300)
+        i += 1
+        if i == 4:
+            raise Exception(
+                "No se encuentra disponible la tabla ecommdata.atributos_producto")
     df_alergias_atr = get_atributos(query_alergias_atr_pro)
     print(df_alergias_atr)
     print("Iniciando obtencion de atributos_producto_sellos")
