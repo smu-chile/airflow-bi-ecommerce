@@ -15,9 +15,10 @@ def no_lista8():
                     from ecommdata_alvi.productos_tienda pt
                     left join ecommdata_alvi.lista8 l 
                     on pt.ref_id = l.material ||'-'||l.umv  and pt.id_tienda = l.id_tienda 
-                    where l.material is null"""
+                    where l.material is null
+                    and pt.id_tienda is not null"""
     print(ubi_mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ubi_mfc_query)
@@ -54,16 +55,18 @@ def _send_stock_0_to_janis_alvi():
     payload=[]
     for i in range(len(df.index)):
         print(i)
-        material = df.material
-        store = df.id_tienda
-        row = {"IdSku": material, "Quantity": 0, "Store": store}
+        material = df.material[i]
+        id_tienda = df['id_tienda'][i]
+        row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
         print(row)
         payload.append(row)    
         if i % 499 == 0:
             payload = str(payload).replace("'", '"')
+            print(payload)
             response = requests.request("POST", url, headers=headers, data=payload)
             print(response.text)
             payload = []
+    print(payload)
     payload = str(payload).replace("'", '"')
     response = requests.request("POST", url, headers=headers, data=payload)
     print(response.text)
@@ -81,7 +84,7 @@ with DAG(
     'proc_borrado_stock_janis_alvi_init',
     default_args=default_args,
     description="Borrado de stock janis alvi inicial.",
-    schedule_interval="0 10 * * *",
+    schedule_interval=None,
     start_date=pendulum.datetime(2023, 7, 4, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
