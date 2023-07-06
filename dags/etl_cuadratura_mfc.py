@@ -33,7 +33,8 @@ def stock_x_l8(ds):
                     on l.fecha = s.fecha and l.id_tienda = s.id_tienda and s.ref_id = CONCAT(LPAD(l.material, 18, '0'), '-', l.umv)  
                     where l.fecha = '"""+ds+"""'::date +1
                     and l.umv <> 'PAQ'
-                    and l.id_tienda = '1917') as _t 
+                    and l.id_tienda = '1917'
+                    and l.stock_x_umv > 0) as _t 
                     group by 
                     _t.fecha,
                     _t.ref_id,
