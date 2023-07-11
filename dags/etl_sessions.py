@@ -3,6 +3,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow import macros
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime
 
@@ -105,7 +106,7 @@ def _sessions_to_s3(ds):
 
 def _load_sessions_table(ti):
     import pandas as pd
-    import sqlalchemy
+    import numpy as np
     
     sessions_file = ti.xcom_pull(key="return_value", task_ids=["sessions_to_s3"])[0]
 
@@ -122,22 +123,72 @@ def _load_sessions_table(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
-    
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
+    columns = [
+        "sesiones_app_unimarc",
+        "sesiones_web_unimarc",
+        "sesiones_app_alvi",
+        "sesiones_web_alvi",
+        "sesiones_engagement_app_unimarc",
+        "sesiones_engagement_web_unimarc",
+        "sesiones_engagement_app_alvi",
+        "sesiones_engagement_web_alvi",
+        "usuarios_app_unimarc",
+        "usuarios_web_unimarc",
+        "usuarios_app_alvi",
+        "usuarios_web_alvi"
+    ]
 
-    # Save to PostgreSQL:
-    df.to_sql(name="sesiones",
-                con=engine,         
-                schema="analytics_and_growth",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    column_types = {
+        "fecha":"string",
+        "sesiones_app_unimarc":"int",
+        "sesiones_web_unimarc":"int",
+        "sesiones_app_alvi":"int",
+        "sesiones_web_alvi":"int",
+        "sesiones_engagement_app_unimarc":"int",
+        "sesiones_engagement_web_unimarc":"int",
+        "sesiones_engagement_app_alvi":"int",
+        "sesiones_engagement_web_alvi":"int",
+        "usuarios_app_unimarc":"int",
+        "usuarios_web_unimarc":"int",
+        "usuarios_app_alvi":"int",
+        "usuarios_web_alvi":"int"
+    }
+
+    df = df.astype(column_types, errors="ignore")
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO analytics_and_growth.sesiones (fecha,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (fecha)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
     print("Data loaded to Postgres")
 
     return
@@ -153,7 +204,7 @@ with DAG(
     'etl_sesiones',
     default_args=default_args,
     description="Extracción y carga de sesiones desde Google Drive de Analytics hasta Workspace.",
-    schedule_interval="0 4 * * 1",
+    schedule_interval="30 8 * * *",
     start_date=pendulum.datetime(2023, 7, 10, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
