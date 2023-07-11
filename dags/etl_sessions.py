@@ -28,9 +28,6 @@ def getDataFromProperty(property_id, ds):
     "client_x509_cert_url": Variable.get("SESSIONS_GD_CERT_URL")
     }
     
-    """Runs a simple report on a Google Analytics 4 property."""
-    # Using a default constructor instructs the client to use the credentials
-    # specified in GOOGLE_APPLICATION_CREDENTIALS environment variable.
     c_var = service_account.Credentials.from_service_account_info(credential_dict)
     client = BetaAnalyticsDataClient(credentials=c_var)
 
