@@ -54,14 +54,17 @@ def stock_lista8(ds):
 def skus_carnes_padre_hijo():
     import pandas as pd
     stock_carnes_padre_hijo = """select s.erp_id,s.ref_id,s.nombre_sku,c.n1, pt.id_tienda
-                            from ecommdata.skus as s
-                            left join ecommdata.productos as p
-                            on s.ref_id = p.ref_id
-                            left join ecommdata.categorias as c
-                            on p.id_categoria = c.id
-                            left join ecommdata.productos_tienda as pt
-                            on s.ref_id = pt.ref_id
-                            where c.n1 = 'Carnes'"""
+                                from ecommdata.skus as s
+                                left join ecommdata.productos as p
+                                on s.ref_id = p.ref_id
+                                left join ecommdata.categorias as c
+                                on p.id_categoria = c.id
+                                left join ecommdata.productos_tienda as pt
+                                on s.ref_id = pt.ref_id
+                                where s.ref_id LIKE '%-KG' 
+                                or s.ref_id LIKE '%-KGV'
+                                or c.n1 = 'Carnes'
+                                or p.material <> s.erp_id"""
     print(stock_carnes_padre_hijo)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -145,7 +148,8 @@ def cuadratura_to_s3(ds):
     list_material = []
     list_tienda = []
 
-    df_temp = df_padre_hijo[df_padre_hijo["categoria"] == 'Carnes']
+    df_temp = df_padre_hijo
+
     list_material = df_temp['material'].tolist()
     list_tienda = df_temp['id_tienda'].tolist()
 
@@ -165,6 +169,7 @@ def cuadratura_to_s3(ds):
     df_aux = pd.DataFrame(df_dw)
     df_aux.columns = ["material","stock","id_tienda","nombre","fecha"]
     print("se ha descargado correctamente la data de DW\n")
+    print(df_aux)
 
     df_final = df.merge(df_padre_hijo, how = "left", on = ["id_tienda","ref_id"])
     df_final = df_final.drop_duplicates()
