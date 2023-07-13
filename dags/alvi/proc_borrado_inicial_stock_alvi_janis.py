@@ -44,22 +44,22 @@ def _send_stock_0_to_janis_alvi():
 
     url = f"{base_url}stock"
 
-    JANIS_ALVI_API_KEY = Variable.get("JANIS_ALVI_API_KEY")
-    JANIS_ALVI_API_SECRET = Variable.get("JANIS_ALVI_API_SECRET")
-    JANIS_ALVI_CLIENT = Variable.get("JANIS_ALVI_CLIENT")
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
+    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
 
     headers = {
-    "janis-api-key" : JANIS_ALVI_API_KEY,
-    "janis-api-secret" : JANIS_ALVI_API_SECRET,
-    "janis-client" : JANIS_ALVI_CLIENT,
+    "janis-api-key" : JANIS_API_KEY,
+    "janis-api-secret" : JANIS_API_SECRET,
+    "janis-client" : JANIS_CLIENT,
     "Connection" : "keep-alive"
     }
 
     payload=[]
     for i in range(len(df.index)):
         print(i)
-        material = df.material[i]
-        id_tienda = df['id_tienda'][i]
+        material = df.ref_id[i]
+        id_tienda = "1917"
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
         print(row)
         payload.append(row)    
@@ -88,14 +88,14 @@ with DAG(
     default_args=default_args,
     description="Borrado de stock janis alvi inicial.",
     schedule_interval=None,
-    start_date=pendulum.datetime(2023, 7, 4, tz="America/Santiago"),
+    start_date=pendulum.datetime(2023, 7, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "SAP", "ecommdata_alvi", "lista8", "stock", "janis", "alvi"],
+    tags=["DATA","stock", "janis", "MFC"],
 ) as dag:
 
     dag.doc_md = """
-    Borrado de stock janis alvi inicial, borra todo el stock de janis alvi para los productos que no se encuentren en lista8 alvi"
+    Borrado de stock janis MFC, borra todo el stock de 132 skus del MFC"
     """ 
     t0 = PythonOperator(
         task_id = "_send_stock_0_to_janis_alvi",
