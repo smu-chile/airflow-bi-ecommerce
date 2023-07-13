@@ -275,7 +275,7 @@ with DAG(
     default_args=default_args,
     description="cargar tabla cuadratura",
     schedule_interval= "30 9 * * *",
-    start_date=pendulum.datetime(2023, 7, 11, tz="America/Santiago"),
+    start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_unimarc", "cuadratura","unimarc"],
 ) as dag:
