@@ -29,8 +29,7 @@ def ubicaciones_flo(ds):
 
 def promociones(ds):
     import pandas as pd
-    promociones_query = """select df.*
-                    from(select 
+    promociones_query = """select 
                         CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv) as ref_id,
                         _t.fecha_inicio_de_promocion,
                         _t.fecha_fin_de_promocion,
@@ -47,17 +46,7 @@ def promociones(ds):
                             where id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
                             and fecha_inicio_de_promocion <= '"""+ds+"""'::date+1
                             and fecha_fin_de_promocion >= '"""+ds+"""'::date+1) as _t
-                            group by
-                            _t.material,
-                            _t.umv,
-                            _t.fecha_inicio_de_promocion,
-                            _t.fecha_fin_de_promocion,
-                            _t.id_mecanica) as df
-                        group by
-                        df.ref_id,
-                        df.fecha_inicio_de_promocion,
-                        df.fecha_fin_de_promocion,
-                        df.id_mecanica"""
+                            """
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -98,13 +87,7 @@ def venta_tienda(ds):
                         and p.precio_lista is not null
                         and LPAD(v.id_tienda , 4, '0') in ('0917')) as _t
                         where precio_venta/precio_lista > 0.8 
-                        group by _t.id_tienda,
-                        _t.ref_id,
-                        _t.precio_venta,
-                        _t.precio_lista,
-                        _t.venta_umv, 
-                        _t.dia,
-                        _t.semana"""
+                        """
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
