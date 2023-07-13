@@ -225,8 +225,8 @@ def carga_stock_seguridad_1917_janis(ds,ti):
 
     url = f"{base_url}stock"
 
-    JANIS_API_KEY = Variable.get("JANIS_KEY")
-    JANIS_API_SECRET = Variable.get("JANIS_SECRET")
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
     JANIS_CLIENT = Variable.get("JANIS_CLIENT")
 
     headers = {
