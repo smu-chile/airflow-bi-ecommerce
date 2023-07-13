@@ -143,6 +143,7 @@ def cuadratura_to_s3(ds):
     df.stock_janis = df.stock_janis.fillna(0)
     print("se ha descargado correctamente el stock filtrado por lista 8! \n")
     df_padre_hijo = skus_carnes_padre_hijo()
+    df_padre_hijo = df_padre_hijo[df_padre_hijo["id_tienda"].isnull() == False]
     print("se ha descargado correctamente la tabla de skus padre e hijo \n")
 
     list_material = []
