@@ -68,16 +68,16 @@ def _sessions_to_s3(ds):
     # Renombrar las columnas para mayor claridad
     df_merged.rename(columns={
         f'sessions_256987911': 'sesiones_app_unimarc',
-        f'engagedSessions_256987911': 'sesiones_engagement_app_unimarc',
-        f'totalUsers_256987911': 'usuarios_app_unimarc',
         f'sessions_290739730': 'sesiones_web_unimarc',
-        f'engagedSessions_290739730': 'sesiones_engagement_web_unimarc',
-        f'totalUsers_290739730': 'usuarios_web_unimarc',
         f'sessions_309369468': 'sesiones_app_alvi',
-        f'engagedSessions_309369468': 'sesiones_engagement_app_alvi',
-        f'totalUsers_309369468': 'usuarios_app_alvi',
         f'sessions_307311889': 'sesiones_web_alvi',
+        f'engagedSessions_256987911': 'sesiones_engagement_app_unimarc',
+        f'engagedSessions_290739730': 'sesiones_engagement_web_unimarc',
+        f'engagedSessions_309369468': 'sesiones_engagement_app_alvi',
         f'engagedSessions_307311889': 'sesiones_engagement_web_alvi',
+        f'totalUsers_256987911': 'usuarios_app_unimarc',
+        f'totalUsers_290739730': 'usuarios_web_unimarc',
+        f'totalUsers_309369468': 'usuarios_app_alvi',
         f'totalUsers_307311889': 'usuarios_web_alvi'
     }, inplace=True)
 
