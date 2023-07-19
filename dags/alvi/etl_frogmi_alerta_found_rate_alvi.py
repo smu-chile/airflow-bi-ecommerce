@@ -204,7 +204,7 @@ with DAG(
     'etl_frogmi_alerta_found_rate_alvi',
     default_args=default_args,
     description="Extracción y carga de tabla alerta frogmi Alvi desde API.",
-    schedule_interval="0 12,15,19 * * *",
+    schedule_interval="0 12,19 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
