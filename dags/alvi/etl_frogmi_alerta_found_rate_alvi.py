@@ -167,30 +167,28 @@ def _save_table_alerta_found_rate(ts, ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
     with engine.begin() as conn:
         conn.execute(f"""
-            DELETE FROM ecommdata.frogmi_alerta_found_rate
+            DELETE FROM ecommdata_alvi.frogmi_alerta_found_rate
             WHERE fecha_inicio::date = '{exec_date}'
         """)
         df.to_sql(name="frogmi_alerta_found_rate",
                 con=engine,         
-                schema="ecommdata",         
+                schema="ecommdata_alvi",         
                 if_exists='append',         
                 index=False,         
                 chunksize=20000,         
                 method='multi')
         conn.execute(f"""
-            UPDATE ecommdata.frogmi_alerta_found_rate
+            UPDATE ecommdata_alvi.frogmi_alerta_found_rate
             SET id_tienda = t.id
-            FROM ecommdata.tiendas t
+            FROM ecommdata_alvi.tiendas t
             WHERE fecha_inicio::date >= '{exec_date}' and tienda_frogmi = t.id_frogmi
         """)
         conn.execute(f"""
-            DELETE FROM ecommdata.frogmi_alerta_found_rate
+            DELETE FROM ecommdata_alvi.frogmi_alerta_found_rate
             WHERE id_tienda is NULL
         """)
         conn.close
 
-
-    
     return
 
 
@@ -203,14 +201,14 @@ default_args = {
 }
 
 with DAG(
-    'etl_frogmi_alerta_found_rate',
+    'etl_frogmi_alerta_found_rate_alvi',
     default_args=default_args,
-    description="Extracción y carga de tabla alerta frogmi desde API.",
+    description="Extracción y carga de tabla alerta frogmi Alvi desde API.",
     schedule_interval="0 12,15,19 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["frogmi", "found_rate"],
+    tags=["frogmi", "found_rate", "alvi"],
 ) as dag:
 
     dag.doc_md = """
