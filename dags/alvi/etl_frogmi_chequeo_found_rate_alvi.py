@@ -199,14 +199,14 @@ default_args = {
 }
 
 with DAG(
-    'etl_frogmi_chequeo_found_rate',
+    'etl_frogmi_chequeo_found_rate_alvi',
     default_args=default_args,
     description="Extracción y carga de stock DW para chequear foundrate de productos.",
     schedule_interval="0 8 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["frogmi", "foundrate"],
+    tags=["frogmi", "foundrate", "alvi"],
 ) as dag:
 
     dag.doc_md = """
