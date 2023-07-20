@@ -360,18 +360,18 @@ default_args = {
 }
 
 with DAG(
-    'etl_stock_incremental_load',
+    'etl_stock_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla stock desde Vtex y Janis.",
-    schedule_interval="0 0/4 * * *",
+    schedule_interval=None,
     start_date=pendulum.datetime(2022, 7, 11, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "vtex", "janis", "staging", "unimarc", "vtex_stock", "janis_stock", "stock"],
+    tags=["DATA", "vtex", "janis", "staging", "alvi", "vtex_stock", "janis_stock", "stock"],
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tabla stock desde Vtex y Janis.
+    Extracción y carga de tabla stock desde Vtex y Janis de ALVI.
     """ 
 
     t0 = PostgresOperator(
