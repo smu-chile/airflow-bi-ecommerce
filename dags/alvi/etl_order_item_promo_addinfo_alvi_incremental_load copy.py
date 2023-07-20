@@ -9,30 +9,9 @@ from utils.janis_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
-def _get_new_orders_from_s3(ts):
-    import pandas as pd
-
-    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"janis/replica_alvi/wms_orders/{curr_datetime}_wms_orders.csv"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    print("Searching file: "+orders_file)
-    if not s3_hook.check_for_key(orders_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % orders_file)
-
-    orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
-
-    df = pd.read_csv(orders_object.get()["Body"])
-    print(f"Number of records found: {len(df.index)}")
-
-    return df
 
 def _get_order_item_promotion_additional_info_from_janis(ts):
     # Search based on wms_orders.id
-    df = _get_new_orders_from_s3(ts)
-    order_ids = df["id"].tolist()
-    query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
         SELECT woipai.*
         FROM janis_alvicl.wms_orders AS wo
@@ -42,7 +21,6 @@ def _get_order_item_promotion_additional_info_from_janis(ts):
         ON woip.order_item = woi.id
         JOIN janis_alvicl.wms_order_item_promotions_additional_info woipai
         ON woipai.order_item_promotion = woip.id
-        WHERE wo.id IN {query_order_ids} 
     """
     print(query)
     s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_item_promotions_additional_info")
@@ -139,10 +117,10 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_orden_producto_promocion_extrainfo_alvi_incremental_load_initial_load',
+    'etl_orden_producto_promocion_extrainfo_alvi_initial_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promocion_extrainfo desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="*/30 * * * *",
+    schedule_interval=None,
     start_date=datetime(2023, 7, 13),
     catchup=False,
     max_active_runs = 1,
@@ -151,24 +129,17 @@ with DAG(
 
     dag.doc_md = """
     Extracción y carga de tabla de orden_producto_promocion_extrainfo de Janis Alvi a Workspace. \n
-    UPSERT incremental basado registros creados por el etl de la tabla ordenes.
+    Carga Inicial.
     """ 
-    t0 = S3KeySensor(
-        task_id = "wait_for_orders_s3_file",
-        bucket_key = "janis/replica_alvi/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
-        aws_conn_id = "aws_s3_connection",
-        timeout = 1800
-    )
 
-    t1 = PythonOperator(
+    t0 = PythonOperator(
         task_id = "get_order_item_promotions_from_janis",
         python_callable = _get_order_item_promotion_additional_info_from_janis
     )
 
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id = "order_item_promo_additional_info_incremental_load",
         python_callable = _order_item_promo_additional_info_incremental_load
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1
