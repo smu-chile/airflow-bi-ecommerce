@@ -414,14 +414,14 @@ with DAG(
     t6 = PostgresOperator(
         task_id = "save_stock_final",
         postgres_conn_id = "postgresql_conn",
-        sql = "sql/stock_final.sql"
+        sql = "sql/stock_final_alvi.sql"
     )
     #falta esto
     t7 = PostgresOperator(
         task_id = "delete_old_stock",
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
-            FROM ecommdata.stock
+            FROM ecommdata.stock_alvi
             WHERE fecha = '{{ds}}'::date - interval '21 days' """
     )
 
