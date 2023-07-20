@@ -133,7 +133,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_orden_producto_promociones_incremental_load',
+    'etl_orden_producto_promociones_alviincremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promociones desde Janis Replica Alvi hasta Workspace.",
     schedule_interval="*/30 * * * *",
