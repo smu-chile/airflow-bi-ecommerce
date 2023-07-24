@@ -85,6 +85,7 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     }
 
     df = df.rename(columns=columns_rename)
+    print(df)
 
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -95,7 +96,7 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
-    df.to_sql(name="stock_vtex_unimarc",
+    df.to_sql(name="stock_vtex_alvi",
                 con=engine,         
                 schema="staging",         
                 if_exists='append',         
@@ -130,7 +131,7 @@ def ids_vtex():
     pg_connection.close()
     return results
 
-def _get_table_stock_janis_from_S3(ts, ti):
+def _get_table_stock_janis_from_S3(ti):
     import pandas as pd
 
     stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
@@ -153,8 +154,9 @@ def _save_table_stock_janis(ts, ti):
     import pandas as pd
     import sqlalchemy
     import numpy as np
-
+    print("iniciando load table janis alvi")
     df = _get_table_stock_janis_from_S3(ts, ti)
+    print(df)
     df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified', 'operation_type']]
     df = df.loc[df['stock'] > 0]
     df["date_published"] = pd.to_datetime(df["date_published"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
@@ -190,28 +192,31 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     
     vtex_ids = ids_vtex()
     sku_list = vtex_ids["vtex_id"].tolist()
+    print(vtex_ids)
     vtex_account_name = {
         "alviclpoctienda1": "alviclpoctienda1",
         "alviclpoctienda2": "alviclpoctienda2"
     }
 
     x_vtex_api_appkey = {
-        "alviclpoctienda1": "",  # asignar variable
-        "alviclpoctienda2": ""  # asignar variable
+        "alviclpoctienda1": Variable.get("x_vtex_api_appkey_alvi_seller1"),
+        "alviclpoctienda2": Variable.get("x_vtex_api_appkey_alvi_seller2")
     }
 
     x_vtex_api_apptoken = {
-        "alviclpoctienda1": "", # asignar variable
-        "alviclpoctienda2": ""  # asignar variable
+        "alviclpoctienda1": Variable.get("x_vtex_api_apptoken_alvi_seller1"),
+        "alviclpoctienda2": Variable.get("x_vtex_api_apptoken_alvi_seller2")
     }
     for name in vtex_account_name:
+        print(name)
         url_list = []
         for sku in sku_list:
             url = "https://"+name+".vtexcommercestable.com.br/api/logistics/pvt/inventory/skus/"+str(sku)
             url_list.append(url)
+            print(url)
 
         session = requests.session()
-        thread_num = 40
+        thread_num = 2
         task_num = len(url_list)//thread_num # division entera
         adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
         session.mount('https://', adapter)
@@ -238,7 +243,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
             thread_tasks = []
         
         final_responses = []
-        print(responses)
+        print(final_responses)
         response = responses.json()
         for i in response['balance']:
             try:
@@ -397,7 +402,7 @@ with DAG(
     )
 
     t3 = PythonOperator(
-        task_id = "save_table_stock",
+        task_id = "_save_table_stock_janis",
         python_callable = _save_table_stock_janis,
     )
 
@@ -414,14 +419,14 @@ with DAG(
     t6 = PostgresOperator(
         task_id = "save_stock_final",
         postgres_conn_id = "postgresql_conn",
-        sql = "sql/stock_final.sql"
+        sql = "sql/stock_final_alvi.sql"
     )
     #falta esto
     t7 = PostgresOperator(
         task_id = "delete_old_stock",
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
-            FROM ecommdata.stock
+            FROM ecommdata.stock_alvi
             WHERE fecha = '{{ds}}'::date - interval '21 days' """
     )
 
