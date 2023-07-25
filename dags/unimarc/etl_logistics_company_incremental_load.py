@@ -32,7 +32,7 @@ def _create_final_logistic_company_table(ti):
     df_j = df_j[["id", "ref_id", "name", "status", "date_created", "date_modified"]]
     df_j = df_j.rename(columns={"id": "id_janis",
                                 "ref_id": "id",
-                                "name": "nombre_operador_logistico",
+                                "name": "nombre_compañia_logistica",
                                 "status": "estado",
                                 "date_created": "fecha_creacion",
                                 "date_modified": "fecha_modificacion"})
@@ -43,7 +43,7 @@ def _create_final_logistic_company_table(ti):
     df_j["id"] = df_j["id"].astype("string").str.pad(4, "left", '0')
     df = df_j[["id_janis",
             "id",
-            "nombre_operador_logistico",
+            "nombre_compañia_logistica",
             "estado",
             "fecha_creacion",
             "fecha_modificacion"]]
@@ -54,7 +54,7 @@ def _create_final_logistic_company_table(ti):
 
     columns = ["id_janis",
                 "id",
-                "nombre_operador_logistico",
+                "nombre_compañia_logistica",
                 "estado",
                 "fecha_creacion",
                 "fecha_modificacion"]
@@ -79,7 +79,7 @@ def _create_final_logistic_company_table(ti):
     print(fixed_records)
     print(f"Number of records: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.operador_logistico (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.compañia_logistica (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -104,13 +104,13 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_operador_logistico_unimarc_incremental_load',
+    'etl_compañia_logistica_unimarc_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of logistic_company data unimarc.",
     schedule_interval=None,
     start_date=datetime(2022, 5, 1),
     catchup=False,
-    tags=["DATA", "S3", "Janis", "Workspace", "operador_logistico", "Unimarc"],
+    tags=["DATA", "S3", "Janis", "Workspace", "compañia_logistica", "Unimarc"],
 ) as dag:
 
     dag.doc_md = """

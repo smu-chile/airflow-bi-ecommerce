@@ -115,7 +115,7 @@ def _staging_transportadoras_table(ti):
         "integration_lock": "integration_lock",
         "dock": "dock",
         "logistic_company_id": "id_compañia_logistica",
-        "logistic_company_name": "nombre_compañia_logistico"
+        "logistic_company_name": "nombre_compañia_logistica"
     }
     df = df.rename(columns=columns_rename)
 
