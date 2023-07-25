@@ -26,7 +26,7 @@ def _load_json_to_s3(ts, ds):
     exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
     print(exec_datetime_local_str)
 
-    if exec_datetime_local_str.split("T")[1] == "19:00":
+    if exec_datetime_local_str.split("T")[1] == "18:00":
         url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
     print(url)
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
@@ -160,7 +160,7 @@ def _save_table_alerta_found_rate(ts, ti, ds):
     exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
     print(exec_datetime_local_str)
 
-    if exec_datetime_local_str.split("T")[1] == "19:00":
+    if exec_datetime_local_str.split("T")[1] == "18:00":
         exec_date = macros.ds_add(ds, 1)
     
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
@@ -204,7 +204,7 @@ with DAG(
     'etl_frogmi_alerta_found_rate_alvi',
     default_args=default_args,
     description="Extracción y carga de tabla alerta frogmi Alvi desde API.",
-    schedule_interval="0 12,19 * * *",
+    schedule_interval="0 12,18 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
