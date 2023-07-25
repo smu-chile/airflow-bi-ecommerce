@@ -18,6 +18,7 @@ def _staging_transportadoras_table(ti):
     
     carriers_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
     dock_carrier_relation_file = ti.xcom_pull(key="return_value", task_ids=["extract_dock_carrier_relation_table"])[0]
+    logistic_company_relation_file = ti.xcom_pull(key="return_value",task_ids=["extract_logistic_company_relation_table"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -46,6 +47,19 @@ def _staging_transportadoras_table(ti):
     
     print(f"Number of records extracted: {len(df_dock_carriers.index)}")
 
+    print("Searching file: "+logistic_company_relation_file)
+    if not s3_hook.check_for_key(logistic_company_relation_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % logistic_company_relation_file)
+    
+    logistic_company_object = s3_hook.get_key(logistic_company_relation_file, bucket_name=s3_bucket)
+    df_logistic_company = pd.read_csv(logistic_company_object.get()["Body"])
+    if len(df_logistic_company.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df_logistic_company.index)}")
+
+
     # Select only relevant columns:
     df_carriers = df_carriers[[
             "id",
@@ -64,8 +78,22 @@ def _staging_transportadoras_table(ti):
             "description",
             "integration_lock"
             ]]
+    
+    df_logistic_company = df_logistic_company[[
+        "ref_id",
+        "name"
+        ]]
+    logistic_company_rename = {
+        "ref_id": "logistic_company_id",
+        "name": "logistic_company_name"
+    }
+
+    df_logistic_company = df_logistic_company.rename(columns=logistic_company_rename)
 
     df = df_carriers.merge(df_dock_carriers, how="left", left_on="id", right_on="carrier").drop(columns=["carrier"])
+    print(f"Number of records after left join: {len(df.index)}")
+
+    df = df.merge(df_logistic_company, how="left", left_on="id", right_on="logistic_company_id")
     print(f"Number of records after left join: {len(df.index)}")
 
     # Rename columns to match workspace schema:
@@ -85,7 +113,9 @@ def _staging_transportadoras_table(ti):
         "user_modified": "modificado_por",
         "description": "descripcion",
         "integration_lock": "integration_lock",
-        "dock": "dock"
+        "dock": "dock",
+        "logistic_company_id": "id_compañia_logistica",
+        "logistic_company_name": "nombre_compañia_logistico"
     }
     df = df.rename(columns=columns_rename)
 
@@ -157,6 +187,14 @@ with DAG(
     )
 
     t1 = PythonOperator(
+        task_id = "extract_logistic_company_relation_table",
+        python_callable = load_full_table_to_s3,
+        op_kwargs = {
+            "table_name": "wms_logistic_companies"
+        }
+    )
+
+    t2 = PythonOperator(
         task_id = "get_max_updated_at_date",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
@@ -167,7 +205,7 @@ with DAG(
         }
     )
 
-    t2 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "incremental_unixtime_load_table_to_s3",
         python_callable = incremental_unixtime_load_table_s3,
         op_kwargs = {
@@ -177,25 +215,24 @@ with DAG(
         }
     )
 
-    t3 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "staging_transportadoras_table",
         python_callable = _staging_transportadoras_table
     )
 
-    t4 = PostgresOperator(
+    t5 = PostgresOperator(
         task_id = "upsert_transportadoras",
         postgres_conn_id="postgresql_conn",
         sql="sql/upsert_transportadoras.sql",
     )
 
-    t5 = PostgresOperator(
+    t6 = PostgresOperator(
         task_id = "clear_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="TRUNCATE staging.transportadoras_unimarc;",
     )
 
-
-
-    t1 >> t2 >> t3
-    t0 >> t3
-    t3 >> t4 >> t5
+    t2 >> t3 >> t4
+    t0 >> t4
+    t1 >> t5
+    t4 >> t5 >> t6
