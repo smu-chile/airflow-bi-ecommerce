@@ -5,7 +5,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import load_custom_query_to_s3
+from utils.janis_alvi_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
@@ -114,7 +114,7 @@ with DAG(
     'etl_orden_producto_promociones_alvi_initial_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promociones desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="*/30 * * * *",
+    schedule_interval=None,
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
