@@ -5,6 +5,8 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
+import pendulum
+
 from utils.janis_alvi_utils import load_custom_query_to_s3
 
 from datetime import datetime
@@ -136,8 +138,8 @@ with DAG(
     'etl_orden_producto_promociones_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promociones desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="*/30 * * * *",
-    start_date=datetime(2022, 2, 1),
+    schedule_interval="* 30 * * * *",
+    start_date=pendulum.datetime(2023, 7, 11, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata_alvi", "orden_producto_promociones", "alvi", "cyber"],
