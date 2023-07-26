@@ -138,7 +138,7 @@ with DAG(
     'etl_orden_producto_promociones_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promociones desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="* 30 * * * *",
+    schedule_interval="30 * * * *",
     start_date=pendulum.datetime(2023, 7, 11, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
