@@ -41,8 +41,8 @@ def _create_final_logistic_company_table(ti):
     df_j["id_janis"] = df_j["id_janis"].astype("int", errors="ignore")
     
     df_j["id"] = df_j["id"].astype("string").str.pad(4, "left", '0')
-    df = df_j[["id",
-            "id_janis",
+    df = df_j[["id_janis",
+            "id",
             "nombre_compañia_logistica",
             "estado",
             "fecha_creacion",
@@ -53,6 +53,7 @@ def _create_final_logistic_company_table(ti):
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").astype("str")
 
     columns = ["id_janis",
+                "id",
                 "nombre_compañia_logistica",
                 "estado",
                 "fecha_creacion",
@@ -62,7 +63,6 @@ def _create_final_logistic_company_table(ti):
     values_query = "%s,"+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
-
     
     # Change data types to native python types
     fixed_records = []
@@ -84,7 +84,7 @@ def _create_final_logistic_company_table(ti):
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
-    print("incremental_query:\n"+incremental_query)
+    print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()

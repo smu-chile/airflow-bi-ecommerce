@@ -70,7 +70,6 @@ def _staging_transportadoras_table(ti):
             "scheduled",
             "delivery_max_range",
             "quota",
-            "logistic_company",
             "status",
             "date_created",
             "user_created",
@@ -81,12 +80,11 @@ def _staging_transportadoras_table(ti):
             ]]
     
     df_logistic_company = df_logistic_company[[
-        "id",
+        "ref_id",
         "name"
         ]]
-    
     logistic_company_rename = {
-        "id": "logistic_company_id",
+        "ref_id": "logistic_company_id",
         "name": "logistic_company_name"
     }
 
@@ -94,11 +92,9 @@ def _staging_transportadoras_table(ti):
 
     df = df_carriers.merge(df_dock_carriers, how="left", left_on="id", right_on="carrier").drop(columns=["carrier"])
     print(f"Number of records after left join: {len(df.index)}")
-    print(df.info())
-    print(df_logistic_company.info())
-    df = df.merge(df_logistic_company, how="inner", left_on="logistic_company", right_on="logistic_company_id").drop(columns=["logistic_company"])
+
+    df = df.merge(df_logistic_company, how="left", left_on="id", right_on="logistic_company_id")
     print(f"Number of records after left join: {len(df.index)}")
-    print(df.info())
 
     # Rename columns to match workspace schema:
     columns_rename = {
@@ -238,5 +234,5 @@ with DAG(
 
     t2 >> t3 >> t4
     t0 >> t4
-    t1 >> t4
+    t1 >> t5
     t4 >> t5 >> t6
