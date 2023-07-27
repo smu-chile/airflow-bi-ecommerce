@@ -66,17 +66,24 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             continue
 
         peya_stock_query = f"""
-        select lspp.ean as ean
-            , least(lspp.precio, lspp.precio_promocional) as precio
-            , case when (lspp.unidad_de_medida not IN ('KG', 'KGV') and (lspp.stock_unitario/lspp.multiplicador_unidad) >= 7) then 1 
-                   when (lspp.unidad_de_medida IN ('KG', 'KGV') and lspp.stock_unitario >= 7) then 1
-                   else 0 
-              end as stock 
-        from integraciones.lm_stock_precio_promo lspp 
-        join integraciones.tiendas_last_millers tlm 
-            on lspp.id_tienda = tlm.id 
-        where lspp.id_tienda = '{store_id}'
-        ;
+        SELECT 
+            lspp.ean AS ean,
+                CASE 
+                    WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN LEAST(lspp.precio, lspp.precio_promocional)
+                    ELSE LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida
+                END AS precio,
+                CASE 
+                    WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7) THEN 1
+                    WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= 7) THEN 1
+                    ELSE 0
+                END AS stock
+                FROM integraciones.lm_stock_precio_promo lspp
+                JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
+                INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
+                WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR 
+                    (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
+                AND lspp.id_tienda = '{store_id}'
+            ;
         """
 
         cursor.execute(peya_stock_query)
