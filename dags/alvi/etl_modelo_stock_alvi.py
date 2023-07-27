@@ -131,7 +131,7 @@ def ids_vtex():
     pg_connection.close()
     return results
 
-def _get_table_stock_janis_from_S3(ti):
+def _get_table_stock_janis_from_S3(ts,ti):
     import pandas as pd
 
     stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
@@ -241,19 +241,19 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         for task in thread_tasks:
             task.join()
             thread_tasks = []
-        
+        print(response)
         final_responses = []
-        print(final_responses)
-        response = responses.json()
-        for i in response['balance']:
-            try:
-                aux = (response['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
-                final_responses.append(aux)
-            except KeyError as e:
-                print(e)
-                print(response)
-                exception_cases.append(response['url'])  # revisar
-        
+        for response in responses:
+            response_aux = response['json']
+            for i in response_aux['balance']:
+                try:
+                    aux = (response_aux['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
+                    final_responses.append(aux)
+                except KeyError as e:
+                    print(e)
+                    print(response)
+                    exception_cases.append(response['url'])
+
         _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
 
         s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")

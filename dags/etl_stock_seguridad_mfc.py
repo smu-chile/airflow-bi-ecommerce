@@ -242,7 +242,7 @@ def carga_stock_seguridad_1917_janis(ds,ti):
         material = df.ref_id[i].split("-")[0]
         store = "1917"
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
-        row = {"IdSku": material, "Quantity": 0, "Store": store, "MinStock": stock_seguridad, "Type": 2}
+        row = {"IdSku": material, "Quantity": 0, "Store": store,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
         print(row)
         payload.append(row)    
         if i % 499 == 0:
