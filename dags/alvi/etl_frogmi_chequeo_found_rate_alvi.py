@@ -53,7 +53,7 @@ def _load_dw_stock_to_s3(ds,ts):
     for store in stores:
         query_products = f"""
             select material
-            from ecommdata.frogmi_alerta_found_rate
+            from ecommdata_alvi.frogmi_alerta_found_rate
             where id_tienda = '{store[0]}'
             and stock_en_sistema is True
             and fecha_inicio::date = '{ds}'
