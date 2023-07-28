@@ -105,7 +105,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_compañia_logistica_unimarc_incremental_load',
+    'etl_compania_logistica_unimarc_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of logistic_company data unimarc.",
     schedule_interval="30 8 * * *",
