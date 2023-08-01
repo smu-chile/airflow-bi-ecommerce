@@ -74,7 +74,7 @@ def get_products_from_collection(ti):
     import pandas as pd
     import requests
 
-    query = f"SELECT * FROM catalogo.vtex_collections"
+    query = f"SELECT * FROM catalogo.vtex_collections;"
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -121,6 +121,7 @@ def get_products_from_collection(ti):
                     r.raise_for_status()
                     products = r.json()['Data']
                     df_products = pd.DataFrame(products)
+                    df_products['collection_id'] = collectionId
                     df_final = pd.concat(
                         [df_final, df_products], ignore_index=True)
                     resultado = "Exito" if r.status_code == 200 else "Falla"
