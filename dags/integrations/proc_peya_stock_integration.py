@@ -85,6 +85,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
                 AND lspp.id_tienda = '{store_id}'
             ;
+
         """
 
         cursor.execute(peya_stock_query)
