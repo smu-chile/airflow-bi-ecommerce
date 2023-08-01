@@ -122,6 +122,7 @@ def ids_vtex():
             inner join ecommdata_alvi.skus s on s.id = sa.item_id
             where sa.stock > 0 and s.vtex_id is not null;
         """
+    print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -156,12 +157,23 @@ def _save_table_stock_janis(ts, ti):
     import numpy as np
     print("iniciando load table janis alvi")
     df = _get_table_stock_janis_from_S3(ts, ti)
-    print(df)
-    df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified', 'operation_type']]
+    df = df[['id',
+            'item_id',
+            'store_id',
+            'warehouse_id',
+            'stock',
+            'min_stock',
+            'infinite_stock',
+            'date_modified',
+            'date_published',
+            'operation_type']]
     df = df.loc[df['stock'] > 0]
+    print(df["date_published"])
     df["date_published"] = pd.to_datetime(df["date_published"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["date_modified"] = pd.to_datetime(df["date_modified"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-
+    print("paso por la transformacion de date date_published y date_modified")
+    print(df["date_published"])
+    print(df.columns)
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -174,7 +186,7 @@ def _save_table_stock_janis(ts, ti):
 
     for i in df_array:
 
-        i.to_sql(name="stock_alvi",
+        i.to_sql(name="stock_alvi_2",
                     con=engine,         
                     schema="staging",         
                     if_exists='append',         
@@ -191,8 +203,10 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     import sqlalchemy
     
     vtex_ids = ids_vtex()
-    sku_list = vtex_ids["vtex_id"].tolist()
-    print(vtex_ids)
+    df_vtex_ids=pd.DataFrame(vtex_ids)
+    df_vtex_ids.columns = ["vtex_id"]
+    sku_list = df_vtex_ids["vtex_id"].tolist()
+    print(sku_list)
     vtex_account_name = {
         "alviclpoctienda1": "alviclpoctienda1",
         "alviclpoctienda2": "alviclpoctienda2"
@@ -241,7 +255,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         for task in thread_tasks:
             task.join()
             thread_tasks = []
-        print(response)
+        print(responses)
         final_responses = []
         for response in responses:
             response_aux = response['json']
@@ -300,18 +314,18 @@ def _vtex_get_stock_retries(ti, ts):
     }
 
     x_vtex_api_appkey = {
-        "alviclpoctienda1": "",  # asignar variable
-        "alviclpoctienda2": ""  # asignar variable
+        "alviclpoctienda1": Variable.get("x_vtex_api_appkey_alvi_seller1"),
+        "alviclpoctienda2": Variable.get("x_vtex_api_appkey_alvi_seller2")
     }
 
     x_vtex_api_apptoken = {
-        "alviclpoctienda1": "", # asignar variable
-        "alviclpoctienda2": ""  # asignar variable
+        "alviclpoctienda1": Variable.get("x_vtex_api_apptoken_alvi_seller1"),
+        "alviclpoctienda2": Variable.get("x_vtex_api_apptoken_alvi_seller2")
     }
     for name in vtex_account_name:
         url_list = retries  #retries      
         session = requests.session()
-        thread_num = 40
+        thread_num = 2
         task_num = len(url_list)//thread_num # division entera
         adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
         session.mount('https://', adapter)
@@ -383,7 +397,7 @@ with DAG(
         task_id = "truncate_janis_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
-        TRUNCATE staging.stock_alvi
+        TRUNCATE staging.stock_alvi_2
         """,
     )
 
