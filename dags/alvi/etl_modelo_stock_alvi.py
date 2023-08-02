@@ -61,13 +61,21 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     import sqlalchemy
 
     df = pd.DataFrame(final_responses)
+
+    df.columns = [
+        "skuId",
+        "warehouseId",
+        "totalQuantity",
+        "reservedQuantity",
+        "hasUnlimitedQuantity"
+    ]
     
     df = df[[
         "skuId",
         "warehouseId",
         "totalQuantity",
         "reservedQuantity",
-        "hasUnlimitedQuantity",
+        "hasUnlimitedQuantity"
     ]]
 
     df["skuId"] = df["skuId"].astype("str")
@@ -230,7 +238,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
             print(url)
 
         session = requests.session()
-        thread_num = 2
+        thread_num = 3
         task_num = len(url_list)//thread_num # division entera
         adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
         session.mount('https://', adapter)
@@ -267,6 +275,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
+        print(final_responses)
 
         _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
 
@@ -429,18 +438,18 @@ with DAG(
         task_id = "vtex_get_stock_retries",
         python_callable = _vtex_get_stock_retries
     )
-    #falta esto
+
     t6 = PostgresOperator(
         task_id = "save_stock_final",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/stock_final_alvi.sql"
     )
-    #falta esto
+    
     t7 = PostgresOperator(
         task_id = "delete_old_stock",
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
-            FROM ecommdata.stock_alvi
+            FROM ecommdata_alvi.stock
             WHERE fecha = '{{ds}}'::date - interval '21 days' """
     )
 
