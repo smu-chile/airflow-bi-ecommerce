@@ -68,7 +68,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         peya_stock_query = f"""
         SELECT
             lspp.ean AS ean,
-            lspp.unidad_de_medida,
                 CASE
                     WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN round(LEAST(lspp.precio, lspp.precio_promocional))
                     ELSE round(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida)
