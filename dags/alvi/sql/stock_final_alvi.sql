@@ -11,7 +11,6 @@ select
 , s.nombre_sku as descripcion
 , c.n1 as c1
 , c.n2 as c2
-, c.n3 as c3
 , s.multiplicador_unidad_medida
 , s.unidades_pack 
 , su.stock as stock_janis
