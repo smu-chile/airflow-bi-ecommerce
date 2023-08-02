@@ -194,7 +194,7 @@ def _save_table_stock_janis(ts, ti):
 
     for i in df_array:
 
-        i.to_sql(name="stock_alvi_2",
+        i.to_sql(name="stock_janis_alvi",
                     con=engine,         
                     schema="staging",         
                     if_exists='append',         
@@ -406,7 +406,7 @@ with DAG(
         task_id = "truncate_janis_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
-        TRUNCATE staging.stock_alvi_2
+        TRUNCATE staging.stock_janis_alvi
         """,
     )
 
