@@ -63,7 +63,8 @@ def _incremental_load_ordes_table(ti):
             "invoice_date",
             "date_picked",
             "date_modified",
-            "picker"
+            "picker",
+            "invoice_number"
             ]]
 
     # Rename columns to match workspace schema:
@@ -95,7 +96,8 @@ def _incremental_load_ordes_table(ti):
         "invoice_date": "fecha_facturacion",
         "date_picked": "fecha_picking",
         "date_modified": "fecha_modificacion",
-        "picker": "id_picker"
+        "picker": "id_picker",
+        "invoice_number": "documento_electronico"
     }
     df = df.rename(columns=columns_rename)
 
@@ -146,7 +148,8 @@ def _incremental_load_ordes_table(ti):
         "fecha_facturacion": "string",
         "fecha_picking": "string",
         "fecha_modificacion": "string",
-        "id_picker": "int"
+        "id_picker": "int",
+        "documento_electronico": "int64"
     }, errors="ignore")
 
     columns = [
@@ -191,7 +194,8 @@ def _incremental_load_ordes_table(ti):
         "rut_picker",
         "empresa_picker",
         "fecha_modificacion_unixtime",
-        "id_picker"
+        "id_picker",
+        "documento_electronico"
     ]
 
     df = df[["id"]+columns]
