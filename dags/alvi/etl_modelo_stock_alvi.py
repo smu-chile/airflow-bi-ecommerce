@@ -268,7 +268,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
             print(url)
 
         session = requests.session()
-        thread_num = 3
+        thread_num = 40
         task_num = len(url_list)//thread_num # division entera
         adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
         session.mount('https://', adapter)
@@ -319,7 +319,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         s3_hook.load_string(str(exception_cases),retries,bucket_name=s3_bucket,replace=True)
         ti.xcom_push(key = 'vtex_retries', value = retries)
 
-        return
+    return
 
 
 def _vtex_get_stock_retries(ti, ts):
@@ -395,7 +395,7 @@ def _vtex_get_stock_retries(ti, ts):
     for name in vtex_account_name:
         url_list = retries  #retries      
         session = requests.session()
-        thread_num = 2
+        thread_num = 40
         task_num = len(url_list)//thread_num # division entera
         adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
         session.mount('https://', adapter)

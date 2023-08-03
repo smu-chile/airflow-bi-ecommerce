@@ -36,7 +36,7 @@ left join ecommdata_alvi.skus s on svu.vtex_id = s.vtex_id
 left join staging.stock_janis_alvi su on s.id = su.item_id and t.id_janis = su.store_id and b.id_janis = su.warehouse_id
 left join ecommdata_alvi.productos p on s.ref_id = p.ref_id
 left join ecommdata_alvi.categorias c on p.id_categoria = c.id
-left join ecommdata_alvi.lista8_alvi l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
+left join ecommdata_alvi.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
 left join ecommdata.lista_infaltables li on p.material = li.material
 where t.status = 1;
 DELETE from ecommdata_alvi.stock
