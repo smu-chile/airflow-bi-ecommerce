@@ -26,6 +26,20 @@ def ubicaciones_flo(ds):
     pg_connection.close()
     return results
 
+def lista_eliminar_ss():
+    lista_material_reg_query = """select sap_code
+                            from ecommdata.ubicacion_mfc um 
+                            where mfc_is_item_side = 'REG'"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    print(lista_material_reg_query)
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(lista_material_reg_query)
+    results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
+    return results
+
 
 def promociones(ds):
     import pandas as pd
@@ -256,6 +270,50 @@ def carga_stock_seguridad_1917_janis(ds,ti):
 
     return
 
+def eliminar_stock_seguridad_reg():
+    import pandas as pd
+    import requests
+
+    df = pd.DataFrame(lista_eliminar_ss())
+    df.columns = ["material"]
+
+    print(df)
+
+    base_url = Variable.get("JANIS_API_URL")
+
+    url = f"{base_url}stock"
+
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
+    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
+
+    headers = {
+    "janis-api-key" : JANIS_API_KEY,
+    "janis-api-secret" : JANIS_API_SECRET,
+    "janis-client" : JANIS_CLIENT,
+    "Connection" : "keep-alive"
+    }
+    
+    payload=[]
+    for i in range(len(df.index)):
+        print(i)
+        material = df.material[i]
+        store = "1917"
+        stock_seguridad = 0
+        row = {"IdSku": material, "Quantity": 0, "Store": store,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
+        print(row)
+        payload.append(row)    
+        if i % 499 == 0:
+            payload = str(payload).replace("'", '"')
+            response = requests.request("POST", url, headers=headers, data=payload)
+            print(response.text)
+            payload = []
+    payload = str(payload).replace("'", '"')
+    response = requests.request("POST", url, headers=headers, data=payload)
+    print(response.text)
+
+    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -289,6 +347,11 @@ with DAG(
         python_callable = carga_stock_seguridad_1917_janis
     )
 
-    t0 >> t1
+    t2 = PythonOperator(
+        task_id = "eliminar_stock_seguridad_reg",
+        python_callable = eliminar_stock_seguridad_reg
+    )
+
+    t0 >> t1 >> t2
 
 
