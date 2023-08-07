@@ -21,8 +21,8 @@ def get_fixed_prices(ti):
         inner join ecommdata.skus s on s.ref_id = wp.material||'-'|| CASE WHEN wp.umv = 'ST' THEN 'UN' WHEN wp.umv = 'CS' THEN 'CJ' END
         where wp.tipo_promocion = 4
         and wp.umv not in ('KG','KGV')
-        and wp.Date From_de_promocion  <= current_date + interval '1 days'
-        and wp.Date To_de_promocion >= current_date  
+        and wp."Date From"  <= current_date + interval '1 days'
+        and wp."Date To" >= current_date  
         AND s.vtex_id IS NOT NULL; """
     cursor.execute(query)
     results = cursor.fetchall()
