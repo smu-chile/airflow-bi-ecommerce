@@ -7,7 +7,7 @@ select
 , b.id as id_bodega
 , b.nombre as nombre_bodega
 , s.ref_id
-, p.material
+, l.material
 , s.nombre_sku as descripcion
 , c.n1 as c1
 , c.n2 as c2
@@ -25,10 +25,6 @@ select
 , su.date_modified as fecha_modificacion_janis
 , '{{ts}}'::timestamp as ultima_actualizacion
 , l.material is not null and l.excluido is false as surtido_ecommerce
-, case
-	when li.material is null then false
-	else true
-end as infaltable
 from staging.stock_vtex_alvi svu
 left join ecommdata_alvi.bodegas b on svu.id_warehouse = b.id 
 left join ecommdata_alvi.tiendas t on b.id_tienda = t.id 
@@ -37,7 +33,6 @@ left join staging.stock_janis_alvi su on s.id = su.item_id and t.id_janis = su.s
 left join ecommdata_alvi.productos p on s.ref_id = p.ref_id
 left join ecommdata_alvi.categorias c on p.id_categoria = c.id
 left join ecommdata_alvi.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
-left join ecommdata.lista_infaltables li on p.material = li.material
 where t.status = 1;
 DELETE from ecommdata_alvi.stock
 WHERE ultima_actualizacion < '{{ts}}'::timestamp AND fecha = '{{ds}}'::date;
