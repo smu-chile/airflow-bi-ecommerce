@@ -244,7 +244,7 @@ with DAG(
     )
 
     t7 = PostgresOperator(
-        task_id = "load_table_publicacion_dia_tienda_top_300",
+        task_id = "load_table_publicacion_dia_tienda_surtido_y_con_marca",
         postgres_conn_id="postgresql_conn",
         sql="sql/publicacion_dia_tienda_surtido_y_con_marca.sql",
     )
