@@ -1,4 +1,4 @@
-insert into catalogo.publicacion_dia_tienda_surtido
+insert into catalogo.publicacion_dia_tienda_surtido_y_con_marca
 SELECT pc.fecha_hora,
     pc.id_tienda,
     pc.c1,
@@ -23,11 +23,6 @@ SELECT pc.fecha_hora,
         END) AS con_stock,
     sum(
         CASE
-            WHEN pc.stock_valido IS TRUE THEN 1
-            ELSE 0
-        END) AS con_stock_visible,
-    sum(
-        CASE
             WHEN pc.foto_valida IS TRUE THEN 1
             ELSE 0
         END) AS con_foto,
@@ -40,7 +35,12 @@ SELECT pc.fecha_hora,
         CASE
             WHEN pc.tienda_valida IS TRUE THEN 1
             ELSE 0
-        END) AS con_tienda
+        END) AS con_tienda,
+     sum(
+        CASE
+            WHEN pc.stock_valido IS TRUE THEN 1
+            ELSE 0
+        END) AS con_stock_visible
 FROM ecommdata.publicacion_catalogo pc
 WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '{{ts}}'::timestamp
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.marca;
