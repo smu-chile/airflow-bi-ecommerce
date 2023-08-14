@@ -123,7 +123,7 @@ def ventas_maximos_apo_to_s3(ds):
     list_material = list_material.replace(" ", "','")
     print(list_material)
 
-    df = materiales_dentro_ventas(list_material)
+    df = materiales_dentro_ventas(list_material,ds)
     df_grouped = df.groupby(['fecha_inicio', 'fecha_fin']).agg(lista_materiales=('material', list)).reset_index()
 
     df_final = pd.DataFrame()
@@ -137,7 +137,7 @@ def ventas_maximos_apo_to_s3(ds):
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    df_maximas = ventas_maximas(list_material)
+    df_maximas = ventas_maximas(list_material, ds)
 
     df_final_final = df_maximas.merge(df_final, how='left', on=["id_tienda","material"])
 
