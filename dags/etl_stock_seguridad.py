@@ -316,7 +316,7 @@ with DAG(
     'etl_stock_seguridad',
     default_args=default_args,
     description="cargar stock de seguridad",
-    schedule_interval="0 10 * * *",
+    schedule_interval="0 14 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc"],
