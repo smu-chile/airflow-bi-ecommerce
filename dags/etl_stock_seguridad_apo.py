@@ -9,6 +9,7 @@ import pendulum
 from datetime import datetime, timedelta
 
 def materiales_dentro_ventas(list_material,ds):
+    import pandas as pd
     stock_tiendas_query = """select material,
                     max(fecha_inicio_de_promocion) as fecha_inicio,
                     max( fecha_fin_de_promocion) as fecha_fin
@@ -26,6 +27,8 @@ def materiales_dentro_ventas(list_material,ds):
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["material","fecha_inicio","fecha_fin"]
     cursor.close()
     pg_connection.close()
     return results
