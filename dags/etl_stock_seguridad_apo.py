@@ -243,7 +243,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_seguridad',
+    'etl_stock_seguridad_apos',
     default_args=default_args,
     description="cargar stock de seguridad",
     schedule_interval="0 10 * * *",
