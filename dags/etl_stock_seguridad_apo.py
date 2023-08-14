@@ -66,6 +66,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and vst.fecha <= '"""+fecha_fin+"""'::date -- fecha fin
             and lpad(vst.material,18,'0') in ('"""+list_material+"""')
             and t.status = 1
+            and lpad(vst.id_tienda,4,'0') not in ('1917','0917')
             group by vst.id_tienda, vst.material"""
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -243,7 +244,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_seguridad',
+    'etl_stock_seguridad_apos',
     default_args=default_args,
     description="cargar stock de seguridad",
     schedule_interval="0 10 * * *",
