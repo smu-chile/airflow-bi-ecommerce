@@ -48,7 +48,7 @@ def promociones(ds):
     cursor.execute(promociones_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","fecha_inicio","fecha_final","id_mecanica"]
+    results.columns = ["material"]
     cursor.close()
     pg_connection.close()
 
