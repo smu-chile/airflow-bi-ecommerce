@@ -115,7 +115,7 @@ def ventas_maximos_apo_to_s3(ds):
     #extraccion de datos#
     #####################
 
-    df_materiales = promociones()
+    df_materiales = promociones(ds)
     list_material = df_materiales['material'].tolist()
     print(len(list_material))
     list_material = list(dict.fromkeys(list_material))
