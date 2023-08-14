@@ -78,7 +78,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
     return results
 
 def ventas_maximas(list_material,ds):
-    ventas_skus_tienda_query = """select lpad(vst.id_tienda,4,'0'),
+    ventas_maximos_query = """select lpad(vst.id_tienda,4,'0'),
                             lpad(vst.material,18,'0'), max(vst.venta_umv)
                             from ecommdata.venta_sku_tienda vst 
                             left join ecommdata.tiendas t
@@ -87,11 +87,11 @@ def ventas_maximas(list_material,ds):
                             and lpad(vst.material,18,'0') in ('"""+list_material+"""')
                             and t.status = 1
                             group by vst.id_tienda, vst.material"""
-    print(ventas_skus_tienda_query)
+    print(ventas_maximos_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.execute(ventas_skus_tienda_query)
+    cursor.execute(ventas_maximos_query)
     results = cursor.fetchall()
     cursor.close()
     pg_connection.close()
@@ -105,7 +105,7 @@ def ventas_maximos_apo_to_s3(ds):
     
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
-    prefix = f"stock_seguridad/{exec_date}/"
+    prefix = f"stock_seguridad_apo/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -113,6 +113,7 @@ def ventas_maximos_apo_to_s3(ds):
     #####################
     #extraccion de datos#
     #####################
+
     df_materiales = promociones()
     list_material = df_materiales['material'].tolist()
     print(len(list_material))
@@ -217,7 +218,7 @@ def carga_stock_seguridad_janis(ds,ti):
     payload=[]
     for i in range(len(df.index)):
         print(i)
-        material = df.ref_id[i].split("-")[0]
+        material = str(int(df['material'][i])).zfill(18)
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
