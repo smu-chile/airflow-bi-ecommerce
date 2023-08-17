@@ -457,6 +457,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
     print(dia_semana, type(dia_semana))
 
     print(df)
+    print(df.info())
 
     base_url = Variable.get("JANIS_API_URL")
 
