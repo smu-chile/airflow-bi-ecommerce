@@ -167,9 +167,11 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_stock = pd.DataFrame(stock(ds))
     print("se ha cargado stock\n")
+    print(df_stock)
+    df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
     df_venta_tienda = pd.DataFrame(venta_tienda(ds))
     print("se ha cargado ventas\n")
-    df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
+    print(df_venta_tienda)
     df_venta_tienda.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
     df_promociones = promociones(ds)
     df_promociones=df_promociones.drop_duplicates(subset='ref_id')
