@@ -20,9 +20,9 @@ def _check_time(ts):
     print(exec_datetime_local_str)
 
     time_str = exec_datetime_local_str.split("T")[1]
-    if (time_str == "17:30") or (time_str == "21:30") or (time_str == "01:30") or (time_str == "05:30"):
+    if (time_str == "17:30") or (time_str == "21:30") or (time_str == "01:30") or (time_str == "13:30"):
         return "task_skip"
-    elif (time_str == "09:30"):
+    elif (time_str == "05:30"):
         return "stock_ventas_tiendas_to_s3_am"
     else:
         return "stock_ventas_tiendas_to_s3_pm"
@@ -244,7 +244,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_seguridad/{exec_date}/stock_seguridad_{date_aux}.csv"
+    filename = f"stock_seguridad/{exec_date}/stock_seguridad_am{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -346,7 +346,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_seguridad/{exec_date}/stock_seguridad_{date_aux}.csv"
+    filename = f"stock_seguridad/{exec_date}/stock_seguridad_pm{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -364,7 +364,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     import pandas as pd
     import datetime
     exec_date = ds.replace("-", "/")
-    prefix = f"stock_seguridad_pm/{exec_date}/"
+    prefix = f"stock_seguridad/{exec_date}/"
     print(prefix)
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_pm"])[0]
@@ -457,6 +457,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
     print(dia_semana, type(dia_semana))
 
     print(df)
+    print(df.info())
 
     base_url = Variable.get("JANIS_API_URL")
 
