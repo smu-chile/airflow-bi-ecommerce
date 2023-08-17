@@ -9,6 +9,7 @@ import pendulum
 from datetime import datetime, timedelta
 
 def materiales_dentro_ventas(list_material,ds):
+    import pandas as pd
     stock_tiendas_query = """select material,
                     max(fecha_inicio_de_promocion) as fecha_inicio,
                     max( fecha_fin_de_promocion) as fecha_fin
@@ -26,6 +27,8 @@ def materiales_dentro_ventas(list_material,ds):
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["material","fecha_inicio","fecha_fin"]
     cursor.close()
     pg_connection.close()
     return results
@@ -48,7 +51,7 @@ def promociones(ds):
     cursor.execute(promociones_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","fecha_inicio","fecha_final","id_mecanica"]
+    results.columns = ["material"]
     cursor.close()
     pg_connection.close()
 
@@ -66,6 +69,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and vst.fecha <= '"""+fecha_fin+"""'::date -- fecha fin
             and lpad(vst.material,18,'0') in ('"""+list_material+"""')
             and t.status = 1
+            and lpad(vst.id_tienda,4,'0') not in ('1917','0917')
             group by vst.id_tienda, vst.material"""
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -78,7 +82,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
     return results
 
 def ventas_maximas(list_material,ds):
-    ventas_skus_tienda_query = """select lpad(vst.id_tienda,4,'0'),
+    ventas_maximos_query = """select lpad(vst.id_tienda,4,'0'),
                             lpad(vst.material,18,'0'), max(vst.venta_umv)
                             from ecommdata.venta_sku_tienda vst 
                             left join ecommdata.tiendas t
@@ -87,11 +91,11 @@ def ventas_maximas(list_material,ds):
                             and lpad(vst.material,18,'0') in ('"""+list_material+"""')
                             and t.status = 1
                             group by vst.id_tienda, vst.material"""
-    print(ventas_skus_tienda_query)
+    print(ventas_maximos_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.execute(ventas_skus_tienda_query)
+    cursor.execute(ventas_maximos_query)
     results = cursor.fetchall()
     cursor.close()
     pg_connection.close()
@@ -105,7 +109,7 @@ def ventas_maximos_apo_to_s3(ds):
     
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
-    prefix = f"stock_seguridad/{exec_date}/"
+    prefix = f"stock_seguridad_apo/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -113,7 +117,8 @@ def ventas_maximos_apo_to_s3(ds):
     #####################
     #extraccion de datos#
     #####################
-    df_materiales = promociones()
+
+    df_materiales = promociones(ds)
     list_material = df_materiales['material'].tolist()
     print(len(list_material))
     list_material = list(dict.fromkeys(list_material))
@@ -121,7 +126,7 @@ def ventas_maximos_apo_to_s3(ds):
     list_material = list_material.replace(" ", "','")
     print(list_material)
 
-    df = materiales_dentro_ventas(list_material)
+    df = materiales_dentro_ventas(list_material,ds)
     df_grouped = df.groupby(['fecha_inicio', 'fecha_fin']).agg(lista_materiales=('material', list)).reset_index()
 
     df_final = pd.DataFrame()
@@ -135,7 +140,7 @@ def ventas_maximos_apo_to_s3(ds):
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    df_maximas = ventas_maximas(list_material)
+    df_maximas = ventas_maximas(list_material, ds)
 
     df_final_final = df_maximas.merge(df_final, how='left', on=["id_tienda","material"])
 
@@ -217,7 +222,7 @@ def carga_stock_seguridad_janis(ds,ti):
     payload=[]
     for i in range(len(df.index)):
         print(i)
-        material = df.ref_id[i].split("-")[0]
+        material = str(int(df['material'][i])).zfill(18)
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material, "Quantity": 0, "Store": id_tienda,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
@@ -242,7 +247,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_seguridad',
+    'etl_stock_seguridad_apos',
     default_args=default_args,
     description="cargar stock de seguridad",
     schedule_interval="0 10 * * *",
