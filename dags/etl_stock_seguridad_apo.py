@@ -103,8 +103,10 @@ def ventas(list_material,fecha_inicio,fecha_fin):
     return results
 
 def ventas_maximas(list_material,ds):
+    import pandas as pd
     ventas_maximos_query = """select lpad(vst.id_tienda,4,'0'),
-                            lpad(vst.material,18,'0'), max(vst.venta_umv)
+                            lpad(vst.material,18,'0'),
+                            max(vst.venta_umv)
                             from ecommdata.venta_sku_tienda vst 
                             left join ecommdata.tiendas t
                             on t.id = lpad(vst.id_tienda,4,'0')
@@ -118,6 +120,9 @@ def ventas_maximas(list_material,ds):
     cursor = pg_connection.cursor()
     cursor.execute(ventas_maximos_query)
     results = cursor.fetchall()
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","material","venta_maxima"]
     cursor.close()
     pg_connection.close()
     return results
