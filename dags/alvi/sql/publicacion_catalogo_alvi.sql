@@ -38,10 +38,10 @@ left join (select t1.ref_id
 		else true
 	end as foto_en_preparacion
 	from (select isku.ref_id, count(1) as q_foto
-	from ecommdata.imagenes_sku isku
+	from ecommdata_alvi.imagenes_sku isku
 	group by isku.ref_id) t1
 	left join (select isku.ref_id
-	from ecommdata.imagenes_sku isku
+	from ecommdata_alvi.imagenes_sku isku
 	where isku.imagen ilike any(array['%foto-en%','%foto-unimarc%'])) t2 
 on t1.ref_id = t2.ref_id) foto on s.ref_id = foto.ref_id
 left join ecommdata_alvi.productos p on s.ref_id = p.ref_id
