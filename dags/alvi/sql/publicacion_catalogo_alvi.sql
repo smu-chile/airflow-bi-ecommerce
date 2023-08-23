@@ -30,7 +30,7 @@ end as disponible_web
 , s.stock_reservado_vtex
 , s.stock_infinito_vtex
 , s.surtido_ecommerce
-from ecommdata.stock s
+from ecommdata_alvi.stock s
 left join (select t1.ref_id
 	, t1.q_foto
 	, case
