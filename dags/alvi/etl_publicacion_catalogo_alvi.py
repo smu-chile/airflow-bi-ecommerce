@@ -222,40 +222,34 @@ with DAG(
     t3 = PostgresOperator(
         task_id = "load_table_publicacion_dia_tienda_surtido",
         postgres_conn_id="postgresql_conn",
-        sql="sql/publicacion_dia_tienda_surtido.sql",
+        sql="sql/publicacion_dia_tienda_surtido_alvi.sql",
     )
 
     t4 = PostgresOperator(
-        task_id = "load_table_publicacion_dia_tienda_evento",
-        postgres_conn_id="postgresql_conn",
-        sql="sql/publicacion_dia_tienda_evento.sql",
-    )
-
-    t5 = PostgresOperator(
         task_id = "load_table_publicacion_dia_tienda_surtido_y_con_marca",
         postgres_conn_id="postgresql_conn",
         sql="sql/publicacion_dia_tienda_surtido_y_con_marca.sql",
     )
 
-    t6 = PythonOperator(
+    t5 = PythonOperator(
         task_id = "store_periodic_data",
         python_callable = _store_periodic_data
     )
 
-    t7 = PythonOperator(
+    t6 = PythonOperator(
         task_id = "delete_periodic_data",
         python_callable = _delete_periodic_data
     )
 
-    t8 = PythonOperator(
+    t7 = PythonOperator(
         task_id = "store_daily_data",
         python_callable = _store_daily_data
     )
 
-    t9 = PythonOperator(
+    t8 = PythonOperator(
         task_id = "delete_daily_data",
         python_callable = _delete_daily_data
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8
     t1 >> t_dummy
