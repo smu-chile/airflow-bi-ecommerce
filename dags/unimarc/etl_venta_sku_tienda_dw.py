@@ -131,7 +131,9 @@ def _incremental_load_sales_table_unimarc(ti, ds):
             "tipo_material",
             "categoria_material"]]
     
-    df = df[df['id_org'] == '01']
+    print(df)
+    df = df[df["id_org"] == "1"]
+    print(df)
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
@@ -293,7 +295,7 @@ def _incremental_load_sales_table_alvi(ti, ds):
             "tipo_material",
             "categoria_material"]]
     
-    df = df[df['id_org'] == '08']
+    df = df[df["id_org"] == "8"]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
