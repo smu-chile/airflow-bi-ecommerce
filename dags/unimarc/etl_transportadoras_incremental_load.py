@@ -96,7 +96,7 @@ def _staging_transportadoras_table(ti):
     print(f"Number of records after left join: {len(df.index)}")
     print(df.info())
     print(df_logistic_company.info())
-    df = df.merge(df_logistic_company, how="inner", left_on="logistic_company", right_on="logistic_company_id").drop(columns=["logistic_company"])
+    df = df.merge(df_logistic_company, how="left", left_on="logistic_company", right_on="logistic_company_id").drop(columns=["logistic_company"])
     print(f"Number of records after left join: {len(df.index)}")
     print(df.info())
 

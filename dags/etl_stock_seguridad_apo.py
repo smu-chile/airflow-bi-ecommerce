@@ -1,12 +1,30 @@
 from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from airflow.operators.dummy import DummyOperator
 
 import pendulum
 from datetime import datetime, timedelta
+
+def _check_time(ts):
+    
+    exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
+    exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
+    local_tz = pendulum.timezone("America/Santiago")
+    exec_datetime_local = local_tz.convert(exec_datetime_utc)
+    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+    print(exec_datetime_local_str)
+
+    time_str = exec_datetime_local_str.split("T")[1]
+    if (time_str == "17:30") or (time_str == "21:30") or (time_str == "01:30") or (time_str == "13:30"):
+        return "task_skip"
+    elif (time_str == "05:30"):
+        return "ventas_maximos_apo_to_s3_am"
+    else:
+        return "ventas_maximos_apo_to_s3_pm"
 
 def materiales_dentro_ventas(list_material,ds):
     import pandas as pd
@@ -59,6 +77,7 @@ def promociones(ds):
 
 
 def ventas(list_material,fecha_inicio,fecha_fin):
+    import pandas as pd
     ventas_skus_tienda_query = """select lpad(vst.id_tienda,4,'0'),
             lpad(vst.material,18,'0'),
             (sum(vst.venta_umv)/('"""+fecha_inicio+"""'::date - '"""+fecha_fin+"""'::date))*-1
@@ -77,13 +96,17 @@ def ventas(list_material,fecha_inicio,fecha_fin):
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
     results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","material","prom_ventas"]
     cursor.close()
     pg_connection.close()
     return results
 
 def ventas_maximas(list_material,ds):
+    import pandas as pd
     ventas_maximos_query = """select lpad(vst.id_tienda,4,'0'),
-                            lpad(vst.material,18,'0'), max(vst.venta_umv)
+                            lpad(vst.material,18,'0'),
+                            max(vst.venta_umv)
                             from ecommdata.venta_sku_tienda vst 
                             left join ecommdata.tiendas t
                             on t.id = lpad(vst.id_tienda,4,'0')
@@ -97,11 +120,14 @@ def ventas_maximas(list_material,ds):
     cursor = pg_connection.cursor()
     cursor.execute(ventas_maximos_query)
     results = cursor.fetchall()
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","material","venta_maxima"]
     cursor.close()
     pg_connection.close()
     return results
 
-def ventas_maximos_apo_to_s3(ds):
+def ventas_maximos_apo_to_s3_am(ds):
     import pandas as pd
     import numpy as np
     import math
@@ -151,6 +177,18 @@ def ventas_maximos_apo_to_s3(ds):
 
     df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
 
+    df_final_final["stock_seguridad"] = df_final_final["stock_seguridad"]/2
+
+    print(df_final_final)
+
+    condlist = [df_final_final["stock_seguridad"] < 2,
+                df_final_final["stock_seguridad"]>=2]
+    choicelist = [2,df_final_final["stock_seguridad"]]
+
+    df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+    df_final_final["stock_seguridad"] = df_final_final["stock_seguridad"].apply(np.ceil)
+
     print(df_final_final)
   
     ##############
@@ -159,7 +197,7 @@ def ventas_maximos_apo_to_s3(ds):
 
     buffer = io.StringIO()
     df_final_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_seguridad_apo/{exec_date}/stock_seguridad_apo{date_aux}.csv"
+    filename = f"stock_seguridad_apo/{exec_date}/stock_seguridad_apo_am_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -172,7 +210,7 @@ def ventas_maximos_apo_to_s3(ds):
 
     return filename
 
-def carga_stock_seguridad_janis(ds,ti):
+def carga_stock_seguridad_janis_am(ds,ti):
     import requests
     import pandas as pd
     import datetime
@@ -180,7 +218,7 @@ def carga_stock_seguridad_janis(ds,ti):
     prefix = f"stock_seguridad_apo/{exec_date}/"
     print(prefix)
 
-    filename = ti.xcom_pull(key="return_value", task_ids=["ventas_maximos_apo_to_s3"])[0]
+    filename = ti.xcom_pull(key="return_value", task_ids=["ventas_maximos_apo_to_s3_am"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -239,6 +277,145 @@ def carga_stock_seguridad_janis(ds,ti):
 
     return
 
+def ventas_maximos_apo_to_s3_pm(ds):
+    import pandas as pd
+    import numpy as np
+    import math
+    import io
+    
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"stock_seguridad_apo/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    #####################
+    #extraccion de datos#
+    #####################
+
+    df_materiales = promociones(ds)
+    list_material = df_materiales['material'].tolist()
+    print(len(list_material))
+    list_material = list(dict.fromkeys(list_material))
+    list_material = ' '.join(list_material)
+    list_material = list_material.replace(" ", "','")
+    print(list_material)
+
+    df = materiales_dentro_ventas(list_material,ds)
+    df_grouped = df.groupby(['fecha_inicio', 'fecha_fin']).agg(lista_materiales=('material', list)).reset_index()
+
+    df_final = pd.DataFrame()
+    for i in range(len(df_grouped.index)):
+        aux_list = []
+        aux_list = df_grouped.lista_materiales[i]
+        aux_list = ' '.join(aux_list)
+        aux_list = aux_list.replace(" ", "','")
+        df_aux = ventas(aux_list,str(df_grouped.fecha_inicio[i]),str(df_grouped.fecha_fin[i]))
+        df_final = pd.concat([df_final, df_aux])
+
+    df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
+
+    df_maximas = ventas_maximas(list_material, ds)
+
+    df_final_final = df_maximas.merge(df_final, how='left', on=["id_tienda","material"])
+
+    condlist = [df_final_final["prom_ventas"].isnull() == True,
+                df_final_final["prom_ventas"]<2,
+                df_final_final["prom_ventas"]>=2]
+    choicelist = [df_final_final["venta_maxima"], 2,df_final_final["prom_ventas"]]
+
+    df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+    print(df_final_final)
+  
+    ##############
+    #cargar datos#
+    ##############
+
+    buffer = io.StringIO()
+    df_final_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"stock_seguridad_apo/{exec_date}/stock_seguridad_apo_pm_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+def carga_stock_seguridad_janis_pm(ds,ti):
+    import requests
+    import pandas as pd
+    import datetime
+    exec_date = ds.replace("-", "/")
+    prefix = f"stock_seguridad_apo/{exec_date}/"
+    print(prefix)
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["ventas_maximos_apo_to_s3_pm"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
+
+    dia_semana = datetime.datetime.today().weekday()
+    print(dia_semana, type(dia_semana))
+
+    print(df)
+
+    base_url = Variable.get("JANIS_API_URL")
+
+    url = f"{base_url}stock"
+
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
+    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
+
+    headers = {
+    "janis-api-key" : JANIS_API_KEY,
+    "janis-api-secret" : JANIS_API_SECRET,
+    "janis-client" : JANIS_CLIENT,
+    "Connection" : "keep-alive"
+    }
+    
+    payload=[]
+    for i in range(len(df.index)):
+        print(i)
+        material = str(int(df['material'][i])).zfill(18)
+        id_tienda = str(int(df['id_tienda'][i])).zfill(4)
+        stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        row = {"IdSku": material, "Quantity": 0, "Store": id_tienda,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
+        print(row)
+        payload.append(row)    
+        if i % 499 == 0:
+            payload = str(payload).replace("'", '"')
+            response = requests.request("POST", url, headers=headers, data=payload)
+            print(response.text)
+            payload = []
+    payload = str(payload).replace("'", '"')
+    response = requests.request("POST", url, headers=headers, data=payload)
+    print(response.text)
+
+    return
+
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -250,10 +427,10 @@ with DAG(
     'etl_stock_seguridad_apos',
     default_args=default_args,
     description="cargar stock de seguridad",
-    schedule_interval="0 10 * * *",
+    schedule_interval="30 1/4 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc"],
+    tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc", "apoteosicos"],
 ) as dag:
     
 
@@ -262,16 +439,37 @@ with DAG(
     guardar en S3.
     """ 
 
-    t0 = PythonOperator(
-        task_id = "ventas_maximos_apo_to_s3",
-        python_callable = ventas_maximos_apo_to_s3,
+    t0 = BranchPythonOperator(
+        task_id='check_time',
+        python_callable=_check_time,
+    )
+    
+    t_dummy = DummyOperator(
+            task_id='task_skip',
+        )
+    
+    t1_am = PythonOperator(
+        task_id = "ventas_maximos_apo_to_s3_am",
+        python_callable = ventas_maximos_apo_to_s3_am,
     )
 
-    t1 = PythonOperator(
-        task_id = "carga_stock_seguridad_janis",
-        python_callable = carga_stock_seguridad_janis
+    t2_am = PythonOperator(
+        task_id = "carga_stock_seguridad_janis_am",
+        python_callable = carga_stock_seguridad_janis_am
     )
 
-    t0 >> t1
+    t1_pm = PythonOperator(
+        task_id = "ventas_maximos_apo_to_s3_pm",
+        python_callable = ventas_maximos_apo_to_s3_pm,
+    )
+
+    t2_pm = PythonOperator(
+        task_id = "carga_stock_seguridad_janis_pm",
+        python_callable = carga_stock_seguridad_janis_pm
+    )
+
+    t0 >> t1_am >> t2_am
+    t0 >> t1_pm >> t2_pm
+    t0 >> t_dummy
 
 
