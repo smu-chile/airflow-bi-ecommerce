@@ -23,9 +23,9 @@ def _check_time(ts):
     if (time_str == "18:00") or (time_str == "22:00") or (time_str == "02:00") or (time_str == "14:00"):
         return "task_skip"
     elif (time_str == "06:00"):
-        return "stock_ventas_tiendas_to_s3_am"
+        return "stock_ventas_tienda_1917_to_s3_am"
     else:
-        return "stock_ventas_tiendas_to_s3_pm"
+        return "stock_ventas_tienda_1917_to_s3_pm"
 
 def ubicaciones_flo(ds):
     stock_tiendas_query = """select sap_code||'-'|| measurement_unit as ref_id,
