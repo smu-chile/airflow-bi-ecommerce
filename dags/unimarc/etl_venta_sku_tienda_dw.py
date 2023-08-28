@@ -11,7 +11,7 @@ from datetime import datetime
 
 import pendulum
 
-def _incremental_load_sales_table(ti, ds):
+def _incremental_load_sales_table_unimarc(ti, ds):
     import numpy as np
     import pandas as pd
     
@@ -130,6 +130,11 @@ def _incremental_load_sales_table(ti, ds):
             "marca_propia",
             "tipo_material",
             "categoria_material"]]
+    
+    print(df)
+    df = df[df["id_org"] == "1"]
+    print(df)
+
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
@@ -156,6 +161,168 @@ def _incremental_load_sales_table(ti, ds):
     print(query)
     delete_query = f"""
         DELETE FROM ecommdata.venta_sku_tienda
+        where fecha < '{ds}'::date - interval '29 days'
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(query, fixed_records)
+    cursor.execute(delete_query)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+
+    return
+
+def _incremental_load_sales_table_alvi(ti, ds):
+    import numpy as np
+    import pandas as pd
+    
+    sales_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+sales_file)
+    if not s3_hook.check_for_key(sales_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % sales_file)
+
+    sales_object = s3_hook.get_key(sales_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(sales_object.get()["Body"])
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    # Select only relevant columns:
+    df = df[["DATE_VALUE",
+            "STORE_ID",
+            "ORG_IP_ID",
+            "ORG_IP",
+            "SKU_PRODUCT",
+            "UOM_COD_COM",
+            "VENTA_BRUTA",
+            "VENTA_NETA",
+            "VENTA_UMV",
+            "GRUPO_DSC",
+            "CAT_DSC",
+            "LIN_DESC",
+            "SEC_DSC",
+            "NEG_DSC",
+            "SKU_NM",
+            "PROCEDENCIA",
+            "BRAND_DESC",
+            "MARCA_PROPIA",
+            "DESC_TIPO_MATERIAL",
+            "DESC_CATEGORIA_MATERIAL"
+            ]]
+
+    # Rename columns to match workspace schema:
+    columns_rename = {
+            "DATE_VALUE" : "fecha",
+            "STORE_ID" : "id_tienda",
+            "ORG_IP_ID" : "id_org",
+            "ORG_IP" : "organizacion",
+            "SKU_PRODUCT" : "material",
+            "UOM_COD_COM" : "umv",
+            "VENTA_BRUTA" : "venta_bruta",
+            "VENTA_NETA" : "venta_neta",
+            "VENTA_UMV" : "venta_umv",
+            "GRUPO_DSC" : "grupo",
+            "CAT_DSC" : "categoria",
+            "LIN_DESC" : "linea",
+            "SEC_DSC" : "seccion",
+            "NEG_DSC" : "negocio",
+            "SKU_NM" : "descripcion",
+            "PROCEDENCIA" : "procedencia",
+            "BRAND_DESC" : "marca",
+            "MARCA_PROPIA" : "marca_propia",
+            "DESC_TIPO_MATERIAL" : "tipo_material",
+            "DESC_CATEGORIA_MATERIAL" : "categoria_material"
+    }
+    df = df.rename(columns=columns_rename)
+
+
+    # Cast numeric values to int
+
+    df = df.astype({
+        "fecha": "string",
+        "id_tienda": "string",
+        "id_org": "string",
+        "marca_propia": "bool",
+    }, errors="ignore")
+
+    columns = [
+            "id_tienda",
+            "id_org",
+            "organizacion",
+            "material",
+            "umv",
+            "venta_bruta",
+            "venta_neta",
+            "venta_umv",
+            "grupo",
+            "categoria",
+            "linea",
+            "seccion",
+            "negocio",
+            "descripcion",
+            "procedencia",
+            "marca",
+            "marca_propia",
+            "tipo_material",
+            "categoria_material"
+    ]
+
+    df = df[["fecha",
+            "id_tienda",
+            "id_org",
+            "organizacion",
+            "material",
+            "umv",
+            "venta_bruta",
+            "venta_neta",
+            "venta_umv",
+            "grupo",
+            "categoria",
+            "linea",
+            "seccion",
+            "negocio",
+            "descripcion",
+            "procedencia",
+            "marca",
+            "marca_propia",
+            "tipo_material",
+            "categoria_material"]]
+    
+    df = df[df["id_org"] == "8"]
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    query = """
+        INSERT INTO ecommdata_alvi.venta_sku_tienda (fecha,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+    """
+    print(query)
+    delete_query = f"""
+        DELETE FROM ecommdata_alvi.venta_sku_tienda
         where fecha < '{ds}'::date - interval '29 days'
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -222,14 +389,14 @@ with DAG(
             LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
             LEFT JOIN DWC_SMU.SMU.VW_DIM_UOM U ON P.UOM_BASE_KEY = U.UOM_KEY
             LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON VENTAC.SKU_KEY = SH.SKU_KEY
-            WHERE VENTAC.DATE_VALUE = '{{ds}}' AND STORE_H.ORG_IP_ID IN ('01', '06', '08');
+            WHERE VENTAC.DATE_VALUE = '{{ds}}' AND STORE_H.ORG_IP_ID IN ('01', '06' , '08');
             """,
             "query_name": "venta_sku_tienda_dw",
         }
     )
 
     t1 = PostgresOperator(
-        task_id = "clean_day",
+        task_id = "clean_day_unimarc",
         postgres_conn_id="postgresql_conn",
         sql="""
         delete from ecommdata.venta_sku_tienda
@@ -237,9 +404,24 @@ with DAG(
         """
     )
 
-    t2 = PythonOperator(
-        task_id = "incremental_load_sales_table",
-        python_callable = _incremental_load_sales_table
+    t2 = PostgresOperator(
+        task_id = "clean_day_alvi",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        delete from ecommdata_alvi.venta_sku_tienda
+        where fecha = '{{ds}}'
+        """
     )
 
-    t0 >> t1 >> t2
+    t3 = PythonOperator(
+        task_id = "_incremental_load_sales_table_unimarc",
+        python_callable = _incremental_load_sales_table_unimarc
+    )
+
+    t4 = PythonOperator(
+        task_id = "_incremental_load_sales_table_alvi",
+        python_callable = _incremental_load_sales_table_alvi
+    )
+
+    t0 >> t1 >> t3
+    t0 >> t2 >> t4
