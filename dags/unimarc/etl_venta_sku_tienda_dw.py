@@ -423,4 +423,5 @@ with DAG(
         python_callable = _incremental_load_sales_table_alvi
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4
+    t0 >> t1 >> t3
+    t0 >> t2 >> t4
