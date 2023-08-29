@@ -546,8 +546,8 @@ with DAG(
         python_callable = eliminar_stock_seguridad_reg
     )
 
-    t0 >> t1_am >> t2_am >>t3
-    t0 >> t1_pm >> t2_pm >>t3
+    t0 >> t1_am >> t2_am >> t3
+    t0 >> t1_pm >> t2_pm >> t3
     t0 >> t_dummy
 
 
