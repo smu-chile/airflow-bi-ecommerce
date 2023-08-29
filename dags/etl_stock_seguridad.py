@@ -336,11 +336,17 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #################
     
     df_matriz = matriz_ss()
-
+    print(df_matriz)
+    print("\n")
+    print(df_final)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    
+    print("\n")
+    print(df_final)
+
 
     ##############
     #cargar datos#
