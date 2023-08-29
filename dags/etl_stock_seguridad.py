@@ -315,7 +315,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
-    dia = (dia + 2) % 7
+    dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
     df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
@@ -343,7 +343,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-    
+
     print("\n")
     print(df_final)
 
