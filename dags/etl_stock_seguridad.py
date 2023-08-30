@@ -443,6 +443,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
     import requests
     import pandas as pd
     import datetime
+    import json
     exec_date = ds.replace("-", "/")
     prefix = f"stock_seguridad/{exec_date}/"
     print(prefix)
@@ -488,21 +489,25 @@ def carga_stock_seguridad_janis_am(ds,ti):
     }
     
     payload=[]
-    for i in range(len(df.index)):
-        print(i)
+    for i in df.index:
         material = df.ref_id[i].split("-")[0]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
-        row = {"IdSku": material, "Quantity": 0, "Store": id_tienda,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
-        print(row)
+        row = {"IdSku": material,
+                "Quantity": 0,
+                "Store": id_tienda,
+                "MinStockDiff": True,
+                "MinStock": stock_seguridad,
+                "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
-            payload = str(payload).replace("'", '"')
-            response = requests.request("POST", url, headers=headers, data=payload)
+            payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+            response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
     payload = str(payload).replace("'", '"')
-    response = requests.request("POST", url, headers=headers, data=payload)
+    payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+    response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
 
     return
