@@ -541,13 +541,18 @@ with DAG(
         python_callable = carga_stock_seguridad_1917_janis_pm
     )
 
-    t3 = PythonOperator(
-        task_id = "eliminar_stock_seguridad_reg",
+    t3_am = PythonOperator(
+        task_id = "eliminar_stock_seguridad_reg_am",
         python_callable = eliminar_stock_seguridad_reg
     )
 
-    t0 >> t1_am >> t2_am >>t3
-    t0 >> t1_pm >> t2_pm >>t3
+    t3_pm = PythonOperator(
+        task_id = "eliminar_stock_seguridad_reg_pm",
+        python_callable = eliminar_stock_seguridad_reg
+    )
+
+    t0 >> t1_am >> t2_am >> t3_am
+    t0 >> t1_pm >> t2_pm >> t3_pm
     t0 >> t_dummy
 
 

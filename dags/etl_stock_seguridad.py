@@ -84,18 +84,15 @@ def promociones(ds):
                             id_mecanica
                             from ecommdata.workflow_promociones 
                             where fecha_inicio_de_promocion <= '"""+ds+"""'::date
-                            and fecha_fin_de_promocion >= '"""+ds+"""'::date) as _t
+                            and fecha_fin_de_promocion >= '"""+ds+"""'::date
+                            and id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
+                            and id_evento not in (551)) as _t
                             group by
                             _t.material,
                             _t.umv,
                             _t.fecha_inicio_de_promocion,
                             _t.fecha_fin_de_promocion,
-                            _t.id_mecanica) as df
-                        group by
-                        df.ref_id,
-                        df.fecha_inicio_de_promocion,
-                        df.fecha_fin_de_promocion,
-                        df.id_mecanica"""
+                            _t.id_mecanica) as df"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -175,8 +172,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_promociones = promociones(ds)
     df_promociones=df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
-
-    print("se ha terminado de extraer data \n")
+    print(df_promociones)
+    
+    print("\nse ha terminado de extraer data \n")
 
     #########################
     #transformacion de datos#
@@ -191,7 +189,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
-    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]/2
+    print(df_stock_seguridad["cantidad"])
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
+    print(df_stock_seguridad["cantidad"])
 
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
@@ -245,7 +245,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_seguridad/{exec_date}/stock_seguridad_am{date_aux}.csv"
+    filename = f"stock_seguridad/{exec_date}/stock_seguridad_am_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -294,6 +294,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
+    print(df_stock_seguridad["cantidad"])
 
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
@@ -305,7 +306,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
-    df_stock_seguridad_aux
+    print(df_stock_seguridad_aux)
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
@@ -314,7 +315,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
-    dia = (dia + 2) % 7
+    dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
     df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
@@ -335,11 +336,17 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #################
     
     df_matriz = matriz_ss()
-
+    print(df_matriz)
+    print("\n")
+    print(df_final)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+
+    print("\n")
+    print(df_final)
+
 
     ##############
     #cargar datos#
@@ -347,7 +354,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_seguridad/{exec_date}/stock_seguridad_pm{date_aux}.csv"
+    filename = f"stock_seguridad/{exec_date}/stock_seguridad_pm_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -380,6 +387,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
     df = pd.read_csv(s_stock_object.get()["Body"])
+    print(df)
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
