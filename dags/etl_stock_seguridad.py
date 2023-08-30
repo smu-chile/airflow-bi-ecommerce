@@ -436,7 +436,6 @@ def carga_stock_seguridad_janis_pm(ds,ti):
             response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
-    payload = str(payload).replace("'", '"')
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
     response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
@@ -509,7 +508,6 @@ def carga_stock_seguridad_janis_am(ds,ti):
             response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
-    payload = str(payload).replace("'", '"')
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
     response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
