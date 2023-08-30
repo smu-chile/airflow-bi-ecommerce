@@ -9,7 +9,7 @@ def get_tickets_updated_last_4_hours(desde, hasta, nombre_formato, numero_pagina
         else:
             return ''
 
-    query = f'query = `type:ticket updated>{desde}Z updated<={hasta}Z brand_id:${brand_id(nombre_formato)} custom_field_360053290513:*'
+    query = f'type:ticket updated>{desde}Z updated<={hasta}Z brand_id:${brand_id(nombre_formato)} custom_field_360053290513:*'
     url = f'{base_url}search.json?page={numero_pagina}&query={query}'
 
     data = {}
