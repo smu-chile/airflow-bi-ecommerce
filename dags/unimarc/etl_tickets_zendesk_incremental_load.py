@@ -5,6 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime
+import pendulum
 
 def _load_ticket_zendesk_to_s3(ts, ds):
     from utils.getTicketFields import get_ticket_fields
@@ -357,7 +358,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla tickets desde Zendesk hasta Workspace.",
     schedule_interval="30 7 * * *",
-    start_date=datetime(2023, 8, 1),
+    start_date=pendulum.datetime(2023, 8, 1, tz="America/Santiago"),
     catchup=False,
     tags=["Zendesk", "Unimarc", "analytics_and_growth"],
 ) as dag:
