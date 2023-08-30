@@ -423,7 +423,10 @@ def carga_stock_seguridad_janis_pm(ds,ti):
         material = df.ref_id[i].split("-")[0]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
-        row = {"IdSku": material, "Quantity": 0, "Store": id_tienda,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
+        row = {"IdSku": material,
+                "Quantity": 0, "Store": id_tienda,
+                "MinStockDiff": true,
+                "MinStock": stock_seguridad, "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
             payload = str(payload).replace("'", '"')
