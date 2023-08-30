@@ -353,7 +353,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_tickets_zendesk_incremental_load',
+    'etl_tickets_zendesk_incremental_load_from_api',
     default_args=default_args,
     description="Extracción y carga de tabla tickets desde Zendesk hasta Workspace.",
     schedule_interval="30 7 * * *",
