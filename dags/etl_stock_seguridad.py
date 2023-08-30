@@ -374,6 +374,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     import requests
     import pandas as pd
     import datetime
+    import json
     exec_date = ds.replace("-", "/")
     prefix = f"stock_seguridad/{exec_date}/"
     print(prefix)
@@ -424,17 +425,19 @@ def carga_stock_seguridad_janis_pm(ds,ti):
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
-                "Quantity": 0, "Store": id_tienda,
-                "MinStockDiff": 'true',
-                "MinStock": stock_seguridad, "Type": 2}
+                "Quantity": 0,
+                "Store": id_tienda,
+                "MinStockDiff": True,
+                "MinStock": stock_seguridad,
+                "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
-            payload = str(payload).replace("'", '"')
-            response = requests.request("POST", url, headers=headers, data=payload)
+            payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+            response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
-    payload = str(payload).replace("'", '"')
-    response = requests.request("POST", url, headers=headers, data=payload)
+    payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+    response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
 
     return
@@ -505,7 +508,6 @@ def carga_stock_seguridad_janis_am(ds,ti):
             response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
-    payload = str(payload).replace("'", '"')
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
     response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
