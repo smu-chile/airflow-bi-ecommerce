@@ -425,7 +425,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
                 "Quantity": 0, "Store": id_tienda,
-                "MinStockDiff": true,
+                "MinStockDiff": 'true',
                 "MinStock": stock_seguridad, "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
