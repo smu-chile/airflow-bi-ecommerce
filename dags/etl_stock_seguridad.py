@@ -29,17 +29,20 @@ def _check_time(ts):
 
 def stock(ds):
     stock_tiendas_query = """select id_tienda,
-                   glosa_tienda,
-                   ref_id,
-                   stock_janis,
-                   stock_seguridad_janis,
-                   date_part('dow',fecha) as dia,
-                   date_part('week',fecha) as semana
-                   from ecommdata.stock
-                   where fecha = '"""+ds+"""'::date
-                   and surtido_ecommerce is true
-                   and stock_infinito_janis is not true
-                   and id_tienda not in ('1917','0917')"""
+                            glosa_tienda,
+                            ref_id,
+                            stock_janis,
+                            stock_seguridad_janis,
+                            date_part('dow',fecha) as dia,
+                            date_part('week',fecha) as semana
+                            from ecommdata.stock s
+                            left join ecommdata.tiendas t
+                            on t.id = s.id_tienda
+                            where fecha = current_date--'"""+ds+"""'::date
+                            and surtido_ecommerce is true
+                            and stock_infinito_janis is not true
+                            and id_tienda not in ('1917','0917')
+                            and t.status = 1"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -416,13 +419,14 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     }
     
     payload=[]
-    for i in range(len(df.index)):
-        print(i)
+    for i in df.index:
         material = df.ref_id[i].split("-")[0]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
-        row = {"IdSku": material, "Quantity": 0, "Store": id_tienda,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
-        print(row)
+        row = {"IdSku": material,
+                "Quantity": 0, "Store": id_tienda,
+                "MinStockDiff": 'true',
+                "MinStock": stock_seguridad, "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
             payload = str(payload).replace("'", '"')
