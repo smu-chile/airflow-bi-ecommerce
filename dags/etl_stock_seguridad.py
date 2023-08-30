@@ -29,17 +29,20 @@ def _check_time(ts):
 
 def stock(ds):
     stock_tiendas_query = """select id_tienda,
-                   glosa_tienda,
-                   ref_id,
-                   stock_janis,
-                   stock_seguridad_janis,
-                   date_part('dow',fecha) as dia,
-                   date_part('week',fecha) as semana
-                   from ecommdata.stock
-                   where fecha = '"""+ds+"""'::date
-                   and surtido_ecommerce is true
-                   and stock_infinito_janis is not true
-                   and id_tienda not in ('1917','0917')"""
+                            glosa_tienda,
+                            ref_id,
+                            stock_janis,
+                            stock_seguridad_janis,
+                            date_part('dow',fecha) as dia,
+                            date_part('week',fecha) as semana
+                            from ecommdata.stock s
+                            left join ecommdata.tiendas t
+                            on t.id = s.id_tienda
+                            where fecha = current_date--'"""+ds+"""'::date
+                            and surtido_ecommerce is true
+                            and stock_infinito_janis is not true
+                            and id_tienda not in ('1917','0917')
+                            and t.status = 1"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
