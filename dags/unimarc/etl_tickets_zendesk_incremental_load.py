@@ -27,8 +27,8 @@ def _load_ticket_zendesk_to_s3(ts, ds):
     import io
     from datetime import timedelta
     
-    url = variable.get("ZENDESK_URL")
-    API_KEY = variable.get("ZENDESK_API_KEY")
+    url = Variable.get("ZENDESK_URL")
+    API_KEY = Variable.get("ZENDESK_API_KEY")
     tickets_to_print = []
     fields = get_ticket_fields(url, API_KEY)
     formulario_tipificacion = get_ticket_form_tipificacion(url, API_KEY)
