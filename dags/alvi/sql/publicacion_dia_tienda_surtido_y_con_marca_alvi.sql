@@ -3,7 +3,6 @@ SELECT pc.fecha_hora,
     pc.id_tienda,
     pc.c1,
     pc.c2,
-    pc.c3,
     pc.marca,
     count(1) AS total_surtido,
     sum(
@@ -44,4 +43,4 @@ SELECT pc.fecha_hora,
 FROM ecommdata_alvi.publicacion_catalogo pc
 WHERE pc.surtido_ecommerce IS TRUE
 and pc.fecha_hora = '{{ts}}'::timestamp
-GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.marca;
+GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.marca;
