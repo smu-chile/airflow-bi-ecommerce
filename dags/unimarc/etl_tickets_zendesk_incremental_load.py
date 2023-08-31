@@ -209,6 +209,8 @@ def _save_tickets_zendesk_in_postgres(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
 
+    df['monto_cupon'] = pd.to_numeric(df['monto_cupon'], errors='coerce')
+
     df = df.astype({
         'id_ticket': "int",
         'estado': "string",
