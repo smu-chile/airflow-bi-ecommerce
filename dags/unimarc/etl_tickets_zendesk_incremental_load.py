@@ -329,9 +329,9 @@ def _save_tickets_zendesk_in_postgres(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO analytics_and_growth.tickets_zendesk (id,"""+columns_query+""") 
+        INSERT INTO analytics_and_growth.tickets_zendesk (id_ticket,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id)
+        ON CONFLICT (id_ticket)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""")
     """
     print(incremental_query)
