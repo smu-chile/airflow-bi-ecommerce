@@ -260,7 +260,6 @@ def _save_tickets_zendesk_in_postgres(ti):
     }, errors="ignore")
 
     columns = [
-        'id_ticket'
         'estado',
         'fecha_actualizacion',
         'fecha_creacion',
