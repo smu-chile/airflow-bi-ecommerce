@@ -5,6 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime
+import pendulum
 
 def _load_ticket_zendesk_to_s3(ts, ds):
     from utils.getTicketFields import get_ticket_fields
@@ -27,8 +28,8 @@ def _load_ticket_zendesk_to_s3(ts, ds):
     import io
     from datetime import timedelta
     
-    url = variable.get("ZENDESK_URL")
-    API_KEY = variable.get("ZENDESK_API_KEY")
+    url = Variable.get("ZENDESK_URL")
+    API_KEY = Variable.get("ZENDESK_API_KEY")
     tickets_to_print = []
     fields = get_ticket_fields(url, API_KEY)
     formulario_tipificacion = get_ticket_form_tipificacion(url, API_KEY)
@@ -259,7 +260,6 @@ def _save_tickets_zendesk_in_postgres(ti):
     }, errors="ignore")
 
     columns = [
-        'id_ticket'
         'estado',
         'fecha_actualizacion',
         'fecha_creacion',
@@ -328,9 +328,9 @@ def _save_tickets_zendesk_in_postgres(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO analytics_and_growth.tickets_zendesk (id,"""+columns_query+""") 
+        INSERT INTO analytics_and_growth.tickets_zendesk (id_ticket,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id)
+        ON CONFLICT (id_ticket)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""")
     """
     print(incremental_query)
@@ -357,7 +357,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla tickets desde Zendesk hasta Workspace.",
     schedule_interval="30 7 * * *",
-    start_date=datetime(2023, 8, 1),
+    start_date=pendulum.datetime(2023, 8, 1, tz="America/Santiago"),
     catchup=False,
     tags=["Zendesk", "Unimarc", "analytics_and_growth"],
 ) as dag:
