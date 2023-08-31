@@ -152,7 +152,7 @@ def _load_ticket_zendesk_to_s3(ts, ds):
 
             info_fusion = {
                 'id_ticket': id,
-                'id_ticket_fusionado': ','.join({str(e['id_ticket_fusionado']) for e in audits_merged if e is not None}),
+                'id_ticket_fusionado': ','.join({str(e['id_ticket_fusionado']) for e in audits_merged if e['id_ticket_fusionado'] is not None}),
                 'ids_ticket_hijos': ','.join({str(i) for e in audits_merged for i in e['ids_ticket_hijos']})
             }
             ticket_json['id_ticket_fusionado'] = info_fusion['id_ticket_fusionado']
