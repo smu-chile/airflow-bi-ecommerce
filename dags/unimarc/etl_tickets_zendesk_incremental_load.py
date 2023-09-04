@@ -36,7 +36,7 @@ def _load_ticket_zendesk_to_s3(ts, ds):
 
     helpers = helpers_to_get_tipologias(formulario_tipificacion, fields)
 
-    ts_from = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(days=-1))
+    ts_from = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=-1))
     ts_from = ts_from.strftime("%Y-%m-%dT%H:%M:%S")
     ts_until = datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')
     ts_until = ts_until.strftime("%Y-%m-%dT%H:%M:%S")
