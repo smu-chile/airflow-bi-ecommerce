@@ -167,7 +167,7 @@ def _load_ticket_zendesk_to_s3(ts, ds):
     df = pd.DataFrame(tickets_to_print)
 
     exec_date = ds.replace("-", "/")
-    date_aux = ds.replace("-", "_")
+    date_aux = ts.replace("-", "_".replace("T", "").replace(":", ""))
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -358,7 +358,7 @@ with DAG(
     'etl_tickets_zendesk_incremental_load_from_api',
     default_args=default_args,
     description="Extracción y carga de tabla tickets desde Zendesk hasta Workspace.",
-    schedule_interval="30 7 * * *",
+    schedule_interval="0 * * * *",
     start_date=pendulum.datetime(2023, 8, 1, tz="America/Santiago"),
     catchup=False,
     tags=["Zendesk", "Unimarc", "analytics_and_growth"],
