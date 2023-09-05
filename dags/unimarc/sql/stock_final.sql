@@ -24,7 +24,7 @@ select
 , svu.cantidad_ilimitada as stock_infinito_vtex
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
-, '{{ts}}'::timestamp as ultima_actualizacion
+, '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' as ultima_actualizacion
 , l.material is not null and l.excluido is false as surtido_ecommerce
 , case
 	when li.material is null then false
@@ -41,5 +41,5 @@ left join ecommdata.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.
 left join ecommdata.lista_infaltables li on p.material = li.material
 where t.status = 1;
 DELETE from ecommdata.stock
-WHERE ultima_actualizacion < '{{ts}}'::timestamp AND fecha = '{{ds}}'::date;
+WHERE ultima_actualizacion < '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' AND fecha = '{{ds}}'::date;
 COMMIT;

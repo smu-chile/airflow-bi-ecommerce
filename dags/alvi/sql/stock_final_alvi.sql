@@ -23,7 +23,7 @@ select
 , svu.cantidad_ilimitada as stock_infinito_vtex
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
-, '{{ts}}'::timestamp as ultima_actualizacion
+, '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' as ultima_actualizacion
 , l.material is not null and l.excluido is false as surtido_ecommerce
 from staging.stock_vtex_alvi svu
 left join ecommdata_alvi.bodegas b on svu.id_warehouse = b.id 
@@ -35,5 +35,5 @@ left join ecommdata_alvi.categorias c on p.id_categoria = c.id
 left join ecommdata_alvi.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
 where t.status = 1;
 DELETE from ecommdata_alvi.stock
-WHERE ultima_actualizacion < '{{ts}}'::timestamp AND fecha = '{{ds}}'::date;
+WHERE ultima_actualizacion < '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' AND fecha = '{{ds}}'::date;
 COMMIT;
