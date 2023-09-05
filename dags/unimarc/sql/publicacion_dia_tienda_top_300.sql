@@ -43,5 +43,5 @@ SELECT pc.fecha_hora,
     pc.mfc
 FROM ecommdata.publicacion_catalogo pc
 left join catalogo.productos_excluidos pe on pc.ref_id = pe.material||'-'||pe.umv
-WHERE ((pc.surtido_ecommerce IS TRUE or pc.mfc is TRUE) and pc.top_300 is TRUE and pc.fecha_hora = '{{ts}}'::timestamp) and (pe.material is null)
+WHERE ((pc.surtido_ecommerce IS TRUE or pc.mfc is TRUE) and pc.top_300 is TRUE and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours') and (pe.material is null)
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.mfc;

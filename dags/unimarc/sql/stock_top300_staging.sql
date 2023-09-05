@@ -23,7 +23,7 @@ select
 , svu.cantidad_ilimitada as stock_infinito_vtex
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
-, '{{ts}}'::timestamp as ultima_actualizacion
+, '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'::timestamp as ultima_actualizacion
 , l.material is not null as surtido_ecommerce
 from staging.stock_vtex_unimarc_2 svu
 left join ecommdata.bodegas b on svu.id_warehouse = b.id 
