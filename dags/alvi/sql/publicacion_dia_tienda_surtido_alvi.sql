@@ -41,5 +41,5 @@ SELECT pc.fecha_hora,
         END) AS con_tienda
 FROM ecommdata_alvi.publicacion_catalogo pc
 WHERE pc.surtido_ecommerce IS TRUE 
-and pc.fecha_hora = '{{ts}}'::timestamp
+and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2;
