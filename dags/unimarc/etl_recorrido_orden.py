@@ -87,9 +87,9 @@ def _calculate_routes(ds):
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    key = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = "postgresql+psycopg2://"+username+":"+key+"@"+host+":5432/"+database
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
