@@ -27,8 +27,8 @@ def _calculate_routes(ds):
                         GROUP BY d.id_orden) d1 ON oj.id = d1.id_orden
                 left join ecommdata.despachos d2 on d1.id = d2.id 
                 left join ecommdata.orden_cambios_de_estado ocde on ocde.id_orden = oj.janis_id
-                where oj.fecha_facturacion  >= '"""+ds+"""'::date -1
-                and oj.fecha_facturacion  < '"""+ds+"""'::date
+                where oj.fecha_facturacion  >= '2023-08-23'::date -1
+                and oj.fecha_facturacion  < '2023-08-23'::date
                 and ocde.estado_nuevo = 70
                 and d2.tipo_despacho != 'pickup'"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn") #cambiar antes de pasar a prod
