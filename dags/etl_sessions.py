@@ -124,7 +124,7 @@ def _load_sessions_table(ti):
     print(f"Number of records extracted: {len(df.index)}")
 
     columns = [
-        "fecha"
+        "fecha",
         "sesiones_app_unimarc",
         "sesiones_web_unimarc",
         "sesiones_app_alvi",
