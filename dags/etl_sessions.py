@@ -138,6 +138,8 @@ def _load_sessions_table(ti):
         "usuarios_web_alvi"
     ]
 
+    df = df[columns]
+
     column_types = {
         "fecha":"string",
         "sesiones_app_unimarc":"int",
