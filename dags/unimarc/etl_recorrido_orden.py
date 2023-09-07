@@ -53,6 +53,7 @@ def _calculate_routes(ds):
         tod = df_location.iloc[i]['fecha_despacho'] + timedelta(days=7)
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start + "&departure_time="+ unixtime +"&traffic_model=best_guess"+ "&key=" + key)
+        print(r.status_code)
         print(r.json())
         cliente_geo = r.json()["destination_addresses"]
         tiempo_estimado = r.json()["rows"][0]["elements"][0]["duration_in_traffic"]["text"]
