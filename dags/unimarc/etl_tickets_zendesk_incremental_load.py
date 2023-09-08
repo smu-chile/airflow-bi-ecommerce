@@ -210,8 +210,8 @@ def _save_tickets_zendesk_in_postgres(ti):
     print(f"Number of records extracted: {len(df.index)}")
 
     df['monto_cupon'] = pd.to_numeric(df['monto_cupon'], errors='coerce')
-    df['id_tienda'] = df['id_tienda'].astype('int', errors='ignore')
-    df['id_tienda'][df['id_tienda'].str.isdecimal()] = df['id_tienda'][df['id_tienda'].str.isdecimal()].str.zfill(4)
+    df['id_tienda'] = df['id_tienda'].replace('.0','')
+    df['id_tienda'][df['id_tienda'].isdecimal()] = df['id_tienda'][df['id_tienda'].isdecimal()].zfill(4)
 
     df = df.astype({
         'id_ticket': "int",
