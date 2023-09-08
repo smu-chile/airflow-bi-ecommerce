@@ -17,27 +17,42 @@ def _calculate_routes(ds):
     import requests
     import sqlalchemy
     import io
-    query = """select oj.id as id_orden, t.latitud as lat_tienda, t.longitud as lng_tienda,
-                d2.lat as lat_cliente,d2.lng as lng_cliente, ocde.fecha_creacion as fecha_despacho
-                from ecommdata.ordenes_janis oj
-                left join ecommdata.tiendas t on oj.id_tienda_janis=t.id_janis
-                LEFT JOIN ( SELECT max(d.id) AS id,
-                            d.id_orden
-                        FROM ecommdata.despachos d
-                        GROUP BY d.id_orden) d1 ON oj.id = d1.id_orden
-                left join ecommdata.despachos d2 on d1.id = d2.id 
-                left join ecommdata.orden_cambios_de_estado ocde on ocde.id_orden = oj.janis_id
-                where oj.fecha_facturacion  >= '"""+ds+"""'::date -1
-                and oj.fecha_facturacion  < '"""+ds+"""'::date
-                and ocde.estado_nuevo = 70
-                and d2.tipo_despacho != 'pickup'"""
+    query = """SELECT
+                oj.id AS id_orden,
+                t.latitud AS lat_tienda,
+                t.longitud AS lng_tienda,
+                d2.lat AS lat_cliente,
+                d2.lng AS lng_cliente,
+                ocde.fecha_creacion AS fecha_despacho,
+                CASE
+                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion) < EXTRACT(DOW FROM NOW()) THEN
+                        DATE_TRUNC('week', NOW()) + INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'
+                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion) = EXTRACT(DOW FROM NOW()) AND EXTRACT(HOUR FROM ocde.fecha_creacion) <= EXTRACT(HOUR FROM NOW()) THEN
+                        NOW() + (EXTRACT(HOUR FROM ocde.fecha_creacion) - EXTRACT(HOUR FROM NOW())) * INTERVAL '1 hour' + (EXTRACT(MINUTE FROM ocde.fecha_creacion) - EXTRACT(MINUTE FROM NOW())) * INTERVAL '1 minute'
+                    ELSE
+                        DATE_TRUNC('week', NOW()) + EXTRACT(DOW FROM ocde.fecha_creacion) * INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'
+                END AS next_timestamp
+            FROM ecommdata.ordenes_janis oj
+            LEFT JOIN ecommdata.tiendas t ON oj.id_tienda_janis = t.id_janis
+            LEFT JOIN (
+                SELECT MAX(d.id) AS id,
+                    d.id_orden
+                FROM ecommdata.despachos d
+                GROUP BY d.id_orden
+            ) d1 ON oj.id = d1.id_orden
+            LEFT JOIN ecommdata.despachos d2 ON d1.id = d2.id
+            LEFT JOIN ecommdata.orden_cambios_de_estado ocde ON ocde.id_orden = oj.janis_id
+            WHERE oj.fecha_facturacion >= '2023-08-23'::date - 1
+                AND oj.fecha_facturacion < '2023-08-23'::date
+                AND ocde.estado_nuevo = 70
+                AND d2.tipo_despacho != 'pickup';"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn") #cambiar antes de pasar a prod
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
     df_location=pd.DataFrame(results)
-    df_location.columns = ["id_orden","lat_tienda","lng_tienda","lat_cliente","lng_cliente","fecha_despacho"]
+    df_location.columns = ["id_orden","lat_tienda","lng_tienda","lat_cliente","lng_cliente","fecha_despacho","next_timestamp"]
     cursor.close()
     pg_connection.close()
 
@@ -50,9 +65,11 @@ def _calculate_routes(ds):
     for i in range(len(df_location)):
         start = str(df_location.iloc[i]['lat_tienda'])+" , "+str(df_location.iloc[i]['lng_tienda'])
         end = str(df_location.iloc[i]['lat_cliente'])+" , "+str(df_location.iloc[i]['lng_cliente'])
-        tod = df_location.iloc[i]['fecha_despacho'] + timedelta(days=7)
+        tod = df_location.iloc[i]['next_timestamp']
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start + "&departure_time="+ unixtime +"&traffic_model=best_guess"+ "&key=" + key)
+        print(r.status_code)
+        print(r.json())
         cliente_geo = r.json()["destination_addresses"]
         tiempo_estimado = r.json()["rows"][0]["elements"][0]["duration_in_traffic"]["text"]
         tiempo_estimado_seg = r.json()["rows"][0]["elements"][0]["duration_in_traffic"]["value"]
