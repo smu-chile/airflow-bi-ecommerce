@@ -69,8 +69,7 @@ def _calculate_routes(ds):
         end = str(df_location.iloc[i]['lat_cliente'])+","+str(df_location.iloc[i]['lng_cliente'])
         print(end)
         tod = df_location.iloc[i]['next_timestamp']
-        unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
-        unixtime = unixtime + 604800
+        unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()) + 604800)
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start +"&departure_time="+ unixtime +"&traffic_model=best_guess&key=" + key)
         print(r.status_code)
         print(r.json())
@@ -82,7 +81,7 @@ def _calculate_routes(ds):
         aux_list.append([df_location.iloc[i]['id_orden'],cliente_geo,tiempo_estimado,tiempo_estimado_seg,distancia,distancia_metros])
         aux_list_s3.append([df_location.iloc[i]['id_orden'],r.json()])
     df = pd.DataFrame(aux_list, columns = ['id_orden','cliente_geo','tiempo_estimado','tiempo_estimado_seg','distancia','distancia_metros'])
-    df_s3 = pd.DataFrame(aux_list_s3, columns_s3=['id_orden','response'])
+    df_s3 = pd.DataFrame(aux_list_s3, columns=['id_orden','response'])
     
     
     exec_date = ds.replace("-", "/")
@@ -91,7 +90,6 @@ def _calculate_routes(ds):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-    
 
     column_types = {
         "id_orden": "int",
