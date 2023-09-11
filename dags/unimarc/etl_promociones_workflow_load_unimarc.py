@@ -46,6 +46,25 @@ def _load_pdv_wp_tables(ds):
 
     return
 
+def _load_promotions_from_s3(ts):
+    import pandas as pd
+
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    orders_file = f"carga_promociones/{curr_datetime}/carga_promociones{curr_datetime}.csv"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+orders_file)
+    if not s3_hook.check_for_key(orders_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % orders_file)
+
+    orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(orders_object.get()["Body"])
+    print(f"Number of records found: {len(df.index)}")
+
+    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
