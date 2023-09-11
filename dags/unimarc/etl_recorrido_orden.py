@@ -71,17 +71,27 @@ def _calculate_routes(ds):
         tod = df_location.iloc[i]['next_timestamp']
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()) + 604800)
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start +"&departure_time="+ unixtime +"&traffic_model=best_guess&key=" + key)
-        print(r.status_code)
-        print(r.json())
-        cliente_geo = r.json()["destination_addresses"]
-        tiempo_estimado = r.json()["rows"][0]["elements"][0]["duration_in_traffic"]["text"]
-        tiempo_estimado_seg = r.json()["rows"][0]["elements"][0]["duration_in_traffic"]["value"]
-        distancia = r.json()["rows"][0]["elements"][0]["distance"]["text"]
-        distancia_metros = r.json()["rows"][0]["elements"][0]["distance"]["value"]
-        aux_list.append([df_location.iloc[i]['id_orden'],cliente_geo,tiempo_estimado,tiempo_estimado_seg,distancia,distancia_metros])
-        aux_list_s3.append([df_location.iloc[i]['id_orden'],r.json()])
-    df = pd.DataFrame(aux_list, columns = ['id_orden','cliente_geo','tiempo_estimado','tiempo_estimado_seg','distancia','distancia_metros'])
-    df_s3 = pd.DataFrame(aux_list_s3, columns=['id_orden','response'])
+        
+        if r.status_code == 200:
+            response_json = r.json()
+            status = response_json.get("status")
+            
+            if status == "OK":
+                cliente_geo = response_json["destination_addresses"]
+                tiempo_estimado = response_json["rows"][0]["elements"][0]["duration_in_traffic"]["text"]
+                tiempo_estimado_seg = response_json["rows"][0]["elements"][0]["duration_in_traffic"]["value"]
+                distancia = response_json["rows"][0]["elements"][0]["distance"]["text"]
+                distancia_metros = response_json["rows"][0]["elements"][0]["distance"]["value"]
+                aux_list.append([df_location.iloc[i]['id_orden'], cliente_geo, tiempo_estimado, tiempo_estimado_seg, distancia, distancia_metros])
+            else:
+                print(f"Skipping order {df_location.iloc[i]['id_orden']} due to status: {status}")
+        else:
+            print(f"Skipping order {df_location.iloc[i]['id_orden']} due to status code: {r.status_code}")
+
+        aux_list_s3.append([df_location.iloc[i]['id_orden'], r.json()])
+
+    df = pd.DataFrame(aux_list, columns=['id_orden', 'cliente_geo', 'tiempo_estimado', 'tiempo_estimado_seg', 'distancia', 'distancia_metros'])
+    df_s3 = pd.DataFrame(aux_list_s3, columns=['id_orden', 'response'])
     
     
     exec_date = ds.replace("-", "/")
