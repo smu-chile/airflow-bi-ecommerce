@@ -17,6 +17,7 @@ def _calculate_routes(ds):
     import requests
     import sqlalchemy
     import io
+    import pytz
     query = """SELECT
                 oj.id AS id_orden,
                 t.latitud AS lat_tienda,
@@ -66,6 +67,7 @@ def _calculate_routes(ds):
         start = str(df_location.iloc[i]['lat_tienda'])+" , "+str(df_location.iloc[i]['lng_tienda'])
         end = str(df_location.iloc[i]['lat_cliente'])+" , "+str(df_location.iloc[i]['lng_cliente'])
         tod = df_location.iloc[i]['next_timestamp']
+        tod = pytz.utc.localize(tod)  # Set timezone
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start + "&departure_time="+ unixtime +"&traffic_model=best_guess"+ "&key=" + key)
         print(r.status_code)
