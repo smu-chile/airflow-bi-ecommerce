@@ -42,8 +42,8 @@ def _calculate_routes(ds):
             ) d1 ON oj.id = d1.id_orden
             LEFT JOIN ecommdata.despachos d2 ON d1.id = d2.id
             LEFT JOIN ecommdata.orden_cambios_de_estado ocde ON ocde.id_orden = oj.janis_id
-            WHERE oj.fecha_facturacion >= '2023-08-23'::date - 1
-                AND oj.fecha_facturacion < '2023-08-23'::date
+            WHERE oj.fecha_facturacion >= '"""+ds+"""'::date - 1
+                AND oj.fecha_facturacion < '"""+ds+"""'::date
                 AND ocde.estado_nuevo = 70
                 AND d2.tipo_despacho != 'pickup';"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn") #cambiar antes de pasar a prod
