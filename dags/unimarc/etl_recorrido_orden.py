@@ -54,6 +54,7 @@ def _calculate_routes(ds):
     df_location=pd.DataFrame(results)
     df_location.columns = ["id_orden","lat_tienda","lng_tienda","lat_cliente","lng_cliente","fecha_despacho","next_timestamp"]
     cursor.close()
+    print(df_location.info())
     pg_connection.close()
 
     url_distance = Variable.get("ROUTES_API")
@@ -64,12 +65,14 @@ def _calculate_routes(ds):
 
     for i in range(len(df_location)):
         start = str(df_location.iloc[i]['lat_tienda'])+" , "+str(df_location.iloc[i]['lng_tienda'])
+        print(start)
         end = str(df_location.iloc[i]['lat_cliente'])+" , "+str(df_location.iloc[i]['lng_cliente'])
+        print(end)
         tod = df_location.iloc[i]['next_timestamp']
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
+        print(unixtime)
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start +"&key=" + key)
         print(r.status_code)
-
         print(r.json())
         cliente_geo = r.json()["destination_addresses"]
         tiempo_estimado = r.json()["rows"][0]["elements"][0]["duration"]["text"]
