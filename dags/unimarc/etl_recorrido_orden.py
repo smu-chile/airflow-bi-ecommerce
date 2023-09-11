@@ -17,7 +17,6 @@ def _calculate_routes(ds):
     import requests
     import sqlalchemy
     import io
-    import pytz
     query = """SELECT
                 oj.id AS id_orden,
                 t.latitud AS lat_tienda,
@@ -26,12 +25,12 @@ def _calculate_routes(ds):
                 d2.lng AS lng_cliente,
                 ocde.fecha_creacion AS fecha_despacho,
                 CASE
-                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion) < EXTRACT(DOW FROM NOW()) THEN
-                        DATE_TRUNC('week', NOW()) + INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'
-                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion) = EXTRACT(DOW FROM NOW()) AND EXTRACT(HOUR FROM ocde.fecha_creacion) <= EXTRACT(HOUR FROM NOW()) THEN
-                        NOW() + (EXTRACT(HOUR FROM ocde.fecha_creacion) - EXTRACT(HOUR FROM NOW())) * INTERVAL '1 hour' + (EXTRACT(MINUTE FROM ocde.fecha_creacion) - EXTRACT(MINUTE FROM NOW())) * INTERVAL '1 minute'
+                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion AT TIME ZONE 'UTC') < EXTRACT(DOW FROM NOW() AT TIME ZONE 'UTC') THEN
+                        (DATE_TRUNC('week', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day')::timestamp + (EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute')::interval
+                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion AT TIME ZONE 'UTC') = EXTRACT(DOW FROM NOW() AT TIME ZONE 'UTC') AND EXTRACT(HOUR FROM ocde.fecha_creacion) <= EXTRACT(HOUR FROM NOW() AT TIME ZONE 'UTC') THEN
+                        (NOW() AT TIME ZONE 'UTC' + ((EXTRACT(HOUR FROM ocde.fecha_creacion) - EXTRACT(HOUR FROM NOW() AT TIME ZONE 'UTC')) * INTERVAL '1 hour' + (EXTRACT(MINUTE FROM ocde.fecha_creacion) - EXTRACT(MINUTE FROM NOW() AT TIME ZONE 'UTC')) * INTERVAL '1 minute'))::timestamp
                     ELSE
-                        DATE_TRUNC('week', NOW()) + EXTRACT(DOW FROM ocde.fecha_creacion) * INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'
+                        (DATE_TRUNC('week', NOW() AT TIME ZONE 'UTC') + (EXTRACT(DOW FROM ocde.fecha_creacion AT TIME ZONE 'UTC') * INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'))::timestamp
                 END AS next_timestamp
             FROM ecommdata.ordenes_janis oj
             LEFT JOIN ecommdata.tiendas t ON oj.id_tienda_janis = t.id_janis
@@ -67,7 +66,6 @@ def _calculate_routes(ds):
         start = str(df_location.iloc[i]['lat_tienda'])+" , "+str(df_location.iloc[i]['lng_tienda'])
         end = str(df_location.iloc[i]['lat_cliente'])+" , "+str(df_location.iloc[i]['lng_cliente'])
         tod = df_location.iloc[i]['next_timestamp']
-        tod = pytz.utc.localize(tod)  # Set timezone
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start + "&departure_time="+ unixtime +"&traffic_model=best_guess"+ "&key=" + key)
         print(r.status_code)
