@@ -7,7 +7,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 import pendulum
 
-def _load_pdv_wp_tables(ds):
+def _load_scheduled_wp_tables_to_s3(ds):
     import pandas as pd
     import io
     wp_query = """
@@ -44,24 +44,29 @@ def _load_pdv_wp_tables(ds):
                 encrypt=False)
     print(f"File load on S3: {prefix}")
 
-    return
+    return filename
 
-def _load_promotions_from_s3(ts):
+def _load_promotions_from_s3(ti):
     import pandas as pd
 
-    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    orders_file = f"carga_promociones/{curr_datetime}/carga_promociones{curr_datetime}.csv"
+    filename = ti.xcom_pull(key="return_value", task_ids=["_load_scheduled_wp_tables_to_s3"])[0]
+
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+orders_file)
-    if not s3_hook.check_for_key(orders_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % orders_file)
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
 
-    orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
+    promotions_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(orders_object.get()["Body"])
-    print(f"Number of records found: {len(df.index)}")
+    df = pd.read_csv(promotions_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
 
     return
 
@@ -86,8 +91,13 @@ with DAG(
     calculo distancia y tiempo ordenes dia anterior
     """ 
     t0 = PythonOperator(
-        task_id = "_load_pdv_wp_tables",
-        python_callable = _load_pdv_wp_tables,
+        task_id = "_load_scheduled_wp_tables_to_s3",
+        python_callable = _load_scheduled_wp_tables_to_s3,
     )
 
-    t0
+    t1 = PythonOperator(
+        task_id = "_load_promotions_from_s3",
+        python_callable = _load_promotions_from_s3,
+    )
+
+    t0 >> t1
