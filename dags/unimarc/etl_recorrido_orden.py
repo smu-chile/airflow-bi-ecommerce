@@ -64,14 +64,15 @@ def _calculate_routes(ds):
     aux_list_s3 = []
 
     for i in range(len(df_location)):
-        start = str(df_location.iloc[i]['lat_tienda'])+" , "+str(df_location.iloc[i]['lng_tienda'])
+        start = str(df_location.iloc[i]['lat_tienda'])+","+str(df_location.iloc[i]['lng_tienda'])
         print(start)
-        end = str(df_location.iloc[i]['lat_cliente'])+" , "+str(df_location.iloc[i]['lng_cliente'])
+        end = str(df_location.iloc[i]['lat_cliente'])+","+str(df_location.iloc[i]['lng_cliente'])
         print(end)
         tod = df_location.iloc[i]['next_timestamp']
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
         print(unixtime)
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start +"&key=" + key)
+        print(url_distance + "destinations=" + end + "&origins=" + start +"&key=" +key)
         print(r.status_code)
         print(r.json())
         cliente_geo = r.json()["destination_addresses"]
