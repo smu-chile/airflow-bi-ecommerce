@@ -157,8 +157,8 @@ with DAG(
     default_args=default_args,
     description="Extracción y calculo de tabla recorrido_orden.",
     schedule_interval="30 8 * * *",
-    start_date=pendulum.datetime(2023, 8, 18, tz="America/Santiago"),
-    catchup=False,
+    start_date=pendulum.datetime(2023, 9, 9, tz="America/Santiago"),
+    catchup=True,
     tags=["DATA", "ecommdata", "recorrido_orden","km", "unimarc"],
 ) as dag:
 
