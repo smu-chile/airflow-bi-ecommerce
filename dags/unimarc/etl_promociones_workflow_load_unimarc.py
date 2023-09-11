@@ -68,6 +68,190 @@ def _load_promotions_from_s3(ti):
     print(f"Number of records extracted: {len(df.index)}")
     print(df.info())
 
+    len_grouped = grouped_df.shape[0]
+    print(f"Tamaño grouped_df: {len_grouped}")
+    if len_grouped == 0:
+        print('El número de cabecera no arroja promociones, posiblemente por filtros vtex o lista8')
+        return pd.DataFrame()
+
+    # GENERAL FIELDS OF CREATE PROMOTION
+    grouped_df['payload_prom'] = grouped_df.apply(
+        lambda row: payload_prom(row), axis=1)
+
+    def payload_prom(row):
+        max_skus_regular = 200
+        max_skus_1BuyTogether = 100
+        lista_precio = (row['precio'] == 'lista-precio')
+        regular = (row['mecanica'] == 'regular')
+        moreforless = (row['mecanica'] == 'forThePriceOf')
+
+        price_table_name = re.sub(
+            r'[^a-zA-Z0-9]', '', row['nombre_promocion']) if lista_precio else ''
+
+        skus_regular = row['vtexid_name'] if (
+            regular & ~lista_precio & (row['vtex_id_count'] <= max_skus_regular)) else []
+
+        price = 0 if lista_precio else row['precio']
+
+        skus_moreforless = row['vtexid_name'] if moreforless & (
+            row['vtex_id_count'] <= max_skus_1BuyTogether) else []
+        collections_regular = get_collection_name([item['id'] for item in row['vtexid_name']]) if (
+            regular & ~lista_precio & (row['vtex_id_count'] > max_skus_regular)) else []
+        collections_moreforless = get_collection_name(
+            [item['id'] for item in row['vtexid_name']]) if moreforless & ~lista_precio & (row['vtex_id_count'] > max_skus_1BuyTogether) else []
+
+        # PROMOCIONES MORE FOR LESS ( forThePriceOf )
+        # % descuento 2da unidad
+        combinacion_llevas_n = (row['tipo_promocion'] == 8)
+        combinacion_nxm = (row['tipo_promocion'] == 2)  # es con %descuento
+        descuento_regular = (row['tipo_promocion'] == 1)
+
+        minimumQuantityBuyTogether = row['llevas_n'] if row['llevas_n'] > 0 else row['cantidad_n']
+        quantityToAffectBuyTogether = row['llevas_n'] if row['llevas_n'] > 0 else row['cantidad_n']
+
+        if combinacion_llevas_n:  # 'percentualDiscountValue'
+            porcentaje_descuento = row['porcentaje_n']/2
+        elif combinacion_nxm:
+            porcentaje_descuento = 100 - \
+                (row['cantidad_m']/row['cantidad_n'])*100
+        elif descuento_regular:
+            porcentaje_descuento = row['porcentaje_de_descuento']
+        else:
+            porcentaje_descuento = 0.0
+
+        payload = {
+            'idCalculatorConfiguration': "",
+            'name': row['new_name_prom'],
+            'generalValues': {'WORKFLOWID': row['n_promocion']},
+            'beginDateUtc': row['fecha_inicio_ag'],
+            'endDateUtc': row['fecha_fin_ag'],
+            'lastModified': "",
+            'daysAgoOfPurchases': 0,
+            'isActive': True,
+            'isArchived': False,
+            'isFeatured': True,
+            'disableDeal': False,
+            'activeDaysOfWeek': [],
+            'offset': 0,
+            'activateGiftsMultiplier': False,
+            'maxPricesPerItems': [],
+            'cumulative': False,
+            'nominalShippingDiscountValue': 0.0,
+            'absoluteShippingDiscountValue': 0.0,
+            'nominalDiscountValue': 0.0,
+            'nominalDiscountType': "cart",
+            'maximumUnitPriceDiscount': int(price),
+            'percentualDiscountValue': porcentaje_descuento,
+            'rebatePercentualDiscountValue': 0.0,
+            'percentualShippingDiscountValue': 0.0,
+            'percentualTax': 0.0,
+            'shippingPercentualTax': 0.0,
+            'percentualDiscountValueList1': 0.0,
+            'percentualDiscountValueList2': 0.0,
+            'skusGift': {'quantitySelectable': 0},
+            'nominalRewardValue': 0.0,
+            'percentualRewardValue': 0.0,
+            'orderStatusRewardValue': "invoiced",
+            'maxNumberOfAffectedItems': 0,
+            'maxNumberOfAffectedItemsGroupKey': "perCart",
+            'applyToAllShippings': False,
+            'priceTableName': price_table_name,
+            'nominalTax': 0.0,
+            'origin': "Marketplace",
+            'idSellerIsInclusive': False,
+            'idsSalesChannel': [],
+            'areSalesChannelIdsExclusive': False,
+            'marketingTags': [],
+            'marketingTagsAreNotInclusive': False,
+            'paymentsMethods': [],
+            'stores': [],
+            'campaigns': [],
+            'storesAreInclusive': True,
+            'categories': [],
+            'categoriesAreInclusive': True,
+            'brands': [],
+            'brandsAreInclusive': True,
+            'products': [],
+            'productsAreInclusive': True,
+            'skus': skus_regular,
+            'skusAreInclusive': True,
+            'collections1BuyTogether': collections_moreforless,
+            'collections2BuyTogether': [],
+            'minimumQuantityBuyTogether': minimumQuantityBuyTogether,
+            'quantityToAffectBuyTogether': quantityToAffectBuyTogether,
+            'enableBuyTogetherPerSku': False,
+            'listSku1BuyTogether': skus_moreforless,
+            'listSku2BuyTogether': [],
+            'coupon': [],
+            'totalValueFloor': 0.0,
+            'totalValueCeling': 0.0,
+            'totalValueIncludeAllItems': False,
+            'totalValueMode': "IncludeMatchedItems",
+            'collections': collections_regular,
+            'collectionsIsInclusive': True,
+            'restrictionsBins': [],
+            'cardIssuers': [],
+            'totalValuePurchase': 0.0,
+            'slasIds': [],
+            'isSlaSelected': False,
+            'isFirstBuy': False,
+            'firstBuyIsProfileOptimistic': False,
+            'compareListPriceAndPrice': False,
+            'isDifferentListPriceAndPrice': False,
+            'zipCodeRanges': [],
+            'itemMaxPrice': 0.0,
+            'itemMinPrice': 0.0,
+            'installment': 0,
+            'isMinMaxInstallments': False,
+            'minInstallment': 0,
+            'maxInstallment': 0,
+            'merchants': [],
+            'clusterExpressions': [],
+            'piiClusterExpressions': [],
+            'paymentsRules': [],
+            'giftListTypes': [],
+            'productsSpecifications': [],
+            'affiliates': [],
+            'maxUsage': 0,
+            'maxUsagePerClient': 0,
+            'shouldDistributeDiscountAmongMatchedItems': False,
+            'multipleUsePerClient': False,
+            'accumulateWithManualPrice': True,
+            'type': row['mecanica'],
+            'useNewProgressiveAlgorithm': False,
+            'percentualDiscountValueList': []
+        }
+        return payload
+    
+    accountName = Variable.get("VTEX_ACCOUNT_NAME")
+    environment = Variable.get("VTEX_ENV")
+
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
+    headers = {
+        'Accept': "application/json",
+        'Content-Type': "application/json",
+        "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
+        "X-VTEX-API-AppToken":  X_VTEX_API_AppToken,
+        "Connection": "keep-alive"
+    }
+    
+    for promocion in objeto['promotion_loads']:
+        base = f"https://{accountName}.{environment}.com.br"
+        url = base+"/api/rnb/pvt/calculatorconfiguration"
+        r = requests.post(url, headers=headers, json=promocion)
+        print("r.status_code: ", r.status_code)
+        print("r.content: ", r.content)
+        promocion['status'] = r.status_code
+        promocion['text'] = r.text
+        contents.append(json.loads(r.text))
+        contents.append(promocion)
+    pd.DataFrame(contents).to_excel(f"./respuestas.xlsx")
+    with open(f"OUT_{file}", "w+") as archivo:
+        json.dump({"promos": contents}, archivo)
+    return print("CARGADO PROMOCIONES")
+
     return
 
 default_args = {
