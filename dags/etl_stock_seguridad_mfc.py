@@ -459,6 +459,7 @@ def carga_stock_seguridad_1917_janis_pm(ds,ti):
 def eliminar_stock_seguridad_reg():
     import pandas as pd
     import requests
+    import json
 
     df = pd.DataFrame(lista_eliminar_ss())
     df.columns = ["material"]
@@ -486,16 +487,20 @@ def eliminar_stock_seguridad_reg():
         material = df.material[i]
         store = "1917"
         stock_seguridad = 0
-        row = {"IdSku": material, "Quantity": 0, "Store": store,"MinStockDiff": True, "MinStock": stock_seguridad, "Type": 2}
-        print(row)
+        row = {"IdSku": material,
+                "Quantity": 0,
+                "Store": store,
+                "MinStockDiff": True,
+                "MinStock": stock_seguridad,
+                "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
-            payload = str(payload).replace("'", '"')
-            response = requests.request("POST", url, headers=headers, data=payload)
+            payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+            response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
-    payload = str(payload).replace("'", '"')
-    response = requests.request("POST", url, headers=headers, data=payload)
+    payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+    response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
 
     return
