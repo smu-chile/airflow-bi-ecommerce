@@ -25,12 +25,12 @@ def _calculate_routes(ds):
                 d2.lng AS lng_cliente,
                 ocde.fecha_creacion AS fecha_despacho,
                 CASE
-                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion) < EXTRACT(DOW FROM NOW()) THEN
-                        DATE_TRUNC('week', NOW()) + INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'
-                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion) = EXTRACT(DOW FROM NOW()) AND EXTRACT(HOUR FROM ocde.fecha_creacion) <= EXTRACT(HOUR FROM NOW()) THEN
-                        NOW() + (EXTRACT(HOUR FROM ocde.fecha_creacion) - EXTRACT(HOUR FROM NOW())) * INTERVAL '1 hour' + (EXTRACT(MINUTE FROM ocde.fecha_creacion) - EXTRACT(MINUTE FROM NOW())) * INTERVAL '1 minute'
+                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion AT TIME ZONE 'UTC') < EXTRACT(DOW FROM NOW() AT TIME ZONE 'UTC') THEN
+                        (DATE_TRUNC('week', NOW() AT TIME ZONE 'UTC') + INTERVAL '1 day')::timestamp + (EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute')::interval
+                    WHEN EXTRACT(DOW FROM ocde.fecha_creacion AT TIME ZONE 'UTC') = EXTRACT(DOW FROM NOW() AT TIME ZONE 'UTC') AND EXTRACT(HOUR FROM ocde.fecha_creacion) <= EXTRACT(HOUR FROM NOW() AT TIME ZONE 'UTC') THEN
+                        (NOW() AT TIME ZONE 'UTC' + ((EXTRACT(HOUR FROM ocde.fecha_creacion) - EXTRACT(HOUR FROM NOW() AT TIME ZONE 'UTC')) * INTERVAL '1 hour' + (EXTRACT(MINUTE FROM ocde.fecha_creacion) - EXTRACT(MINUTE FROM NOW() AT TIME ZONE 'UTC')) * INTERVAL '1 minute'))::timestamp
                     ELSE
-                        DATE_TRUNC('week', NOW()) + EXTRACT(DOW FROM ocde.fecha_creacion) * INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'
+                        (DATE_TRUNC('week', NOW() AT TIME ZONE 'UTC') + (EXTRACT(DOW FROM ocde.fecha_creacion AT TIME ZONE 'UTC') * INTERVAL '1 day' + EXTRACT(HOUR FROM ocde.fecha_creacion) * INTERVAL '1 hour' + EXTRACT(MINUTE FROM ocde.fecha_creacion) * INTERVAL '1 minute'))::timestamp
                 END AS next_timestamp
             FROM ecommdata.ordenes_janis oj
             LEFT JOIN ecommdata.tiendas t ON oj.id_tienda_janis = t.id_janis
@@ -42,8 +42,8 @@ def _calculate_routes(ds):
             ) d1 ON oj.id = d1.id_orden
             LEFT JOIN ecommdata.despachos d2 ON d1.id = d2.id
             LEFT JOIN ecommdata.orden_cambios_de_estado ocde ON ocde.id_orden = oj.janis_id
-            WHERE oj.fecha_facturacion >= '2023-08-23'::date - 1
-                AND oj.fecha_facturacion < '2023-08-23'::date
+            WHERE oj.fecha_facturacion >= '"""+ds+"""'::date - 1
+                AND oj.fecha_facturacion < '"""+ds+"""'::date
                 AND ocde.estado_nuevo = 70
                 AND d2.tipo_despacho != 'pickup';"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn") #cambiar antes de pasar a prod
@@ -54,6 +54,7 @@ def _calculate_routes(ds):
     df_location=pd.DataFrame(results)
     df_location.columns = ["id_orden","lat_tienda","lng_tienda","lat_cliente","lng_cliente","fecha_despacho","next_timestamp"]
     cursor.close()
+    print(df_location.info())
     pg_connection.close()
 
     url_distance = Variable.get("ROUTES_API")
@@ -63,22 +64,34 @@ def _calculate_routes(ds):
     aux_list_s3 = []
 
     for i in range(len(df_location)):
-        start = str(df_location.iloc[i]['lat_tienda'])+" , "+str(df_location.iloc[i]['lng_tienda'])
-        end = str(df_location.iloc[i]['lat_cliente'])+" , "+str(df_location.iloc[i]['lng_cliente'])
+        start = str(df_location.iloc[i]['lat_tienda'])+","+str(df_location.iloc[i]['lng_tienda'])
+        print(start)
+        end = str(df_location.iloc[i]['lat_cliente'])+","+str(df_location.iloc[i]['lng_cliente'])
+        print(end)
         tod = df_location.iloc[i]['next_timestamp']
-        unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()))
-        r = requests.get(url_distance + "destinations=" + end + "&origins=" + start + "&departure_time="+ unixtime +"&traffic_model=best_guess"+ "&key=" + key)
-        print(r.status_code)
-        print(r.json())
-        cliente_geo = r.json()["destination_addresses"]
-        tiempo_estimado = r.json()["rows"][0]["elements"][0]["duration_in_traffic"]["text"]
-        tiempo_estimado_seg = r.json()["rows"][0]["elements"][0]["duration_in_traffic"]["value"]
-        distancia = r.json()["rows"][0]["elements"][0]["distance"]["text"]
-        distancia_metros = r.json()["rows"][0]["elements"][0]["distance"]["value"]
-        aux_list.append([df_location.iloc[i]['id_orden'],cliente_geo,tiempo_estimado,tiempo_estimado_seg,distancia,distancia_metros])
-        aux_list_s3.append([df_location.iloc[i]['id_orden'],r.json()])
-    df = pd.DataFrame(aux_list, columns = ['id_orden','cliente_geo','tiempo_estimado','tiempo_estimado_seg','distancia','distancia_metros'])
-    df_s3 = pd.DataFrame(aux_list_s3, columns_s3=['id_orden','response'])
+        unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()) + 604800)
+        r = requests.get(url_distance + "destinations=" + end + "&origins=" + start +"&departure_time="+ unixtime +"&traffic_model=best_guess&key=" + key)
+        
+        if r.status_code == 200:
+            response_json = r.json()
+            status = response_json.get("status")
+            
+            if status == "OK":
+                cliente_geo = response_json["destination_addresses"]
+                tiempo_estimado = response_json["rows"][0]["elements"][0]["duration_in_traffic"]["text"]
+                tiempo_estimado_seg = response_json["rows"][0]["elements"][0]["duration_in_traffic"]["value"]
+                distancia = response_json["rows"][0]["elements"][0]["distance"]["text"]
+                distancia_metros = response_json["rows"][0]["elements"][0]["distance"]["value"]
+                aux_list.append([df_location.iloc[i]['id_orden'], cliente_geo, tiempo_estimado, tiempo_estimado_seg, distancia, distancia_metros])
+            else:
+                print(f"Skipping order {df_location.iloc[i]['id_orden']} due to status: {status}")
+        else:
+            print(f"Skipping order {df_location.iloc[i]['id_orden']} due to status code: {r.status_code}")
+
+        aux_list_s3.append([df_location.iloc[i]['id_orden'], r.json()])
+
+    df = pd.DataFrame(aux_list, columns=['id_orden', 'cliente_geo', 'tiempo_estimado', 'tiempo_estimado_seg', 'distancia', 'distancia_metros'])
+    df_s3 = pd.DataFrame(aux_list_s3, columns=['id_orden', 'response'])
     
     
     exec_date = ds.replace("-", "/")
@@ -87,7 +100,6 @@ def _calculate_routes(ds):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-    
 
     column_types = {
         "id_orden": "int",
@@ -145,8 +157,8 @@ with DAG(
     default_args=default_args,
     description="Extracción y calculo de tabla recorrido_orden.",
     schedule_interval="30 8 * * *",
-    start_date=pendulum.datetime(2023, 8, 18, tz="America/Santiago"),
-    catchup=False,
+    start_date=pendulum.datetime(2023, 9, 9, tz="America/Santiago"),
+    catchup=True,
     tags=["DATA", "ecommdata", "recorrido_orden","km", "unimarc"],
 ) as dag:
 
