@@ -13,7 +13,7 @@ def _get_uber_active_stores():
         FROM integraciones.tiendas_last_millers
         WHERE id_uber is not NULL;
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(uber_stores_query)
@@ -22,9 +22,10 @@ def _get_uber_active_stores():
     pg_connection.close()
     return results
 
-def _join_stock_and_promo_prices_from_s3(ds, ti):
+def _join_promo_prices_from_s3(ds, ti):
     import json
     import pandas as pd
+    import io
 
     uber_stores = ti.xcom_pull(key="return_value", task_ids=["get_uber_active_stores"])[0]
     uber_store_ids = [uber_store_id[0] for uber_store_id in uber_stores]
@@ -34,41 +35,32 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
+    aux_list = []
+
     for store_id in uber_store_ids:
-        print(f"Store id: {store_id}")
-        
-        join_file_name = f"integraciones/last_millers/stock/out/uber/{exec_date}/{store_id}.json"
+        join_file_name = f"integraciones/last_millers/promotions/out/uber/{exec_date}/{store_id}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
 
-        uber_stock_query = f"""
+        uber_promotions_query = f"""
             SELECT
                 lspp.ean as Sku,
                 lspp.id_tienda as id_de_tienda,
                 'Descuento' as tipo_de_promoción,
                 CASE
-                    WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN round(LEAST(lspp.precio, lspp.precio_promocional))
-                    ELSE round(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida)
-                END AS precio_venta ,
-                null as fecha_inicio_venta,
-                null as fecha_final_venta,
-                null as cantidad_compra,
-                CASE
-                    WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN (lspp.precio - round(LEAST(lspp.precio, lspp.precio_promocional)))
-                    else (lspp.precio - round(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida))
-                END as cantidad_descuento
+                    WHEN lspp.precio_promocional < lspp.precio THEN lspp.precio_promocional
+                    ELSE lspp.precio
+                END as precio_venta
             FROM integraciones.lm_stock_precio_promo lspp
-            INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
             WHERE lspp.id_tienda = '{store_id}'
-        """
-
-        cursor.execute(uber_stock_query)
+            """
+        cursor.execute(uber_promotions_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
 
@@ -79,20 +71,24 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         df = pd.DataFrame(results, columns=columns)
         print(f"Number of records found on stock: {len(df.index)}")
 
-        df.columns = map(str.lower, df.columns)
-        df["is_available"] = True
+        aux_list.append(df)
+    if aux_list:
+        final_df = pd.concat(aux_list, ignore_index=True)
+        
+        buffer = io.StringIO()
+        final_df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
 
-        dict_body = df.to_dict(orient="records")
-        json_body = json.dumps(dict_body)
-
-        s3_hook.load_string(json_body,
+        s3_hook.load_string(buffer.getvalue(),
                     key=join_file_name,
                     bucket_name=s3_bucket,
                     replace=True,
                     encrypt=False)
-
-    cursor.close()
-    pg_connection.close()
+        print(f"File load on S3: {join_file_name}")
+    else:
+        print("No data collected in aux_list.")
+        cursor.close()
+        pg_connection.close()
     return
 
 def _send_joined_data_to_sftp(ds):
@@ -100,13 +96,15 @@ def _send_joined_data_to_sftp(ds):
     import pysftp
 
     ftp_host = Variable.get("UBER_SFTP_HOST")
-    ftp_port = 22
+    ftp_port = 2222
     ftp_user = Variable.get("UBER_SFTP_USER")
-    ftp_password = Variable.get("UBER_SFTP_PASSWORD")
+    ftp_rsa_key = Variable.get("UBER_SFTP_SECRET_RSA_KEY")
 
+    with open("temp_uber_sftp_rsa_key", "w") as key_file:
+        key_file.write(ftp_rsa_key)
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/uber/{exec_date}/"
+    prefix = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -116,26 +114,27 @@ def _send_joined_data_to_sftp(ds):
     print(f"Number of files found: {len(s3_file_list)}")
     
 
-    for stock_file in s3_file_list:
-        print(stock_file)
+    for promotions_file in s3_file_list:
+        print(promotions_file)
 
-        stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
-        stock_object_body = stock_object.get()["Body"]
+        promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
+        promotions_object_body = promotions_object.get()["Body"]
 
-        output_stock_file = stock_file.split("/")[-1]
-        print(f"File to load to SFTP Server: {output_stock_file}")
-        '''
+        output_promotions_file = promotions_file.split("/")[-1]
+        print(f"File to load to SFTP Server: {output_promotions_file}")
+        
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port, 
-                                password=ftp_password) as sftp:
-            localFile = stock_object_body
-            remotePath = f"/data/{output_stock_file}"
+                                private_key="temp_uber_sftp_rsa_key") as sftp:
+            localFile = promotions_object_body
+            remotePath = f"/test/synchronize/{output_promotions_file}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
-        '''
+        
     return
+
 
 default_args = {
     "owner": "ecommerce_ops",
@@ -145,27 +144,24 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_uber_stock_integration",
+    "proc_uber_promotions_integration",
     default_args=default_args,
-    description="Cruce de stock, precios y precios promocionales simples para integracion Uber",
-    schedule_interval=None, 
+    description="Cruce de precios y precios promocionales simples para integracion Uber",
+    schedule_interval="30 8 * * *", 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "stock", "precios"],
+    tags=["OPS", "last_millers", "dw", "promotions", "precios"],
 ) as dag:
 
     dag.doc_md = """
-    Cruce de stock, precios y precios promocionales simples para integración con Last Millers: **Uber**. \n
-    * Se obtiene listado de tiendas activas para la integración PEYA (`registros con id_uber NOT NULL de la tabla integraciones.tiendas_last_millers`). \n
-    * A partir de esta lista, se obtiene listado de archivos CSV de stock + precio para cada una de las tiendas activas en **PEYA**. \n
+    Cruce de precios y precios promocionales simples para integración con Last Millers: **Uber**. \n
+    * Se obtiene listado de tiendas activas para la integración UBER (`registros con id_uber NOT NULL de la tabla integraciones.tiendas_last_millers`). \n
+    * A partir de esta lista, se obtiene listado de archivos CSV de precio para cada una de las tiendas activas en **UBER**. \n
     * Desde **S3** se extrae archivo CSV de precios modales. \n
-    * Para cada tienda activa, se cruzan los archivos de stock + precio promo y el de precios modales, se les da formato correspondiente para luego
+    * Para cada tienda activa, se cruzan los archivos de precio promo y el de precios modales, se les da formato correspondiente para luego
     ser almacenados en **S3**. 
-    * En este caso, el formato de integración de los archivos es CSV con las columnas [**SKU**, **PRECIO**, **STOCK**], donde **SKU** corresponde al ean interno
-    del producto, **PRECIO** es el menor valor entre precio modal y precio promocional y **STOCK** es un valor binario, donde 0 se asigna a aquellos
-    productos con stock menor a 7 unidades, y 1 a aquellos productos con 7 o más unidades. \n
     * Finalmente, se itera sobre los archivos generados, dejando cada uno de estos en el servidor SFTP de Uber.
     Este DAG depende del DAG: [ **proc_stock_last_millers** ].
     """ 
@@ -176,8 +172,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "join_stock_and_promo_prices_from_s3",
-        python_callable = _join_stock_and_promo_prices_from_s3
+        task_id = "join_promo_prices_from_s3",
+        python_callable = _join_promo_prices_from_s3
     )
 
     t2 = PythonOperator(
