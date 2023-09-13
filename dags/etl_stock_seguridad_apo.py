@@ -169,6 +169,7 @@ def ventas_maximos_apo_to_s3_am(ds):
     list_material_aux = [item.lstrip('0') for item in list_material]
     n=10
     output=[list_material_aux[i:i + n] for i in range(0, len(list_material_aux), n)]
+    print(output)
     df_maximas = pd.DataFrame()
     for x in range(len(output)):
         aux_df = ventas_maximas(str(output[x]).replace('[','').replace(']',''),ds)
@@ -327,11 +328,23 @@ def ventas_maximos_apo_to_s3_pm(ds):
         aux_list = ' '.join(aux_list)
         aux_list = aux_list.replace(" ", "','")
         df_aux = ventas(aux_list,str(df_grouped.fecha_inicio[i]),str(df_grouped.fecha_fin[i]))
+        print(df_aux)
         df_final = pd.concat([df_final, df_aux])
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    df_maximas = ventas_maximas(list_material, ds)
+    list_material_aux = [item.lstrip('0') for item in list_material]
+    n=10
+    output=[list_material_aux[i:i + n] for i in range(0, len(list_material_aux), n)]
+    print(output)
+    df_maximas = pd.DataFrame()
+    for x in range(len(output)):
+        aux_df = ventas_maximas(str(output[x]).replace('[','').replace(']',''),ds)
+        print(aux_df)
+        df_maximas = pd.concat([df_maximas, aux_df])
+    df_maximas['id_tienda'] = df_maximas['id_tienda'].astype(str).str.rjust(4, '0')
+    df_maximas['material'] = df_maximas['material'].astype(str).str.rjust(18, '0')
+    print(df_maximas)
 
     df_final_final = df_maximas.merge(df_final, how='left', on=["id_tienda","material"])
 
