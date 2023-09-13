@@ -104,16 +104,16 @@ def ventas(list_material,fecha_inicio,fecha_fin):
 
 def ventas_maximas(list_material,ds):
     import pandas as pd
-    ventas_maximos_query = """select lpad(vst.id_tienda,4,'0'),
-                            lpad(vst.material,18,'0'),
-                            max(vst.venta_umv)
-                            from ecommdata.venta_sku_tienda vst 
-                            left join ecommdata.tiendas t
-                            on t.id = lpad(vst.id_tienda,4,'0')
-                            where vst.fecha >= '"""+ds+"""'::date -30
-                            and lpad(vst.material,18,'0') in ('"""+list_material+"""')
-                            and t.status = 1
-                            group by vst.id_tienda, vst.material"""
+    ventas_maximos_query = """WITH filtered_data AS (
+                            SELECT id_tienda, material, venta_umv 
+                            FROM ecommdata.venta_sku_tienda
+                            WHERE fecha >= '"""+ds+"""'::date - 30
+                            AND material IN ("""+list_material+""")
+                            SELECT fd.id_tienda, fd.material, MAX(fd.venta_umv)
+                            FROM filtered_data fd
+                            LEFT JOIN ecommdata.tiendas t ON t.id = lpad(fd.id_tienda,4,'0')
+                            WHERE t.status = 1
+                            GROUP BY fd.id_tienda, fd.material;"""
     print(ventas_maximos_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -166,7 +166,17 @@ def ventas_maximos_apo_to_s3_am(ds):
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    df_maximas = ventas_maximas(list_material, ds)
+    list_material_aux = [item.lstrip('0') for item in list_material]
+    n=10
+    output=[list_material_aux[i:i + n] for i in range(0, len(list_material_aux), n)]
+    df_maximas = pd.DataFrame()
+    for x in range(len(output)):
+        aux_df = ventas_maximas(str(output[x]).replace('[','').replace(']',''),ds)
+        print(aux_df)
+        df_maximas = pd.concat([df_maximas, aux_df])
+    df_maximas['id_tienda'] = df_maximas['id_tienda'].astype(str).str.rjust(4, '0')
+    df_maximas['material'] = df_maximas['material'].astype(str).str.rjust(18, '0')
+    print(df_maximas)
 
     df_final_final = df_maximas.merge(df_final, how='left', on=["id_tienda","material"])
 
