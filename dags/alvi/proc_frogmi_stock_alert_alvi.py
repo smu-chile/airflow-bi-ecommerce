@@ -208,7 +208,7 @@ with DAG(
     "proc_frogmi_post_alerta_foundrate_alvi",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate Alvi a Frogmi",
-    schedule_interval="0 10,16 * * *",
+    schedule_interval="0 10,13 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

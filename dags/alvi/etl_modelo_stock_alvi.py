@@ -61,13 +61,21 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     import sqlalchemy
 
     df = pd.DataFrame(final_responses)
+
+    df.columns = [
+        "skuId",
+        "warehouseId",
+        "totalQuantity",
+        "reservedQuantity",
+        "hasUnlimitedQuantity"
+    ]
     
     df = df[[
         "skuId",
         "warehouseId",
         "totalQuantity",
         "reservedQuantity",
-        "hasUnlimitedQuantity",
+        "hasUnlimitedQuantity"
     ]]
 
     df["skuId"] = df["skuId"].astype("str")
@@ -122,6 +130,7 @@ def ids_vtex():
             inner join ecommdata_alvi.skus s on s.id = sa.item_id
             where sa.stock > 0 and s.vtex_id is not null;
         """
+    print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -156,12 +165,23 @@ def _save_table_stock_janis(ts, ti):
     import numpy as np
     print("iniciando load table janis alvi")
     df = _get_table_stock_janis_from_S3(ts, ti)
-    print(df)
-    df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified', 'operation_type']]
+    df = df[['id',
+            'item_id',
+            'store_id',
+            'warehouse_id',
+            'stock',
+            'min_stock',
+            'infinite_stock',
+            'date_modified',
+            'date_published',
+            'operation_type']]
     df = df.loc[df['stock'] > 0]
+    print(df["date_published"])
     df["date_published"] = pd.to_datetime(df["date_published"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["date_modified"] = pd.to_datetime(df["date_modified"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-
+    print("paso por la transformacion de date date_published y date_modified")
+    print(df["date_published"])
+    print(df.columns)
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -174,7 +194,7 @@ def _save_table_stock_janis(ts, ti):
 
     for i in df_array:
 
-        i.to_sql(name="stock_alvi",
+        i.to_sql(name="stock_janis_alvi",
                     con=engine,         
                     schema="staging",         
                     if_exists='append',         
@@ -191,21 +211,53 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     import sqlalchemy
     
     vtex_ids = ids_vtex()
-    sku_list = vtex_ids["vtex_id"].tolist()
-    print(vtex_ids)
+    df_vtex_ids=pd.DataFrame(vtex_ids)
+    df_vtex_ids.columns = ["vtex_id"]
+    sku_list = df_vtex_ids["vtex_id"].tolist()
+    print(sku_list)
     vtex_account_name = {
-        "alviclpoctienda1": "alviclpoctienda1",
-        "alviclpoctienda2": "alviclpoctienda2"
+        "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
+        "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
+        "alvicl008": Variable.get("VTEX_ALVI3089_ACCOUNT_NAME"),
+        "alvicl001": Variable.get("VTEX_ALVI3092_ACCOUNT_NAME"),
+        "alvicl010": Variable.get("VTEX_ALVI3093_ACCOUNT_NAME"),
+        "alvicl005": Variable.get("VTEX_ALVI3098_ACCOUNT_NAME"),
+        "alvicl009": Variable.get("VTEX_ALVI3172_ACCOUNT_NAME"),
+        "alvicl002": Variable.get("VTEX_ALVI3180_ACCOUNT_NAME"),
+        "alvicl006": Variable.get("VTEX_ALVI3181_ACCOUNT_NAME"),
+        "alvicl007": Variable.get("VTEX_ALVI3187_ACCOUNT_NAME"),
+        "alvicl011": Variable.get("VTEX_ALVI3188_ACCOUNT_NAME"),
+        "alvitobalaba3193": Variable.get("VTEX_ALVI3193_ACCOUNT_NAME")
     }
 
     x_vtex_api_appkey = {
-        "alviclpoctienda1": Variable.get("x_vtex_api_appkey_alvi_seller1"),
-        "alviclpoctienda2": Variable.get("x_vtex_api_appkey_alvi_seller2")
+        "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Appkey"),
+        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Appkey"),
+        "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Appkey"),
+        "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Appkey"),
+        "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Appkey"),
+        "alvicl005": Variable.get("X_VTEX_ALVI3098_API_Appkey"),
+        "alvicl009": Variable.get("X_VTEX_ALVI3172_API_Appkey"),
+        "alvicl002": Variable.get("X_VTEX_ALVI3180_API_Appkey"),
+        "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Appkey"),
+        "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Appkey"),
+        "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Appkey"),
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Appkey")
     }
 
     x_vtex_api_apptoken = {
-        "alviclpoctienda1": Variable.get("x_vtex_api_apptoken_alvi_seller1"),
-        "alviclpoctienda2": Variable.get("x_vtex_api_apptoken_alvi_seller2")
+        "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Apptoken"),
+        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Apptoken"),
+        "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Apptoken"),
+        "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Apptoken"),
+        "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Apptoken"),
+        "alvicl005": Variable.get("X_VTEX_ALVI3098_API_Apptoken"),
+        "alvicl009": Variable.get("X_VTEX_ALVI3172_API_Apptoken"),
+        "alvicl002": Variable.get("X_VTEX_ALVI3180_API_Apptoken"),
+        "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Apptoken"),
+        "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Apptoken"),
+        "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Apptoken"),
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Apptoken")
     }
     for name in vtex_account_name:
         print(name)
@@ -216,7 +268,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
             print(url)
 
         session = requests.session()
-        thread_num = 2
+        thread_num = 40
         task_num = len(url_list)//thread_num # division entera
         adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
         session.mount('https://', adapter)
@@ -241,7 +293,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         for task in thread_tasks:
             task.join()
             thread_tasks = []
-        print(response)
+        print(responses)
         final_responses = []
         for response in responses:
             response_aux = response['json']
@@ -253,6 +305,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
+        print(final_responses)
 
         _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
 
@@ -266,7 +319,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         s3_hook.load_string(str(exception_cases),retries,bucket_name=s3_bucket,replace=True)
         ti.xcom_push(key = 'vtex_retries', value = retries)
 
-        return
+    return
 
 
 def _vtex_get_stock_retries(ti, ts):
@@ -295,19 +348,50 @@ def _vtex_get_stock_retries(ti, ts):
         return
     
     vtex_account_name = {
-        "alviclpoctienda1": "alviclpoctienda1",
-        "alviclpoctienda2": "alviclpoctienda2"
+        "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
+        "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
+        "alvicl008": Variable.get("VTEX_ALVI3089_ACCOUNT_NAME"),
+        "alvicl001": Variable.get("VTEX_ALVI3092_ACCOUNT_NAME"),
+        "alvicl010": Variable.get("VTEX_ALVI3093_ACCOUNT_NAME"),
+        "alvicl005": Variable.get("VTEX_ALVI3098_ACCOUNT_NAME"),
+        "alvicl009": Variable.get("VTEX_ALVI3172_ACCOUNT_NAME"),
+        "alvicl002": Variable.get("VTEX_ALVI3180_ACCOUNT_NAME"),
+        "alvicl006": Variable.get("VTEX_ALVI3181_ACCOUNT_NAME"),
+        "alvicl007": Variable.get("VTEX_ALVI3187_ACCOUNT_NAME"),
+        "alvicl011": Variable.get("VTEX_ALVI3188_ACCOUNT_NAME"),
+        "alvitobalaba3193": Variable.get("VTEX_ALVI3193_ACCOUNT_NAME")
     }
 
     x_vtex_api_appkey = {
-        "alviclpoctienda1": "",  # asignar variable
-        "alviclpoctienda2": ""  # asignar variable
+        "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Appkey"),
+        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Appkey"),
+        "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Appkey"),
+        "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Appkey"),
+        "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Appkey"),
+        "alvicl005": Variable.get("X_VTEX_ALVI3098_API_Appkey"),
+        "alvicl009": Variable.get("X_VTEX_ALVI3172_API_Appkey"),
+        "alvicl002": Variable.get("X_VTEX_ALVI3180_API_Appkey"),
+        "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Appkey"),
+        "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Appkey"),
+        "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Appkey"),
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Appkey")
     }
 
     x_vtex_api_apptoken = {
-        "alviclpoctienda1": "", # asignar variable
-        "alviclpoctienda2": ""  # asignar variable
+        "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Apptoken"),
+        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Apptoken"),
+        "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Apptoken"),
+        "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Apptoken"),
+        "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Apptoken"),
+        "alvicl005": Variable.get("X_VTEX_ALVI3098_API_Apptoken"),
+        "alvicl009": Variable.get("X_VTEX_ALVI3172_API_Apptoken"),
+        "alvicl002": Variable.get("X_VTEX_ALVI3180_API_Apptoken"),
+        "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Apptoken"),
+        "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Apptoken"),
+        "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Apptoken"),
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Apptoken")
     }
+    
     for name in vtex_account_name:
         url_list = retries  #retries      
         session = requests.session()
@@ -368,8 +452,8 @@ with DAG(
     'etl_stock_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla stock desde Vtex y Janis.",
-    schedule_interval=None,
-    start_date=pendulum.datetime(2022, 7, 11, tz="America/Santiago"),
+    schedule_interval="0 1/4 * * *",
+    start_date=pendulum.datetime(2023, 8, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "vtex", "janis", "staging", "alvi", "vtex_stock", "janis_stock", "stock"],
@@ -383,7 +467,7 @@ with DAG(
         task_id = "truncate_janis_staging_table",
         postgres_conn_id="postgresql_conn",
         sql="""
-        TRUNCATE staging.stock_alvi
+        TRUNCATE staging.stock_janis_alvi
         """,
     )
 
@@ -415,18 +499,18 @@ with DAG(
         task_id = "vtex_get_stock_retries",
         python_callable = _vtex_get_stock_retries
     )
-    #falta esto
+
     t6 = PostgresOperator(
         task_id = "save_stock_final",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/stock_final_alvi.sql"
     )
-    #falta esto
+    
     t7 = PostgresOperator(
         task_id = "delete_old_stock",
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
-            FROM ecommdata.stock_alvi
+            FROM ecommdata_alvi.stock
             WHERE fecha = '{{ds}}'::date - interval '21 days' """
     )
 

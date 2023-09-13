@@ -1,9 +1,8 @@
-insert into catalogo.publicacion_dia_tienda_infaltable
+insert into catalogo.publicacion_dia_tienda_surtido_alvi
 SELECT pc.fecha_hora,
     pc.id_tienda,
     pc.c1,
     pc.c2,
-    pc.c3,
     count(1) AS total_surtido,
     sum(
         CASE
@@ -39,8 +38,8 @@ SELECT pc.fecha_hora,
         CASE
             WHEN pc.tienda_valida IS TRUE THEN 1
             ELSE 0
-        END) AS con_tienda,
-    pc.mfc
-FROM ecommdata.publicacion_catalogo pc
-WHERE (pc.surtido_ecommerce IS TRUE or pc.mfc is TRUE) and pc.infaltable is TRUE and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
-GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.mfc;
+        END) AS con_tienda
+FROM ecommdata_alvi.publicacion_catalogo pc
+WHERE pc.surtido_ecommerce IS TRUE 
+and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
+GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2;

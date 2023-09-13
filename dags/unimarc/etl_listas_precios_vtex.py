@@ -15,9 +15,15 @@ def get_fixed_prices(ti):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    print("Getting vtex_ids of products within lista8")
-    query = """SELECT s.vtex_id FROM ecommdata.skus s 
-    WHERE s.vtex_id IS NOT NULL; """
+    print("Getting vtex_ids of products in WP with Fixed Price")
+    query = """select distinct s.vtex_id
+        from ecommdata.workflow_promociones wp 
+        inner join ecommdata.skus s on s.ref_id = wp.material||'-'|| CASE WHEN wp.umv = 'ST' THEN 'UN' WHEN wp.umv = 'CS' THEN 'CJ' END
+        where wp.tipo_promocion = 4
+        and wp.umv not in ('KG','KGV')
+        and wp.fecha_inicio_de_promocion  <= current_date + interval '1 days'
+        and wp.fecha_fin_de_promocion >= current_date  
+        AND s.vtex_id IS NOT NULL; """
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]

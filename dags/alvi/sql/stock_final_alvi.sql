@@ -1,5 +1,5 @@
 BEGIN TRANSACTION;
-insert into ecommdata.stock_alvi
+insert into ecommdata_alvi.stock
 select 
 '{{ds}}'::date as fecha
 , t.id as id_tienda
@@ -7,11 +7,10 @@ select
 , b.id as id_bodega
 , b.nombre as nombre_bodega
 , s.ref_id
-, p.material
+, l.material
 , s.nombre_sku as descripcion
 , c.n1 as c1
 , c.n2 as c2
-, c.n3 as c3
 , s.multiplicador_unidad_medida
 , s.unidades_pack 
 , su.stock as stock_janis
@@ -24,22 +23,17 @@ select
 , svu.cantidad_ilimitada as stock_infinito_vtex
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
-, '{{ts}}'::timestamp as ultima_actualizacion
+, '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' as ultima_actualizacion
 , l.material is not null and l.excluido is false as surtido_ecommerce
-, case
-	when li.material is null then false
-	else true
-end as infaltable
 from staging.stock_vtex_alvi svu
 left join ecommdata_alvi.bodegas b on svu.id_warehouse = b.id 
 left join ecommdata_alvi.tiendas t on b.id_tienda = t.id 
 left join ecommdata_alvi.skus s on svu.vtex_id = s.vtex_id
-left join staging.stock_alvi su on s.id = su.item_id and t.id_janis = su.store_id and b.id_janis = su.warehouse_id
+left join staging.stock_janis_alvi su on s.id = su.item_id and t.id_janis = su.store_id and b.id_janis = su.warehouse_id
 left join ecommdata_alvi.productos p on s.ref_id = p.ref_id
 left join ecommdata_alvi.categorias c on p.id_categoria = c.id
-left join ecommdata_alvi.lista8_alvi l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
-left join ecommdata.lista_infaltables li on p.material = li.material
+left join ecommdata_alvi.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
 where t.status = 1;
-DELETE from ecommdata.stock_alvi
-WHERE ultima_actualizacion < '{{ts}}'::timestamp AND fecha = '{{ds}}'::date;
+DELETE from ecommdata_alvi.stock
+WHERE ultima_actualizacion < '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' AND fecha = '{{ds}}'::date;
 COMMIT;
