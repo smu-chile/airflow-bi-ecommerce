@@ -349,8 +349,8 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de vistas de venta por sku desde DW hasta Workspace.",
     schedule_interval="30 8 * * *",
-    start_date=pendulum.datetime(2022, 9, 1, tz="America/Santiago"),
-    catchup=False,
+    start_date=pendulum.datetime(2023, 8, 15, tz="America/Santiago"),
+    catchup=True,
     max_active_runs = 1,
     tags=["DATA", "DW", "ecommdata", "ventas"],
 ) as dag:
