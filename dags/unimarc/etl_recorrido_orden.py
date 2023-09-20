@@ -71,17 +71,18 @@ def _calculate_routes(ds):
         tod = df_location.iloc[i]['next_timestamp']
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()) + 604800)
         r = requests.get(url_distance + "destinations=" + end + "&origins=" + start +"&departure_time="+ unixtime +"&traffic_model=best_guess&key=" + key)
-        
+
         if r.status_code == 200:
             response_json = r.json()
             status = response_json.get("status")
-            
+
             if status == "OK":
-                cliente_geo = response_json["destination_addresses"]
-                tiempo_estimado = response_json["rows"][0]["elements"][0]["duration_in_traffic"]["text"]
-                tiempo_estimado_seg = response_json["rows"][0]["elements"][0]["duration_in_traffic"]["value"]
-                distancia = response_json["rows"][0]["elements"][0]["distance"]["text"]
-                distancia_metros = response_json["rows"][0]["elements"][0]["distance"]["value"]
+                elements = response_json.get("rows", [])[0].get("elements", [])[0]
+                tiempo_estimado = elements.get("duration_in_traffic", {}).get("text", None)
+                tiempo_estimado_seg = elements.get("duration_in_traffic", {}).get("value", None)
+                distancia = elements.get("distance", {}).get("text", None)
+                distancia_metros = elements.get("distance", {}).get("value", None)
+                cliente_geo = response_json.get("destination_addresses", [])
                 aux_list.append([df_location.iloc[i]['id_orden'], cliente_geo, tiempo_estimado, tiempo_estimado_seg, distancia, distancia_metros])
             else:
                 print(f"Skipping order {df_location.iloc[i]['id_orden']} due to status: {status}")
