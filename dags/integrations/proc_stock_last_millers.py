@@ -339,6 +339,12 @@ with DAG(
         wait_for_completion=False
     )
 
+    t14 = TriggerDagRunOperator(
+        task_id="trigger_proc_uber_promotions_integration",
+        trigger_dag_id="proc_uber_promotions_integration",
+        wait_for_completion=False
+    )
+
     t0 >> [t1, t4]
     t1 >> t2 >> t3
     t4 >> [t5, t6] 
@@ -347,4 +353,4 @@ with DAG(
     t3 >> td
     t8 >> td
     td >> t9 >> t10 >> t11
-    t11 >> [t12, t13]
+    t11 >> [t12, t13, t14]
