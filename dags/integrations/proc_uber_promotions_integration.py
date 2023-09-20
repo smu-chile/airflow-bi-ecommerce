@@ -147,7 +147,7 @@ with DAG(
     "proc_uber_promotions_integration",
     default_args=default_args,
     description="Cruce de precios y precios promocionales simples para integracion Uber",
-    schedule_interval="30 8 * * *", 
+    schedule_interval="15 9 * * *", 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
