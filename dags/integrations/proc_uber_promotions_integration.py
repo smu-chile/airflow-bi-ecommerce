@@ -13,7 +13,7 @@ def _get_uber_active_stores():
         FROM integraciones.tiendas_last_millers
         WHERE id_uber is not NULL;
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(uber_stores_query)
