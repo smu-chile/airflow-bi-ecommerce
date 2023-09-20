@@ -94,10 +94,7 @@ def _join_promo_prices_from_s3(ds, ti):
 def _send_joined_data_to_sftp(ds):
     import os
     import pysftp
-<<<<<<< Updated upstream
-=======
     import paramiko
->>>>>>> Stashed changes
 
     ftp_host = Variable.get("UBER_SFTP_HOST")
     ftp_port = 2222
@@ -107,12 +104,9 @@ def _send_joined_data_to_sftp(ds):
     with open("temp_uber_sftp_rsa_key", "w") as key_file:
         key_file.write(ftp_rsa_key)
 
-<<<<<<< Updated upstream
-=======
     private_key_file = "temp_uber_sftp_rsa_key"
     rsa_key = paramiko.RSAKey.from_private_key_file(private_key_file)
 
->>>>>>> Stashed changes
     exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
 
@@ -135,12 +129,8 @@ def _send_joined_data_to_sftp(ds):
         
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
-                                port=ftp_port, 
-<<<<<<< Updated upstream
-                                private_key="temp_uber_sftp_rsa_key") as sftp:
-=======
+                                port=ftp_port,
                                 private_key=rsa_key) as sftp:
->>>>>>> Stashed changes
             localFile = promotions_object_body
             remotePath = f"/test/synchronize/{output_promotions_file}"
             sftp.putfo(localFile, remotePath)
