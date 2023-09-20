@@ -36,7 +36,7 @@ def _join_promo_prices_from_s3(ds, ti):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
