@@ -226,7 +226,7 @@ with DAG(
     'etl_workflow_promotions_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de datos incrementales de workflow_promociones de Alvi desde Datawarehouse",
-    schedule_interval="30 7 * * *",
+    schedule_interval="50 6,13 * * *",
     start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
