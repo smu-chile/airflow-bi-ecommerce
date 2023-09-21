@@ -166,13 +166,14 @@ def ventas_maximos_apo_to_s3_am(ds):
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    list_material_aux = [item.lstrip('0') for item in list_material]
+
+    list_material_aux = df_materiales['material'].tolist()
+    list_material_aux = [item.lstrip('0') for item in list_material_aux]
     list_material_aux = ' '.join(list_material_aux)
     list_material_aux = list_material_aux.replace(" ", "','")
     print(list_material_aux)
     
-    aux_df = ventas_maximas(list_material_aux,ds)
-    df_maximas = pd.concat([df_maximas, aux_df])
+    df_maximas = ventas_maximas(list_material_aux,ds)
     df_maximas['id_tienda'] = df_maximas['id_tienda'].astype(str).str.rjust(4, '0')
     df_maximas['material'] = df_maximas['material'].astype(str).str.rjust(18, '0')
     print(df_maximas)
