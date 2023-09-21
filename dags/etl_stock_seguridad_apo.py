@@ -119,7 +119,6 @@ def ventas_maximas(list_material,ds):
     cursor = pg_connection.cursor()
     cursor.execute(ventas_maximos_query)
     results = cursor.fetchall()
-    results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["id_tienda","material","venta_maxima"]
     cursor.close()
