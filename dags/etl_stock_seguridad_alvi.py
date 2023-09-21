@@ -38,7 +38,7 @@ def stock(ds):
                             from ecommdata_alvi.stock s
                             left join ecommdata_alvi.tiendas t
                             on t.id = s.id_tienda
-                            where fecha = '"""+ds+"""'::date
+                            where fecha = current_date--'"""+ds+"""'::date
                             and surtido_ecommerce is true
                             and stock_infinito_janis is not true
                             and id_tienda not in ('1917','0917')
@@ -567,5 +567,3 @@ with DAG(
     t0 >> t1_am >> t2_am
     t0 >> t1_pm >> t2_pm
     t0 >> t_dummy
-
-
