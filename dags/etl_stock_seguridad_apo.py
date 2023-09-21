@@ -108,7 +108,7 @@ def ventas_maximas(list_material,ds):
                             SELECT id_tienda, material, venta_umv 
                             FROM ecommdata.venta_sku_tienda
                             WHERE fecha >= '"""+ds+"""'::date - 30
-                            AND material IN ('"""+list_material+"""'))
+                            AND material IN ("""+list_material+"""))
                             SELECT fd.id_tienda, fd.material, MAX(fd.venta_umv)
                             FROM filtered_data fd
                             LEFT JOIN ecommdata.tiendas t ON t.id = lpad(fd.id_tienda,4,'0')
@@ -332,7 +332,9 @@ def ventas_maximos_apo_to_s3_pm(ds):
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    list_material_aux = [item.lstrip('0') for item in list_material]
+    list_material_aux = []
+    list_material_aux = df_materiales['material'].tolist()
+    list_material_aux = [item.lstrip('0') for item in list_material_aux]
     n=10
     output=[list_material_aux[i:i + n] for i in range(0, len(list_material_aux), n)]
     print(output)
