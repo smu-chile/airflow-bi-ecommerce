@@ -108,7 +108,7 @@ def ventas_maximas(list_material,ds):
                             SELECT id_tienda, material, venta_umv 
                             FROM ecommdata.venta_sku_tienda
                             WHERE fecha >= '"""+ds+"""'::date - 30
-                            AND material IN ("""+list_material+""")
+                            AND material IN ("""+list_material+"""))
                             SELECT fd.id_tienda, fd.material, MAX(fd.venta_umv)
                             FROM filtered_data fd
                             LEFT JOIN ecommdata.tiendas t ON t.id = lpad(fd.id_tienda,4,'0')
