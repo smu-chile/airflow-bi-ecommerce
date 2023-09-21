@@ -37,6 +37,21 @@ def _get_peya_botilleria_active_stores():
     pg_connection.close()
     return results
 
+def _get_peya_market_active_stores():
+    peya_stores_query = """
+        SELECT id, peya_market
+        FROM integraciones.tiendas_last_millers
+        WHERE peya_market is not NULL;
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(peya_stores_query)
+    results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
+    return results
+
 def _join_stock_and_promo_prices_from_s3(ds, ti):
     import io
     import pandas as pd
@@ -50,6 +65,10 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     peya_botilleria_stores = ti.xcom_pull(key="return_value", task_ids=["get_peya_botilleria_active_stores"])[0]
     peya_botilleria_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_botilleria_stores])
     print(f"Botilleria: {peya_botilleria_store_ids}")
+    
+    peya_market_stores = ti.xcom_pull(key="return_value", task_ids=["_get_peya_market_active_stores"])[0]
+    peya_market_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_market_stores])
+    print(f"Market: {peya_market_store_ids}")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -235,17 +254,22 @@ with DAG(
         task_id = "get_peya_botilleria_active_stores",
         python_callable = _get_peya_botilleria_active_stores
     )
-
     t2 = PythonOperator(
+        task_id = "get_peya_market_active_stores",
+        python_callable = _get_peya_market_active_stores
+    )
+
+    t3 = PythonOperator(
         task_id = "join_stock_and_promo_prices_from_s3",
         python_callable = _join_stock_and_promo_prices_from_s3
     )
 
-    t3 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "send_joined_data_to_stfp",
         python_callable = _send_joined_data_to_stfp
     )
 
-    t0 >> t2
-    t1 >> t2
+    t0 >> t3
+    t1 >> t3
     t2 >> t3
+    t3 >> t4
