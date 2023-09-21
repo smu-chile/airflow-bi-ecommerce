@@ -1,9 +1,8 @@
 SELECT P.SKU_KEY
-    , P.EAN
-    , P.CONT_CONV_UMB
-    , P.NM
-    , P.BRAND_DESC
-    , P.UNIDAD_DE_MEDIDA
+	, P.EAN 
+	, P.CONT_CONV_UMB
+	, P.NM
+	, P.BRAND_DESC
+	, P.UNIDAD_DE_MEDIDA
 FROM DWC_SMU.SMU.VW_DIM_PRODUCT P
-WHERE P.UNIDAD_DE_MEDIDA  IS NOT NULL
-AND p.indic_ean_ppal = 'X';
+WHERE p.indic_ean_ppal = 'X';
