@@ -94,19 +94,16 @@ def _join_promo_prices_from_s3(ds, ti):
 def _send_joined_data_to_sftp(ds):
     import os
     import pysftp
-    import paramiko
+    from airflow.models import Variable
 
     ftp_host = Variable.get("UBER_SFTP_HOST")
     ftp_port = 2222
     ftp_user = Variable.get("UBER_SFTP_USER")
     ftp_rsa_key = Variable.get("UBER_SFTP_SECRET_RSA_KEY")
 
-    # Write the private key to the file in a single-line format
+    # Save the SSH private key to a temporary file
     with open("temp_uber_sftp_rsa_key", "w") as key_file:
-        key_file.write(ftp_rsa_key.replace("\n", ""))  # Remove line breaks
-
-    private_key_file = "temp_uber_sftp_rsa_key"
-    rsa_key = paramiko.RSAKey.from_private_key_file(private_key_file)
+        key_file.write(ftp_rsa_key)
 
     exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
@@ -117,7 +114,7 @@ def _send_joined_data_to_sftp(ds):
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
 
     print(f"Number of files found: {len(s3_file_list)}")
-
+    
     for promotions_file in s3_file_list:
         print(promotions_file)
 
@@ -125,18 +122,19 @@ def _send_joined_data_to_sftp(ds):
         promotions_object_body = promotions_object.get()["Body"]
 
         output_promotions_file = promotions_file.split("/")[-1]
+        print(output_promotions_file)
         print(f"File to load to SFTP Server: {output_promotions_file}")
-
-        with pysftp.Connection(host=ftp_host,
-                               username=ftp_user,
-                               port=ftp_port,
-                               private_key=rsa_key) as sftp:
+        
+        with pysftp.Connection(host=ftp_host, 
+                                username=ftp_user, 
+                                port=ftp_port,
+                                private_key="temp_uber_sftp_rsa_key") as sftp:
             localFile = promotions_object_body
             remotePath = f"/test/synchronize/{output_promotions_file}"
             sftp.putfo(localFile, remotePath)
-
+        
         print("File loaded.")
-
+        
     return
 
 
