@@ -273,9 +273,9 @@ def carga_stock_seguridad_janis_am(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = str(int(df['material'][i])).zfill(18)
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
-        stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        stock_seguridad = int(df.stock_seguridad[i])
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
@@ -430,9 +430,9 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = str(int(df['material'][i])).zfill(18)
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
-        stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        stock_seguridad = int(df.stock_seguridad[i])
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
