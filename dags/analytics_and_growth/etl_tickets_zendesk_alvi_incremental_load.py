@@ -77,7 +77,9 @@ def _load_tickets_zendesk(ts):
     df["numero_pedido"] = np.where(df["numero_pedido"].str.isnumeric(), df["numero_pedido"], None)
     df = df.astype(column_types, errors="ignore")
     df["id_tienda"] = np.where(df["tienda"].fillna("").str[:4].str.isnumeric(), df["tienda"].str[:4],None)
-
+    df["id_tienda"] = df["id_tienda"].str[:4]
+    df["id_tienda"] = np.where(df["id_tienda"].str.isnumeric(), df["id_tienda"], None)
+    
     columns = [
         "estado",
         "fecha_actualizacion",
