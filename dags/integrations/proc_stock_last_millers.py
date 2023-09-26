@@ -182,6 +182,7 @@ def _get_products_from_datawarehouse(ds):
 def _load_products_to_postgres(ti):
     import pandas as pd
     from sqlalchemy import create_engine
+    import csv
 
     file_name = ti.xcom_pull(key="return_value", task_ids="get_products_from_datawarehouse")
     print(file_name)
@@ -190,11 +191,13 @@ def _load_products_to_postgres(ti):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        print(f"ERROR: File {file_name} not found on S# bucket: {s3_bucket}")
+        print(f"ERROR: File {file_name} not found on S3 bucket: {s3_bucket}")
         return
     
     products_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
-    df = pd.read_csv(products_object.get()["Body"], dtype="object")
+    
+    # Read CSV with custom quoting to handle double quotes within fields
+    df = pd.read_csv(products_object.get()["Body"], dtype="object", quoting=csv.QUOTE_MINIMAL)
     df.columns = map(str.lower, df.columns)
     print(f"Number of records found: {len(df.index)}")
 
@@ -206,14 +209,20 @@ def _load_products_to_postgres(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = create_engine(conn_url)
 
-    # Save to PostgreSQL:
-    df.to_sql(name="productos",
-                con=engine,         
-                schema="integraciones",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    for index, row in df.iterrows():
+        try:
+            if pd.notna(row['cont_conv_umb']):
+                row.to_sql(name="productos",
+                            con=engine,         
+                            schema="integraciones",         
+                            if_exists='append',         
+                            index=False,         
+                            chunksize=20000,         
+                            method='multi')
+            else:
+                print(f"Skipping row {index} due to null value in 'cont_conv_umb' field.")
+        except Exception as e:
+            print(f"Error inserting row {index} into the database: {str(e)}")
 
     return
 
