@@ -7,86 +7,16 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 import pendulum
 
-def _load_scheduled_wp_tables_to_s3(ds):
-    import pandas as pd
-    import io
-    wp_query = """
-        SELECT * FROM ecommdata.cruce_wp_pdv cwp
-            WHERE cwp.id_vtex is null
-        """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(wp_query)
-    results = cursor.fetchall()
-    cursor.close()
-    pg_connection.close()
-    df_wp = pd.DataFrame(results)
-
-    exec_date = ds.replace("-", "/")
-    date_aux = ds.replace("-", "_")
-    prefix = f"carga_promociones/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    #Save to S3
-    buffer = io.StringIO()
-    df_wp.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"carga_promociones/{exec_date}/carga_promociones{date_aux}.csv"
-    buffer.seek(0)
-    print("se logro transformar el dataframe a un archivo .csv")
-    print(f"con fecha {ds} y nombre de filename como {filename}")
-    s3_hook.load_string(buffer.getvalue(),
-                key=filename,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-    print(f"File load on S3: {prefix}")
-
-    return filename
-
-def _load_promotions_from_s3(ti):
-    import pandas as pd
-
-    filename = ti.xcom_pull(key="return_value", task_ids=["_load_scheduled_wp_tables_to_s3"])[0]
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    print("Searching file: "+filename)
-    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % filename)
-
-    promotions_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
-
-    df = pd.read_csv(promotions_object.get()["Body"])
-    if len(df.index) == 0:
-        print("There are no new nor updated records to load. Task will exit as successfull.")
-        return
-    
-    print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
-
-    len_grouped = grouped_df.shape[0]
-    print(f"Tamaño grouped_df: {len_grouped}")
-    if len_grouped == 0:
-        print('El número de cabecera no arroja promociones, posiblemente por filtros vtex o lista8')
-        return pd.DataFrame()
-
-    # GENERAL FIELDS OF CREATE PROMOTION
-    grouped_df['payload_prom'] = grouped_df.apply(
-        lambda row: payload_prom(row), axis=1)
-
-    def payload_prom(row):
+def payload_prom(row):
+        import re
         max_skus_regular = 200
         max_skus_1BuyTogether = 100
-        lista_precio = (row['precio'] == 'lista-precio')
-        regular = (row['mecanica'] == 'regular')
-        moreforless = (row['mecanica'] == 'forThePriceOf')
+        lista_precio = (row['precio_wp'] == 'lista-precio')
+        regular = (row['mecanica_wp'] == 'regular')
+        moreforless = (row['mecanica_wp'] == 'forThePriceOf')
 
         price_table_name = re.sub(
-            r'[^a-zA-Z0-9]', '', row['nombre_promocion']) if lista_precio else ''
+            r'[^a-zA-Z0-9]', '', row['nombre_promocion_wp']) if lista_precio else ''
 
         skus_regular = row['vtexid_name'] if (
             regular & ~lista_precio & (row['vtex_id_count'] <= max_skus_regular)) else []
@@ -115,16 +45,16 @@ def _load_promotions_from_s3(ti):
             porcentaje_descuento = 100 - \
                 (row['cantidad_m']/row['cantidad_n'])*100
         elif descuento_regular:
-            porcentaje_descuento = row['porcentaje_de_descuento']
+            porcentaje_descuento = row['porcentaje_de_descuento_wp']
         else:
             porcentaje_descuento = 0.0
 
         payload = {
             'idCalculatorConfiguration': "",
-            'name': row['new_name_prom'],
-            'generalValues': {'WORKFLOWID': row['n_promocion']},
-            'beginDateUtc': row['fecha_inicio_ag'],
-            'endDateUtc': row['fecha_fin_ag'],
+            'name': row['nombre_carga_wp'],
+            'generalValues': {'WORKFLOWID': row['n_promocion_wp']},
+            'beginDateUtc': row['fecha_inicio_wp'],
+            'endDateUtc': row['fecha_fin_wp'],
             'lastModified': "",
             'daysAgoOfPurchases': 0,
             'isActive': True,
@@ -159,7 +89,7 @@ def _load_promotions_from_s3(ti):
             'nominalTax': 0.0,
             'origin': "Marketplace",
             'idSellerIsInclusive': False,
-            'idsSalesChannel': [],
+            'idsSalesChannel': [40],
             'areSalesChannelIdsExclusive': False,
             'marketingTags': [],
             'marketingTagsAreNotInclusive': False,
@@ -221,7 +151,85 @@ def _load_promotions_from_s3(ti):
             'useNewProgressiveAlgorithm': False,
             'percentualDiscountValueList': []
         }
+        print(payload)
         return payload
+
+def _load_scheduled_wp_tables_to_s3(ds):
+    import pandas as pd
+    import io
+    wp_query = """
+        SELECT * FROM ecommdata.cruce_wp_pdv cwp
+            WHERE id_vtex is null and nombre_carga_wp is not null
+        """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(wp_query)
+    results = cursor.fetchall()
+    cursor.close()
+    columns_name = [i[0] for i in cursor.description]
+    cursor.close()
+    pg_connection.close()
+    df_wp = pd.DataFrame(results, columns=columns_name)
+    '''
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"carga_promociones/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    #Save to S3
+    buffer = io.StringIO()
+    df_wp.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"carga_promociones/{exec_date}/carga_promociones{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+def _load_promotions_from_s3(ti):
+    import pandas as pd
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["_load_scheduled_wp_tables_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    promotions_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(promotions_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
+
+    '''
+    df_wp['vtexid_name'] = df_wp[['vtex_id', 'nombre_sku']].apply(
+        lambda row: {'id': row['vtex_id'], 'name': row['nombre_sku']}, axis=1)
+
+    len_grouped = df_wp.shape[0]
+    print(f"Tamaño grouped_df: {len_grouped}")
+    if len_grouped == 0:
+        print('El número de cabecera no arroja promociones, posiblemente por filtros vtex o lista8')
+        return pd.DataFrame()
+    print(df_wp.info())
+    # GENERAL FIELDS OF CREATE PROMOTION
+    df_wp['payload_prom'] = df_wp.apply(
+        lambda row: payload_prom(row), axis=1)
     
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     environment = Variable.get("VTEX_ENV")
@@ -237,7 +245,7 @@ def _load_promotions_from_s3(ti):
         "Connection": "keep-alive"
     }
     
-    for promocion in objeto['promotion_loads']:
+    '''for promocion in objeto['promotion_loads']:
         base = f"https://{accountName}.{environment}.com.br"
         url = base+"/api/rnb/pvt/calculatorconfiguration"
         r = requests.post(url, headers=headers, json=promocion)
@@ -250,7 +258,7 @@ def _load_promotions_from_s3(ti):
     pd.DataFrame(contents).to_excel(f"./respuestas.xlsx")
     with open(f"OUT_{file}", "w+") as archivo:
         json.dump({"promos": contents}, archivo)
-    return print("CARGADO PROMOCIONES")
+    return print("CARGADO PROMOCIONES")'''
 
     return
 
@@ -279,9 +287,4 @@ with DAG(
         python_callable = _load_scheduled_wp_tables_to_s3,
     )
 
-    t1 = PythonOperator(
-        task_id = "_load_promotions_from_s3",
-        python_callable = _load_promotions_from_s3,
-    )
-
-    t0 >> t1
+    t0
