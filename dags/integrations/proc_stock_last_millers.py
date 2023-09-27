@@ -39,7 +39,7 @@ def _get_stock_from_datawarehouse(ti, ds):
     with open(curr_working_directory+"/dags/integrations/sql/stock_datawarehouse.sql", "r") as query_file:
         base_query = query_file.read()
 
-    exec_date = macros.ds_add(ds, 1)
+    exec_date = macros.ds_add(ds, 0)
     exec_date = exec_date.replace("-", "/")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
