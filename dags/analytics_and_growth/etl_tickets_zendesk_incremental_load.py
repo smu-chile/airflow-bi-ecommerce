@@ -104,6 +104,8 @@ def _load_tickets_zendesk(ts):
         "cerrado_por_merge"
     ]
 
+    df['id_tienda'] = str(int(df['id_tienda'])).zfill(4)
+
     df = df[["id_ticket"]+columns]
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
