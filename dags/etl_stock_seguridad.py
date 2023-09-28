@@ -41,7 +41,7 @@ def stock(ds):
                             where fecha = current_date--'"""+ds+"""'::date
                             and surtido_ecommerce is true
                             and stock_infinito_janis is not true
-                            and id_tienda not in ('1917','0917')
+                            and id_tienda not in ('1917')
                             and t.status = 1"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
@@ -134,7 +134,7 @@ def venta_tienda(ds):
                         and v.venta_bruta <> 0 
                         and v.organizacion = 'Unimarc'
                         and p.precio_lista is not null
-                        and LPAD(v.id_tienda , 4, '0') not in ('1917','0917')) as _t
+                        and LPAD(v.id_tienda , 4, '0') not in ('1917')) as _t
                         where precio_venta/precio_lista > 0.8 
                         group by _t.id_tienda,
                         _t.ref_id,
