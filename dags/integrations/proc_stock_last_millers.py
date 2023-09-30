@@ -199,7 +199,11 @@ def _load_products_to_postgres(ti):
     # Read CSV with custom quoting to handle double quotes within fields
     df = pd.read_csv(products_object.get()["Body"], dtype="object", quoting=csv.QUOTE_MINIMAL)
     df.columns = map(str.lower, df.columns)
+    print(df.info())
     print(f"Number of records found: {len(df.index)}")
+    df = df.dropna(subset=df.columns[:3], how='all')
+    print(df.info())
+
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -209,20 +213,13 @@ def _load_products_to_postgres(ti):
     conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
     engine = create_engine(conn_url)
 
-    for index, row in df.iterrows():
-        try:
-            if pd.notna(row['cont_conv_umb']):
-                row.to_sql(name="productos",
-                            con=engine,         
-                            schema="integraciones",         
-                            if_exists='append',         
-                            index=False,         
-                            chunksize=20000,         
-                            method='multi')
-            else:
-                print(f"Skipping row {index} due to null value in 'cont_conv_umb' field.")
-        except Exception as e:
-            print(f"Error inserting row {index} into the database: {str(e)}")
+    df.to_sql(name="productos",
+                con=engine,         
+                schema="integraciones",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
 
     return
 
