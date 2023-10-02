@@ -88,8 +88,8 @@ def promociones(ds):
                             from ecommdata.workflow_promociones 
                             where fecha_inicio_de_promocion <= '"""+ds+"""'::date
                             and fecha_fin_de_promocion >= '"""+ds+"""'::date
-                            and id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
-                            and id_evento not in (551)) as _t
+                            and wp.id_mecanica in (26)
+                            and wp.id_evento in (400)) as _t
                             group by
                             _t.material,
                             _t.umv,
