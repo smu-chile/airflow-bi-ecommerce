@@ -107,7 +107,7 @@ def ventas_maximas(list_material,ds):
     ventas_maximos_query = """WITH filtered_data AS (
                             SELECT id_tienda, material, venta_umv 
                             FROM ecommdata.venta_sku_tienda
-                            WHERE fecha >= '"""+ds+"""'::date - 30
+                            WHERE fecha >= '"""+ds+"""'::date - 15
                             AND material IN ("""+list_material+"""))
                             SELECT fd.id_tienda, fd.material, fd.venta_umv
                             FROM filtered_data fd
