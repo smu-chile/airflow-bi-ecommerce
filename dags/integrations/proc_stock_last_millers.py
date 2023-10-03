@@ -201,7 +201,7 @@ def _load_products_to_postgres(ti):
     df.columns = map(str.lower, df.columns)
     print(df.info())
     print(f"Number of records found: {len(df.index)}")
-    df = df.dropna(subset=df.columns[:2], how='all')
+    df = df.dropna(subset=df.columns[:3])
     print(df.info())
 
 
