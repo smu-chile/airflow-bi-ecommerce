@@ -116,7 +116,7 @@ def _staging_monitor_despacho_table(ti):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
