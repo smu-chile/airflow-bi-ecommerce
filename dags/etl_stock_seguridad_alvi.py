@@ -128,7 +128,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #transformacion de datos#
     #########################
 
-    df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
@@ -230,7 +229,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #transformacion de datos#
     #########################
 
-    df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
