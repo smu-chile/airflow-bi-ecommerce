@@ -240,8 +240,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
     print(df_stock_seguridad["cantidad"])
-    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]
-    print(df_stock_seguridad["cantidad"])
 
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
@@ -253,7 +251,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
-    df_stock_seguridad_aux
     ################################
     #        filtrado por dia      #
     ################################
