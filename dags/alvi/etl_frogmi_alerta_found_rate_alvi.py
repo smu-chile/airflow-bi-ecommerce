@@ -163,7 +163,7 @@ def _save_table_alerta_found_rate(ts, ti, ds):
     if exec_datetime_local_str.split("T")[1] == "18:00":
         exec_date = macros.ds_add(ds, 1)
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
     with engine.begin() as conn:
         conn.execute(f"""

@@ -101,7 +101,7 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     df.to_sql(name="stock_vtex_alvi",
@@ -187,7 +187,7 @@ def _save_table_stock_janis(ts, ti):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     df_array = np.array_split(df,5)

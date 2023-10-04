@@ -227,7 +227,7 @@ def _save_table_alerta_reposicion(ts, ti, ds):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     exec_date = ds
