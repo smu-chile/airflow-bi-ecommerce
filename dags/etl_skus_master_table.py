@@ -220,7 +220,6 @@ def master_sku_to_postgresq(ti):
     print("Data saved to PostgreSQL.")
 
     return
-    return 
 
 default_args = {
     "owner": "ecommerce_data",
