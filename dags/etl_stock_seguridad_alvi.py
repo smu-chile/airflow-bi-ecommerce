@@ -155,6 +155,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     ##################################
     #        filtrado por dia        #
     ##################################
+
     fecha_str = ds
     formato_str = "%Y-%m-%d"
 
