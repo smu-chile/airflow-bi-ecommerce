@@ -66,7 +66,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     peya_botilleria_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_botilleria_stores])
     print(f"Botilleria: {peya_botilleria_store_ids}")
     
-    peya_market_stores = ti.xcom_pull(key="return_value", task_ids=["_get_peya_market_active_stores"])[0]
+    peya_market_stores = ti.xcom_pull(key="return_value", task_ids=["get_peya_market_active_stores"])[0]
     peya_market_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_market_stores])
     print(f"Market: {peya_market_store_ids}")
 
