@@ -20,7 +20,7 @@ def _check_empty_table(ti):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     query_count_weighables = """
@@ -200,7 +200,7 @@ def _order_items_table_incremental_load(ts, ti):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
@@ -308,7 +308,7 @@ def _create_initial_order_items_table(ti, xcom_name, truncate=True):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     if truncate:

@@ -102,7 +102,7 @@ def _insert_table_from_ecommdata_into_DM(ts, ds):
     username = Variable.get("DM_USER")
     password = Variable.get("DM_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
     
     pg_connection = engine.raw_connection()
