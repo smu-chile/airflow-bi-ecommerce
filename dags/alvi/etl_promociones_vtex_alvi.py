@@ -531,7 +531,7 @@ default_args = {
 }
 
 with DAG(
-    'etl_promociones_vtex',
+    'etl_promociones_alvi_vtex',
     default_args=default_args,
     description="Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.",
     schedule_interval="50 4,13 * * *",
