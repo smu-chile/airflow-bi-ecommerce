@@ -250,7 +250,7 @@ with DAG(
     )
 
     t8 = PostgresOperator(
-        task_id = "load_table_publicacion_dia_tienda_surtido_y_con_marca",
+        task_id = "publicacion_dia_tienda_surtido_marca_proveedor",
         postgres_conn_id="postgresql_conn",
         sql="sql/publicacion_dia_tienda_surtido_marca_proveedor.sql",
     )
