@@ -1,0 +1,50 @@
+insert into catalogo.publicacion_dia_tienda_surtido_marca_proveedor
+SELECT pc.fecha_hora,
+    pc.id_tienda,
+    pc.c1,
+    pc.c2,
+    pc.c3,
+    pc.marca,
+    msp.nombre_proveedor,
+    count(1) AS total_surtido,
+    sum(
+        CASE
+            WHEN pc.publicacion_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS publicacion_valida,
+    sum(
+        CASE
+            WHEN pc.disponible_web IS TRUE THEN 1
+            ELSE 0
+        END) AS disponible_web,
+    sum(
+        CASE
+            WHEN COALESCE(pc.stock_janis, 0::bigint) > 0 THEN 1
+            ELSE 0
+        END) AS con_stock,
+    sum(
+        CASE
+            WHEN pc.foto_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS con_foto,
+    sum(
+        CASE
+            WHEN pc.categoria_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS con_categoria,
+    sum(
+        CASE
+            WHEN pc.tienda_valida IS TRUE THEN 1
+            ELSE 0
+        END) AS con_tienda,
+     sum(
+        CASE
+            WHEN pc.stock_valido IS TRUE THEN 1
+            ELSE 0
+        END) AS con_stock_visible
+FROM ecommdata.publicacion_catalogo pc
+left join ecommdata.maestra_sku_proveedor msp
+on pc.material = msp.material 
+WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '2023-10-05 12:00:00.000' at time zone 'America/Santiago' + interval '4 hours'
+and msp.nombre_proveedor <> 'None'
+GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.marca,msp.nombre_proveedor;
