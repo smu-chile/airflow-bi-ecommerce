@@ -373,6 +373,19 @@ def _save_table_detalle_promociones(ts, ti, ds):
     import pandas as pd
     import sqlalchemy
     import ast
+    import requests
+
+    accountName = Variable.get("VTEX_ACCOUNT_NAME")
+    env = Variable.get("VTEX_ENV")
+    url = f"https://{accountName}.{env}.com.br/api/catalog/pvt/collection/"
+
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
+    headers = {
+    "X-VTEX-API-AppKey" : X_VTEX_API_AppKey,
+    "X-VTEX-API-AppToken" :  X_VTEX_API_AppToken
+    }
 
     df = _get_table_detalle_promociones_from_S3(ti)
     df = df[["id",
@@ -481,6 +494,25 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = i.get('id',None)
             nombre_coleccion = i.get('name',None)
             tipo = "collections"
+
+            products_url = f'{url}{vtex_id_coleccion}/products'
+            response = requests.get(products_url, headers=headers)
+            if response.status_code == 200:
+                collection_skus = response.json()
+                df_collections = pd.DataFrame(collection_skus)
+                print(df_collections.info())
+            else:
+                raise Exception(f"API call to collection {vtex_id_coleccion} failed with status code {response.status_code}")
+            
+            for sku in collection_skus:
+                vtex_id_sku = sku.get('id', None)
+                nombre_sku = sku.get('name', None)
+                aux_list.append([id, nombre_promocion, valores_generales, fecha_inicio, fecha_fin, ultima_modificacion,
+                                 activo, archivado, tabla_nombre_precio, marcas, cupon, vtex_id_producto,
+                                 nombre_producto, vtex_id_sku, nombre_sku, tipo, maxima_unidad_pd, min_cantidad_bt,
+                                 cantidad_a_afectar_bt, valor_descuento_percentual, acumular_precio_fijo,
+                                 vtex_id_coleccion, nombre_coleccion])
+        
             aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion])
         if str(tabla_nombre_precio) != 'nan':
             vtex_id_producto = None
