@@ -514,7 +514,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
     df2.to_sql(name="promociones_detalle_vtex",
             con=engine,         
-            schema="ecommdata",         
+            schema="ecommdata_alvi",         
             if_exists='append',         
             index=False,         
             chunksize=20000,         

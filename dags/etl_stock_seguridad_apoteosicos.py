@@ -59,8 +59,8 @@ def promociones(ds):
                     on wp.material = l.material
                     where wp.fecha_inicio_de_promocion <= '"""+ds+"""'::date 
                     and wp.fecha_fin_de_promocion >= '"""+ds+"""'::date 
-                    and wp.id_mecanica in (26)
-                    and wp.id_evento in (400)
+                    and wp.id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
+                    and wp.id_evento not in (551)
                     and l.material is not null"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
