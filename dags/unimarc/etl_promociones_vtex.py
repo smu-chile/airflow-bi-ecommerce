@@ -498,13 +498,11 @@ def _save_table_detalle_promociones(ts, ti, ds):
             products_url = f'{url}{vtex_id_coleccion}/products'
             response = requests.get(products_url, headers=headers)
             if response.status_code == 200:
+                print(response.text)
                 collection_skus = response.json()
                 df_collections = pd.DataFrame(collection_skus)
                 print(df_collections.info())
-            else:
-                raise Exception(f"API call to collection {nombre_coleccion} ,code: {vtex_id_coleccion} failed with status code {response.status_code}")
             
-            print(response.text)
             aux_list.append([id, nombre_promocion, valores_generales, fecha_inicio, fecha_fin, ultima_modificacion,
                                  activo, archivado, tabla_nombre_precio, marcas, cupon, vtex_id_producto,
                                  nombre_producto, vtex_id_sku, nombre_sku, tipo, maxima_unidad_pd, min_cantidad_bt,
