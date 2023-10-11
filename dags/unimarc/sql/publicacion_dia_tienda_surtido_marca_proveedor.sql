@@ -45,6 +45,6 @@ SELECT pc.fecha_hora,
 FROM ecommdata.publicacion_catalogo pc
 left join ecommdata.maestra_sku_proveedor msp
 on pc.material = msp.material 
-WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '2023-10-05 12:00:00.000' at time zone 'America/Santiago' + interval '4 hours'
+WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
 and msp.nombre_proveedor <> 'None'
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.marca,msp.nombre_proveedor;
