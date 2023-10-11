@@ -265,7 +265,6 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         for sku in sku_list:
             url = "https://"+name+".vtexcommercestable.com.br/api/logistics/pvt/inventory/skus/"+str(sku)
             url_list.append(url)
-            print(url)
 
         session = requests.session()
         thread_num = 40
@@ -293,19 +292,24 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         for task in thread_tasks:
             task.join()
             thread_tasks = []
-        print(responses)
+        #print(responses)
         final_responses = []
         for response in responses:
             response_aux = response['json']
-            for i in response_aux['balance']:
-                try:
-                    aux = (response_aux['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
-                    final_responses.append(aux)
-                except KeyError as e:
+            try:
+                for i in response_aux['balance']:
+                    try:
+                        aux = (response_aux['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
+                        final_responses.append(aux)
+                    except KeyError as e:
+                        print(e)
+                        print(response)
+                        exception_cases.append(response['url'])
+            except KeyError as e:
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
-        print(final_responses)
+        #print(final_responses)
 
         _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
 
