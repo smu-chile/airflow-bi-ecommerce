@@ -1,0 +1,152 @@
+SELECT wp.n_promocion,
+            wp.nombre_promocion,
+            (((((wp.n_promocion || ' '::text) || regexp_replace(wp.nombre_promocion::text, '[^a-zA-Z0-9]'::text, ''::text, 'g'::text)) || '_'::text) ||
+                CASE
+                    WHEN wp.descripcion_mecanica::text ~~ '%CHELAZO%'::text THEN 'C003'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%LECHAERAZO%'::text THEN 'C004'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%LIMPIAZO%'::text THEN 'C005'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%DESPENSAZO%'::text THEN 'C008'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%CLUB AHORRO%'::text THEN 'C011'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%PASCUERAZO%'::text THEN 'C015'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%FONDAZO%'::text THEN 'C017'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%GUAGUAZO%'::text THEN 'C018'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%CYBERAZO%'::text THEN 'C029'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%ASAITO%'::text THEN 'C031'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%REDFRIDAY%'::text THEN 'C064'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%EXCLUSIVO ECOMMERCE%'::text THEN 'C065'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%MARCAS PROPIAS%'::text THEN 'C068'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%BLACK FRIDAYS%'::text THEN 'C070'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%2A UN CON DCTO%%'::text THEN 'C071'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%3X2'::text THEN 'C072'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%COPETITO%'::text THEN 'C073'::text
+                    WHEN wp.descripcion_mecanica::text ~~ '%990%'::text THEN 'C074'::text
+                    ELSE 'C011'::text
+                END) || '_'::text) ||
+                CASE
+                    WHEN wp.tipo_promocion = 7 THEN
+                    CASE
+                        WHEN wp.cantidad_n = 2 THEN 'M001__'::text
+                        WHEN wp.cantidad_n = 3 THEN 'M002__'::text
+                        WHEN wp.cantidad_n = 4 THEN 'M003__'::text
+                        WHEN wp.cantidad_n = 5 THEN 'M004__'::text
+                        WHEN wp.cantidad_n = 6 THEN 'M005__'::text
+                        WHEN wp.cantidad_n = 7 THEN 'M006__'::text
+                        WHEN wp.cantidad_n = 8 THEN 'M007__'::text
+                        WHEN wp.cantidad_n = 9 THEN 'M008__'::text
+                        WHEN wp.cantidad_n = 10 THEN 'M009__'::text
+                        WHEN wp.cantidad_n = 12 THEN 'M010__'::text
+                        WHEN wp.cantidad_n = 18 THEN 'M011__'::text
+                        WHEN wp.cantidad_n = 24 THEN 'M012__'::text
+                        WHEN wp.cantidad_n = 36 THEN 'M013__'::text
+                        ELSE NULL::text
+                    END || round(wp.precio_promocional, 0)
+                    WHEN wp.tipo_promocion = 1 THEN
+                    CASE
+                        WHEN wp.porcentaje_de_descuento = 0.1 THEN 'M014__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.15 THEN 'M015__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.2 THEN 'M016__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.25 THEN 'M017__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.3 THEN 'M018__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.35 THEN 'M019__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.4 THEN 'M020__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.45 THEN 'M021__'::text
+                        WHEN wp.porcentaje_de_descuento = 0.5 THEN 'M034__'::text
+                        WHEN wp.porcentaje_de_descuento = ANY (ARRAY[0.6, 0.7]) THEN '___'::text
+                        ELSE NULL::text
+                    END
+                    WHEN wp.tipo_promocion = 4 THEN
+                    CASE
+                        WHEN wp.umv::text = ANY (ARRAY['KG'::character varying::text, 'KGV'::character varying::text]) THEN '__'::text || round(wp.precio_promocional * s.multiplicador_unidad_medida, 0)
+                        ELSE '_XXXX_'::text
+                    END
+                    WHEN wp.tipo_promocion = 2 THEN
+                    CASE
+                        WHEN wp.cantidad_n = 2 THEN wp.marca::text || 'M022-1__'::text
+                        WHEN wp.cantidad_n = 3 THEN wp.marca::text || 'M023-1__'::text
+                        WHEN wp.cantidad_n = 4 THEN (wp.marca::text || 'M003__'::text) || round(wp.precio_promocional, 0)
+                        WHEN wp.cantidad_n = 5 THEN (wp.marca::text || 'M004__'::text) || round(wp.precio_promocional, 0)
+                        WHEN wp.cantidad_n = 6 THEN (wp.marca::text || 'M005__'::text) || round(wp.precio_promocional, 0)
+                        ELSE NULL::text
+                    END
+                    WHEN wp.tipo_promocion = 8 AND wp.llevas_n = 2::numeric THEN
+                    CASE
+                        WHEN wp.porcentaje_n = 0.5 THEN 'M025-1'::text
+                        WHEN wp.porcentaje_n = 0.6 THEN 'M026-1'::text
+                        WHEN wp.porcentaje_n = 0.7 THEN 'M027-1'::text
+                        WHEN wp.porcentaje_n = 0.8 THEN 'M028-1'::text
+                        WHEN wp.porcentaje_n = 0.9 THEN 'M029-1'::text
+                        ELSE NULL::text
+                    END
+                    ELSE 'FALTA_COD_MEC'::text
+                END AS new_name_prom,
+            wp.id_mecanica,
+            wp.descripcion_mecanica,
+            (wp.material::text || '-'::text) ||
+                CASE
+                    WHEN wp.umv::text = 'ST'::text THEN 'UN'::character varying
+                    WHEN wp.umv::text = 'CS'::text THEN 'CJ'::character varying
+                    ELSE wp.umv
+                END::text AS ref_id,
+            wp.descripcion_material,
+            wp.marca,
+            wp.tipo_promocion,
+            wp.desc_promocion,
+                CASE
+                    WHEN wp.tipo_promocion = ANY (ARRAY[1, 4]) THEN 'regular'::text
+                    WHEN wp.tipo_promocion = ANY (ARRAY[8, 7, 2]) THEN 'forThePriceOf'::text
+                    ELSE 'error'::text
+                END AS mecanica,
+            wp.precio_modal,
+            wp.precio_promocional,
+                CASE
+                    WHEN wp.tipo_promocion = 4 AND (wp.umv::text <> ALL (ARRAY['KG'::character varying::text, 'KGV'::character varying::text])) THEN 'lista-precio'::text
+                    WHEN wp.tipo_promocion = 4 AND (wp.umv::text = ANY (ARRAY['KG'::character varying::text, 'KGV'::character varying::text])) THEN round(wp.precio_promocional * s.multiplicador_unidad_medida, 0)::text
+                    WHEN wp.tipo_promocion = ANY (ARRAY[1, 2, 8]) THEN '0'::text
+                    WHEN wp.tipo_promocion = 7 THEN round(wp.precio_promocional, 0)::text
+                    ELSE 'err'::text
+                END AS precio,
+            wp.cantidad_n,
+            wp.cantidad_m,
+            wp.llevas_n,
+            round(wp.porcentaje_n * 100::numeric, 0) AS porcentaje_n,
+            wp.fecha_inicio_de_promocion,
+            wp.fecha_fin_de_promocion,
+            round(wp.porcentaje_de_descuento * 100::numeric, 0) AS porcentaje_de_descuento,
+            wp.fecha_modificacion,
+            wp.factor,
+            s.vtex_id,
+            s.nombre_sku,
+            s.id_producto,
+            pdvd.idcalculatorconfiguration,
+            pdvd.nombre_promocion
+        FROM ecommdata.workflow_promociones wp
+            LEFT JOIN ecommdata.skus s ON s.ref_id::text = ((wp.material::text || '-'::text) ||
+                CASE
+                    WHEN wp.umv::text = 'ST'::text THEN 'UN'::character varying
+                    WHEN wp.umv::text = 'CS'::text THEN 'CJ'::character varying
+                    ELSE wp.umv
+                END::text)
+            LEFT JOIN ecommdata.lista8 l8 ON ((l8.material::text || '-'::text) || l8.umv::text) = ((wp.material::text || '-'::text) ||
+                CASE
+                    WHEN wp.umv::text = 'ST'::text THEN 'UN'::character varying
+                    WHEN wp.umv::text = 'CS'::text THEN 'CJ'::character varying
+                    ELSE wp.umv
+                END::text)
+            left join (select coalesce(vpc."SkuId"::numeric,lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
+                        pdv.id as idcalculatorconfiguration,
+                        pdv.nombre_promocion
+                        from promociones_detalle_vtex pdv
+                        LEFT JOIN catalogo.vtex_products_collections vpc ON pdv.vtex_id_coleccion::numeric = vpc.collection_id::numeric
+                        LEFT JOIN catalogo.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy") as pdvd on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion,' ', 1)::text = wp.n_promocion::text
+        WHERE (wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 12, 37, 51, 93, 53, 96, 77, 59]))
+        AND wp.fecha_inicio_de_promocion <= '{ds}' + interval '1 day'
+        AND wp.fecha_fin_de_promocion >= '{ds}' + interval '1 day'
+        AND wp.nombre_promocion::text !~~ '%MFC%'::text 
+        AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text 
+        AND wp.nombre_promocion::text !~~ '%917%'::text
+        AND wp.nombre_promocion::text !~~ '%BANCO ESTADO%'::text
+        and s.vtex_id <> ALL (ARRAY[3610,471,3611,472,473,658,82183,82184,39730])
+        and s.vtex_id IS NOT null
+        and ((l8.material::text || '-'::text) || l8.umv::text) IS NOT NULL
+        GROUP BY wp.n_promocion, wp.nombre_promocion, wp.id_mecanica, wp.descripcion_mecanica, wp.material, s.ref_id, wp.umv, wp.descripcion_material, wp.marca, wp.tipo_promocion, wp.desc_promocion, wp.precio_modal, wp.precio_promocional, s.multiplicador_unidad_medida, wp.ahorro, wp.cantidad_n, wp.cantidad_m, wp.llevas_n, wp.porcentaje_n, wp.fecha_inicio_de_promocion, wp.fecha_fin_de_promocion, wp.porcentaje_de_descuento, wp.fecha_modificacion, wp.factor, s.vtex_id, s.nombre_sku, s.id_producto, pdvd.idcalculatorconfiguration, pdvd.nombre_promocion
+        ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion, s.vtex_id DESC;
