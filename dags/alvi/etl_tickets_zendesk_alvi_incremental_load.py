@@ -211,6 +211,10 @@ def _save_tickets_zendesk_in_postgres(ti):
 
     df['monto_cupon'] = pd.to_numeric(df['monto_cupon'], errors='coerce')
  
+    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(int(x)).zfill(4) if pd.notna(x) and x == x else '')
+    df['id_tienda'] = df['id_tienda'].astype(str)
+
+
     df = df.astype({
         'id_ticket': "int",
         'estado': "string",
@@ -223,7 +227,6 @@ def _save_tickets_zendesk_in_postgres(ti):
         'estado_devolucion': "string",
         'fecha_devolucion': "string",
         'tienda': "string",
-        'id_tienda': "string",
         'gestion': "string",
         'canal': "string",
         'id_reclamo_sernac': "string",
