@@ -136,7 +136,7 @@ SELECT wp.n_promocion,
         left join (select coalesce(vpc."SkuId"::numeric,lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
                     pdv.id as idcalculatorconfigurator,
                     pdv.nombre_promocion as nombre_promocion_vtex,
-                    concat('https://unimarc.myvtex.com/admin/promotions',pdv.id) as link_promocion
+                    concat('https://unimarc.myvtex.com/admin/promotions/',pdv.id) as link_promocion
                     from ecommdata.promociones_detalle_vtex pdv
                     LEFT JOIN catalogo.vtex_products_collections vpc ON pdv.vtex_id_coleccion::numeric = vpc.collection_id::numeric
                     LEFT JOIN catalogo.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy") as pdvd on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text

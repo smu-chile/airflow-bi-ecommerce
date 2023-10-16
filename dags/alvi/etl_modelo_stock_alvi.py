@@ -93,6 +93,9 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     }
 
     df = df.rename(columns=columns_rename)
+
+    df = df.drop_duplicates(subset=['vtex_id', 'id_warehouse'], keep='last')
+
     print(df)
 
 
@@ -350,7 +353,7 @@ def _vtex_get_stock_retries(ti, ts):
     
     if len(retries) == 0:
         return
-    
+    print(retries)
     vtex_account_name = {
         "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
         "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
@@ -426,19 +429,25 @@ def _vtex_get_stock_retries(ti, ts):
             thread_tasks = []
         
         final_responses = []
-        print(responses)
-        response = responses.json()
-        for i in response['balance']:
+        for response in responses:
+            response_aux = response['json']
             try:
-                aux = (response['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
-                final_responses.append(aux)
+                for i in response_aux['balance']:
+                    try:
+                        aux = (response_aux['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
+                        final_responses.append(aux)
+                    except KeyError as e:
+                        print(e)
+                        print(response)
+                        exception_cases.append(response['url'])
             except KeyError as e:
-                print(e)
-                print(response)
-                exception_cases.append(response['url'])
-
+                    print(e)
+                    print(response)
+                    exception_cases.append(response['url'])
+        #print(final_responses)
     if len(exception_cases) > 0:
         raise Exception('exception cases found during retry.')
+    print(exception_cases)
     
     _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
 
