@@ -85,27 +85,27 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             continue
 
         peya_stock_query = f"""
-              select	
+                select	
   				null as barcode,
                 lspp.ean AS sku,
                     CASE
                         WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN round(lspp.precio)
-                        ELSE round(lspp.precio) * s.multiplicador_unidad_medida
-                    END AS precio ,
+                        ELSE round((lspp.precio) * s.multiplicador_unidad_medida)
+                    END AS price ,
                     CASE
                         WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7) THEN 1
                         WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= 7) THEN 1
                         ELSE 0
-                    END AS stock,
-                    null as unidad_medida
+                    END AS active
                     FROM integraciones.lm_stock_precio_promo lspp
                     inner JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                     WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR
                         (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
-                AND lspp.id_tienda = '{store_id}'
+                AND lspp.id_tienda = '0755'     
             ;
         """
+        #AND lspp.id_tienda = '{store_id}' 
         cursor.execute(peya_stock_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
