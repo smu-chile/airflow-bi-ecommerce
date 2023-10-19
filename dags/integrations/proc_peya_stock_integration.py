@@ -79,34 +79,33 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
     for store_id in peya_store_ids.keys():
         print(f"PEYA id: {peya_store_ids[store_id]}")
-        join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
+        join_file_name = f"home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/{exec_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
 
         peya_stock_query = f"""
-            SELECT
-                lspp.ean AS ean,
+              select	
+  				null as barcode,
+                lspp.ean AS sku,
                     CASE
-                        WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN round(LEAST(lspp.precio, lspp.precio_promocional))
-                        ELSE round(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida)
+                        WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN round(lspp.precio)
+                        ELSE round(lspp.precio) * s.multiplicador_unidad_medida
                     END AS precio ,
                     CASE
                         WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7) THEN 1
                         WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= 7) THEN 1
                         ELSE 0
-                    END AS stock
+                    END AS stock,
+                    null as unidad_medida
                     FROM integraciones.lm_stock_precio_promo lspp
                     inner JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                     WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR
                         (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
-                    and lspp.id_tienda <> '0755'
                 AND lspp.id_tienda = '{store_id}'
             ;
-
         """
-
         cursor.execute(peya_stock_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
@@ -122,7 +121,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         df["EAN"] = df["EAN"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        prev_join_file_name = f"home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
         if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
             print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
@@ -152,7 +151,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"File load on S3: {join_file_name}")
         
         if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
+            join_file_name = f"home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -164,7 +163,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             print(f"File load on S3: {join_file_name}")
             
         if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
+            join_file_name = f"home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/{exec_date}/{peya_market_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -183,16 +182,16 @@ def _send_joined_data_to_stfp(ds):
     import os
     import pysftp
 
-    ftp_host = Variable.get("PEYA_SFTP_HOST")
+    ftp_host = Variable.get("NEW_PEYA_SFTP_HOST")
     ftp_port = 22
-    ftp_user = Variable.get("PEYA_SFTP_USER")
-    ftp_rsa_key = Variable.get("PEYA_SFTP_SECRET_RSA_KEY")
+    ftp_user = Variable.get("NEW_PEYA_SFTP_USER")
+    ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
     with open("temp_peya_sftp_rsa_key", "w") as key_file:
         key_file.write(ftp_rsa_key)
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
+    prefix = f"home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
