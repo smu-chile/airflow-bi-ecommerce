@@ -13,7 +13,6 @@ select s.ultima_actualizacion as fecha_hora
 , foto.foto_en_preparacion
 , val.categoria_valida
 , val.stock_valido
-, val.precio_valido
 , val.tienda_valida
 , case
 	when val.foto_valida and val.categoria_valida and tienda_valida is true then true 
@@ -47,7 +46,6 @@ on t1.ref_id = t2.ref_id) foto on s.ref_id = foto.ref_id
 left join ecommdata_alvi.productos p on s.ref_id = p.ref_id
 left join ecommdata_alvi.categorias c on p.id_categoria = c.id
 left join ecommdata_alvi.tiendas t on s.id_tienda = t.id
-left join ecommdata_alvi.precios pr on t.id_janis = pr.id_tienda_janis and s.ref_id = pr.ref_id
 left join ecommdata_alvi.productos_tienda pt on s.ref_id = pt.ref_id and s.id_tienda = pt.id_tienda
 left join ecommdata_alvi.marcas m on p.id_marca = m.id
 inner join lateral (select
@@ -63,10 +61,6 @@ end as categoria_valida
 	when (s.stock_disponible_vtex > 0) or (s.stock_infinito_vtex is true) then true 
 	else false
 end as stock_valido
-, case
-	when pr.id is null then false
-	else true
-end as precio_valido
 , case 
 	when pt.ref_id is null then false
 	else true
