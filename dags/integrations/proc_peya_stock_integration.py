@@ -181,6 +181,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     cursor.close()
     pg_connection.close()
     return
+#a
 
 def _send_joined_data_to_stfp(ds):
     import os
