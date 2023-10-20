@@ -111,7 +111,7 @@ with DAG(
     'etl_promociones_diarias',
     default_args=default_args,
     description="crear y cargar promociones que estan activas en workflow y VTEX",
-    schedule_interval="30 9 * * *",
+    schedule_interval="50 8,15 * * *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["ecommdata", "VTEX", "promociones", "unimarc","workflow"],
