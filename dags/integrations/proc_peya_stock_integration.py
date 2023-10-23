@@ -315,7 +315,7 @@ def _send_joined_data_to_stfp(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
-    s3_file_list2 = s3_hook.list_keys(s3_bucket, prefix2=prefix2)
+    s3_file_list2 = s3_hook.list_keys(s3_bucket, prefix=prefix2)
     
 
     print(f"Number of files found: {len(s3_file_list)}")
