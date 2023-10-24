@@ -17,13 +17,13 @@ def _load_json_to_s3(ts, ds):
     from io import StringIO
     import boto3 
 
-    accountName = Variable.get("VTEX_ACCOUNT_NAME")
+    accountName = Variable.get("VTEX_ALVI_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
 
     url = f"https://{accountName}.{env}.com.br/api/rnb/pvt/benefits/calculatorconfiguration"
 
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_ALVI_API_Appkey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_ALVI_API_Apptoken")
 
     payload={}
     headers = {
@@ -71,7 +71,7 @@ def _load_json_to_s3(ts, ds):
     }, errors="ignore")
     
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    file_name = f"vtex/promociones_vtex/{curr_datetime}_promociones_vtex.csv"
+    file_name = f"vtex_alvi/promociones_vtex_alvi/{curr_datetime}_promociones_vtex.csv"
     buffer = StringIO()
 
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -141,7 +141,7 @@ def _save_table_promociones(ts, ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
     df.to_sql(name="promociones_vtex",
             con=engine,         
-            schema="ecommdata",         
+            schema="ecommdata_alvi",         
             if_exists='append',         
             index=False,         
             chunksize=20000,         
@@ -152,7 +152,7 @@ def _save_table_promociones(ts, ti, ds):
 def _load_vtex_id_list():
     query = """
         select pv.id
-        from ecommdata.promociones_vtex pv
+        from ecommdata_alvi.promociones_vtex pv
         where pv.activo is true
         """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -254,7 +254,7 @@ def _load_promociones_detalle_vtex_to_S3(final_responses, ts, file_name):
     df = df.rename(columns=columns_rename)
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    file_name = f"vtex/promociones_detalle_vtex/{curr_datetime}_promociones_detalle_vtex.csv"
+    file_name = f"vtex_alvi/promociones_detalle_vtex_alvi/{curr_datetime}_promociones_detalle_vtex.csv"
     buffer = StringIO()
 
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -287,7 +287,7 @@ def _save_detalle_promociones_in_s3(ti, ts):
         print('the list of vtex id was empty')
         return
 
-    accountName = Variable.get("VTEX_ACCOUNT_NAME")
+    accountName = Variable.get("VTEX_ALVI_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
     url_list = [f"https://{accountName}.{env}.com.br/api/rnb/pvt/calculatorconfiguration/{i[0]}" for i in l_vtex_id]
     
@@ -301,8 +301,8 @@ def _save_detalle_promociones_in_s3(ti, ts):
     responses = []
     exception_cases = []
 
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_ALVI_API_Appkey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_ALVI_API_Apptoken")
 
     for thr in range(thread_num):
         new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
@@ -335,7 +335,7 @@ def _save_detalle_promociones_in_s3(ti, ts):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     date_path = ts[:10].replace("-","/")
-    s3_path = f"vtex/api/get_stock_url_retries/{date_path}/"
+    s3_path = f"vtex_alvi/api/get_stock_url_retries/{date_path}/"
     retries = s3_path+"retries"
 
     s3_hook.load_string(str(exception_cases),retries,bucket_name=s3_bucket,replace=True)
@@ -373,19 +373,6 @@ def _save_table_detalle_promociones(ts, ti, ds):
     import pandas as pd
     import sqlalchemy
     import ast
-    import requests
-
-    accountName = Variable.get("VTEX_ACCOUNT_NAME")
-    env = Variable.get("VTEX_ENV")
-    url = f"https://{accountName}.{env}.com.br/api/catalog/pvt/collection/"
-
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
-
-    headers = {
-    "X-VTEX-API-AppKey" : X_VTEX_API_AppKey,
-    "X-VTEX-API-AppToken" :  X_VTEX_API_AppToken
-    }
 
     df = _get_table_detalle_promociones_from_S3(ti)
     df = df[["id",
@@ -494,21 +481,6 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = i.get('id',None)
             nombre_coleccion = i.get('name',None)
             tipo = "collections"
-
-            products_url = f'{url}{vtex_id_coleccion}/products'
-            response = requests.get(products_url, headers=headers)
-            if response.status_code == 200:
-                print(response.text)
-                collection_skus = response.json()
-                df_collections = pd.DataFrame(collection_skus)
-                print(df_collections.info())
-            
-            aux_list.append([id, nombre_promocion, valores_generales, fecha_inicio, fecha_fin, ultima_modificacion,
-                                 activo, archivado, tabla_nombre_precio, marcas, cupon, vtex_id_producto,
-                                 nombre_producto, vtex_id_sku, nombre_sku, tipo, maxima_unidad_pd, min_cantidad_bt,
-                                 cantidad_a_afectar_bt, valor_descuento_percentual, acumular_precio_fijo,
-                                 vtex_id_coleccion, nombre_coleccion])
-        
             aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion])
         if str(tabla_nombre_precio) != 'nan':
             vtex_id_producto = None
@@ -542,7 +514,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
     df2.to_sql(name="promociones_detalle_vtex",
             con=engine,         
-            schema="ecommdata",         
+            schema="ecommdata_alvi",         
             if_exists='append',         
             index=False,         
             chunksize=20000,         
@@ -559,7 +531,7 @@ default_args = {
 }
 
 with DAG(
-    'etl_promociones_vtex',
+    'etl_promociones_alvi_vtex',
     default_args=default_args,
     description="Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.",
     schedule_interval="50 4,13 * * *",
@@ -577,7 +549,7 @@ with DAG(
         task_id = "truncate_promociones_vtex",
         postgres_conn_id="postgresql_conn",
         sql="""
-        TRUNCATE ecommdata.promociones_vtex
+        TRUNCATE ecommdata_alvi.promociones_vtex
         """,
     )
 
@@ -585,7 +557,7 @@ with DAG(
         task_id = "truncate_promociones_detalle_vtex",
         postgres_conn_id="postgresql_conn",
         sql="""
-        TRUNCATE ecommdata.promociones_detalle_vtex
+        TRUNCATE ecommdata_alvi.promociones_detalle_vtex
         """,
     )
     

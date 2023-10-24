@@ -183,7 +183,7 @@ def _promotions_table_incremental_load(ti, ts):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     connection = engine.connect()
@@ -215,7 +215,7 @@ with DAG(
     'workflow_promotions_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental workflow_promotion data.",
-    schedule_interval="0 8-18/2 * * *",
+    schedule_interval="50 6,13 * * *",
     start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

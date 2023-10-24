@@ -38,7 +38,7 @@ def _stopper_lista8(ts):
     print(f"active stores: {active_stores}")
     print(f"stores found: {stores_found}")
 
-    if stores_found == active_stores:
+    if stores_found >= active_stores:
         return
     else:
         raise Exception(f"Not all active stores found")
@@ -116,7 +116,7 @@ def _load_lista8(ts):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:

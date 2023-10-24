@@ -88,7 +88,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and vst.fecha <= '"""+fecha_fin+"""'::date -- fecha fin
             and lpad(vst.material,18,'0') in ('"""+list_material+"""')
             and t.status = 1
-            and lpad(vst.id_tienda,4,'0') not in ('1917','0917')
+            and lpad(vst.id_tienda,4,'0') not in ('1917')
             group by vst.id_tienda, vst.material"""
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -104,22 +104,20 @@ def ventas(list_material,fecha_inicio,fecha_fin):
 
 def ventas_maximas(list_material,ds):
     import pandas as pd
-    ventas_maximos_query = """select lpad(vst.id_tienda,4,'0'),
-                            lpad(vst.material,18,'0'),
-                            max(vst.venta_umv)
-                            from ecommdata.venta_sku_tienda vst 
-                            left join ecommdata.tiendas t
-                            on t.id = lpad(vst.id_tienda,4,'0')
-                            where vst.fecha >= '"""+ds+"""'::date -30
-                            and lpad(vst.material,18,'0') in ('"""+list_material+"""')
-                            and t.status = 1
-                            group by vst.id_tienda, vst.material"""
+    ventas_maximos_query = """WITH filtered_data AS (
+                            SELECT id_tienda, material, venta_umv 
+                            FROM ecommdata.venta_sku_tienda
+                            WHERE fecha >= '"""+ds+"""'::date - 15
+                            AND material IN ("""+list_material+"""))
+                            SELECT fd.id_tienda, fd.material, fd.venta_umv
+                            FROM filtered_data fd
+                            LEFT JOIN ecommdata.tiendas t ON t.id = lpad(fd.id_tienda,4,'0')
+                            WHERE t.status = 1;"""
     print(ventas_maximos_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_maximos_query)
-    results = cursor.fetchall()
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["id_tienda","material","venta_maxima"]
@@ -166,7 +164,21 @@ def ventas_maximos_apo_to_s3_am(ds):
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    df_maximas = ventas_maximas(list_material, ds)
+    
+    list_material_aux = []
+    list_material_aux = df_materiales['material'].tolist()
+    list_material_aux = [item.lstrip('0') for item in list_material_aux]
+    n=10
+    output=[list_material_aux[i:i + n] for i in range(0, len(list_material_aux), n)]
+    print(output)
+    df_maximas = pd.DataFrame()
+    for x in range(len(output)):
+        aux_df = ventas_maximas(str(output[x]).replace('[','').replace(']',''),ds)
+        aux_df = aux_df.groupby(['id_tienda', 'material'])['venta_maxima'].max().reset_index()
+        df_maximas = pd.concat([df_maximas, aux_df])
+    df_maximas['id_tienda'] = df_maximas['id_tienda'].astype(str).str.rjust(4, '0')
+    df_maximas['material'] = df_maximas['material'].astype(str).str.rjust(18, '0')
+    print(df_maximas)
 
     df_final_final = df_maximas.merge(df_final, how='left', on=["id_tienda","material"])
 
@@ -261,9 +273,9 @@ def carga_stock_seguridad_janis_am(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = str(int(df['material'][i])).zfill(18)
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
-        stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        stock_seguridad = int(df.stock_seguridad[i])
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
@@ -290,7 +302,7 @@ def ventas_maximos_apo_to_s3_pm(ds):
     
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
-    prefix = f"stock_seguridad_apo/{exec_date}/"
+    prefix = f"stock_seguridad_apo_/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -317,11 +329,25 @@ def ventas_maximos_apo_to_s3_pm(ds):
         aux_list = ' '.join(aux_list)
         aux_list = aux_list.replace(" ", "','")
         df_aux = ventas(aux_list,str(df_grouped.fecha_inicio[i]),str(df_grouped.fecha_fin[i]))
+        print(df_aux)
         df_final = pd.concat([df_final, df_aux])
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
 
-    df_maximas = ventas_maximas(list_material, ds)
+    list_material_aux = []
+    list_material_aux = df_materiales['material'].tolist()
+    list_material_aux = [item.lstrip('0') for item in list_material_aux]
+    n=10
+    output=[list_material_aux[i:i + n] for i in range(0, len(list_material_aux), n)]
+    print(output)
+    df_maximas = pd.DataFrame()
+    for x in range(len(output)):
+        aux_df = ventas_maximas(str(output[x]).replace('[','').replace(']',''),ds)
+        aux_df = aux_df.groupby(['id_tienda', 'material'])['venta_maxima'].max().reset_index()
+        df_maximas = pd.concat([df_maximas, aux_df])
+    df_maximas['id_tienda'] = df_maximas['id_tienda'].astype(str).str.rjust(4, '0')
+    df_maximas['material'] = df_maximas['material'].astype(str).str.rjust(18, '0')
+    print(df_maximas)
 
     df_final_final = df_maximas.merge(df_final, how='left', on=["id_tienda","material"])
 
@@ -404,9 +430,9 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = str(int(df['material'][i])).zfill(18)
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
-        stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        stock_seguridad = int(df.stock_seguridad[i])
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
@@ -434,11 +460,11 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_seguridad_apos',
+    'etl_stock_seguridad_apoteosicos',
     default_args=default_args,
-    description="cargar stock de seguridad",
+    description="cargar stock de seguridad de apoteosicos",
     schedule_interval="30 1/4 * * *",
-    start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
+    start_date=pendulum.datetime(2023, 9, 21, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc", "apoteosicos"],
 ) as dag:

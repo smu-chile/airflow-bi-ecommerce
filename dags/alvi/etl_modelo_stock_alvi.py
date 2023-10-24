@@ -93,6 +93,9 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     }
 
     df = df.rename(columns=columns_rename)
+
+    df = df.drop_duplicates(subset=['vtex_id', 'id_warehouse'], keep='last')
+
     print(df)
 
 
@@ -101,7 +104,7 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     df.to_sql(name="stock_vtex_alvi",
@@ -187,7 +190,7 @@ def _save_table_stock_janis(ts, ti):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     df_array = np.array_split(df,5)
@@ -265,7 +268,6 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         for sku in sku_list:
             url = "https://"+name+".vtexcommercestable.com.br/api/logistics/pvt/inventory/skus/"+str(sku)
             url_list.append(url)
-            print(url)
 
         session = requests.session()
         thread_num = 40
@@ -293,19 +295,24 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         for task in thread_tasks:
             task.join()
             thread_tasks = []
-        print(responses)
+        #print(responses)
         final_responses = []
         for response in responses:
             response_aux = response['json']
-            for i in response_aux['balance']:
-                try:
-                    aux = (response_aux['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
-                    final_responses.append(aux)
-                except KeyError as e:
+            try:
+                for i in response_aux['balance']:
+                    try:
+                        aux = (response_aux['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
+                        final_responses.append(aux)
+                    except KeyError as e:
+                        print(e)
+                        print(response)
+                        exception_cases.append(response['url'])
+            except KeyError as e:
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
-        print(final_responses)
+        #print(final_responses)
 
         _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
 
@@ -346,7 +353,7 @@ def _vtex_get_stock_retries(ti, ts):
     
     if len(retries) == 0:
         return
-    
+    print(retries)
     vtex_account_name = {
         "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
         "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
@@ -422,19 +429,25 @@ def _vtex_get_stock_retries(ti, ts):
             thread_tasks = []
         
         final_responses = []
-        print(responses)
-        response = responses.json()
-        for i in response['balance']:
+        for response in responses:
+            response_aux = response['json']
             try:
-                aux = (response['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
-                final_responses.append(aux)
+                for i in response_aux['balance']:
+                    try:
+                        aux = (response_aux['skuId'],i['warehouseId'],i['totalQuantity'],i['reservedQuantity'],i['hasUnlimitedQuantity'])
+                        final_responses.append(aux)
+                    except KeyError as e:
+                        print(e)
+                        print(response)
+                        exception_cases.append(response['url'])
             except KeyError as e:
-                print(e)
-                print(response)
-                exception_cases.append(response['url'])
-
+                    print(e)
+                    print(response)
+                    exception_cases.append(response['url'])
+        #print(final_responses)
     if len(exception_cases) > 0:
         raise Exception('exception cases found during retry.')
+    print(exception_cases)
     
     _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
 

@@ -72,7 +72,7 @@ def _load_tickets_zendesk(ts):
         "total_dias_hasta_resolucion": "float",
         "cerrado_por_merge": "string"
     }
-
+    df['tienda'] = str(int(df['tienda'])).zfill(4)
     df["numero_pedido"] = df["numero_pedido"].astype("str").fillna("").str.split(".").str[0]
     df["numero_pedido"] = np.where(df["numero_pedido"].str.isnumeric(), df["numero_pedido"], None)
     df = df.astype(column_types, errors="ignore")

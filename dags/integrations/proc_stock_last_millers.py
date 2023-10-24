@@ -113,7 +113,7 @@ def _load_stock_to_postgres(ti):
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = create_engine(conn_url)
 
     # Save to PostgreSQL:
@@ -182,6 +182,7 @@ def _get_products_from_datawarehouse(ds):
 def _load_products_to_postgres(ti):
     import pandas as pd
     from sqlalchemy import create_engine
+    import csv
 
     file_name = ti.xcom_pull(key="return_value", task_ids="get_products_from_datawarehouse")
     print(file_name)
@@ -190,23 +191,28 @@ def _load_products_to_postgres(ti):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        print(f"ERROR: File {file_name} not found on S# bucket: {s3_bucket}")
+        print(f"ERROR: File {file_name} not found on S3 bucket: {s3_bucket}")
         return
     
     products_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
-    df = pd.read_csv(products_object.get()["Body"], dtype="object")
+    
+    # Read CSV with custom quoting to handle double quotes within fields
+    df = pd.read_csv(products_object.get()["Body"], dtype="object", quoting=csv.QUOTE_MINIMAL)
     df.columns = map(str.lower, df.columns)
+    print(df.info())
     print(f"Number of records found: {len(df.index)}")
+    df = df.dropna(subset=df.columns[:3])
+    print(df.info())
+
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = "postgresql+psycopg2://"+username+":"+password+"@"+host+":5432/"+database
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = create_engine(conn_url)
 
-    # Save to PostgreSQL:
     df.to_sql(name="productos",
                 con=engine,         
                 schema="integraciones",         
@@ -339,6 +345,12 @@ with DAG(
         wait_for_completion=False
     )
 
+    t14 = TriggerDagRunOperator(
+        task_id="trigger_proc_uber_promotions_integration",
+        trigger_dag_id="proc_uber_promotions_integration",
+        wait_for_completion=False
+    )
+
     t0 >> [t1, t4]
     t1 >> t2 >> t3
     t4 >> [t5, t6] 
@@ -347,4 +359,4 @@ with DAG(
     t3 >> td
     t8 >> td
     td >> t9 >> t10 >> t11
-    t11 >> [t12, t13]
+    t11 >> [t12, t13, t14]
