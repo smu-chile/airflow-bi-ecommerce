@@ -113,7 +113,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         cursor.execute(peya_stock_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
-
+        print(columns)
+        
         if len(results) == 0:
             print(f"No records found for Store Id: {store_id}")
             continue
@@ -122,7 +123,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"Number of records found on stock: {len(df.index)}")
 
         df.columns = map(str.upper, df.columns)
-        df["sku"] = df["sku"].astype("int64")
+        df["SKU"] = df["SKU"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
         prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
@@ -133,7 +134,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             prev_stock_file = s3_hook.get_key(prev_join_file_name, bucket_name=s3_bucket)
             df_prev = pd.read_csv(prev_stock_file.get()["Body"])
 
-            df_prev = df_prev[~df_prev["sku"].isin(df["sku"])]
+            df_prev = df_prev[~df_prev["SKU"].isin(df["SKU"])]
             df_prev = df_prev[df_prev["STOCK"]==1]
             df_prev["STOCK"] = 0
 
@@ -229,7 +230,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"Number of records found on stock: {len(df.index)}")
 
         df.columns = map(str.upper, df.columns)
-        df["sku"] = df["sku"].astype("int64")
+        df["SKU"] = df["SKU"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
         prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
@@ -240,7 +241,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             prev_promo_file = s3_hook.get_key(prev_join_file_name, bucket_name=s3_bucket)
             df_prev = pd.read_csv(prev_promo_file.get()["Body"])
 
-            df_prev = df_prev[~df_prev["sku"].isin(df["sku"])]
+            df_prev = df_prev[~df_prev["SKU"].isin(df["SKU"])]
             df_prev = df_prev[df_prev["STOCK"]==1]
             df_prev["STOCK"] = 0
 
