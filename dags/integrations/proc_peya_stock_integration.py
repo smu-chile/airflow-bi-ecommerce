@@ -302,10 +302,7 @@ def _send_joined_data_to_stfp(ds):
     ftp_host = Variable.get("NEW_PEYA_SFTP_HOST")
     ftp_port = 22
     ftp_user = Variable.get("NEW_PEYA_SFTP_USER")
-    ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
-
-    with open("temp_peya_sftp_rsa_key", "w") as key_file:
-        key_file.write(ftp_rsa_key)
+    ftp_password  = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
     exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
@@ -335,7 +332,7 @@ def _send_joined_data_to_stfp(ds):
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port, 
-                                private_key="temp_peya_sftp_rsa_key") as sftp:
+                                password=ftp_password ) as sftp:
             localFile = stock_object_body
             remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/{output_stock_file}"
             sftp.putfo(localFile, remotePath)
@@ -355,13 +352,13 @@ def _send_joined_data_to_stfp(ds):
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port, 
-                                private_key="temp_peya_sftp_rsa_key") as sftp:
+                                password =ftp_password ) as sftp:
             localFile = stock_object_body
             remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/{output_promo_file}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
-    os.remove("temp_peya_sftp_rsa_key")
+    os.remove(ftp_password)
 
     return
 
