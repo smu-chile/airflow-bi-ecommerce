@@ -334,7 +334,7 @@ def _send_joined_data_to_stfp(ds):
                                 port=ftp_port, 
                                 password=ftp_password ) as sftp:
             localFile = stock_object_body
-            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/{output_stock_file}"
+            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/SMU_{output_stock_file}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
@@ -354,11 +354,10 @@ def _send_joined_data_to_stfp(ds):
                                 port=ftp_port, 
                                 password =ftp_password ) as sftp:
             localFile = stock_object_body
-            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/{output_promo_file}"
+            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMU_{output_promo_file}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
-    os.remove(ftp_password)
 
     return
 
