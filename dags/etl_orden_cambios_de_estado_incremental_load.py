@@ -68,6 +68,7 @@ def _incremental_load_order_status_changes(ti):
         "id_orden",
         "estado_anterior",
         "estado_nuevo",
+        "creado_por",
         "fecha_creacion_unixtime",
         "fecha_creacion"
     ]
