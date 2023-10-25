@@ -501,15 +501,15 @@ def _save_table_detalle_promociones(ts, ti, ds):
                 print(response.text)
                 collection_skus = response.json()
                 df_collections = pd.DataFrame(collection_skus)
-                print(df_collections.info())
-            
-            aux_list.append([id, nombre_promocion, valores_generales, fecha_inicio, fecha_fin, ultima_modificacion,
-                                 activo, archivado, tabla_nombre_precio, marcas, cupon, vtex_id_producto,
-                                 nombre_producto, vtex_id_sku, nombre_sku, tipo, maxima_unidad_pd, min_cantidad_bt,
-                                 cantidad_a_afectar_bt, valor_descuento_percentual, acumular_precio_fijo,
-                                 vtex_id_coleccion, nombre_coleccion])
-        
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion])
+                for index, row in df_collections.iterrows():
+                    data_column = row['Data']
+                    vtex_id_sku = data_column['SkuId']
+                    nombre_sku = data_column['ProductName']
+                    aux_list.append([id, nombre_promocion, valores_generales, fecha_inicio, fecha_fin, ultima_modificacion,
+                                    activo, archivado, tabla_nombre_precio, marcas, cupon, vtex_id_producto,
+                                    nombre_producto, vtex_id_sku, nombre_sku, tipo, maxima_unidad_pd, min_cantidad_bt,
+                                    cantidad_a_afectar_bt, valor_descuento_percentual, acumular_precio_fijo,
+                                    vtex_id_coleccion, nombre_coleccion])
         if str(tabla_nombre_precio) != 'nan':
             vtex_id_producto = None
             nombre_producto = None
@@ -562,7 +562,7 @@ with DAG(
     'etl_promociones_vtex',
     default_args=default_args,
     description="Extracción y carga de tablas promociones_vtex y promociones_detalle_vtex desde API.",
-    schedule_interval="50 4,13 * * *",
+    schedule_interval="30 8,15 * * *",
     start_date=pendulum.datetime(2022, 10, 20, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
