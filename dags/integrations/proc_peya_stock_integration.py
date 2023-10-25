@@ -86,8 +86,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         
         peya_stock_query = f"""
               select	
-  				null as barcode,
-                lspp.ean AS sku,
+  				lspp.ean as barcode,
+                null AS sku,
                     CASE
                         WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN round(lspp.precio)
                         ELSE round((lspp.precio) * s.multiplicador_unidad_medida)
@@ -185,11 +185,10 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
-        
         peya_stock_query = f"""
               SELECT DISTINCT
-                null AS barcode,
-                lspp.ean AS sku,
+                lspp.ean AS barcode,
+                null AS sku,
                 'Promociones' AS campaign_name,
                 'PedidosYa' AS reason,
                 concat(current_date ,' 10:00:00-03:00') AS start_date,
