@@ -139,6 +139,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             #df_prev = df_prev[df_prev["STOCK"]==1]
             #df_prev["STOCK"] = 0
 
+
             print(f"Adding {len(df_prev.index)} missing products as inactive: STOCK = 0.")
 
             df = pd.concat([df, df_prev])
