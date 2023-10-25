@@ -185,7 +185,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
-        
+        #UWU
         peya_stock_query = f"""
               SELECT DISTINCT
                 lspp.ean AS barcode,
