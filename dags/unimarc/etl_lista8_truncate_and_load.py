@@ -188,20 +188,4 @@ with DAG(
         """,
     )
 
-    t3 = PostgresOperator(
-        task_id = "load_table_lista8_ayer",
-        postgres_conn_id="postgresql_conn",
-        sql="""
-        INSERT INTO ecommdata.lista8_ayer
-        select *
-        from ecommdata.lista8
-        """,
-    )
-
-    t4 = PythonOperator(
-        task_id = "load_lista8",
-        python_callable = _load_lista8
-    )
-
-
-    t0 >> t1 >> t2 >> t3 >> t4
+    t0 >> t1 >> t2
