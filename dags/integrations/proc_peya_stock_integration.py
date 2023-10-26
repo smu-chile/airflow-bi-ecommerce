@@ -305,9 +305,9 @@ def _send_joined_data_to_stfp(ds):
     ftp_password  = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
+    prefix = f"integraciones/last_millers/stock/out/peya/SMU_{exec_date}/"
      #Crear un prefix para promo
-    prefix2 = f"integraciones/last_millers/promotions/out/peya/{exec_date}/"
+    prefix2 = f"integraciones/last_millers/promotions/out/peya/SMU_{exec_date}/"
     
    
     
