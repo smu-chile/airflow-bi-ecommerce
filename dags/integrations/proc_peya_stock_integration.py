@@ -79,7 +79,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
     for store_id in peya_store_ids.keys():
         print(f"PEYA id: {peya_store_ids[store_id]}")
-        join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
+        join_file_name = f"integraciones/last_millers/stock/out/peya/SMU_{exec_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -127,7 +127,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(columns)
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/SMU_{prev_exec_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
         if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
             print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
@@ -158,7 +158,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"File load on S3: {join_file_name}")
         
         if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/stock/out/peya/SMU_{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -170,7 +170,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             print(f"File load on S3: {join_file_name}")
             
         if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/stock/out/peya/SMU_{exec_date}/{peya_market_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -181,7 +181,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     encrypt=False)
             print(f"File load on S3: {join_file_name}")
         #Aqui va la nueva logica
-        join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
+        join_file_name = f"integraciones/last_millers/promotions/out/peya/SMU_{exec_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -234,7 +234,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         df["BARCODE"] = df["BARCODE"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/SMU_{prev_exec_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
         if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
             print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
@@ -264,7 +264,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"File load on S3: {join_file_name}")
         
         if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/SMU_{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -276,7 +276,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             print(f"File load on S3: {join_file_name}")
             
         if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/SMU_{exec_date}/{peya_market_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
