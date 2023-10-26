@@ -3,6 +3,7 @@ from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.python import PythonOperator
 
 
@@ -179,7 +180,25 @@ with DAG(
         python_callable = _stopper_lista8
     )
 
-    t2 = PythonOperator(
+    t2 = PostgresOperator(
+        task_id = "truncate_table_lista8_ayer",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        truncate ecommdata.lista8_ayer
+        """,
+    )
+
+    t3 = PostgresOperator(
+        task_id = "load_table_lista8_ayer",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        INSERT INTO ecommdata.lista8_ayer
+        select *
+        from ecommdata.lista8
+        """,
+    )
+
+    t4 = PythonOperator(
         task_id = "load_lista8",
         python_callable = _load_lista8
     )
