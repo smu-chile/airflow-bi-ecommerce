@@ -184,5 +184,4 @@ with DAG(
         python_callable = _load_lista8
     )
 
-
     t0 >> t1 >> t2
