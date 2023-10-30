@@ -494,18 +494,31 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = i.get('id',None)
             nombre_coleccion = i.get('name',None)
             tipo = "collections"
-
-            products_url = f'{url}{vtex_id_coleccion}/products'
-            response = requests.get(products_url, headers=headers)
-            if response.status_code == 200:
-                print(response.text)
-                collection_skus = response.json()
-                df_collections = pd.DataFrame(collection_skus)
-                for index, row in df_collections.iterrows():
-                    data_column = row['Data']
-                    vtex_id_sku = data_column['SkuId']
-                    nombre_sku = data_column['ProductName']
-                    aux_list.append([id, nombre_promocion, valores_generales, fecha_inicio, fecha_fin, ultima_modificacion,
+            page = 1
+            df_collections = pd.DataFrame()
+            while True:
+                params = {'pageSize': 50, 'page': page}
+                products_url = f'{url}{vtex_id_coleccion}/products'
+                response = requests.get(products_url, params=params, headers=headers)
+                
+                if response.status_code == 200:
+                    collection_skus = response.json()
+                    # Append the data to the DataFrame
+                    df_collections = df_collections.append(pd.DataFrame(collection_skus))
+                    
+                    # Check if there are more pages
+                    if 'next' in response.json() and response.json()['next']:
+                        page += 1
+                    else:
+                        break
+                else:
+                    print(f"Request failed with status code {response.status_code}")
+                    break
+            for index, row in df_collections.iterrows():
+                data_column = row['Data']
+                vtex_id_sku = data_column['SkuId']
+                nombre_sku = data_column['ProductName']
+                aux_list.append([id, nombre_promocion, valores_generales, fecha_inicio, fecha_fin, ultima_modificacion,
                                     activo, archivado, tabla_nombre_precio, marcas, cupon, vtex_id_producto,
                                     nombre_producto, vtex_id_sku, nombre_sku, tipo, maxima_unidad_pd, min_cantidad_bt,
                                     cantidad_a_afectar_bt, valor_descuento_percentual, acumular_precio_fijo,
