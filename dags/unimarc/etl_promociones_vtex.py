@@ -503,11 +503,8 @@ def _save_table_detalle_promociones(ts, ti, ds):
                 
                 if response.status_code == 200:
                     collection_skus = response.json()
-                    # Append the data to the DataFrame
                     df_collections = df_collections.append(pd.DataFrame(collection_skus))
-                    
-                    # Check if there are more pages
-                    if 'next' in response.json() and response.json()['next']:
+                    if response.json()['TotalPage'] <= page:
                         page += 1
                     else:
                         break
