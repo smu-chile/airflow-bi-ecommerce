@@ -97,7 +97,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                     WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR
                         (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
-                    and lspp.id_tienda <> '0755'
                 AND lspp.id_tienda = '{store_id}'
             ;
 
