@@ -543,6 +543,15 @@ def _save_table_detalle_promociones(ts, ti, ds):
             nombre_coleccion = None
             tipo = "marcas"
             aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+        if str(campana_cupon) != 'nan':
+            vtex_id_producto = None
+            nombre_producto = None
+            vtex_id_sku = None
+            nombre_sku = None
+            vtex_id_coleccion = None
+            nombre_coleccion = None
+            tipo = "cupon"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
 
     df2 = pd.DataFrame(aux_list, columns = ['id','nombre_promocion','valores_generales','fecha_inicio','fecha_fin','ultima_modificacion','activo','archivado','tabla_nombre_precio','marcas','cupon','vtex_id_producto','nombre_producto','vtex_id_sku','nombre_sku','tipo','maxima_unidad_pd','min_cantidad_bt','cantidad_a_afectar_bt','valor_descuento_percentual','acumular_precio_fijo','vtex_id_coleccion','nombre_coleccion','campana_cupon'])
         
