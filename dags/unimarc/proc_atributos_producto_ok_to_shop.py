@@ -1,14 +1,162 @@
 from airflow import DAG
+from airflow.sensors.s3_key_sensor import S3KeySensor
+from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.operators.python import PythonOperator
 
-from datetime import datetime
+from utils.postgres_utils import is_empty_table
+from utils.postgres_utils import get_max_updated_at_value
+from datetime import datetime, timedelta
+
 import pendulum
 
+def get(url, responses, session, exception_cases, ok_to_shop_api_key):
+    r = session.get(url, headers = {"x-auth-token" : ok_to_shop_api_key,"okts-lat" : "0","okts-lon" : "0"})
+    try:
+        responses.append({'json':r.json(), 'url':url})
+    except Exception as e:
+        print(e)
+        print(url)
+        print(r)
+        print(r.status_code)
+        exception_cases.append(url)
+
+
+def bulk_get(url_sublist, responses, session, exception_cases, ok_to_shop_api_key):
+    for url in url_sublist:
+        print(url)
+        get(url, responses, session, exception_cases, ok_to_shop_api_key)
+    return
+
+def _evaluate_full_load(ti, schema, table_name):
+    if is_empty_table(schema, table_name):
+        ti.xcom_push(key="load_method", value="full_load")
+        return "load_full_table_to_s3"
+    else:
+        ti.xcom_push(key="load_method", value="incremental_load")
+        return "get_max_updated_at_value"
+    
+def full_load_ok_to_shop_table_to_s3(ti):
+    import requests
+    import pandas as pd
+    from threading import Thread
+
+    ok_to_shop_url = Variable.get("OK_TO_SHOP_URL")
+    ok_to_shop_api_key = Variable.get("OK_TO_SHOP_API_KEY")
+
+    headers = {
+        "x-auth-token" : ok_to_shop_api_key,
+        "okts-lat" : "0",
+        "okts-lon" : "0",
+        "Connection" : "keep-alive"
+    }
+    
+    i=1
+    id_list = []
+    df_oktoshop = pd.DataFrame()
+
+    while True:
+        url = f"{ok_to_shop_url}/products?page={i}&pageSize=10000&since=0&showIdentifiers=1"
+        response = requests.get(url, headers=headers)
+
+        if response.status_code == 200:
+            page_data = response.json()
+            page_df = pd.DataFrame(page_data["response"])
+            page_df['barcode'] = page_df['identifiers'].apply(lambda x: x[0]['value'] if len(x) > 0 else None)
+            selected_columns = ['id', 'description', 'lastUpdate', 'barcode']
+            page_df = page_df[selected_columns]
+            df_oktoshop = pd.concat([df_oktoshop, page_df], ignore_index=True)
+            print(i)
+            if page_data["pagination"]["hasMore"] == True:
+                i += 1
+            else:
+                break
+        else:
+            print(f"Error fetching page {i}. Status code: {response.status_code}")
+            break
+    print(df_oktoshop.info())
+    
+    sku_query = """select ref_id,
+                ean_primario,
+                nombre_sku
+                from ecommdata.skus"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(sku_query)
+    skus = cursor.fetchall()
+    skus=pd.DataFrame(skus)
+    skus.columns = ["ref_id","ean_primario","nombre_sku"]
+
+    print(skus.info())
+
+    df_oktoshop = pd.merge(df_oktoshop, skus, left_on='barcode', right_on='ean_primario', how='inner')
+    df_oktoshop.drop(columns=['ean_primario'], inplace=True)
+
+    print(df_oktoshop.info())
+
+    df_oktoshop = df_oktoshop.head(10)
+
+    print(df_oktoshop.info())
+
+    url_list = []
+
+    for index, row in df_oktoshop.iterrows():
+        id_oktoshop = row["id"]
+        url_list.append(f"{ok_to_shop_url}/products/{id_oktoshop}")
+
+    print(url_list)
+
+    session = requests.session()
+    thread_num = 2
+    task_num = len(url_list)//thread_num # division entera
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    session.mount('https://', adapter)
+    thread_tasks = []
+    count = 0
+    responses = []
+    exception_cases = []
+
+    for thr in range(thread_num):
+        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, ok_to_shop_api_key], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+        count = count + 1
+    # tareas resagadas:
+    if task_num*thread_num != len(url_list):
+        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, ok_to_shop_api_key], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+    for task in thread_tasks:
+        task.join()
+        thread_tasks = []
+    
+    data = {'ean': [], 'suitabilities': []}
+    df = pd.DataFrame(data)
+    exception_cases = []
+
+    for response in responses:
+        try:
+            body = response['json']['response']  
+            ean = body["identifiers"][0]["value"]  
+            suitabilities = []
+            for suitability in body["suitability"]:
+                if suitability["declaredBy"][0]["degreeId"] >= 2:
+                    code = suitability["code"]
+                    suitabilities.append(code)
+            if suitabilities:
+                concatenated_codes = ', '.join(suitabilities)
+                df = df.append({'ean': ean, 'suitabilities': concatenated_codes}, ignore_index=True)
+        except KeyError as e:
+            print(e)
+            print(response)
+            exception_cases.append(response['url'])
+    return
 
 def last_file_ok_to_shop(ti):
+
     import io
     import ftplib
     import pandas as pd
@@ -291,7 +439,7 @@ def set_janis_atributos(ti):
         else:
             jst = [jst]
         cargando = 0
-        for arr_dic in jst:
+        '''for arr_dic in jst:
             r = requests.post(f'{API_JANIS}attribute_value',
                               headers=headers, json=arr_dic)
             cargando += len(arr_dic)
@@ -300,7 +448,7 @@ def set_janis_atributos(ti):
                     f"Productos actualizados: {cargando} de {total_size} con EXITO")
             else:
                 print(f"Carga sin éxito | Status_Code: {r.status_code} ")
-                print(f"Response Print: {r.content}")
+                print(f"Response Print: {r.content}")'''
 
     json_data = ti.xcom_pull(task_ids=["check_update_attributes_products"])[0]
     if json_data == []:
@@ -338,20 +486,32 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extraction and insert of attributes from ftp:ok_to_shop to Janis.
+    Extraction and insert of attributes from ok_to_shop API to Janis.
     """
 
-    t0 = PythonOperator(
-        task_id="last_file_ok_to_shop",
-        python_callable=last_file_ok_to_shop,
-    )
+    '''t0 = BranchPythonOperator(
+        task_id = "evaluate_full_load",
+        python_callable = _evaluate_full_load,
+        op_kwargs = {
+            "schema": "catalogo",
+            "table_name": "ok_to_shop"
+        }
+    )'''
+
     t1 = PythonOperator(
-        task_id="check_update_attributes_products",
-        python_callable=check_update_attributes_products,
-    )
-    t2 = PythonOperator(
-        task_id="set_janis_atributos",
-        python_callable=set_janis_atributos,
+        task_id = "full_load_ok_to_shop_table_to_s3",
+        python_callable = full_load_ok_to_shop_table_to_s3,
     )
 
-t0 >> t1 >> t2
+    '''t2 = PythonOperator(
+        task_id = "get_max_updated_at_value",
+        python_callable = get_max_updated_at_value,
+        op_kwargs = {
+            "schema": "ecommdata",
+            "table_name": "ok_to_shop", 
+            "updated_at_field": "last_update",
+            "is_unixtime": True
+        }
+    )'''
+
+    t1
