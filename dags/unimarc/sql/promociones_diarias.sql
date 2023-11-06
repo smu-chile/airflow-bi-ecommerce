@@ -133,6 +133,12 @@ SELECT wp.n_promocion,
                 WHEN wp.umv::text = 'CS'::text THEN 'CJ'::character varying
                 ELSE wp.umv
             END::text)
+        LEFT JOIN ecommdata.stock_mfc sm
+			ON (LPAD(sm.material::text, 18, '0') || '-' || sm.unidad_venta ::text) = ((wp.material::text || '-' || CASE
+			    WHEN wp.umv::text = 'ST' THEN 'UN'
+			    WHEN wp.umv::text = 'CS' THEN 'CJ'
+			    ELSE wp.umv
+			END) ::text)
         left join (select coalesce(vpc."SkuId"::numeric,lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
                     pdv.id as idcalculatorconfigurator,
                     pdv.nombre_promocion as nombre_promocion_vtex,
@@ -149,6 +155,11 @@ SELECT wp.n_promocion,
     AND wp.nombre_promocion::text !~~ '%BANCO ESTADO%'::text
     and s.vtex_id <> ALL (ARRAY[3610,471,3611,472,473,658,82183,82184,39730])
     and s.vtex_id IS NOT null
-    and ((l8.material::text || '-'::text) || l8.umv::text) IS NOT NULL
+    and
+    (
+        ((l8.material::text || '-' || l8.umv::text) IS NOT NULL)
+        OR
+        (sm.stock >= 1)
+    )
     GROUP BY wp.n_promocion, wp.nombre_promocion, wp.id_mecanica, wp.descripcion_mecanica, wp.material, s.ref_id, wp.umv, wp.descripcion_material, wp.marca, wp.tipo_promocion, wp.desc_promocion, wp.precio_modal, wp.precio_promocional, s.multiplicador_unidad_medida, wp.ahorro, wp.cantidad_n, wp.cantidad_m, wp.llevas_n, wp.porcentaje_n, wp.fecha_inicio_de_promocion, wp.fecha_fin_de_promocion, wp.porcentaje_de_descuento, wp.fecha_modificacion, wp.factor, s.vtex_id, s.nombre_sku, s.id_producto, pdvd.idcalculatorconfigurator, pdvd.nombre_promocion_vtex, pdvd.link_promocion
     ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion DESC;
