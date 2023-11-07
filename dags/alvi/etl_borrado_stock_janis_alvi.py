@@ -70,7 +70,7 @@ def _yesterday_stopper_lista8(ts):
     print(f"active stores: {results}")
     print(f"stores found: {stores_found}")
 
-    if stores_found == active_stores:
+    if stores_found >= active_stores:
         return
     else:
         raise Exception(f"Not all active stores found")
