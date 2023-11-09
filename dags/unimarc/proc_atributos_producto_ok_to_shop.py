@@ -26,7 +26,6 @@ def get(url, responses, session, exception_cases, ok_to_shop_api_key):
 
 def bulk_get(url_sublist, responses, session, exception_cases, ok_to_shop_api_key):
     for url in url_sublist:
-        print(url)
         get(url, responses, session, exception_cases, ok_to_shop_api_key)
     return
 
@@ -38,13 +37,22 @@ def _evaluate_full_load(ti, schema, table_name):
         ti.xcom_push(key="load_method", value="incremental_load")
         return "get_max_updated_at_value"
     
-def full_load_ok_to_shop_table_to_s3(ti):
+def full_load_ok_to_shop_table_to_s3(ds):
     import requests
     import pandas as pd
+    import numpy as np
+    import io
     from threading import Thread
 
     ok_to_shop_url = Variable.get("OK_TO_SHOP_URL")
     ok_to_shop_api_key = Variable.get("OK_TO_SHOP_API_KEY")
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"ok_to_shop/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     headers = {
         "x-auth-token" : ok_to_shop_api_key,
@@ -54,7 +62,6 @@ def full_load_ok_to_shop_table_to_s3(ti):
     }
     
     i=1
-    id_list = []
     df_oktoshop = pd.DataFrame()
 
     while True:
@@ -68,7 +75,6 @@ def full_load_ok_to_shop_table_to_s3(ti):
             selected_columns = ['id', 'description', 'lastUpdate', 'barcode']
             page_df = page_df[selected_columns]
             df_oktoshop = pd.concat([df_oktoshop, page_df], ignore_index=True)
-            print(i)
             if page_data["pagination"]["hasMore"] == True:
                 i += 1
             else:
@@ -76,7 +82,6 @@ def full_load_ok_to_shop_table_to_s3(ti):
         else:
             print(f"Error fetching page {i}. Status code: {response.status_code}")
             break
-    print(df_oktoshop.info())
     
     sku_query = """select ref_id,
                 ean_primario,
@@ -90,24 +95,14 @@ def full_load_ok_to_shop_table_to_s3(ti):
     skus=pd.DataFrame(skus)
     skus.columns = ["ref_id","ean_primario","nombre_sku"]
 
-    print(skus.info())
-
     df_oktoshop = pd.merge(df_oktoshop, skus, left_on='barcode', right_on='ean_primario', how='inner')
     df_oktoshop.drop(columns=['ean_primario'], inplace=True)
-
-    print(df_oktoshop.info())
-
-    df_oktoshop = df_oktoshop.head(10)
-
-    print(df_oktoshop.info())
 
     url_list = []
 
     for index, row in df_oktoshop.iterrows():
         id_oktoshop = row["id"]
         url_list.append(f"{ok_to_shop_url}/products/{id_oktoshop}")
-
-    print(url_list)
 
     session = requests.session()
     thread_num = 2
@@ -133,291 +128,304 @@ def full_load_ok_to_shop_table_to_s3(ti):
         task.join()
         thread_tasks = []
     
-    data = {'ean': [], 'suitabilities': []}
+    columns = ['ean','fecha_creacion','ultima_modificacion', 'libre_lacteos', 'libre_lactosa', 'libre_gluten', 'libre_tacc',
+           'libre_soya', 'libre_huevos', 'libre_peces', 'libre_mariscos', 'libre_frutos_secos',
+           'libre_mani', 'libre_nueces_arbol', 'libre_sulfitos', 'vegano', 'vegetariano', 'halal',
+           'kosher', 'basado_plantas', 'libre_transgenicos', 'organico', 'carbono_neutral',
+           'libre_maltrato_animal', 'comercio_justo', 'marca_chile']
+    data = {col: [] for col in columns}
     df = pd.DataFrame(data)
     exception_cases = []
+
+    df['ean'] = df['ean'].astype('int8')
+    df['fecha_creacion'] = df['fecha_creacion'].astype('int8')
+    df['ultima_modificacion'] = df['ultima_modificacion'].astype('int8')
+    for col in columns[3:]:
+        df[col] = df[col].astype('boolean')
+
+    suitability_to_variable = {
+        "dairy_free": "libre_lacteos",
+        "lactose_free": "libre_lactosa",
+        "gluten_free": "libre_gluten",
+        "tacc_free": "libre_tacc",
+        "soy_free": "libre_soya",
+        "egg_free": "libre_huevos",
+        "fish_free": "libre_peces",
+        "seafood_free": "libre_mariscos",
+        "nuts_free": "libre_nueces",
+        "peanut_free": "libre_mani",
+        "walnuts_free": "libre_nueces_arbol",
+        "sulphite_free": "libre_sulfitos",
+        "vegan": "vegano",
+        "vegetarian": "vegetariano",
+        "plant_based": "basado_plantas",
+        "halal": "halal",
+        "kosher": "kosher",
+        "plant_based": "basado_plantas",
+        "non_gmo": "libre_transgenicos",
+        "organic": "organico",
+        "carbon_neutral": "carbono_neutral",
+        "cruelty_free": "libre_maltrato_animal",
+        "fair_trade": "comercio_justo",
+        "marca_chile": "marca_chile"
+    }
 
     for response in responses:
         try:
             body = response['json']['response']  
-            ean = body["identifiers"][0]["value"]  
-            suitabilities = []
+            ean = body["identifiers"][0]["value"]
+            in_date = body["chronology"]["timestampIn"]
+            last_modified = body["chronology"]["lastUpdate"]
+            variables = {var: False for var in columns[3:]}
             for suitability in body["suitability"]:
                 if suitability["declaredBy"][0]["degreeId"] >= 2:
-                    code = suitability["code"]
-                    suitabilities.append(code)
-            if suitabilities:
-                concatenated_codes = ', '.join(suitabilities)
-                df = df.append({'ean': ean, 'suitabilities': concatenated_codes}, ignore_index=True)
+                    variable_name = suitability_to_variable.get(suitability["code"])
+                    if variable_name:
+                        variables[variable_name] = True
+            df = df.append({'ean': ean, 'fecha_creacion': in_date, 'ultima_modificacion': last_modified, **variables}, ignore_index=True)
         except KeyError as e:
             print(e)
             print(response)
             exception_cases.append(response['url'])
+    print(df)
+    print(df.info())
+    
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"ok_to_shop/{exec_date}/ok_to_shop_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+def incremental_load_to_s3(ti,ds):
+    import requests
+    import io
+    import numpy as np
+    import pandas as pd
+
+    max_updated_at_value = ti.xcom_pull(key="return_value", task_ids=["get_max_updated_at_value"])[0]
+    ok_to_shop_url = Variable.get("OK_TO_SHOP_URL")
+    ok_to_shop_api_key = Variable.get("OK_TO_SHOP_API_KEY")
+
+    print(max_updated_at_value)
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"ok_to_shop/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    headers = {
+        "x-auth-token" : ok_to_shop_api_key,
+        "okts-lat" : "0",
+        "okts-lon" : "0",
+        "Connection" : "keep-alive"
+    }
+    
+    i=1
+    df_oktoshop = pd.DataFrame()
+    print("df initialized")
+
+    while True:
+        url = f"{ok_to_shop_url}/products?page={i}&pageSize=10000&since={max_updated_at_value + 1}&showIdentifiers=1"
+        print (url)
+        response = requests.get(url, headers=headers)
+        print(response.status_code)
+        if response.status_code == 200:
+            page_data = response.json()
+            page_df = pd.DataFrame(page_data["response"])
+            page_df['barcode'] = page_df['identifiers'].apply(lambda x: x[0]['value'] if len(x) > 0 else None)
+            selected_columns = ['id', 'description', 'lastUpdate', 'barcode']
+            page_df = page_df[selected_columns]
+            df_oktoshop = pd.concat([df_oktoshop, page_df], ignore_index=True)
+            print(i)
+            if page_data["pagination"]["hasMore"] == True:
+                i += 1
+            else:
+                break
+        else:
+            print(f"Error fetching page {i}. Status code: {response.status_code}")
+            break
+    print(df_oktoshop.info())
+
+    if df_oktoshop.empty:
+        return 'rows_not_found'
+
+    sku_query = """select ref_id,
+                ean_primario,
+                nombre_sku
+                from ecommdata.skus"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(sku_query)
+    skus = cursor.fetchall()
+    skus=pd.DataFrame(skus)
+    skus.columns = ["ref_id","ean_primario","nombre_sku"]
+
+    df_oktoshop = pd.merge(df_oktoshop, skus, left_on='barcode', right_on='ean_primario', how='inner')
+    df_oktoshop.drop(columns=['ean_primario'], inplace=True)
+
+    if df_oktoshop.empty:
+        return 'rows_not_found'
+
+    columns = ['ean','fecha_creacion','ultima_modificacion', 'libre_lacteos', 'libre_lactosa', 'libre_gluten', 'libre_tacc',
+           'libre_soya', 'libre_huevos', 'libre_peces', 'libre_mariscos', 'libre_frutos_secos',
+           'libre_mani', 'libre_nueces_arbol', 'libre_sulfitos', 'vegano', 'vegetariano', 'halal',
+           'kosher', 'basado_plantas', 'libre_transgenicos', 'organico', 'carbono_neutral',
+           'libre_maltrato_animal', 'comercio_justo', 'marca_chile']
+    data = {col: [] for col in columns}
+    df = pd.DataFrame(data)
+
+    df['ean'] = df['ean'].astype('int8')
+    df['fecha_creacion'] = df['fecha_creacion'].astype('int8')
+    df['ultima_modificacion'] = df['ultima_modificacion'].astype('int8')
+    for col in columns[3:]:
+        df[col] = df[col].astype('boolean')
+
+    suitability_to_variable = {
+        "dairy_free": "libre_lacteos",
+        "lactose_free": "libre_lactosa",
+        "gluten_free": "libre_gluten",
+        "tacc_free": "libre_tacc",
+        "soy_free": "libre_soya",
+        "egg_free": "libre_huevos",
+        "fish_free": "libre_peces",
+        "seafood_free": "libre_mariscos",
+        "nuts_free": "libre_nueces",
+        "peanut_free": "libre_mani",
+        "walnuts_free": "libre_nueces_arbol",
+        "sulphite_free": "libre_sulfitos",
+        "vegan": "vegano",
+        "vegetarian": "vegetariano",
+        "plant_based": "basado_plantas",
+        "halal": "halal",
+        "kosher": "kosher",
+        "plant_based": "basado_plantas",
+        "non_gmo": "libre_transgenicos",
+        "organic": "organico",
+        "carbon_neutral": "carbono_neutral",
+        "cruelty_free": "libre_maltrato_animal",
+        "fair_trade": "comercio_justo",
+        "marca_chile": "marca_chile"
+    }
+
+    for index, row in df_oktoshop.iterrows():
+        id_oktoshop = row["id"]
+        url = f"{ok_to_shop_url}/products/{id_oktoshop}"
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            body = response.json()['response']
+            ean = body["identifiers"][0]["value"]
+            in_date = body["chronology"]["timestampIn"]
+            last_modified = body["chronology"]["lastUpdate"]
+            variables = {var: False for var in columns[3:]}
+            for suitability in body["suitability"]:
+                if suitability["declaredBy"][0]["degreeId"] >= 2:
+                    variable_name = suitability_to_variable.get(suitability["code"])
+                    if variable_name:
+                        variables[variable_name] = True
+            df = df.append({'ean': ean, 'fecha_creacion': in_date, 'ultima_modificacion': last_modified, **variables}, ignore_index=True)
+        else:
+            print(f"Error fetching {id_oktoshop}, Status code: {response.status_code}")
+            break
+    print(df)
+    print(df.info())
+
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"ok_to_shop/{exec_date}/ok_to_shop_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+def rows_not_found(ds):
+    print(f"no updates found at: {ds}")
     return
 
-def last_file_ok_to_shop(ti):
-
-    import io
-    import ftplib
+def load_oktoshop_table_to_postgres(ti):
     import pandas as pd
-    import zipfile
     import numpy as np
-    from sqlalchemy import text
 
-    date_dir = datetime.now().strftime("/%Y/%m/")
-    date_name = datetime.now().strftime("%Y%m%d")
-    file_dir = date_dir+date_name+"_ok_to_shop.zip"
-    print(f"Checking file: {file_dir}")
-    df = pd.DataFrame()
-    # Establecer la conexión FTP
-    ip_ftp_ok_to_shop = Variable.get(
-        "OK_TO_SHOP_IP_FTP")
-    user_ftp_ok_to_shop = Variable.get(
-        "OK_TO_SHOP_USER_FTP")
-    password_ftp_ok_to_shop = Variable.get(
-        "OK_TO_SHOP_PASSWORD_FTP")
-    with ftplib.FTP(ip_ftp_ok_to_shop) as ftp:
-        ftp.login(user=user_ftp_ok_to_shop, passwd=password_ftp_ok_to_shop)
-        print("Adentro de FTP")
-        if file_dir in ftp.nlst(date_dir):
-            with io.BytesIO() as zip_buffer:  # file_dir = '/2023/02/20230209_ok_to_shop.zip'
-                ftp.retrbinary('RETR ' + file_dir, zip_buffer.write)
-                zip_buffer.seek(0)
-                print("en bytesIO")
-                if zipfile.is_zipfile(zip_buffer):
-                    print(f"Dentro del archivo {file_dir}")
-                    with zipfile.ZipFile(zip_buffer, mode='r') as myzip:
-                        if len(myzip.namelist()) != 0:  # la lista está vacía dentro de .zip
-                            csv_file_name = myzip.namelist()[0]
-                            with myzip.open(csv_file_name, 'r') as f:
-                                df = pd.read_csv(
-                                    f, encoding='utf-8', engine='python', sep=';', on_bad_lines='skip')  # warn
-                        else:
-                            print(file_dir, ": El archivo zip está vacio")
-                else:
-                    print(file_dir, ": No es archivo ZIP")
-        else:
-            print("Archivo no existe en el directorio")
-        ftp.quit()
-    print("Out of ftp server")
-    if not df.empty:
-        columns = ['product_ean', 'timestamp_in', 'date_in',
-                   'last_update', 'date_last_update', 'brand_name', 'description',
-                   'flavor', 'size_value', 'drained_size_value', 'size_unit',
-                   'ingredients', 'allergens', 'traces', 'has_nutritional_table',
-                   'portion_text', 'portion_value', 'portion_unit', 'num_portions',
-                   'basic_unit', 'energy_value', 'energy_unit', 'protein_value',
-                   'protein_unit', 'fat_total_value', 'fat_total_unit', 'fat_sat_value',
-                   'fat_sat_unit', 'fat_mono_value', 'fat_mono_unit', 'fat_poli_value',
-                   'fat_poli_unit', 'fat_trans_value', 'fat_trans_unit',
-                   'fat_cholesterol_value', 'fat_cholesterol_unit', 'carb_value',
-                   'carb_unit', 'sugars_value', 'sugars_unit', 'fiber_value', 'fiber_unit',
-                   'sodium_value', 'sodium_unit', 'minsal_cl_high_sugar',
-                   'minsal_cl_high_saturated_fat', 'minsal_cl_high_sodium',
-                   'minsal_cl_high_calories', 'aplv_suitable', 'gluten_free',
-                   'lactose_free', 'vegan', 'vegetarian', 'diabetes_suitable', 'soy_free',
-                   'egg_free', 'fish_free', 'seafood_free', 'peanut_free', 'nuts_free',
-                   'walnuts_free', 'sulphite_free', 'wheat_free']
+    load_method = ti.xcom_pull(key="load_method", task_ids=["evaluate_full_load"])[0]
+    print(f"Load method: {load_method}")
+    if load_method == "full_load":
+        filename = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+    else:
+        filename = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
 
-        df = df[columns]
-        df = df.fillna(value=np.nan)
-        int_cols = ['product_ean', 'timestamp_in', 'last_update', 'size_value', 'drained_size_value',
-                    'has_nutritional_table', 'portion_value', 'num_portions',
-                    'energy_value', 'protein_value', 'fat_total_value', 'fat_sat_value',
-                    'fat_mono_value', 'fat_poli_value', 'fat_trans_value', 'fat_cholesterol_value',
-                    'carb_value', 'sugars_value', 'fiber_value', 'sodium_value',
-                    'minsal_cl_high_sugar', 'minsal_cl_high_saturated_fat', 'minsal_cl_high_sodium',
-                    'minsal_cl_high_calories', 'aplv_suitable', 'gluten_free', 'lactose_free', 'vegan',
-                    'vegetarian', 'diabetes_suitable', 'soy_free', 'egg_free', 'fish_free', 'seafood_free',
-                    'peanut_free', 'nuts_free', 'walnuts_free', 'sulphite_free', 'wheat_free']
-        time_cols = ['date_in', 'date_last_update']
-        types = {x: 'float' for x in int_cols}
-        type_str = {x: 'str' for x in columns if x not in int_cols+time_cols}
-        types.update(type_str)
-        df = df.astype(types)
-        df = df.replace("nan", "NULL")
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-        columns.remove("product_ean")
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
 
-        columns_query = ",".join(columns)
-        excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-        values_query = "%s,"+",".join(["%s" for column in columns])
-        records = list(df.to_records(index=False))
+    s_oktoshop_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-        # Change data types to native python types
-        fixed_records = []
-        print(records)
-        for record in records:
-            fixed_record = []
-            for value in record:
-                if isinstance(value, np.generic):
-                    fixed_record.append(value.item())
-                elif value == "NULL" or value == np.nan:
-                    fixed_record.append(None)
-                else:
-                    fixed_record.append(value)
-            fixed_records.append(tuple(fixed_record))
-        print(f"Number of records to load: {str(len(fixed_records))}")
-        incremental_query = """
-            INSERT INTO catalogo.ok_to_shop (product_ean,"""+columns_query+""") 
+    df = pd.read_csv(s_oktoshop_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    columns = ['fecha_creacion','ultima_modificacion', 'libre_lacteos', 'libre_lactosa', 'libre_gluten', 'libre_tacc',
+           'libre_soya', 'libre_huevos', 'libre_peces', 'libre_mariscos', 'libre_frutos_secos',
+           'libre_mani', 'libre_nueces_arbol', 'libre_sulfitos', 'vegano', 'vegetariano', 'halal',
+           'kosher', 'basado_plantas', 'libre_transgenicos', 'organico', 'carbono_neutral',
+           'libre_maltrato_animal', 'comercio_justo', 'marca_chile']
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    records = list(df.to_records(index=False))
+
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+            INSERT INTO ecommdata.ok_to_shop (ean,"""+columns_query+""") 
             VALUES ("""+values_query+""")
-            ON CONFLICT (product_ean)
+            ON CONFLICT (ean)
             DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
         """
-        print(incremental_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-        pg_connection = pg_hook.get_conn()
-        cursor = pg_connection.cursor()
-        cursor.executemany(incremental_query, fixed_records)
-        pg_connection.commit()
-        cursor.close()
-        pg_connection.close()
-        print("Data loaded to Postgres")
-    else:
-        print("Finalizado sin obtener data")
-
-
-def check_update_attributes_products(ti):
-    import time
-    import pandas as pd
-    from utils.postgres_utils import is_empty_table
-
+    print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-
-    id_atributo_alergias = Variable.get(
-        'JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_ALERGIAS')
-    id_atributo_sellos = Variable.get('JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_SELLOS')
-
-    query_alergias = """
-        select s.ref_id as ref_id, concat_ws(',',
-           CASE when ok.vegetarian = 1 then 'Vegetariano' ELSE NULL END,
-            CASE when ok.vegan = 1 then 'Vegano' ELSE NULL END,
-            CASE when ok.wheat_free = 1 then 'Libre de Trigo' ELSE NULL END,
-            CASE when ok.sulphite_free = 1 then 'Libre de Sulfitos' ELSE NULL END,
-            CASE when ok.soy_free = 1 then 'Libre de Soya' ELSE NULL END,
-            CASE when ok.fish_free = 1 then 'Libre de Peces' ELSE NULL END,
-            CASE when ok.walnuts_free = 1 then 'Libre de Nuez' ELSE NULL END,
-            CASE when ok.seafood_free = 1 then 'Libre de Mariscos' ELSE NULL END,
-            CASE when ok.peanut_free = 1 then 'Libre de Maní' ELSE NULL END,
-            CASE when ok.lactose_free = 1 then 'Libre de Lactosa' ELSE NULL END,
-            CASE when ok.egg_free = 1 then 'Libre de Huevo' ELSE NULL END,            
-            CASE when ok.gluten_free = 1 then 'Libre de Gluten' ELSE NULL END, --CASE when ok.halal = 1 then 'Halal' ELSE NULL END, CASE when ok.kosher = 1 then 'Kosher' ELSE NULL END,
-            CASE when ok.nuts_free = 1 then 'Libre de Frutos Secos' ELSE NULL END,
-            CASE when ok.diabetes_suitable = 1 then 'Apto para Diabéticos' ELSE NULL END,
-            CASE when ok.aplv_suitable = 1 then 'Apto para APLV' ELSE NULL END
-            ) as Alergias 
-        from catalogo.ok_to_shop oK
-        left join ecommdata.sku_ean se on ok.product_ean::text = se.ean 
-        left join ecommdata.skus s on s.ref_id = se.ref_id
-        where (ok.aplv_suitable = 1
-            or ok.gluten_free = 1 --or ok.halal = 1 or ok.kosher = 1
-            or ok.lactose_free = 1
-            or ok.vegan = 1
-            or ok.vegetarian = 1
-            or ok.diabetes_suitable = 1 
-            or ok.soy_free = 1
-            or ok.egg_free = 1
-            or ok.fish_free = 1
-            or ok.seafood_free = 1
-            or ok.peanut_free = 1
-            or ok.nuts_free = 1
-            or ok.walnuts_free = 1
-            or ok.sulphite_free = 1
-            or ok.wheat_free = 1)
-        and se.ean is not null;"""
-    query_sellos = """
-        select s.ref_id, concat_ws(',',
-            CASE when ok.minsal_cl_high_sodium  = 1 then 'Alto en Sodio' ELSE NULL END,
-            CASE when ok.minsal_cl_high_saturated_fat  = 1 then 'Alto en Grasas Saturadas' ELSE NULL END,
-            CASE when ok.minsal_cl_high_calories = 1 then 'Alto en Calorías' ELSE NULL END,
-            CASE when ok.minsal_cl_high_sugar = 1 then 'Alto en Azúcares' ELSE NULL END
-            ) as sellos 
-        from catalogo.ok_to_shop oK
-        left join ecommdata.sku_ean se on ok.product_ean::text = se.ean 
-        left join ecommdata.skus s on s.ref_id = se.ref_id
-        where (ok.minsal_cl_high_sugar = 1 
-            or ok.minsal_cl_high_sodium = 1 
-            or ok.minsal_cl_high_saturated_fat = 1 
-            or ok.minsal_cl_high_calories = 1 )
-            AND se.ean is not null;"""
-    query_alergias_atr_pro = F"""select ap.ref_id, 
-        TRIM(TRAILING ',' FROM string_agg(ap.valor_atributo,',' ORDER BY ap.valor_atributo DESC)) as alergias
-        from ecommdata.atributos_producto ap
-        where ap.id_atributo = {id_atributo_alergias}
-        group by ap.ref_id;"""
-    query_sellos_atr_pro = f"""select ap.ref_id, 
-        TRIM(TRAILING ',' FROM array_to_string(array_agg(ap.valor_atributo ORDER BY ap.valor_atributo DESC), ',')) AS sellos
-        from ecommdata.atributos_producto ap
-        where ap.id_atributo = {id_atributo_sellos}
-        group by ap.ref_id;"""
-
-    def get_atributos(query):  # atributos: alergias, sellos
-        print(query)
-        pg_connection = pg_hook.get_conn()
-        cursor = pg_connection.cursor()
-        cursor.execute(query)
-        pg_connection.commit()
-        results = cursor.fetchall()
-        columns_name = [i[0] for i in cursor.description]
-        df = pd.DataFrame(results, columns=columns_name)
-        print("Data obtenida")
-        cursor.close()
-        pg_connection.close()
-        return df
-
-    print("Iniciando obtencion de ok_to_shop_alergias")
-    df_alergias = get_atributos(query_alergias)
-    print(df_alergias)
-    print("Iniciando obtencion de ok_to_shop_sellos")
-    df_sellos = get_atributos(query_sellos)
-    print(df_sellos)
-    print("Iniciando obtencion de atributos_producto_alergias")
-    i = 0
-    while is_empty_table("ecommdata", "atributos_producto") == True:
-        print("La tabla ecommdata.atributos_producto se encuentra vacia, se reintentará en 5 minumetos más")
-        time.sleep(300)
-        i += 1
-        if i == 4:
-            raise Exception(
-                "No se encuentra disponible la tabla ecommdata.atributos_producto")
-    df_alergias_atr = get_atributos(query_alergias_atr_pro)
-    print(df_alergias_atr)
-    print("Iniciando obtencion de atributos_producto_sellos")
-    df_sellos_atr = get_atributos(query_sellos_atr_pro)
-    print(df_sellos_atr)
-
-    if df_alergias.equals(df_alergias_atr) and df_sellos.equals(df_sellos_atr):
-        print("La data no presenta actualizaciones en cuanto a ALERGIAS")
-        print("FINALIZADO")
-        return []
-
-    df_new_alergias = df_alergias[~df_alergias.isin(df_alergias_atr)].dropna()
-    df_new_sellos = df_sellos[~df_sellos.isin(df_sellos_atr)].dropna()
-    df_new_total = df_new_alergias.merge(
-        df_new_sellos, on='ref_id', how='outer')
-    print("Datos que se actualizarán")
-    print(df_new_total)
-
-    jst = []
-    for index, row in df_new_total.iterrows():
-        item = dict()
-        item["item_id"] = row['ref_id']
-        item["attributes"] = []
-        if isinstance(row['alergias'], str):
-            attributes = dict()
-            attributes['id'] = Variable.get(
-                "JANIS_API_REF_ID_ATTRIBUTE_ALERGIAS")
-            attributes['values'] = row['alergias'].split(',')
-            item["attributes"].append(attributes)
-        if isinstance(row['sellos'], str):
-            attributes = dict()
-            attributes['id'] = Variable.get(
-                "JANIS_API_REF_ID_ATTRIBUTE_SELLOS")
-            attributes['values'] = row['sellos'].split(',')
-            item["attributes"].append(attributes)
-        jst.append(item)
-    return jst
-
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+    return
 
 def set_janis_atributos(ti):
     import requests
@@ -428,6 +436,18 @@ def set_janis_atributos(ti):
         "janis-api-secret": Variable.get("JANIS_API_SECRET"),
         "janis-client": Variable.get("JANIS_CLIENT"),
         "Connection": "keep-alive"}
+
+    '''{
+        "item_id": "000000000400208002-UN",
+        "attributes": [
+            {
+            "id": "330",
+            "values": [
+                "Vegetariano"
+                ]
+            }
+        ]
+    }'''
 
     def set_attributes(jst):
         print("Iniciando carga a Janis")
@@ -489,29 +509,48 @@ with DAG(
     Extraction and insert of attributes from ok_to_shop API to Janis.
     """
 
-    '''t0 = BranchPythonOperator(
+    t0 = BranchPythonOperator(
         task_id = "evaluate_full_load",
         python_callable = _evaluate_full_load,
         op_kwargs = {
-            "schema": "catalogo",
+            "schema": "ecommdata",
             "table_name": "ok_to_shop"
         }
-    )'''
+    )
 
     t1 = PythonOperator(
         task_id = "full_load_ok_to_shop_table_to_s3",
         python_callable = full_load_ok_to_shop_table_to_s3,
     )
 
-    '''t2 = PythonOperator(
+    t2 = PythonOperator(
         task_id = "get_max_updated_at_value",
         python_callable = get_max_updated_at_value,
         op_kwargs = {
             "schema": "ecommdata",
             "table_name": "ok_to_shop", 
-            "updated_at_field": "last_update",
+            "updated_at_field": "ultima_modificacion",
             "is_unixtime": True
         }
-    )'''
+    )
+    
+    t3 =  BranchPythonOperator(
+        task_id = "incremental_load_to_s3",
+        python_callable = incremental_load_to_s3,
+    )
 
-    t1
+    t3_none = PythonOperator(
+        task_id = "rows_not_found",
+        python_callable = rows_not_found,
+    )
+
+    t4 = PythonOperator(
+        task_id = "load_oktoshop_table_to_postgres",
+        python_callable = load_oktoshop_table_to_postgres,
+    )
+    
+
+    t0 >> t1 >> t4
+    t0 >> t2 >> t3 >> t4
+    t3 >> t3_none
+
