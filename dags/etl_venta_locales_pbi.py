@@ -13,7 +13,7 @@ def _load_to_postgres(ti):
     import pandas as pd
     import numpy as np
 
-    ventas_sala_dw_file = ti.xcom_pull(key="return_value", task_ids=["extract_last_7_days_from_dw"])[0]
+    ventas_sala_dw_file = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
