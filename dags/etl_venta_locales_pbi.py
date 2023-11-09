@@ -38,7 +38,7 @@ def _load_to_postgres(ti):
         return
     
     column_names = {
-        "DATE_KEY": "fecha",
+        "DATE_VALUE": "fecha",
         "STORE_ID": "id_tienda",
         "ORG_IP": "organizacion",
         "VENTA_NETA": "venta_neta"
@@ -130,7 +130,7 @@ with DAG(
                 WHERE FECHA.DATE_VALUE = '{{ds}}'
                 GROUP BY FECHA.DATE_VALUE, S.STORE_ID, STORE_H.ORG_IP
             """,
-            "query_name": "NZ_BU.ECOMERCE.VW_FACT_VENTA_E_COMMERCE"
+            "query_name": "venta_locales_pbi"
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
