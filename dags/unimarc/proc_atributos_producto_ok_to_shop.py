@@ -429,7 +429,7 @@ def load_oktoshop_table_to_postgres(ti):
 
 def set_janis_atributos(ti):
     import requests
-    # Partición de big-json,
+
     API_JANIS = Variable.get("JANIS_API_URL")
     headers = {
         "janis-api-key": Variable.get("JANIS_API_KEY"),
@@ -437,29 +437,18 @@ def set_janis_atributos(ti):
         "janis-client": Variable.get("JANIS_CLIENT"),
         "Connection": "keep-alive"}
 
-    '''{
-        "item_id": "000000000400208002-UN",
-        "attributes": [
-            {
-            "id": "330",
-            "values": [
-                "Vegetariano"
-                ]
-            }
-        ]
-    }'''
-
     def set_attributes(jst):
         print("Iniciando carga a Janis")
         print(jst)
         lim_json = 500
         total_size = len(jst)
+        #234 ref_id mundos alimenticios
         if total_size > lim_json:
             jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
         else:
             jst = [jst]
         cargando = 0
-        '''for arr_dic in jst:
+        for arr_dic in jst:
             r = requests.post(f'{API_JANIS}attribute_value',
                               headers=headers, json=arr_dic)
             cargando += len(arr_dic)
@@ -468,7 +457,7 @@ def set_janis_atributos(ti):
                     f"Productos actualizados: {cargando} de {total_size} con EXITO")
             else:
                 print(f"Carga sin éxito | Status_Code: {r.status_code} ")
-                print(f"Response Print: {r.content}")'''
+                print(f"Response Print: {r.content}")
 
     json_data = ti.xcom_pull(task_ids=["check_update_attributes_products"])[0]
     if json_data == []:
@@ -482,6 +471,19 @@ def set_janis_atributos(ti):
     print("Inicia INSERTO de los valores del atributo en los productos a actualizar")
     set_attributes(json_data)
     print("La carga a FINALIZADO")
+    return
+
+    '''{
+        "item_id": "000000000400208002-UN",
+        "attributes": [
+            {
+            "id": "330",
+            "values": [
+                "Vegetariano"
+                ]
+            }
+        ]
+    }'''
 
 
 default_args = {
