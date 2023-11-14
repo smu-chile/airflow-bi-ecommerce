@@ -33,18 +33,16 @@ def _load_limite_compra_dw_table(ti,ds):
     columns_rename = {
             "EAN" : "ean",
             "NM" : "nombre_producto",
-            "SKU_PRODUCT" : "material",
+            "SKU_PRODUCT" : "ref_id",
             "AVG_PRODUCT" : "unidad_promedio_orden",
             "PURCHASE_LIMIT": "limite_compra",
-            "AVG_WEIGHT": "peso_promedio_orden",
-            "UNIDAD_MEDIDA" : "unidad_medida"
     }
     df = df.rename(columns=columns_rename)
 
     df = df.astype({
         "ean": "string",
         "nombre_producto": "string",
-        "material": "string"
+        "ref_id": "string"
     }, errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -67,13 +65,34 @@ def _load_limite_compra_dw_table(ti,ds):
 
     return
 
-def set_lim_compra(ti):
+def _set_lim_compra(ti):
     import requests
+    import pandas as pd
 
-    limite_query = """Select 
-                    from ecommdata.limite_compra_dw lcd
-                    left join skus s on s.erp_id = LPAD(lcd.material, 18, '0')                      
-    """
+    limit_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+limit_file)
+    if not s3_hook.check_for_key(limit_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % limit_file)
+
+    limit_object = s3_hook.get_key(limit_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(limit_object.get()["Body"])
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    # Rename columns to match workspace schema:
+    columns_rename = {
+            "EAN" : "ean",
+            "NM" : "nombre_producto",
+            "SKU_PRODUCT" : "ref_id",
+            "AVG_PRODUCT" : "unidad_promedio_orden",
+            "PURCHASE_LIMIT": "limite_compra",
+    }
+    df = df.rename(columns=columns_rename)
 
     headers = {
         "janis-api-key": Variable.get("JANIS_API_KEY"),
@@ -84,13 +103,13 @@ def set_lim_compra(ti):
 
     # Creación de big-json
     jst = []
-    for x in lista_ref_id:
+    for index, row in df.iterrows():
         item = {
-            "item_id": x,
+            "item_id": row["ref_id"],
             "attributes": [
                 {
                     "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
-                    "values": ["12"]
+                    "values": [str(row["limite_compra"])]
                 }
             ]
         }
@@ -148,14 +167,14 @@ with DAG(
             "query": """SELECT
                             LPAD(fvt.EAN, 18, '0'),
                             dph.NM,
-                            dph.SKU_PRODUCT,
+                            (dph.SKU_PRODUCT || '-' ||
+                                CASE
+                                    WHEN fvt.UNIDAD_MEDIDA = 'ST' THEN 'UN'
+                                    WHEN fvt.UNIDAD_MEDIDA = 'CS' THEN 'CJ'
+                                    ELSE fvt.UNIDAD_MEDIDA
+                                END) AS SKU_PRODUCT,
                             ROUND(AVG(fvt.CANTIDAD_UNIDADES)) AS AVG_PRODUCT,
-                            CASE 
-                                WHEN fvt.UNIDAD_MEDIDA IN ('KG', 'KGV') THEN 0
-                                ELSE ROUND(AVG(fvt.CANTIDAD_UNIDADES) + STDDEV_POP(fvt.CANTIDAD_UNIDADES))
-                            END AS PURCHASE_LIMIT,
-                            round(AVG(fvt.PESO))/1000 AS AVG_WEIGHT,
-                            fvt.UNIDAD_MEDIDA
+                            ROUND(AVG(fvt.CANTIDAD_UNIDADES) + STDDEV_POP(fvt.CANTIDAD_UNIDADES)) AS PURCHASE_LIMIT
                         FROM
                             DWC_SMU.SMU.VW_FACT_VENTA_ITEM fvt
                         LEFT JOIN
@@ -164,6 +183,8 @@ with DAG(
                             FVT.FECHA_HORA >= current_date - 30
                         GROUP BY
                             fvt.EAN, dph.NM, dph.SKU_PRODUCT,fvt.UNIDAD_MEDIDA 
+                        HAVING
+                            PURCHASE_LIMIT >= 12
                         ORDER BY
                             fvt.EAN;
             """,
@@ -184,4 +205,9 @@ with DAG(
         python_callable = _load_limite_compra_dw_table
     )
 
-    t0 >> t1 >> t2
+    t3 = PythonOperator(
+        task_id = "set_lim_compra",
+        python_callable = _set_lim_compra
+    )
+
+    t0 >> t1 >> t2 >> t3
