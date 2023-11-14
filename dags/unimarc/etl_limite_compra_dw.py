@@ -33,17 +33,16 @@ def _load_limite_compra_dw_table(ti,ds):
     columns_rename = {
             "EAN" : "ean",
             "NM" : "nombre_producto",
-            "SKU_PRODUCT" : "material",
+            "SKU_PRODUCT" : "ref_id",
             "AVG_PRODUCT" : "unidad_promedio_orden",
-            "AVG_WEIGHT": "peso_promedio_orden",
-            "UNIDAD_MEDIDA" : "unidad_medida"
+            "PURCHASE_LIMIT": "limite_compra",
     }
     df = df.rename(columns=columns_rename)
 
     df = df.astype({
         "ean": "string",
         "nombre_producto": "string",
-        "material": "string"
+        "ref_id": "string"
     }, errors="ignore")
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -64,6 +63,79 @@ def _load_limite_compra_dw_table(ti,ds):
                 method='multi')
     print("Data loaded to Postgres")
 
+    return
+
+def _set_lim_compra(ti):
+    import requests
+    import pandas as pd
+
+    limit_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+limit_file)
+    if not s3_hook.check_for_key(limit_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % limit_file)
+
+    limit_object = s3_hook.get_key(limit_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(limit_object.get()["Body"])
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    # Rename columns to match workspace schema:
+    columns_rename = {
+            "EAN" : "ean",
+            "NM" : "nombre_producto",
+            "SKU_PRODUCT" : "ref_id",
+            "AVG_PRODUCT" : "unidad_promedio_orden",
+            "PURCHASE_LIMIT": "limite_compra",
+    }
+    df = df.rename(columns=columns_rename)
+
+    headers = {
+        "janis-api-key": Variable.get("JANIS_API_KEY"),
+        "janis-api-secret": Variable.get("JANIS_API_SECRET"),
+        "janis-client": Variable.get("JANIS_CLIENT"),
+        "Connection": "keep-alive"
+    }
+
+    # Creación de big-json
+    jst = []
+    for index, row in df.iterrows():
+        item = {
+            "item_id": row["ref_id"],
+            "attributes": [
+                {
+                    "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
+                    "values": [str(row["limite_compra"])]
+                }
+            ]
+        }
+        jst.append(item)
+
+    # Partición de big-json
+    lim_json = 500
+    total_size = len(jst)
+    if total_size > lim_json:
+        jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
+    else:
+        jst = [jst]
+
+    # Seteo vía API al atriubuto limite de compra de la lista de refid
+    API_JANIS = Variable.get("JANIS_API_URL")
+    cargando = 0
+    for arr_dic in jst:
+        r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json=arr_dic)
+        cargando += len(arr_dic )
+        if r.status_code == 200:
+            print(f"Productos actualizados: {cargando} de {total_size} con EXITO")
+        else:
+            print(f"Carga sin éxito | Status_Code: {r.status_code} ")
+            print(f"Response Print: {r.content}")
+            raise ValueError("Janis API response != 200")
+    print("La carga de límites a finalizado")          
     return
 
 default_args = {
@@ -95,10 +167,14 @@ with DAG(
             "query": """SELECT
                             LPAD(fvt.EAN, 18, '0'),
                             dph.NM,
-                            dph.SKU_PRODUCT,
+                            (dph.SKU_PRODUCT || '-' ||
+                                CASE
+                                    WHEN fvt.UNIDAD_MEDIDA = 'ST' THEN 'UN'
+                                    WHEN fvt.UNIDAD_MEDIDA = 'CS' THEN 'CJ'
+                                    ELSE fvt.UNIDAD_MEDIDA
+                                END) AS SKU_PRODUCT,
                             ROUND(AVG(fvt.CANTIDAD_UNIDADES)) AS AVG_PRODUCT,
-                            round(AVG(fvt.PESO))/1000 AS AVG_WEIGHT,
-                            fvt.UNIDAD_MEDIDA
+                            ROUND(AVG(fvt.CANTIDAD_UNIDADES) + STDDEV_POP(fvt.CANTIDAD_UNIDADES)) AS PURCHASE_LIMIT
                         FROM
                             DWC_SMU.SMU.VW_FACT_VENTA_ITEM fvt
                         LEFT JOIN
@@ -107,6 +183,8 @@ with DAG(
                             FVT.FECHA_HORA >= current_date - 30
                         GROUP BY
                             fvt.EAN, dph.NM, dph.SKU_PRODUCT,fvt.UNIDAD_MEDIDA 
+                        HAVING
+                            PURCHASE_LIMIT >= 12
                         ORDER BY
                             fvt.EAN;
             """,
@@ -127,4 +205,9 @@ with DAG(
         python_callable = _load_limite_compra_dw_table
     )
 
-    t0 >> t1 >> t2
+    t3 = PythonOperator(
+        task_id = "set_lim_compra",
+        python_callable = _set_lim_compra
+    )
+
+    t0 >> t1 >> t2 >> t3
