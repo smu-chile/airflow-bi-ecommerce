@@ -35,6 +35,7 @@ def _load_limite_compra_dw_table(ti,ds):
             "NM" : "nombre_producto",
             "SKU_PRODUCT" : "material",
             "AVG_PRODUCT" : "unidad_promedio_orden",
+            "PURCHASE_LIMIT": "limite_compra",
             "AVG_WEIGHT": "peso_promedio_orden",
             "UNIDAD_MEDIDA" : "unidad_medida"
     }
@@ -64,6 +65,58 @@ def _load_limite_compra_dw_table(ti,ds):
                 method='multi')
     print("Data loaded to Postgres")
 
+    return
+
+def set_lim_compra(ti):
+    import requests
+
+    limite_query = """Select 
+                    from ecommdata.limite_compra_dw lcd
+                    left join skus s on s.erp_id = LPAD(lcd.material, 18, '0')                      
+    """
+
+    headers = {
+        "janis-api-key": Variable.get("JANIS_API_KEY"),
+        "janis-api-secret": Variable.get("JANIS_API_SECRET"),
+        "janis-client": Variable.get("JANIS_CLIENT"),
+        "Connection": "keep-alive"
+    }
+
+    # Creación de big-json
+    jst = []
+    for x in lista_ref_id:
+        item = {
+            "item_id": x,
+            "attributes": [
+                {
+                    "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
+                    "values": ["12"]
+                }
+            ]
+        }
+        jst.append(item)
+
+    # Partición de big-json
+    lim_json = 500
+    total_size = len(jst)
+    if total_size > lim_json:
+        jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
+    else:
+        jst = [jst]
+
+    # Seteo vía API al atriubuto limite de compra de la lista de refid
+    API_JANIS = Variable.get("JANIS_API_URL")
+    cargando = 0
+    for arr_dic in jst:
+        r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json=arr_dic)
+        cargando += len(arr_dic )
+        if r.status_code == 200:
+            print(f"Productos actualizados: {cargando} de {total_size} con EXITO")
+        else:
+            print(f"Carga sin éxito | Status_Code: {r.status_code} ")
+            print(f"Response Print: {r.content}")
+            raise ValueError("Janis API response != 200")
+    print("La carga de límites a finalizado")          
     return
 
 default_args = {
@@ -97,6 +150,10 @@ with DAG(
                             dph.NM,
                             dph.SKU_PRODUCT,
                             ROUND(AVG(fvt.CANTIDAD_UNIDADES)) AS AVG_PRODUCT,
+                            CASE 
+                                WHEN fvt.UNIDAD_MEDIDA IN ('KG', 'KGV') THEN 0
+                                ELSE ROUND(AVG(fvt.CANTIDAD_UNIDADES) + STDDEV_POP(fvt.CANTIDAD_UNIDADES))
+                            END AS PURCHASE_LIMIT,
                             round(AVG(fvt.PESO))/1000 AS AVG_WEIGHT,
                             fvt.UNIDAD_MEDIDA
                         FROM
