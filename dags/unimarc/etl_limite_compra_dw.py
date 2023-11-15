@@ -47,6 +47,27 @@ def _load_limite_compra_dw_table(ti,ds):
         "ref_id": "string"
     }, errors="ignore")
 
+    query_lista8 = """select (l.material ::text || '-'::text) || l.umv::text AS ref_id
+                    from ecommdata.lista8 l
+    """
+    print(query_lista8)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query_lista8)
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    print(results)
+    results.columns = ["ref_id"]
+    cursor.close()
+    pg_connection.close()
+
+    print(df.info())
+
+    df = pd.merge(df, results, on='ref_id', how='inner')
+
+    print(df.info())
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -71,30 +92,21 @@ def _set_lim_compra(ti):
     import requests
     import pandas as pd
 
-    limit_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    print("Searching file: "+limit_file)
-    if not s3_hook.check_for_key(limit_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % limit_file)
-
-    limit_object = s3_hook.get_key(limit_file, bucket_name=s3_bucket)
-
-    df = pd.read_csv(limit_object.get()["Body"])
+    query_lista8 = """select * from ecommdata.limite_compra_dw lcd;
+    """
+    print(query_lista8)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query_lista8)
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    print(results)
+    results.columns = ["ean","nombre_producto","ref_id","unidad_promedio_orden","limite_compra"]
+    cursor.close()
+    pg_connection.close()
     
-    print(f"Number of records extracted: {len(df.index)}")
-
-    # Rename columns to match workspace schema:
-    columns_rename = {
-            "EAN" : "ean",
-            "NM" : "nombre_producto",
-            "SKU_PRODUCT" : "ref_id",
-            "AVG_PRODUCT" : "unidad_promedio_orden",
-            "PURCHASE_LIMIT": "limite_compra",
-    }
-    df = df.rename(columns=columns_rename)
+    print(f"Number of records extracted: {len(results.index)}")
 
     headers = {
         "janis-api-key": Variable.get("JANIS_API_KEY"),
@@ -105,7 +117,7 @@ def _set_lim_compra(ti):
 
     # Creación de big-json
     jst = []
-    for index, row in df.iterrows():
+    for index, row in results.iterrows():
         item = {
             "item_id": row["ref_id"],
             "attributes": [
