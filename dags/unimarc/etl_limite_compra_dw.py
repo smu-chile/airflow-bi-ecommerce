@@ -167,7 +167,7 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """SELECT
-                            LPAD(fvt.EAN, 18, '0'),
+                            LPAD(fvt.EAN, 18, '0') as EAN,
                             dph.NM,
                             (dph.SKU_PRODUCT || '-' ||
                                 CASE
