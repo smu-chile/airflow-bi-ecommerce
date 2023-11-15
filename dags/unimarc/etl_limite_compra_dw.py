@@ -29,6 +29,8 @@ def _load_limite_compra_dw_table(ti,ds):
     
     print(f"Number of records extracted: {len(df.index)}")
 
+    df = df[["EAN", "NM", "SKU_PRODUCT", "AVG_PRODUCT", "PURCHASE_LIMIT"]]
+
     # Rename columns to match workspace schema:
     columns_rename = {
             "EAN" : "ean",
