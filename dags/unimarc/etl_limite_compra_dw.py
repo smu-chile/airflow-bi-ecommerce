@@ -47,7 +47,7 @@ def _load_limite_compra_dw_table(ti,ds):
         "ref_id": "string"
     }, errors="ignore")
 
-    query_lista8 = """select (l.material ::text || '-'::text) || l.umv::text AS ref_id
+    query_lista8 = """select distinct (l.material ::text || '-'::text) || l.umv::text AS ref_id
                     from ecommdata.lista8 l
     """
     print(query_lista8)
@@ -64,6 +64,7 @@ def _load_limite_compra_dw_table(ti,ds):
 
     print(df.info())
 
+    results["ref_id"] = results["ref_id"].astype(str)
     df = pd.merge(df, results, on='ref_id', how='inner')
 
     print(df.info())
@@ -179,7 +180,7 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """SELECT
-                            LPAD(fvt.EAN, 18, '0') as EAN,
+                            fvt.EAN as EAN,
                             dph.NM,
                             (dph.SKU_PRODUCT || '-' ||
                                 CASE
@@ -192,9 +193,12 @@ with DAG(
                         FROM
                             DWC_SMU.SMU.VW_FACT_VENTA_ITEM fvt
                         LEFT JOIN
-                            DWC_SMU.SMU.VW_DIM_PRODUCT_HIERARCHY dph ON fvt.EAN = dph.EAN 
+                            DWC_SMU.SMU.VW_DIM_PRODUCT_HIERARCHY dph ON fvt.EAN = dph.EAN
+                        LEFT JOIN
+                        	DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY dsh ON fvt.ID_TIENDA = dsh.STORE_ID
                         WHERE
                             FVT.FECHA_HORA >= current_date - 30
+                        AND dsh.ORG_IP_ID = '01'
                         GROUP BY
                             fvt.EAN, dph.NM, dph.SKU_PRODUCT,fvt.UNIDAD_MEDIDA 
                         HAVING
