@@ -429,6 +429,50 @@ def load_oktoshop_table_to_postgres(ti):
 
 def set_janis_atributos(ti):
     import requests
+    import pandas as pd
+
+    stock_tiendas_query = """select s.ref_id,
+        ots.libre_lacteos,
+        ots.libre_lactosa,
+        ots.libre_gluten,
+        ots.libre_tacc,
+        ots.libre_soya,
+        ots.libre_huevos,
+        ots.libre_peces,
+        ots.libre_mariscos,
+        ots.libre_frutos_secos,
+        ots.libre_mani,
+        ots.libre_nueces_arbol,
+        ots.libre_sulfitos,
+        ots.vegano,
+        ots.vegetariano,
+        ots.halal,
+        ots.kosher,
+        ots.basado_plantas,
+        ots.libre_transgenicos,
+        ots.organico,
+        ots.carbono_neutral,
+        ots.libre_maltrato_animal,
+        ots.comercio_justo,
+        ots.marca_chile
+    from ecommdata.ok_to_shop ots
+    left join ecommdata.skus s on s.ean_primario::text = ots.ean::text"""
+    print(stock_tiendas_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(stock_tiendas_query)
+    df_ots = cursor.fetchall()
+    df_ots=pd.DataFrame(df_ots)
+    print(df_ots)
+    df_ots.columns = ["ref_id","libre_lacteos","libre_lactosa","libre_gluten","libre_tacc","libre_soya","libre_huevos",
+                       "libre_peces","libre_mariscos","libre_frutos_secos","libre_mani","libre_nueces_arbol","libre_sulfitos","vegano",
+                       "vegetariano","halal","kosher","basado_plantas","libre_transgenicos","organico","carbono_neutral","libre_maltrato_animal",
+                       "comercio_justo","marca_chile"]
+    cursor.close()
+    pg_connection.close()
+
+    print(df_ots.info())
 
     API_JANIS = Variable.get("JANIS_API_URL")
     headers = {
@@ -437,41 +481,39 @@ def set_janis_atributos(ti):
         "janis-client": Variable.get("JANIS_CLIENT"),
         "Connection": "keep-alive"}
 
-    def set_attributes(jst):
-        print("Iniciando carga a Janis")
-        print(jst)
-        lim_json = 500
-        total_size = len(jst)
-        #234 ref_id mundos alimenticios
-        if total_size > lim_json:
-            jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
+    jst = []
+    for x in lista_ref_id:
+        item = {
+            "item_id": x,
+            "attributes": [
+                {
+                    "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_SELLOS")),
+                    "values": 
+                }
+            ]
+        }
+        jst.append(item)
+
+    lim_json = 500
+    total_size = len(jst)
+    if total_size > lim_json:
+        jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
+    else:
+        jst = [jst]
+
+    API_JANIS = Variable.get("JANIS_API_URL")
+    cargando = 0
+    for arr_dic in jst:
+        r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json=arr_dic)
+        cargando += len(arr_dic )
+        if r.status_code == 200:
+            print(f"Productos actualizados: {cargando} de {total_size} con EXITO")
         else:
-            jst = [jst]
-        cargando = 0
-        for arr_dic in jst:
-            r = requests.post(f'{API_JANIS}attribute_value',
-                              headers=headers, json=arr_dic)
-            cargando += len(arr_dic)
-            if r.status_code == 200:
-                print(
-                    f"Productos actualizados: {cargando} de {total_size} con EXITO")
-            else:
-                print(f"Carga sin éxito | Status_Code: {r.status_code} ")
-                print(f"Response Print: {r.content}")
-
-    json_data = ti.xcom_pull(task_ids=["check_update_attributes_products"])[0]
-    if json_data == []:
-        print("No hay atributos para cargar a JANIS, FINALIZADO")
-        return
-    json_clean = [{'item_id': x['item_id'], 'attributes': [
-        {'id': atributo['id'], 'values': []} for atributo in x['attributes']]} for x in json_data]
-
-    print("Inicia LIMPIADO de los valores del atributo en los productos a actualizar")
-    set_attributes(json_clean)
-    print("Inicia INSERTO de los valores del atributo en los productos a actualizar")
-    set_attributes(json_data)
-    print("La carga a FINALIZADO")
-    return
+            print(f"Carga sin éxito | Status_Code: {r.status_code} ")
+            print(f"Response Print: {r.content}")
+            raise ValueError("Janis API response != 200")
+    print("La carga de límites a finalizado")          
+    return 
 
     '''{
         "item_id": "000000000400208002-UN",
