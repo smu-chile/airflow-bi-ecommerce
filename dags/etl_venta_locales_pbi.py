@@ -49,14 +49,13 @@ def _load_to_postgres(ti):
     df = df[["id_tienda","fecha","organizacion","venta_neta"]]
 
     columns = [
-        "fecha",
         "organizacion",
         "venta_neta"
     ]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = "%s,"+",".join(["%s" for column in columns])
+    values_query = "%s, %s,"+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
     
@@ -74,9 +73,9 @@ def _load_to_postgres(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.venta_locales_pbi (id_tienda,"""+columns_query+""") 
+        INSERT INTO ecommdata.venta_locales_pbi (id_tienda, fecha,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id_tienda)
+        ON CONFLICT (id_tienda, fecha)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
     """
     print(incremental_query)
