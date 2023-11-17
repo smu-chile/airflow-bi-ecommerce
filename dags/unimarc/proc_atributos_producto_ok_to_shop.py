@@ -472,6 +472,33 @@ def set_janis_atributos(ti):
     cursor.close()
     pg_connection.close()
 
+    df_ots = df_ots.rename(columns={
+        "ref_id": "ref_id",
+        "libre_lacteos": "Libre de Lácteos",
+        "libre_lactosa": "Libre de Lactosa",
+        "libre_gluten": "Libre de Gluten",
+        "libre_tacc": "Libre de TACC",
+        "libre_soya": "Libre de Soya",
+        "libre_huevos": "Libre de Huevo",
+        "libre_peces": "Libre de Peces",
+        "libre_mariscos": "Libre de Mariscos",
+        "libre_frutos_secos": "Libre de Frutos Secos",
+        "libre_mani": "Libre de Maní",
+        "libre_nueces_arbol": "Libre de Nuez",
+        "libre_sulfitos": "Libre de Sulfitos",
+        "vegano": "Vegano",
+        "vegetariano": "Vegetariano",
+        "halal": "Halal",
+        "kosher": "kosher",
+        "basado_plantas": "Basado en Plantas",
+        "libre_transgenicos": "Libre de Transgénicos",
+        "organico": "Orgánico",
+        "carbono_neutral": "Carbono Neutral",
+        "libre_maltrato_animal": "Libre de Maltrato Animal",
+        "comercio_justo": "Comercio Justo",
+        "marca_chile": "Marca Chile"
+    })
+
     print(df_ots.info())
 
     API_JANIS = Variable.get("JANIS_API_URL")
