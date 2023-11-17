@@ -499,10 +499,9 @@ def set_janis_atributos(ti):
 
         jst.append(item)
 
-    # Print the result
     print(jst)
 
-    lim_json = 500
+    '''lim_json = 500
     total_size = len(jst)
     if total_size > lim_json:
         jst = [jst[i:i+lim_json] for i in range(0, len(jst), lim_json)]
@@ -521,20 +520,7 @@ def set_janis_atributos(ti):
             print(f"Response Print: {r.content}")
             raise ValueError("Janis API response != 200")
     print("La carga de límites a finalizado")          
-    return 
-
-    '''{
-        "item_id": "000000000400208002-UN",
-        "attributes": [
-            {
-            "id": "330",
-            "values": [
-                "Vegetariano"
-                ]
-            }
-        ]
-    }'''
-
+    return'''
 
 default_args = {
     "owner": "ecommerce_ops",
