@@ -482,17 +482,25 @@ def set_janis_atributos(ti):
         "Connection": "keep-alive"}
 
     jst = []
-    for x in lista_ref_id:
+    for index, row in df_ots.iterrows():
         item = {
-            "item_id": x,
-            "attributes": [
-                {
-                    "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_SELLOS")),
-                    "values": 
-                }
-            ]
+            "item_id": row["ref_id"],
+            "attributes": []
         }
+
+        values = [col for col in df_ots.columns[1:] if row[col]]
+        
+        if values:
+            attribute = {
+                "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_SELLOS")),
+                "values": values
+            }
+            item["attributes"].append(attribute)
+
         jst.append(item)
+
+    # Print the result
+    print(jst)
 
     lim_json = 500
     total_size = len(jst)
