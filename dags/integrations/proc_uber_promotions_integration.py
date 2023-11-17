@@ -49,16 +49,52 @@ def _join_promo_prices_from_s3(ds, ti):
             continue
 
         uber_promotions_query = f"""
-            SELECT
-                lspp.ean as Sku,
-                lspp.id_tienda as id_de_tienda,
-                'Descuento' as tipo_de_promoción,
-                CASE
-                    WHEN lspp.precio_promocional < lspp.precio THEN lspp.precio_promocional
-                    ELSE lspp.precio
-                END as precio_venta
-            FROM integraciones.lm_stock_precio_promo lspp
-            WHERE lspp.id_tienda = '{store_id}'
+            WITH RankedPromotions AS (
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY wp.material, wp.precio_total_promocional) AS id,
+        wp.descripcion_material AS "Name",
+        wp.fecha_inicio_de_promocion::timestamp AS "Start Date",
+        wp.fecha_fin_de_promocion::timestamp AS "End Date",
+        CASE
+            WHEN wp.cantidad_n = 0 THEN 1
+            ELSE wp.cantidad_n
+        END AS "Required Quantity",
+        CASE
+            WHEN wp.cantidad_n = 0 THEN 1
+            ELSE wp.cantidad_n
+        END AS "Entitled Quantity",
+        TRIM(LEADING '0' FROM wp.material) AS "Sku",
+            '0917-0926-0956-0962-0581-0717-0008-0009-0017-0357-0011-0626-0332-0336-0030-0903-0602-0953-0914-0325-0476-0347-0954-0005-0326-0333-0469-0644-0982-0028-0324-0477-0445-0939-0763-0915-0345-0474-0758-0755-0601' AS "Branch",
+        wp.precio_total_promocional AS "Price",
+        NULL AS "Percentage Discount",
+        ROW_NUMBER() OVER (PARTITION BY wp.material ORDER BY wp.precio_total_promocional) AS RowNum
+        FROM
+            ecommdata.workflow_promociones wp
+        WHERE
+            wp.fecha_inicio_de_promocion <= current_date + 1
+            AND wp.fecha_fin_de_promocion >= current_date + 1
+            AND wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 12, 37, 51, 93, 53, 96, 77, 59])
+            AND wp.nombre_promocion::text !~~ '%MFC%'::text
+            AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+            AND wp.nombre_promocion::text !~~ '%917%'::text
+            AND wp.nombre_promocion::text !~~ '%0743%'::text
+    )
+    SELECT
+        "id",
+        "Name",
+        "Start Date",
+        "End Date",
+        "Required Quantity",
+        "Entitled Quantity",
+        "Sku",
+        "Branch",
+        "Price",
+        "Percentage Discount"
+    FROM
+        RankedPromotions
+    WHERE
+        RowNum = 1;
+
             """
         cursor.execute(uber_promotions_query)
         results = cursor.fetchall()
@@ -96,15 +132,14 @@ def _send_joined_data_to_sftp(ds):
     import pysftp
     from airflow.models import Variable
 
-    ftp_host = Variable.get("UBER_SFTP_HOST")
-    ftp_port = 2222
-    ftp_user = Variable.get("UBER_SFTP_USER")
-    ftp_rsa_key = Variable.get("UBER_SFTP_SECRET_RSA_KEY")
+    ftp_host = Variable.get("Old_Uber_Host")
+    ftp_port = 22
+    ftp_user = Variable.get("Old_Uber_User")
+    ftp_rsa_key = Variable.get("Old_Uber_passwordY")
 
     # Save the SSH private key to a temporary file
     with open("temp_uber_sftp_rsa_key", "w") as key_file:
         key_file.write(ftp_rsa_key)
-
     exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
 
