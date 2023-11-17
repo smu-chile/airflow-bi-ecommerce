@@ -189,9 +189,9 @@ with DAG(
                                     ELSE fvt.UNIDAD_MEDIDA
                                 END) AS SKU_PRODUCT,
                             ROUND(AVG(fvt.CANTIDAD_UNIDADES)) AS AVG_PRODUCT,
-                            ROUND(AVG(fvt.CANTIDAD_UNIDADES) + STDDEV_POP(fvt.CANTIDAD_UNIDADES)) AS PURCHASE_LIMIT
+                            ROUND(AVG(fvt.CANTIDAD_UNIDADES) + 2 * STDDEV_POP(fvt.CANTIDAD_UNIDADES)) AS PURCHASE_LIMIT
                         FROM
-                            DWC_SMU.SMU.VW_FACT_VENTA_ITEM fvt
+                            DWC_SMU.SMU.VW_FACT_VENTA_ITEM_HIST fvt
                         LEFT JOIN
                             DWC_SMU.SMU.VW_DIM_PRODUCT_HIERARCHY dph ON fvt.EAN = dph.EAN
                         LEFT JOIN
@@ -202,7 +202,7 @@ with DAG(
                         GROUP BY
                             fvt.EAN, dph.NM, dph.SKU_PRODUCT,fvt.UNIDAD_MEDIDA 
                         HAVING
-                            PURCHASE_LIMIT >= 12
+                            PURCHASE_LIMIT > 12
                         ORDER BY
                             fvt.EAN;
             """,
