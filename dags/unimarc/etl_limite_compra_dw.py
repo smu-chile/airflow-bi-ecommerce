@@ -164,15 +164,14 @@ with DAG(
     'etl_limite_compra_dw',
     default_args=default_args,
     description="Extraer promedio de unidades por orden de Datawarehouse y setear limite de compra en JANIS",
-    schedule_interval="30 8 1 1-12 *",
+    schedule_interval="30 8 1,10,20 1-12 *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["ecommdata", "VTEX", "promociones", "unimarc","workflow"],
+    tags=["ecommdata", "DW", "limite_compra", "unimarc"],
 ) as dag:
     
     dag.doc_md = """
-    construir y cargar promociones diarias de VTEX. \n
-    Upsert en tabla ecommdata.promociones_diarias.
+    Extraer promedio de unidades por orden de Datawarehouse y setear limite de compra en JANIS
     """ 
 
     t0 = PythonOperator(
