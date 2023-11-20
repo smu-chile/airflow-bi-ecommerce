@@ -9,9 +9,10 @@ import pendulum
 
 def _get_uber_active_stores():
     uber_stores_query = """
-        SELECT id
-        FROM integraciones.tiendas_last_millers
-        WHERE id_uber is not NULL;
+           
+    select id
+    from integraciones.tiendas_last_millers tlm 
+    where tlm.id_uber is not null 
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -135,7 +136,7 @@ def _send_joined_data_to_sftp(ds):
     ftp_host = Variable.get("Old_Uber_Host")
     ftp_port = 22
     ftp_user = Variable.get("Old_Uber_User")
-    ftp_rsa_key = Variable.get("Old_Uber_passwordY")
+    ftp_rsa_key = Variable.get("Old_Uber_password")
 
     # Save the SSH private key to a temporary file
     with open("temp_uber_sftp_rsa_key", "w") as key_file:
