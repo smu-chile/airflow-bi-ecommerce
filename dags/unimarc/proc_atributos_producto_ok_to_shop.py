@@ -257,9 +257,6 @@ def incremental_load_to_s3(ti,ds):
             break
     print(df_oktoshop.info())
 
-    if df_oktoshop.empty:
-        return 'rows_not_found'
-
     sku_query = """select ref_id,
                 ean_primario,
                 nombre_sku
@@ -274,9 +271,6 @@ def incremental_load_to_s3(ti,ds):
 
     df_oktoshop = pd.merge(df_oktoshop, skus, left_on='barcode', right_on='ean_primario', how='inner')
     df_oktoshop.drop(columns=['ean_primario'], inplace=True)
-
-    if df_oktoshop.empty:
-        return 'rows_not_found'
 
     columns = ['ean','fecha_creacion','ultima_modificacion', 'libre_lacteos', 'libre_lactosa', 'libre_gluten', 'libre_tacc',
            'libre_soya', 'libre_huevos', 'libre_peces', 'libre_mariscos', 'libre_frutos_secos',
@@ -354,13 +348,7 @@ def incremental_load_to_s3(ti,ds):
                 encrypt=False)
     print(f"File load on S3: {prefix}")
 
-    ti.xcom_push(key="identifier as a string", value=filename)
-
-    return "load_oktoshop_table_to_postgres"
-
-def rows_not_found(ds):
-    print(f"no updates found at: {ds}")
-    return
+    return filename
 
 def load_oktoshop_table_to_postgres(ti):
     import pandas as pd
@@ -371,7 +359,7 @@ def load_oktoshop_table_to_postgres(ti):
     if load_method == "full_load":
         filename = ti.xcom_pull(key="return_value", task_ids=["full_load_ok_to_shop_table_to_s3"])[0]
     else:
-        filename = ti.xcom_pull(key="identifier as string", task_ids="incremental_load_to_s3")
+        filename = ti.xcom_pull(key="return_value", task_ids="incremental_load_to_s3")[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -598,14 +586,9 @@ with DAG(
         }
     )
     
-    t3 =  BranchPythonOperator(
+    t3 =  PythonOperator(
         task_id = "incremental_load_to_s3",
         python_callable = incremental_load_to_s3,
-    )
-
-    t3_none = PythonOperator(
-        task_id = "rows_not_found",
-        python_callable = rows_not_found,
     )
 
     t4 = PythonOperator(
@@ -620,7 +603,5 @@ with DAG(
     
 
     t0 >> t1 >> t4 >> t5
-    t0 >> t2 >> t3
-    t3 >> t3_none
-    t3 >> t4 >> t5
+    t0 >> t2 >> t3 >> t4 >> t5
 
