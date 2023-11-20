@@ -367,9 +367,9 @@ def load_oktoshop_table_to_postgres(ti):
     load_method = ti.xcom_pull(key="load_method", task_ids=["evaluate_full_load"])[0]
     print(f"Load method: {load_method}")
     if load_method == "full_load":
-        filename = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+        filename = ti.xcom_pull(key="return_value", task_ids=["full_load_ok_to_shop_table_to_s3"])[0]
     else:
-        filename = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+        filename = ti.xcom_pull(key="return_value", task_ids=["incremental_load_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -559,10 +559,7 @@ default_args = {
 with DAG(
     'proc_janis_attributes_product_ok_to_shop',
     default_args=default_args,
-    description=""" With the extractions of .csv files from ftp connection, it's been made
-    an update of catalogo.ok_to_shop table, and an insert of attributes of products that match EAN's 
-    of sku_ean and skus using the API of Janis attribute_value. After this, we hope to observe
-    atributos_producto table updated.""",
+    description="""extraccion de informacion nutricional de API OK TO SHOP a Janis""",
 
     schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2023, 5, 21, tz="America/Santiago"),
