@@ -559,10 +559,7 @@ default_args = {
 with DAG(
     'proc_janis_attributes_product_ok_to_shop',
     default_args=default_args,
-    description=""" With the extractions of .csv files from ftp connection, it's been made
-    an update of catalogo.ok_to_shop table, and an insert of attributes of products that match EAN's 
-    of sku_ean and skus using the API of Janis attribute_value. After this, we hope to observe
-    atributos_producto table updated.""",
+    description="""extraccion de informacion nutricional de API OK TO SHOP a Janis""",
 
     schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2023, 5, 21, tz="America/Santiago"),
@@ -615,7 +612,7 @@ with DAG(
     )
     
 
-    t0 >> t1 >> t4
-    t0 >> t2 >> t3 >> t4
+    t0 >> t1 >> t4 >> t5
+    t0 >> t2 >> t3 >> t4 >> t5
     t3 >> t3_none
 
