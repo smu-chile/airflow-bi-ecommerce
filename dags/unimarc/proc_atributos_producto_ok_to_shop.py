@@ -367,9 +367,9 @@ def load_oktoshop_table_to_postgres(ti):
     load_method = ti.xcom_pull(key="load_method", task_ids=["evaluate_full_load"])[0]
     print(f"Load method: {load_method}")
     if load_method == "full_load":
-        filename = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
+        filename = ti.xcom_pull(key="return_value", task_ids=["full_load_ok_to_shop_table_to_s3"])[0]
     else:
-        filename = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+        filename = ti.xcom_pull(key="return_value", task_ids=["incremental_load_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -612,7 +612,7 @@ with DAG(
     )
     
 
-    t0 >> t1 >> t4 >> t5
-    t0 >> t2 >> t3 >> t4 >> t5
+    t0 >> t1 >> t4
+    t0 >> t2 >> t3 >> t4
     t3 >> t3_none
 
