@@ -620,6 +620,7 @@ with DAG(
     
 
     t0 >> t1 >> t4 >> t5
-    t0 >> t2 >> t3 >> t4 >> t5
+    t0 >> t2 >> t3
     t3 >> t3_none
+    t3 >> t4 >> t5
 
