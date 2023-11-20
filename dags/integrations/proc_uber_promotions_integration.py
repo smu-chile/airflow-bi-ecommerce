@@ -138,6 +138,7 @@ def _send_joined_data_to_sftp(ds):
     ftp_user = Variable.get("Old_Uber_User")
     ftp_rsa_key = Variable.get("Old_Uber_password")
 
+    exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
