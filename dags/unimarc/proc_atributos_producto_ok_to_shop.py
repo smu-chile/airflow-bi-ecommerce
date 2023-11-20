@@ -354,7 +354,9 @@ def incremental_load_to_s3(ti,ds):
                 encrypt=False)
     print(f"File load on S3: {prefix}")
 
-    return filename
+    ti.xcom_push(key="identifier as a string", value=filename)
+
+    return "load_oktoshop_table_to_postgres"
 
 def rows_not_found(ds):
     print(f"no updates found at: {ds}")
@@ -369,7 +371,7 @@ def load_oktoshop_table_to_postgres(ti):
     if load_method == "full_load":
         filename = ti.xcom_pull(key="return_value", task_ids=["full_load_ok_to_shop_table_to_s3"])[0]
     else:
-        filename = ti.xcom_pull(key="return_value", task_ids=["incremental_load_to_s3"])[0]
+        filename = ti.xcom_pull(key="identifier as string", task_ids="incremental_load_to_s3")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -611,8 +613,13 @@ with DAG(
         python_callable = load_oktoshop_table_to_postgres,
     )
     
+    t5 = PythonOperator(
+        task_id = "set_janis_atributos",
+        python_callable = set_janis_atributos,
+    )
+    
 
-    t0 >> t1 >> t4
-    t0 >> t2 >> t3 >> t4
+    t0 >> t1 >> t4 >> t5
+    t0 >> t2 >> t3 >> t4 >> t5
     t3 >> t3_none
 
