@@ -593,6 +593,7 @@ with DAG(
 
     t4 = PythonOperator(
         task_id = "load_oktoshop_table_to_postgres",
+        trigger_rule = "one_success",
         python_callable = load_oktoshop_table_to_postgres,
     )
     
@@ -603,6 +604,6 @@ with DAG(
     
 
     t0 >> [t1, t2]
+    t2 >> t3 >> t4 >> t5
     t1 >> t4 >> t5
-    t2 >> t3 >> t4 >> t5 
 
