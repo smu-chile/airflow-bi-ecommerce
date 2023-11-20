@@ -139,10 +139,6 @@ def _send_joined_data_to_sftp(ds):
     ftp_rsa_key = Variable.get("Old_Uber_password")
 
     # Save the SSH private key to a temporary file
-    with open("temp_uber_sftp_rsa_key", "w") as key_file:
-        key_file.write(ftp_rsa_key)
-    exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -164,7 +160,7 @@ def _send_joined_data_to_sftp(ds):
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port,
-                                private_key="temp_uber_sftp_rsa_key") as sftp:
+                                password=ftp_rsa_key) as sftp:
             localFile = promotions_object_body
             remotePath = f"/test/synchronize/{output_promotions_file}"
             sftp.putfo(localFile, remotePath)
