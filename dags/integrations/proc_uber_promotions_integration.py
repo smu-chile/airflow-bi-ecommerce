@@ -161,7 +161,7 @@ def _send_joined_data_to_sftp(ds):
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port,
-                                private_key=ftp_rsa_key) as sftp:
+                                password=ftp_rsa_key) as sftp:
             localFile = promotions_object_body
             remotePath = f"/test/synchronize/{output_promotions_file}"
             sftp.putfo(localFile, remotePath)
