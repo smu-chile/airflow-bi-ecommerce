@@ -88,15 +88,15 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                         ELSE round(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida)
                     END AS precio ,
                     CASE
-                        WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7) THEN 1
-                        WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= 7) THEN 1
+                        WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 15) THEN 1
+                        WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= 15) THEN 1
                         ELSE 0
                     END AS stock
                     FROM integraciones.lm_stock_precio_promo lspp
                     inner JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                     WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR
-                        (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
+                        (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 15))
                 AND lspp.id_tienda = '{store_id}'
             ;
 
