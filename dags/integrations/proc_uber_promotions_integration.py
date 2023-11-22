@@ -4,6 +4,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from datetime import datetime
 
 import pendulum
 
@@ -44,7 +45,10 @@ def _join_promo_prices_from_s3(ds, ti):
     aux_list = []
 
     for store_id in uber_store_ids:
-        join_file_name = f"integraciones/last_millers/promotions/out/uber/{exec_date}/{store_id}.csv"
+        # Obtén la fecha de ejecución en formato YYYYMMDD
+        exec_date_formatted = datetime.now().strftime("%Y%m%d")
+
+        join_file_name = f"integraciones/last_millers/promotions/out/uber/{exec_date}/{exec_date_formatted}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -163,7 +167,7 @@ def _send_joined_data_to_sftp(ds):
                                 port=ftp_port,
                                 password=ftp_rsa_key) as sftp:
             localFile = promotions_object_body
-            remotePath = f"/data/smu_promos_{exec_date}"
+            remotePath = f"/data/smu_promos_{output_promotions_file}"
             sftp.putfo(localFile, remotePath, confirm=False)
         
         print("File loaded.")
