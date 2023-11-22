@@ -163,7 +163,7 @@ def _send_joined_data_to_sftp(ds):
                                 port=ftp_port,
                                 password=ftp_rsa_key) as sftp:
             localFile = promotions_object_body
-            remotePath = f"/data/smu_promos_{exec_date}"
+            remotePath = f"/data/smu_promos_{output_promotions_file}"
             sftp.putfo(localFile, remotePath, confirm=False)
         
         print("File loaded.")
