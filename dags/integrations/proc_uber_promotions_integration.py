@@ -44,7 +44,7 @@ def _join_promo_prices_from_s3(ds, ti):
     aux_list = []
 
     for store_id in uber_store_ids:
-        join_file_name = f"integraciones/last_millers/promotions/out/uber/{exec_date}/{store_id}.csv"
+        join_file_name = f"integraciones/last_millers/promotions/out/uber/{exec_date}/{exec_date}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
