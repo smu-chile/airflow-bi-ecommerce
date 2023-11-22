@@ -24,27 +24,33 @@ def load_cantidad_promociones_to_s3(ds):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
+    df_promos = pd.DataFrame()
 
-    cantidad_promociones_query = f"""SELECT TO_DATE('{ds}', 'YYYY-MM-DD') AS dia,
-           COUNT(material) AS cantidad_promociones_activas,
-           id_mecanica,
-           descripcion_mecanica
-    FROM ecommdata.workflow_promociones wp
-    WHERE wp.fecha_inicio_de_promocion <= '{ds}'
-      AND wp.fecha_fin_de_promocion >= '{ds}'
-      AND wp.id_mecanica NOT IN (36, 99, 84, 12, 37, 51, 93, 53, 96, 77, 59)
-    GROUP BY id_mecanica, descripcion_mecanica;"""
-    print(cantidad_promociones_query)
+    for i in range(21):
+        query_date = ds + datetime.timedelta(days=i)
+        cantidad_promociones_query = f"""SELECT TO_DATE('{query_date}', 'YYYY-MM-DD') AS dia,
+            COUNT(material) AS cantidad_promociones_activas,
+            id_mecanica,
+            descripcion_mecanica
+        FROM ecommdata.workflow_promociones wp
+        WHERE wp.fecha_inicio_de_promocion <= '{query_date}'
+        AND wp.fecha_fin_de_promocion >= '{query_date}'
+        AND wp.id_mecanica NOT IN (36, 99, 84, 12, 37, 51, 93, 53, 96, 77, 59)
+        GROUP BY id_mecanica, descripcion_mecanica;"""
+        print(cantidad_promociones_query)
 
-    cursor.execute(cantidad_promociones_query)
-    results = cursor.fetchall()
-    columns_name = [i[0] for i in cursor.description]
-    df = pd.DataFrame(results, columns=columns_name)
-    cursor.close()
-    pg_connection.close()
+        cursor.execute(cantidad_promociones_query)
+        results = cursor.fetchall()
+        columns_name = [i[0] for i in cursor.description]
+
+        df_temp = pd.DataFrame(results, columns=columns_name)
+        df_promos = pd.concat([df_promos, df_temp], ignore_index=True)
+
+        cursor.close()
+        pg_connection.close()
 
     buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    df_promos.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"cantidad_promociones/{exec_date}/cantidad_promociones_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
@@ -61,6 +67,7 @@ def load_cantidad_promociones_to_s3(ds):
 
 def load_cantidad_promociones_to_postgres(ti):
     import pandas as pd
+    import numpy as np
     import sqlalchemy
 
     cantidad_promociones_file = ti.xcom_pull(key="return_value", task_ids=["load_cantidad_promociones_to_s3"])[0]
@@ -74,24 +81,43 @@ def load_cantidad_promociones_to_postgres(ti):
 
     limit_object = s3_hook.get_key(cantidad_promociones_file, bucket_name=s3_bucket)
 
-    df_cantidad_promociones = pd.read_csv(limit_object.get()["Body"])
+    df = pd.read_csv(limit_object.get()["Body"])
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    columns = ["cantidad_promociones_activas", "descripcion_mecanica"]
 
-    conn_url = "postgresql+psycopg2://"+username + \
-        ":"+password+"@"+host+":5432/"+database
-    engine = sqlalchemy.create_engine(conn_url)
-
-    df_cantidad_promociones.to_sql(name="cantidad_promociones_diarias",
-                   con=engine,
-                   schema="ecommdata",
-                   if_exists='append',
-                   index=False,
-                   chunksize=20000,
-                   method='multi')
+    columns_query = ",".join(columns)
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.cantidad_promociones_diarias (dia,id_mecanica,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (dia,id_mecanica)
+        DO NOTHING; 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
     return
 
 
