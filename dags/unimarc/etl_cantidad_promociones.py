@@ -27,7 +27,7 @@ def load_cantidad_promociones_to_s3(ds):
     df_promos = pd.DataFrame()
 
     for i in range(21):
-        query_date = ds + datetime.timedelta(days=i)
+        query_date = ds + timedelta(days=i)
         cantidad_promociones_query = f"""SELECT TO_DATE('{query_date}', 'YYYY-MM-DD') AS dia,
             COUNT(material) AS cantidad_promociones_activas,
             id_mecanica,
