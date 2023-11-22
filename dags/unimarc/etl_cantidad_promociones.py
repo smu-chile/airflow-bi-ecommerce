@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pendulum
 
