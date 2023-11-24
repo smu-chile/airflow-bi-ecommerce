@@ -35,8 +35,8 @@ def load_cantidad_promociones_to_s3(ds):
             wp.canal_distribucion
         FROM
             generate_series(
-                {ds}::date,
-                {ds}::date + interval '21 days',
+                '{ds}'::date,
+                '{ds}'::date + interval '21 days',
                 interval '1 day'
             ) gs
         JOIN
