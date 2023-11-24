@@ -26,28 +26,37 @@ def load_cantidad_promociones_to_s3(ds):
     cursor = pg_connection.cursor()
     df_promos = pd.DataFrame()
 
-    for i in range(21):
-        query_date = ds + timedelta(days=i)
-        cantidad_promociones_query = f"""SELECT TO_DATE('{query_date}', 'YYYY-MM-DD') AS dia,
-            COUNT(material) AS cantidad_promociones_activas,
-            id_mecanica,
-            descripcion_mecanica
-        FROM ecommdata.workflow_promociones wp
-        WHERE wp.fecha_inicio_de_promocion <= '{query_date}'
-        AND wp.fecha_fin_de_promocion >= '{query_date}'
-        AND wp.id_mecanica NOT IN (36, 99, 84, 12, 37, 51, 93, 53, 96, 77, 59)
-        GROUP BY id_mecanica, descripcion_mecanica;"""
-        print(cantidad_promociones_query)
+    
+    cantidad_promociones_query = f"""SELECT
+            gs::date AS dia,
+            COUNT(wp.material) AS cantidad_promociones_activas,
+            wp.id_mecanica,
+            wp.descripcion_mecanica,
+            wp.canal_distribucion
+        FROM
+            generate_series(
+                {ds}::date,
+                {ds}::date + interval '21 days',
+                interval '1 day'
+            ) gs
+        JOIN
+            ecommdata.workflow_promociones wp ON gs::date BETWEEN wp.fecha_inicio_de_promocion AND wp.fecha_fin_de_promocion
+            AND wp.id_mecanica <> ALL (ARRAY[36, 99, 84, 12, 37, 51, 93, 53, 96, 77, 59])
+        GROUP BY
+            gs::date, wp.id_mecanica, wp.descripcion_mecanica, wp.canal_distribucion
+        ORDER BY
+            gs::date, wp.id_mecanica, wp.descripcion_mecanica, wp.canal_distribucion;"""
+    print(cantidad_promociones_query)
 
-        cursor.execute(cantidad_promociones_query)
-        results = cursor.fetchall()
-        columns_name = [i[0] for i in cursor.description]
+    cursor.execute(cantidad_promociones_query)
+    results = cursor.fetchall()
+    columns_name = [i[0] for i in cursor.description]
 
-        df_temp = pd.DataFrame(results, columns=columns_name)
-        df_promos = pd.concat([df_promos, df_temp], ignore_index=True)
+    df_temp = pd.DataFrame(results, columns=columns_name)
+    df_promos = pd.concat([df_promos, df_temp], ignore_index=True)
 
-        cursor.close()
-        pg_connection.close()
+    cursor.close()
+    pg_connection.close()
 
     buffer = io.StringIO()
     df_promos.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -104,9 +113,9 @@ def load_cantidad_promociones_to_postgres(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.cantidad_promociones_diarias (dia,id_mecanica,"""+columns_query+""") 
+        INSERT INTO ecommdata.cantidad_promociones_diarias (dia,id_mecanica,"""+columns_query+""",canal_distribucion) 
         VALUES ("""+values_query+""")
-        ON CONFLICT (dia,id_mecanica)
+        ON CONFLICT (dia,id_mecanica,canal_distribucion)
         DO NOTHING; 
     """
     print(incremental_query)
