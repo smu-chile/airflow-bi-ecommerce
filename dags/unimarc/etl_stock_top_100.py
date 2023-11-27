@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime, timedelta
@@ -73,11 +74,9 @@ def load_top_100_to_s3(ds):
             RankedData r
             LEFT JOIN ecommdata.skus s ON s.ref_id = r.ref_id_sku
             LEFT JOIN ecommdata.stock s2 ON r.id_tienda = s2.id_tienda AND r.ref_id_sku = s2.ref_id
-            LEFT JOIN ecommdata.lista8 l8 ON ((l8.material::text || '-'::text) || l8.umv::text) = r.ref_id_sku AND r.id_tienda = l8.id_tienda
         WHERE
             s2.fecha = '{ds}'::date
-            AND l8.fecha = '{ds}'::date
-            AND l8.material::text || '-'::text || l8.umv::text IS NOT NULL
+            AND s2.surtido_ecommerce = true
         ORDER BY
             ranking, id_tienda
         LIMIT (SELECT COUNT(DISTINCT id_tienda) FROM SalesData) * 100;"""
@@ -109,59 +108,49 @@ def load_top_100_to_s3(ds):
 
     return filename
 
-def load_cantidad_promociones_to_postgres(ti):
+def load_stock_top100_to_postgres(ti):
     import pandas as pd
     import numpy as np
     import sqlalchemy
 
-    cantidad_promociones_file = ti.xcom_pull(key="return_value", task_ids=["load_cantidad_promociones_to_s3"])[0]
+    stock_top100_file = ti.xcom_pull(key="return_value", task_ids=["load_top_100_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+cantidad_promociones_file)
-    if not s3_hook.check_for_key(cantidad_promociones_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % cantidad_promociones_file)
+    print("Searching file: "+stock_top100_file)
+    if not s3_hook.check_for_key(stock_top100_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % stock_top100_file)
 
-    limit_object = s3_hook.get_key(cantidad_promociones_file, bucket_name=s3_bucket)
+    s_stock_object = s3_hook.get_key(stock_top100_file, bucket_name=s3_bucket)
 
-    df = pd.read_csv(limit_object.get()["Body"])
-
-    columns = ["cantidad_promociones_activas", "descripcion_mecanica"]
-
-    columns_query = ",".join(columns)
-    values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
-    records = list(df.to_records(index=False))
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
     
-    # Change data types to native python types
-    fixed_records = []
-    for record in records:
-        fixed_record = []
-        for value in record:
-            if isinstance(value, np.generic):
-                fixed_record.append(value.item())
-            elif value == "NULL":
-                fixed_record.append(None)
-            else:
-                fixed_record.append(value)
-        fixed_records.append(tuple(fixed_record))
-    print(f"Number of records to load: {str(len(fixed_records))}")
-    incremental_query = """
-        INSERT INTO ecommdata.cantidad_promociones_diarias (dia,id_mecanica,"""+columns_query+""",canal_distribucion) 
-        VALUES ("""+values_query+""")
-        ON CONFLICT (dia,id_mecanica,canal_distribucion)
-        DO NOTHING; 
-    """
-    print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.executemany(incremental_query, fixed_records)
-    pg_connection.commit()
-    cursor.close()
-    pg_connection.close()
-    print("Data loaded to Postgres")
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        df.to_sql(name="stock_top100",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
     return
 
 
@@ -190,4 +179,17 @@ with DAG(
         python_callable = load_top_100_to_s3,
     )
 
-    t0
+    t1 = PostgresOperator(
+        task_id = "truncate_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        truncate ecommdata.stock_top100
+        """,
+    )
+
+    t2 = PythonOperator(
+        task_id = "load_stock_top100_to_postgres",
+        python_callable = load_stock_top100_to_postgres,
+    )
+
+    t0 >> t1 >> t2
