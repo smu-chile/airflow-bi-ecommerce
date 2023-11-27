@@ -70,7 +70,7 @@ def _join_promo_prices_from_s3(ds, ti):
         END AS "Entitled Quantity",
         TRIM(LEADING '0' FROM wp.material) AS "Sku",
             '0917-0926-0956-0962-0581-0717-0008-0009-0017-0357-0011-0626-0332-0336-0030-0903-0602-0953-0914-0325-0476-0347-0954-0005-0326-0333-0469-0644-0982-0028-0324-0477-0445-0939-0763-0915-0345-0474-0758-0755-0601' AS "Branch",
-        wp.precio_total_promocional AS "Price",
+            wp.precio_total_promocional AS "Price",
         NULL AS "Percentage Discount",
         ROW_NUMBER() OVER (PARTITION BY wp.material ORDER BY wp.precio_total_promocional) AS RowNum
         FROM
@@ -93,7 +93,7 @@ def _join_promo_prices_from_s3(ds, ti):
         "Entitled Quantity",
         "Sku",
         "Branch",
-        "Price",
+        "Price"::int,
         "Percentage Discount"
     FROM
         RankedPromotions
@@ -111,6 +111,7 @@ def _join_promo_prices_from_s3(ds, ti):
 
         df = pd.DataFrame(results, columns=columns)
         print(f"Number of records found on stock: {len(df.index)}")
+        
 
         aux_list.append(df)
     if aux_list:
@@ -119,7 +120,9 @@ def _join_promo_prices_from_s3(ds, ti):
         buffer = io.StringIO()
         final_df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
-
+    
+        final_df['Price'] = final_df['Price'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        
         s3_hook.load_string(buffer.getvalue(),
                     key=join_file_name,
                     bucket_name=s3_bucket,
