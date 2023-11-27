@@ -13,6 +13,7 @@ def load_top_100_to_s3(ds):
     import pandas as pd
     import numpy as np
     import io
+    import os
     from io import StringIO
 
     exec_date = ds.replace("-", "/")
@@ -24,76 +25,22 @@ def load_top_100_to_s3(ds):
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    df_promos = pd.DataFrame()
 
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
+
+    with open(curr_working_directory+f"/dags/unimarc/sql/stock_top100.sql", "r") as query_file:
+        stock_top100_query = query_file.read()
     
-    top_100_query = f"""WITH SalesData AS (
-            SELECT
-                ved.ref_id_sku,
-                ved.id_tienda,
-                COUNT(ved.ref_id_sku) AS recurrencia,
-                SUM(venta_umv / s.multiplicador_unidad_medida) AS venta_unidades,
-                SUM(venta_neta) AS venta_plata
-            FROM
-                ecommdata.ventas_ecommerce_datawarehouse ved
-                LEFT JOIN ecommdata.skus s ON s.ref_id = ved.ref_id_sku
-            WHERE
-                fecha_facturacion >= '{ds}'::date - 30
-                AND ved.id_tienda IN ('0581','1917','0442','0347','0336','0034')
-                AND ved.ref_id_sku <> '000000000000630792-UN'
-            GROUP BY
-                ved.ref_id_sku, ved.id_tienda
-        ),
-        RankedData AS (
-            SELECT
-                ref_id_sku,
-                id_tienda,
-                recurrencia,
-                venta_unidades,
-                venta_plata,
-                DENSE_RANK() OVER (ORDER BY recurrencia DESC) AS recurrencia_rank,
-                DENSE_RANK() OVER (ORDER BY venta_unidades DESC) AS unidades_rank,
-                DENSE_RANK() OVER (ORDER BY venta_plata DESC) AS plata_rank
-            FROM
-                SalesData
-        )
-        SELECT
-            r.id_tienda,
-            ROW_NUMBER() OVER (PARTITION BY r.id_tienda ORDER BY (0.5 * recurrencia_rank + 0.3 * unidades_rank + 0.2 * plata_rank)) AS ranking,
-            r.ref_id_sku,
-            s.nombre_sku,
-            CASE
-                WHEN s2.stock_janis IS NULL THEN 0
-                ELSE s2.stock_janis
-            END AS stock_dia,
-            r.recurrencia_boleta,
-            ROUND(r.venta_unidades::numeric) AS venta_unidades,
-            r.venta_pesos
-        FROM
-            RankedData r
-            LEFT JOIN ecommdata.skus s ON s.ref_id = r.ref_id_sku
-            LEFT JOIN ecommdata.stock s2 ON r.id_tienda = s2.id_tienda AND r.ref_id_sku = s2.ref_id
-        WHERE
-            s2.fecha = '{ds}'::date
-            AND s2.surtido_ecommerce = true
-        ORDER BY
-            ranking, id_tienda
-        LIMIT (SELECT COUNT(DISTINCT id_tienda) FROM SalesData) * 100;"""
-    print(top_100_query)
+    stock_top100_query = stock_top100_query.replace("{ds}", ds)
 
-    cursor.execute(top_100_query)
-    results = cursor.fetchall()
-    columns_name = [i[0] for i in cursor.description]
+    print("Base query:")
+    print(stock_top100_query)
 
-    df_temp = pd.DataFrame(results, columns=columns_name)
-    df_promos = pd.concat([df_promos, df_temp], ignore_index=True)
-
-    cursor.close()
-    pg_connection.close()
-
+    df_promotions = pd.read_sql_query(stock_top100_query, pg_connection)
     buffer = io.StringIO()
-    df_promos.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    df_promotions.to_csv(buffer, header=True, index=False, encoding="utf-8")
+
     filename = f"top_100/{exec_date}/top_100_stock_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
