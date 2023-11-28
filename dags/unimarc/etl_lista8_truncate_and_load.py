@@ -12,6 +12,7 @@ import pendulum
 
 def _stopper_lista8(ts):
     import pandas as pd
+    import re
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
@@ -38,12 +39,13 @@ def _stopper_lista8(ts):
     df.columns = ["id_tienda"]
     active_stores = df["id_tienda"].unique()
     stores_found = s3_file_list
+    stores_found = [re.search(r'(\d+)\.CSV$', archivo).group(1) for archivo in stores_found]
     print(f"active stores: {active_stores}")
     print(f"stores found: {stores_found}")
     tiendas_faltantes = set(active_stores)-set(stores_found)
     tiendas_faltantes_lista = list(tiendas_faltantes)
     
-    if tiendas_faltantes_lista > 0:
+    if len(tiendas_faltantes_lista) > 0:
         return
     else:
         raise Exception(f"No se encontraron las siguientes tiendas: {tiendas_faltantes_lista}")
