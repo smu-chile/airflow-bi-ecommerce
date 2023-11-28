@@ -105,8 +105,8 @@ with DAG(
     default_args=default_args,
     description="Extracción de venta de sala de dw",
     schedule_interval="15 7 * * *",
-    start_date=pendulum.datetime(2023, 10, 9, tz="America/Santiago"),
-    catchup=False,
+    start_date=pendulum.datetime(2023, 1, 1, tz="America/Santiago"),
+    catchup=True,
     tags=["DATA", "DW", "S3", "venta", "sala"],
 ) as dag:
 
