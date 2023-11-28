@@ -66,13 +66,7 @@ inner join (select cd.fecha_facturacion ,
 	from operaciones_unimarc.cumplimiento_despacho cd
 	where cd.fecha_facturacion::date = '{{ds}}' 
 	group by cd.fecha_facturacion , cd.id_tienda) _t3 on _t3.fecha_facturacion::date = ved.fecha_facturacion::date and _t3.id_tienda = ved.id_tienda
-inner join (SELECT vst.fecha,
-    lpad(vst.id_tienda::text, 4, '0'::text) AS id_tienda,
-    vst.organizacion,
-    sum(vst.venta_neta) AS venta_neta
-    FROM ecommdata.venta_sku_tienda vst
-    WHERE vst.fecha::date = '{{ds}}'
-    GROUP BY vst.fecha, (lpad(vst.id_tienda::text, 4, '0'::text)), vst.organizacion) _t4 on _t4.id_tienda = ved.id_tienda and _t4.fecha::date = ved.fecha_facturacion::date
+inner join ecommdata.venta_locales_pbi _t4 on _t4.id_tienda = ved.id_tienda and _t4.fecha = ved.fecha_facturacion::date
 where ved.fecha_facturacion = '{{ds}}' and ved.canal_venta = 'E-COMMERCE'
 group by ved.fecha_facturacion::date, ved.id_tienda, _t.productos_completos, _t.productos_substituidos, _t.productos_solicitados, _t.ordenes_perfectas, _t3.ordenes_ontime, _t3.ordenes_earlytime, _t4.venta_neta
 order by ved.id_tienda asc
