@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 import pendulum
 
 def _stopper_lista8(ts):
+    import pandas as pd
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
@@ -23,9 +24,9 @@ def _stopper_lista8(ts):
     print(f"Files detected: {s3_file_list}")
 
     query = """
-        select count(1) as tiendas_activas
-        from ecommdata.tiendas t
-        where t.status = 1;
+        select id 
+    from ecommdata.tiendas t
+    where t.status = 1;
     """
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -33,15 +34,19 @@ def _stopper_lista8(ts):
     cursor = pg_connection.cursor()
     cursor.execute(query)
     results = cursor.fetchall()
-    active_stores = results[0][0]
-    stores_found = len(s3_file_list)
-    print(f"active stores: {results}")
+    df = pd.DataFrame(results)
+    df.columns = ["id_tienda"]
+    active_stores = df["id_tienda"].unique()
+    stores_found = s3_file_list
+    print(f"active stores: {active_stores}")
     print(f"stores found: {stores_found}")
-
-    if stores_found >= active_stores:
+    tiendas_faltantes = set(active_stores)-set(stores_found)
+    tiendas_faltantes_lista = list(tiendas_faltantes)
+    
+    if tiendas_faltantes_lista > 0:
         return
     else:
-        raise Exception(f"Not all active stores found")
+        raise Exception(f"No se encontraron las siguientes tiendas: {tiendas_faltantes_lista}")
 
 def _load_lista8(ts):
     import pandas as pd
