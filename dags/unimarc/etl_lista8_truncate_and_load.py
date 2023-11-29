@@ -46,7 +46,7 @@ def _stopper_lista8(ts):
     tiendas_faltantes = set(active_stores)-set(stores_found)
     tiendas_faltantes_lista = list(tiendas_faltantes)
     
-    if len(tiendas_faltantes_lista) > 0:
+    if len(tiendas_faltantes_lista) == 0:
         return
     else:
         raise Exception(f"No se encontraron las siguientes tiendas: {tiendas_faltantes_lista}")
