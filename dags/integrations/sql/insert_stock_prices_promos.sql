@@ -58,7 +58,7 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-   	and  (wp.id_mecanica NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99)
+   	and  (wp.id_mecanica NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123)
         OR (wp.n_promocion = 5510012023)
         AND (wp.n_promocion != 5680022023))
     group by wp.ean
@@ -127,7 +127,7 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-	and (wp.id_mecanica NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99,123)
+	and (wp.id_mecanica NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123)
         OR (wp.n_promocion = 5510012023)
         AND (wp.n_promocion != 5680022023))
     group by wp.ean
