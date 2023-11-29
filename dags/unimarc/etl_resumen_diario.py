@@ -22,7 +22,7 @@ with DAG(
     'etl_resumen_diario',
     default_args=default_args,
     description="Carga de tabla resumen diario",
-    schedule_interval="0 6 * * *",
+    schedule_interval="30 8 * * *",
     start_date=pendulum.datetime(2023, 10, 23, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
