@@ -250,7 +250,7 @@ with DAG(
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
             FROM catalogo.sell_out
-            WHERE fecha_creacion_vtex = '{{ds}}'::date - interval '30 days' """
+            WHERE fecha_creacion_vtex = '{{ds}}'::date - interval '90 days' """
     )
 
 
