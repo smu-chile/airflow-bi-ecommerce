@@ -121,6 +121,16 @@ def load_slotting_to_s3(ds):
     
     df_slotting = df_productos_mfc.merge(df_atributos_skus, how='left', on="material")
     df_slotting = df_slotting.drop_duplicates(subset=['ref_id'])
+    df_slotting["VOLUMEN"] = df_slotting["VOLUMEN"].apply(lambda x: str(x) if x is not None else None)
+    df_slotting["VOLUMEN"] = df_slotting["VOLUMEN"].apply(lambda x: str(x) if x is not None else None)
+    df_slotting["PESO_NETO"] = df_slotting["PESO_NETO"].apply(lambda x: str(x) if x is not None else None)
+    df_slotting["PESO_BRUTO_2"] = df_slotting["PESO_BRUTO_2"].apply(lambda x: str(x) if x is not None else None)
+    df_slotting["CONTENIDO_NETO"] = df_slotting["CONTENIDO_NETO"].apply(lambda x: str(x) if x is not None else None)
+    df_slotting["CONTENIDO_BRUTO"] = df_slotting["CONTENIDO_BRUTO"].apply(lambda x: str(x) if x is not None else None)
+    df_slotting["ALTURA"] = df_slotting["ALTURA"].apply(lambda x: str(x) if x is not None else None)
+    df_slotting["ANCHO"] = df_slotting["ANCHO"].apply(lambda x: str(x) if x is not None else None)
+
+    df_slotting.columns = df_slotting.columns.str.lower()
     print(df_slotting.info())
 
     buffer = io.StringIO()
@@ -163,17 +173,8 @@ def load_slotting_to_postgres(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
+    df = df.applymap(lambda x: str(x))
     print(df.info())
-
-    df["VOLUMEN"] = df["VOLUMEN"].apply(lambda x: str(x) if x is not None else None)
-    df["PESO_NETO"] = df["PESO_NETO"].apply(lambda x: str(x) if x is not None else None)
-    df["PESO_BRUTO_2"] = df["PESO_BRUTO_2"].apply(lambda x: str(x) if x is not None else None)
-    df["CONTENIDO_NETO"] = df["CONTENIDO_NETO"].apply(lambda x: str(x) if x is not None else None)
-    df["CONTENIDO_BRUTO"] = df["CONTENIDO_BRUTO"].apply(lambda x: str(x) if x is not None else None)
-    df["ALTURA"] = df["ALTURA"].apply(lambda x: str(x) if x is not None else None)
-    df["ANCHO"] = df["ANCHO"].apply(lambda x: str(x) if x is not None else None)
-
-    df.columns = df.columns.str.lower()
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
