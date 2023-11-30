@@ -114,7 +114,7 @@ def load_slotting_to_s3(ds):
     print("Terminada carga de atributos skus\n")
     df_atributos_skus.columns = [ 'SKU_KEY','ALTURA','ANCHO','BRND_ID','CATEGORIA_MATERIAL_DESC',
              'CONDICION_DE_ALMACENAJE','CONTENIDO_BRUTO','CONTENIDO_NETO',
-             'GDS_PD_TP_DSC','GRADO_ACLOHOLICO','LONGITUD','MARCA_PROPIA',
+             'GDS_PD_TP_DSC','grado_alcoholico','LONGITUD','MARCA_PROPIA',
              'NUMERADOR_UMP','PAIS_ORIGEN_ID','PESO_BRUTO_2','PESO_NETO',
              'material','UM_CONTENIDO','UMB','UNIDAD','UNIDAD_DE_MEDIDA_PEDIDO',
              'UNIDAD_DE_VOLUMEN','UNIDAD_LAA','UNIDAD_PESO','VOLUMEN','VIDA_UTIL']
