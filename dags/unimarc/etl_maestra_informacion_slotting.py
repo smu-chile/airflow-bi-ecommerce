@@ -165,6 +165,8 @@ def load_slotting_to_postgres(ti):
     print(f"Number of records extracted: {len(df.index)}")
     print(df.info())
 
+    df["VOLUMEN"] = df["VOLUMEN"].apply(lambda x: str(x) if x is not None else None)
+
     df["VOLUMEN"] = df["VOLUMEN"].apply(lambda x: x.replace(".", ",") if x is not None else x)
     df["PESO_NETO"] = df["PESO_NETO"].apply(lambda x: x.replace(".", ",") if x is not None else x)
     df["PESO_BRUTO_2"] = df["PESO_BRUTO_2"].apply(lambda x: x.replace(".", ",") if x is not None else x)
