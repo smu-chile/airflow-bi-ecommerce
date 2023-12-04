@@ -38,7 +38,7 @@ def render_netezza_view():
     df = df[['SKU_KEY','ALTURA','ANCHO','BRND_ID','CATEGORIA_MATERIAL_DESC',
              'CONDICION_DE_ALMACENAJE','CONTENIDO_BRUTO','CONTENIDO_NETO',
              'GDS_PD_TP_DSC','GRADO_ACLOHOLICO','LONGITUD','MARCA_PROPIA',
-             'NUMERADOR_UMP','PAIS_ORIGEN_ID','PESO_BRUTO','PESO_NETO',
+             'NUMERADOR_UMP','PAIS_ORIGEN_ID','PESO_NETO',
              'SKU_PRODUCT','UM_CONTENIDO','UMB','UNIDAD','UNIDAD_DE_MEDIDA_PEDIDO',
              'UNIDAD_DE_VOLUMEN','UNIDAD_LAA','UNIDAD_PESO','VOLUMEN','VIDA_UTIL']]
     cur.close()
@@ -112,17 +112,16 @@ def load_slotting_to_s3(ds):
     print("Empezando carga de atributos skus\n")
     df_atributos_skus = render_netezza_view()
     print("Terminada carga de atributos skus\n")
-    df_atributos_skus.columns = [ 'SKU_KEY','ALTURA','ANCHO','BRND_ID','CATEGORIA_MATERIAL_DESC',
-             'CONDICION_DE_ALMACENAJE','CONTENIDO_BRUTO','CONTENIDO_NETO',
-             'GDS_PD_TP_DSC','grado_alcoholico','LONGITUD','MARCA_PROPIA',
-             'NUMERADOR_UMP','PAIS_ORIGEN_ID','PESO_BRUTO_2','PESO_NETO',
-             'material','UM_CONTENIDO','UMB','UNIDAD','UNIDAD_DE_MEDIDA_PEDIDO',
-             'UNIDAD_DE_VOLUMEN','UNIDAD_LAA','UNIDAD_PESO','VOLUMEN','VIDA_UTIL']
+    df_atributos_skus.columns = ['sku_key', 'altura', 'ancho', 'brnd_id', 'categoria_material_desc',
+                'condicion_de_almacenaje', 'contenido_bruto', 'contenido_neto',
+                'gds_pd_tp_dsc', 'grado_alcoholico', 'longitud', 'marca_propia',
+                'numerador_ump', 'pais_origen_id', 'peso_neto',
+                'material', 'um_contenido', 'umb', 'unidad', 'unidad_de_medida_pedido',
+                'unidad_de_volumen', 'unidad_laa', 'unidad_peso', 'volumen', 'vida_util']
     
     df_slotting = df_productos_mfc.merge(df_atributos_skus, how='left', on="material")
     df_slotting = df_slotting.drop_duplicates(subset=['ref_id'])
 
-    df_slotting.columns = df_slotting.columns.str.lower()
     print(df_slotting.info())
 
     buffer = io.StringIO()
