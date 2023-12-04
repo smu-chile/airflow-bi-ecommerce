@@ -103,7 +103,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 AND lspp.id_tienda = '{store_id}'
                
             ;
-
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
@@ -332,7 +331,7 @@ def _send_joined_data_to_stfp(ds):
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port, 
-                                private_key="temp_peya_sftp_rsa_key") as sftp:
+                                password= ftp_rsa_key) as sftp:
             localFile = stock_object_body
             remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/SMU_{output_stock_file}"
             sftp.putfo(localFile, remotePath)
@@ -352,7 +351,7 @@ def _send_joined_data_to_stfp(ds):
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port, 
-                                private_key="temp_peya_sftp_rsa_key") as sftp:
+                                password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
             remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMU_{output_promo_file}"
             sftp.putfo(localFile, remotePath)
