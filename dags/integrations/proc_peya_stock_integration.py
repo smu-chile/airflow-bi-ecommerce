@@ -300,9 +300,6 @@ def _send_joined_data_to_stfp(ds):
     ftp_user = Variable.get("NEW_PEYA_SFTP_USER")
     ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
-    with open("temp_peya_sftp_rsa_key", "w") as key_file:
-        key_file.write(ftp_rsa_key)
-
     exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
      #Crear un prefix para promo
@@ -331,7 +328,7 @@ def _send_joined_data_to_stfp(ds):
         with pysftp.Connection(host=ftp_host, 
                                 username=ftp_user, 
                                 port=ftp_port, 
-                                password= ftp_rsa_key) as sftp:
+                                password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
             remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/SMU_{output_stock_file}"
             sftp.putfo(localFile, remotePath)
@@ -357,7 +354,6 @@ def _send_joined_data_to_stfp(ds):
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
-    os.remove("temp_peya_sftp_rsa_key")
 
     return
 
@@ -387,7 +383,7 @@ with DAG(
     * Desde **S3** se extrae archivo CSV de precios modales. \n
     * Para cada tienda activa, se cruzan los archivos de stock + precio promo y el de precios modales, se les da formato correspondiente para luego
     ser almacenados en **S3**. 
-    * En este caso, el formato de integración de los archivos es CSV con las columnas [**SKU**, **PRECIO**, **STOCK**], donde **SKU** corresponde al ean interno
+    * En este caso, el formato de integración de los archivos es CSV con las columnas [****, **PRECIO**, **STOCK**], donde **** corresponde al ean interno
     del producto, **PRECIO** es el menor valor entre precio modal y precio promocional y **STOCK** es un valor binario, donde 0 se asigna a aquellos
     productos con stock menor a 7 unidades, y 1 a aquellos productos con 7 o más unidades. \n
     * Finalmente, se itera sobre los archivos generados, dejando cada uno de estos en el servidor SFTP de Pedidos Ya.
