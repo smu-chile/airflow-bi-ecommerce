@@ -126,7 +126,7 @@ with DAG(
                 JOIN DWC_SMU.SMU.VW_DIM_DATE FECHA ON ((FECHA.DATE_KEY = VENTAC.DATE_KEY))) 
                 JOIN DWC_SMU.SMU.VW_DIM_STORE S ON ((S.STORE_KEY = VENTAC.STORE_KEY))) 
                 JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H ON ((STORE_H.STORE_KEY = VENTAC.STORE_KEY))) 
-                WHERE FECHA.DATE_VALUE = '{{ds}}'
+                WHERE FECHA.DATE_VALUE = '{{ds}}' - '1 day'::"INTERVAL"
                 GROUP BY FECHA.DATE_VALUE, S.STORE_ID, STORE_H.ORG_IP
             """,
             "query_name": "venta_locales_pbi"
