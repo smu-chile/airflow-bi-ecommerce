@@ -25,6 +25,7 @@ FROM (
         WHERE
             fecha_facturacion >= "{ds}::date" - 30
             AND ved.ref_id_sku <> '000000000000630792-UN'
+            and ved.canal_venta = 'E-COMMERCE'
         GROUP BY
             ved.ref_id_sku, ved.id_tienda
     ),
