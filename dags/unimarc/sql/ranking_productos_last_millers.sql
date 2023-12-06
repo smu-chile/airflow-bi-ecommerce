@@ -3,7 +3,6 @@ SELECT
     ranking,
     ref_id_sku,
     nombre_sku,
-    stock_dia,
     nivel_categoria_1,
     nivel_categoria_2,
     nivel_categoria_3,
@@ -47,10 +46,6 @@ FROM (
         ROW_NUMBER() OVER (PARTITION BY r.canal_venta ORDER BY (0.5 * recurrencia_rank + 0.3 * unidades_rank + 0.2 * plata_rank)) AS ranking,
         r.ref_id_sku,
         s.nombre_sku,
-        CASE
-            WHEN s2.stock_janis IS NULL THEN 0
-            ELSE s2.stock_janis
-        END,
         c.n1 as nivel_categoria_1,
         c.n2 as nivel_categoria_2,
         c.n3 as nivel_categoria_3,
