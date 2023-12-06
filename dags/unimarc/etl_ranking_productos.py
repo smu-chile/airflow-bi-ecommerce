@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import pendulum
 
-def load_stock_top100_to_postgres(ds):
+def load_ranking_productos_to_postgres(ds):
     import pandas as pd
     import numpy as np
     import io
@@ -23,18 +23,18 @@ def load_stock_top100_to_postgres(ds):
     curr_working_directory = os.getcwd()
     print(os.getcwd())
 
-    with open(curr_working_directory+f"/dags/unimarc/sql/stock_top100.sql", "r") as query_file:
-        stock_top100_query = query_file.read()
+    with open(curr_working_directory+f"/dags/unimarc/sql/ranking_productos.sql", "r") as query_file:
+        ranking_productos_query = query_file.read()
     
-    stock_top100_query = stock_top100_query.replace("{ds}", ds)
+    ranking_productos_query = ranking_productos_query.replace("{ds}", ds)
 
     print("Base query:")
-    print(stock_top100_query)
+    print(ranking_productos_query)
 
-    df_top100= pd.read_sql_query(stock_top100_query, pg_connection)
+    df_ranking_productos= pd.read_sql_query(ranking_productos_query, pg_connection)
     
-    print(f"Number of records extracted: {len(df_top100.index)}")
-    print(df_top100.info())
+    print(f"Number of records extracted: {len(df_ranking_productos.index)}")
+    df_ranking_productos.info()
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -45,7 +45,7 @@ def load_stock_top100_to_postgres(ds):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        df_top100.to_sql(name="stock_top100",
+        df_ranking_productos.to_sql(name="ranking_productos",
                     con=conn,         
                     schema="ecommdata",         
                     if_exists='append',         
@@ -65,10 +65,10 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_top_100',
+    'etl_ranking_productos',
     default_args=default_args,
-    description="Extracción de datos de tabla ventas_ecommerce_dw y posterior carga de stock de top 100 SKUs segmentados por tienda",
-    schedule_interval="0 7 * * *",
+    description="Extracción de datos de tabla ventas_ecommerce_dw y posterior carga de ranking de SKUs de ultimos 30 dias segmentados por tienda",
+    schedule_interval="0 7 * * MON",
     start_date=pendulum.datetime(2022, 8, 11, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "ecommdata", "stock", "Unimarc", "ventas_ecommerce_dw"],
@@ -82,13 +82,13 @@ with DAG(
         task_id = "truncate_table",
         postgres_conn_id="postgresql_conn",
         sql="""
-        truncate ecommdata.stock_top100
+        truncate ecommdata.ranking_productos
         """,
     )
 
     t1 = PythonOperator(
-        task_id = "load_stock_top100_to_postgres",
-        python_callable = load_stock_top100_to_postgres,
+        task_id = "load_ranking_productos_to_postgres",
+        python_callable = load_ranking_productos_to_postgres,
     )
 
     t0 >> t1

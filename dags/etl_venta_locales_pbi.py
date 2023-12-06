@@ -107,6 +107,7 @@ with DAG(
     schedule_interval="15 7 * * *",
     start_date=pendulum.datetime(2023, 1, 1, tz="America/Santiago"),
     catchup=True,
+    max_active_runs = 1,
     tags=["DATA", "DW", "S3", "venta", "sala"],
 ) as dag:
 
@@ -126,7 +127,7 @@ with DAG(
                 JOIN DWC_SMU.SMU.VW_DIM_DATE FECHA ON ((FECHA.DATE_KEY = VENTAC.DATE_KEY))) 
                 JOIN DWC_SMU.SMU.VW_DIM_STORE S ON ((S.STORE_KEY = VENTAC.STORE_KEY))) 
                 JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H ON ((STORE_H.STORE_KEY = VENTAC.STORE_KEY))) 
-                WHERE FECHA.DATE_VALUE = '{{ds}}'::DATE - '1 day'::"INTERVAL"
+                WHERE FECHA.DATE_VALUE = '{{ds}}'::DATE
                 GROUP BY FECHA.DATE_VALUE, S.STORE_ID, STORE_H.ORG_IP
             """,
             "query_name": "venta_locales_pbi"
