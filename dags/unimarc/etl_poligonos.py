@@ -162,7 +162,7 @@ def poligonos_to_s3(ds):
     df_final["coordenadas"] = df_final["coordenadas"].astype(str)
     df_final["coordenadas"] = df_final["coordenadas"].replace("\[", "(", regex=True).replace("\]", ")", regex=True)
     df_final["coordenadas"] = df_final["coordenadas"].replace("nan", np.nan, regex=True)
-    print(df_final.info())
+    df_final.info()
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -204,7 +204,7 @@ def poligonos_to_postgres(ti,ds):
     
     print(f"Number of records extracted: {len(df.index)}")
     df["fecha"] = ds
-    print(df.info())
+    df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
