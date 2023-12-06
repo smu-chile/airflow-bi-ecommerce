@@ -85,8 +85,7 @@ def productos_mfc():
     cursor = pg_connection.cursor()
     cursor.execute(productos_mfc_query)
     results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    print(results)
+    results = pd.DataFrame(results)
     results.columns = ["ref_id","material","descripcion","categoria_1","categoria_2","categoria_3",
                        "marca","proveedor","id_proveer","umv","ump","peso_bruto","venta_diaria_30d"]
     cursor.close()
@@ -118,6 +117,9 @@ def load_slotting_to_s3(ds):
                 'numerador_ump', 'pais_origen_id', 'peso_neto',
                 'material', 'um_contenido', 'umb', 'unidad', 'unidad_de_medida_pedido',
                 'unidad_de_volumen', 'unidad_laa', 'unidad_peso', 'volumen', 'vida_util']
+    
+    print(df_atributos_skus.head())
+    print(df_productos_mfc.head())
     
     df_slotting = df_productos_mfc.merge(df_atributos_skus, how='left', on="material")
     df_slotting = df_slotting.drop_duplicates(subset=['ref_id'])
@@ -165,6 +167,7 @@ def load_slotting_to_postgres(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
     print(df.info())
+    print(df.head())
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
