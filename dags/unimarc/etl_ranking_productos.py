@@ -34,7 +34,7 @@ def load_ranking_productos_to_postgres(ds):
     df_ranking_productos= pd.read_sql_query(ranking_productos_query, pg_connection)
     
     print(f"Number of records extracted: {len(df_ranking_productos.index)}")
-    print(df_ranking_productos.info())
+    df_ranking_productos.info()
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
