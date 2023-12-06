@@ -90,37 +90,42 @@ def coordenadas_poligono(poligono):
     import http.client
     import urllib.parse
 
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
-    accountName = Variable.get("VTEX_ACCOUNT_NAME")
-    env = Variable.get("VTEX_ENV")
+    try: 
+        X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+        X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+        accountName = Variable.get("VTEX_ACCOUNT_NAME")
+        env = Variable.get("VTEX_ENV")
 
-    conn = http.client.HTTPSConnection(f"{accountName}.{env}.com.br")
+        conn = http.client.HTTPSConnection(f"{accountName}.{env}.com.br")
 
-    headers = {
-        'Accept': "application/json",
-        'Content-Type': "application/json",
-        'X-VTEX-API-AppKey': X_VTEX_API_AppKey,
-        'X-VTEX-API-AppToken': X_VTEX_API_AppToken
-        }
-    poligono = urllib.parse.quote(poligono, safe='')
-    conn.request("get", f"/api/logistics/pvt/configuration/geoshape/{poligono}", headers=headers)
-    res = conn.getresponse()
-    if res.status == 200:
-        data = res.read()
-        response_data = json.loads(data)
-        items = response_data["geoShape"]["coordinates"]
+        headers = {
+            'Accept': "application/json",
+            'Content-Type': "application/json",
+            'X-VTEX-API-AppKey': X_VTEX_API_AppKey,
+            'X-VTEX-API-AppToken': X_VTEX_API_AppToken
+            }
+        poligono = urllib.parse.quote(poligono, safe='')
+        conn.request("get", f"/api/logistics/pvt/configuration/geoshape/{poligono}", headers=headers)
+        res = conn.getresponse()
+        if res.status == 200:
+            data = res.read()
+            response_data = json.loads(data)
+            items = response_data["geoShape"]["coordinates"]
 
-        print(f"Se esta imprimiendo este poligono: {poligono}")
+            print(f"Se esta imprimiendo este poligono: {poligono}")
 
-        flattened_coordinates = [coordinate for coordinates_list in items for coordinate in coordinates_list]
-        parsed_data = {"poligono": poligono, "coordenadas": flattened_coordinates}
-        df = pd.DataFrame(parsed_data)
+            flattened_coordinates = [coordinate for coordinates_list in items for coordinate in coordinates_list]
+            parsed_data = {"poligono": poligono, "coordenadas": flattened_coordinates}
+            df = pd.DataFrame(parsed_data)
 
-        return df
-    else:
-        print(f"Error {res.status} al obtener las coordenas del poligono {poligono}")
+            return df
+        else:
+            print(f"Error {res.status} al obtener las coordenas del poligono {poligono}")
+            pass
+    except Exception as e:
+        print(f"Ocurrió un error: {e}")
         pass
+
 
 def poligonos_to_s3(ds):
     import pandas as pd
