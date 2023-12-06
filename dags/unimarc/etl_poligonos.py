@@ -1,11 +1,11 @@
 from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.operators.postgres_operator import PostgresOperator
 from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+
 
 import pendulum
 
@@ -262,8 +262,6 @@ with DAG(
             FROM forecast_and_planning.poligonos
             WHERE fecha = '{{ds}}'::date - interval '360 days' """
     )
-
-
     t0 >> t1 >> t2
 
 
