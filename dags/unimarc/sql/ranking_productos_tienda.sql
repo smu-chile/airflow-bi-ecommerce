@@ -50,7 +50,7 @@ FROM (
         CASE
             WHEN s2.stock_janis IS NULL THEN 0
             ELSE s2.stock_janis
-        END,
+        END as stock_dia,
         c.n1 as nivel_categoria_1,
         c.n2 as nivel_categoria_2,
         c.n3 as nivel_categoria_3,
