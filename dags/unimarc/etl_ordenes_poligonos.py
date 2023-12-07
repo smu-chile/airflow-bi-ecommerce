@@ -105,7 +105,7 @@ def poligonos_ordenes_to_s3(ds):
                 fecha_facturacion.append(ordenes['fecha_facturacion'][j])
                 latitud.append(ordenes['lat'][j])
                 longitud.append(ordenes['lng'][j])
-                print("poligono ", poligonos['polygon'][i], " contiene a ", ordenes['orden'][j])
+                #print("poligono ", poligonos['polygon'][i], " contiene a ", ordenes['orden'][j])
                 
     df = {
         'id_orden' : orden,
@@ -172,7 +172,7 @@ def poligonos_ordenes_to_postgres(ti):
     "lng" : "float"
     }
     # verificación correcto datatypes:
-    venta_poligono = venta_poligono.astype(column_types, errors="ignore")
+    df = df.astype(column_types, errors="ignore")
     print(df.head())
     df.info()
 
