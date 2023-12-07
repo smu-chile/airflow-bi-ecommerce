@@ -5,7 +5,6 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-
 import pendulum
 
 from datetime import datetime, timedelta
@@ -17,7 +16,7 @@ def coordenadas_poligonos(ds):
                     where p."isActive"  = true
                     and coordenadas is not null 
                     and  p."deliveryChannel" ='delivery'
-                    and fecha = {ds}::date """
+                    and fecha = '{ds}'::date """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(coordenadas_poligonos_query)
     pg_connection = pg_hook.get_conn()
@@ -40,7 +39,7 @@ def ordenes_janis(ds):
                 left join ecommdata.transportadoras t 
                 on t.id = d.id_transportadora
                 where d.lat is not null 
-                and oj.fecha_facturacion::date >= {ds}::date - interval '13 month' 
+                and oj.fecha_facturacion::date >= '{ds}'::date - interval '13 month' 
                 and  d.tipo_despacho ='delivery'"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(ordenes_janis_query)
