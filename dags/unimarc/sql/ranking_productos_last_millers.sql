@@ -15,9 +15,9 @@ FROM (
         SELECT
             ved.ref_id_sku,
             ved.canal_venta,
-            COUNT(ved.ref_id_sku) AS recurrencia,
+            COUNT(ved.ref_id_sku) AS recurrencia_boleta,
             SUM(venta_umv / s.multiplicador_unidad_medida) AS venta_unidades,
-            SUM(venta_neta) AS venta_plata
+            SUM(venta_neta) AS venta_pesos
         FROM
             ecommdata.ventas_ecommerce_datawarehouse ved
             LEFT JOIN ecommdata.skus s ON s.ref_id = ved.ref_id_sku
@@ -32,12 +32,12 @@ FROM (
         SELECT
             ref_id_sku,
             canal_venta,
-            recurrencia,
+            recurrencia_boleta,
             venta_unidades,
-            venta_plata,
-            DENSE_RANK() OVER (ORDER BY recurrencia DESC) AS recurrencia_rank,
+            venta_pesos,
+            DENSE_RANK() OVER (ORDER BY recurrencia_boleta DESC) AS recurrencia_rank,
             DENSE_RANK() OVER (ORDER BY venta_unidades DESC) AS unidades_rank,
-            DENSE_RANK() OVER (ORDER BY venta_plata DESC) AS plata_rank
+            DENSE_RANK() OVER (ORDER BY venta_pesos DESC) AS plata_rank
         FROM
             SalesData
     )
@@ -50,9 +50,9 @@ FROM (
         c.n2 as nivel_categoria_2,
         c.n3 as nivel_categoria_3,
         m.nombre as nombre_marca,
-        r.recurrencia,
+        r.recurrencia_boleta,
         ROUND(r.venta_unidades::numeric) AS venta_unidades,
-        r.venta_plata
+        r.venta_pesos
     FROM
         RankedData r
         LEFT JOIN ecommdata.skus s ON s.ref_id = r.ref_id_sku
