@@ -210,7 +210,7 @@ with DAG(
     'etl_poligonos_ordenes',
     default_args=default_args,
     description="cargar tabla poligonos ordenes",
-    schedule_interval="0 8 * * *",
+    schedule_interval="20 8 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "ordenes", "forcast_and_plannig", "polygons", "unimarc"],
