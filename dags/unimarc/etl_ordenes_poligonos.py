@@ -172,7 +172,7 @@ def poligonos_ordenes_to_postgres(ti):
     "lng" : "float"
     }
     # verificación correcto datatypes:
-    venta_poligono = venta_poligono.astype(column_types, errors="ignore")
+    df = df.astype(column_types, errors="ignore")
     print(df.head())
     df.info()
 
