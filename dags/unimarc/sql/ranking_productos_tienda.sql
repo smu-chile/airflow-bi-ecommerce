@@ -23,7 +23,7 @@ FROM (
             ecommdata.ventas_ecommerce_datawarehouse ved
             LEFT JOIN ecommdata.skus s ON s.ref_id = ved.ref_id_sku
         WHERE
-            fecha_facturacion >= "{ds}::date" - 30
+            fecha_facturacion >= '{ds}'::date - 30
             AND ved.ref_id_sku <> '000000000000630792-UN'
             and ved.canal_venta = 'E-COMMERCE'
         GROUP BY
@@ -66,7 +66,7 @@ FROM (
         left join ecommdata.categorias c on p.id_categoria = c.id
         left join ecommdata.marcas m on m.id = p.id_marca 
     WHERE
-        s2.fecha = "{ds}::date"
+        s2.fecha = '{ds}'::date
         and s2.surtido_ecommerce = true
     ORDER BY
         ranking, id_tienda
