@@ -166,6 +166,21 @@ def load_slotting_to_postgres(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
+
+    df['material'] = df['material'].apply(lambda x: str(int(x)) if pd.to_numeric(x, errors='coerce') == x else np.nan)
+    df['material'] = df['material'].apply(lambda x: x.zfill(18) if pd.notnull(x) else x)
+    df['peso_bruto'] = df['peso_bruto'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['venta_diaria_30d'] = df['venta_diaria_30d'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['altura'] = df['altura'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['ancho'] = df['ancho'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['contenido_bruto'] = df['contenido_bruto'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['contenido_neto'] = df['contenido_neto'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['longitud'] = df['longitud'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['numerador_ump'] = df['numerador_ump'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['peso_neto'] = df['peso_neto'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['volumen'] = df['volumen'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['vida_util'] = df['vida_util'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+
     print(df.info())
     print(df.head())
 
