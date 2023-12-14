@@ -145,7 +145,7 @@ def load_tables_to_s3(ts,ds):
     from io import StringIO
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
-    prefix = f"slotting/{exec_date}/"
+    prefix = f"carga_tiendas/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
