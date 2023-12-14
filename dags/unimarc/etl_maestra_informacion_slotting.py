@@ -107,7 +107,7 @@ def load_slotting_to_s3(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Empezando carga de productos MFC\n")
-    df_productos_mfc = productos_mfc()
+    df_productos_mfc = productos_mfc(ds)
     print("Terminada carga de productos MFC\n")
     print("Empezando carga de atributos skus\n")
     df_atributos_skus = render_netezza_view()
