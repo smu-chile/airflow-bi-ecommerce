@@ -21,7 +21,6 @@ def lista8():
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","fecha"]
-    print(results.head())
     cursor.close()
     pg_connection.close()
 
@@ -39,7 +38,6 @@ def productos():
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["ref_id","nombre_producto"]
-    print(results.head())
     cursor.close()
     pg_connection.close()
 
@@ -58,7 +56,6 @@ def tiendas():
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["id_tienda","status","nombre_tienda_janis"]
-    print(results.head())
     cursor.close()
     pg_connection.close()
 
@@ -76,7 +73,6 @@ def skus():
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["ref_id","nombre_sku"]
-    print(results.head())
     cursor.close()
     pg_connection.close()
 
@@ -96,7 +92,6 @@ def producto_tienda_janis():
     results = pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","activo"]
     results = results[["ref_id","id_tienda"]]
-    print(results.head())
     cursor.close()
     pg_connection.close()
 
@@ -115,7 +110,6 @@ def excluidos_x_tiendas():
     results = pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]
     results = results[["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]]
-    print(results.head())
     cursor.close()
     pg_connection.close()
 
@@ -123,14 +117,13 @@ def excluidos_x_tiendas():
 
 def publicacion_1917_today(ts):
     import pandas as pd
-    mfc_query = f"""select pc.ref_id, pc.id_tienda,
+    mfc_query = """select pc.ref_id, pc.id_tienda,
                     TO_CHAR(DATE_TRUNC('DAY', fecha_hora),'YYYY-MM-DD') AS fecha
                     from ecommdata.publicacion_catalogo pc
                     where pc.mfc is true
-                    and pc.fecha_hora = '{ts}'::timestamp
+                    and pc.fecha_hora = '"""+ts+"""'::timestamp
                     and pc.stock_janis > 0
                     ;"""
-    #
     print(mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -138,9 +131,8 @@ def publicacion_1917_today(ts):
     cursor.execute(mfc_query)
     results = cursor.fetchall()
     results = pd.DataFrame(results)
-    results.columns = ["ref_id","id_tienda","fecha",]
-    results = results[["ref_id","id_tienda","fecha"]]
-    print(results.head())
+    results.columns = ["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]
+    results = results[["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]]
     cursor.close()
     pg_connection.close()
 
@@ -446,7 +438,7 @@ with DAG(
     'etl_carga_tiendas_metabase',
     default_args=default_args,
     description="cargar tabla de productos y skus de carga tiendas",
-    schedule_interval="0 8 * * *",
+    schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "tiendas", "ecommdata", "metabase", "unimarc"],
