@@ -46,9 +46,9 @@ def render_netezza_view():
 
     return df
 
-def productos_mfc():
+def productos_mfc(ds):
     import pandas as pd
-    productos_mfc_query = """select pt.ref_id,
+    productos_mfc_query = f"""select pt.ref_id,
                 p.material,
                 msp.descripcion_sap,
                 c.n1 as categoria_1,
@@ -70,11 +70,12 @@ def productos_mfc():
                 on p.id_marca = m.id 
                 left join ecommdata.maestra_sku_proveedor msp 
                 on p.material = msp.material
-                left join (select concat(lpad(material,18,'0'),'-',umv) as ref_id,
-                    round((sum(venta_umv)/30),2) as venta_dia
-                    from ecommdata.venta_sku_tienda vst
-                    where id_tienda = '1917'
-                    group by concat(lpad(material,18,'0'),'-',umv)
+                left join (select ref_id_sku as ref_id,
+                        round(avg(venta_umv),2) as venta_dia
+                        from ecommdata.ventas_ecommerce_datawarehouse ved
+                        where id_tienda = '1917'
+                        and fecha_facturacion > '{ds}'::date - 90
+                        group by ref_id_sku
                     ) as venta_dia
                 on venta_dia.ref_id = pt.ref_id
                 where pt.id_tienda = '1917'
@@ -87,7 +88,7 @@ def productos_mfc():
     results = cursor.fetchall()
     results = pd.DataFrame(results)
     results.columns = ["ref_id","material","descripcion","categoria_1","categoria_2","categoria_3",
-                       "marca","proveedor","id_proveer","umv","ump","peso_bruto","venta_diaria_30d"]
+                       "marca","proveedor","id_proveer","umv","ump","peso_bruto","venta_diaria_90d"]
     cursor.close()
     pg_connection.close()
     return results
@@ -106,7 +107,7 @@ def load_slotting_to_s3(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Empezando carga de productos MFC\n")
-    df_productos_mfc = productos_mfc()
+    df_productos_mfc = productos_mfc(ds)
     print("Terminada carga de productos MFC\n")
     print("Empezando carga de atributos skus\n")
     df_atributos_skus = render_netezza_view()
@@ -170,7 +171,7 @@ def load_slotting_to_postgres(ti):
     df['material'] = df['material'].apply(lambda x: str(int(x)) if pd.to_numeric(x, errors='coerce') == x else np.nan)
     df['material'] = df['material'].apply(lambda x: x.zfill(18) if pd.notnull(x) else x)
     df['peso_bruto'] = df['peso_bruto'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
-    df['venta_diaria_30d'] = df['venta_diaria_30d'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df['venta_diaria_90d'] = df['venta_diaria_90d'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
     df['altura'] = df['altura'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
     df['ancho'] = df['ancho'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
     df['contenido_bruto'] = df['contenido_bruto'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
