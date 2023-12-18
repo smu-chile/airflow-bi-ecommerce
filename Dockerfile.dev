@@ -1,7 +1,7 @@
 FROM reigncl/airflow:2.1.3-python3.8-onbuild
 
 USER root
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys 467B942D3A79BD29
+RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys B7B3B788A8D3785C
 RUN apt-get update 
 RUN apt-get install default-jre -y
 RUN apt-get install python3-dev -y
