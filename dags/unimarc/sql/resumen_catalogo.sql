@@ -6,7 +6,6 @@ group by fecha_hora, id_tienda
 on conflict (fecha, id_tienda) do update
 set fecha = EXCLUDED.fecha
 	, id_tienda = EXCLUDED.id_tienda
-	, venta_neta = EXCLUDED.venta_neta
 	, total_surtido = EXCLUDED.total_surtido
 	, publicacion_valida = EXCLUDED.publicacion_valida
 	, disponible_web = EXCLUDED.disponible_web
