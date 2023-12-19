@@ -54,7 +54,7 @@ def _calculate_routes(ds):
     df_location=pd.DataFrame(results)
     df_location.columns = ["id_orden","lat_tienda","lng_tienda","lat_cliente","lng_cliente","fecha_despacho","next_timestamp"]
     cursor.close()
-    print(df_location.info())
+    df_location.info()
     pg_connection.close()
 
     url_distance = Variable.get("ROUTES_API")
