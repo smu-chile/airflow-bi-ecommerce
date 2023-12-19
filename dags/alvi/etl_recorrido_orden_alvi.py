@@ -70,8 +70,7 @@ def _calculate_routes(ds):
         print(end)
         tod = df_location.iloc[i]['next_timestamp']
         unixtime = str(int((tod - datetime(1970, 1, 1)).total_seconds()) + 604800)
-        r = requests.get(url_distance + "destinations=" + end + "&origins=" + start +"&departure_time="+ unixtime +"&traffic_model=best_guess&key=" + key)
-
+        r = requests.get(f"{url_distance}destinations={end}&origins={start}&departure_time={unixtime}&traffic_model=best_guess&key={key}")
         if r.status_code == 200:
             response_json = r.json()
             status = response_json.get("status")
