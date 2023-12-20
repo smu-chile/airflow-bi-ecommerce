@@ -11,6 +11,7 @@ def get_fixed_prices(ti):
     import pandas as pd
     import requests
     import json
+    import numpy as np
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -23,7 +24,8 @@ def get_fixed_prices(ti):
         and wp.umv not in ('KG','KGV')
         and wp.fecha_inicio_de_promocion  <= current_date
         and wp.fecha_fin_de_promocion >= current_date  + interval '1 days'
-        AND s.vtex_id IS NOT NULL; """
+        AND s.vtex_id IS NOT NULL
+        limit 30;"""
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]
@@ -41,8 +43,6 @@ def get_fixed_prices(ti):
         "X-VTEX-API-AppToken":  X_VTEX_API_AppToken,
         "Connection": "keep-alive"
     }
-
-    import pandas as pd
 
     df_final = pd.DataFrame()
 
@@ -65,28 +65,36 @@ def get_fixed_prices(ti):
                 df['Date To'] = df['dateRange'].apply(lambda x: x['to'] if pd.notna(x) else 'NULL')
 
                 df = df.drop(['dateRange'], axis=1)
-                df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'listPrice', 'value', 'minQuantity', 'Date From', 'Date To'])
+                df = df.reindex(columns=['vtexId', 'tradePolicyId', 'listPrice', 'value', 'minQuantity', 'dateFrom', 'dateTo'])
                 df['vtex_id'] = itemId
-
                 df = df.sort_values(by='minQuantity')
                 for i in range(1, 4):
                     quantity_col = f'{i}_quantity'
                     price_col = f'{i}_price'
-
                     df[quantity_col] = df['minQuantity'].apply(lambda x: x if x == i else 0)
                     df[price_col] = df['value']
-
-                    df_final = pd.concat([df_final, df[['vtex_id', 'tradePolicyId', 'listPrice', quantity_col, price_col, 'Date From', 'Date To']]], ignore_index=True)
+                    df_final = pd.concat([df_final, df[['vtexId', 'tradePolicyId', 'listPrice', quantity_col, price_col, 'dateFrom', 'dateTo']]], ignore_index=True)
 
             else:
                 print(f"No pricing info obtained for SKU ID {itemId}")
         else:
             print(f"Failed to retrieve data for SKU ID {itemId}. Status code: {r.status_code}")
-
-    df_final = df_final.rename(columns={'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy'})
-    df_final = df_final.astype({'SKU ID': 'int'})
-
     df_final.info()
+
+    df_final['vtexId'] = df_final['vtexId'].apply(lambda x: int(x) if pd.to_numeric(x, errors='coerce') == x else np.nan)
+    df_final = df_final.rename(columns={
+        "vtexId": "vtex_id",
+        "tradePolicyId": "id_lista_precios",
+        "listPrice": "precio_modal",
+        "1_quantity": "primera_cantidad",
+        "1_price": "primer_precio",
+        "dateFrom": "fecha_inicio",
+        "dateTo": "fecha_termino",
+        "2_quantity": "segunda_cantidad",
+        "2_price": "segundo_precio",
+        "3_quantity": "tercera_cantidad",
+        "3_price": "tercer_precio"
+    })
 
     return df_final.to_json(orient='records')
 
