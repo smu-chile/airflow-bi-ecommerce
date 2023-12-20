@@ -57,15 +57,17 @@ def get_fixed_prices(ti):
             continue
         elif r.status_code == 200:
             r.raise_for_status()
-            data = r.json()
-            df = pd.DataFrame(data)
+            response = r.json()
+            df = pd.DataFrame()
+            df['vtexId'] = itemId
+            df['tradePolicyId'] = response.get("rows", [])[0]
 
             if not df.empty and 'dateRange' in df.columns:
                 df['Date From'] = df['dateRange'].apply(lambda x: x['from'] if pd.notna(x) else 'NULL')
                 df['Date To'] = df['dateRange'].apply(lambda x: x['to'] if pd.notna(x) else 'NULL')
 
                 df = df.drop(['dateRange'], axis=1)
-                df = df.reindex(columns=['vtexId', 'tradePolicyId', 'listPrice', 'value', 'minQuantity', 'dateFrom', 'dateTo'])
+                df = df.reindex(columns=['vtexId', 'tradePolicyId', 'listPrice', 'value', 'minQuantity', 'Date From', 'Date To'])
                 df['vtex_id'] = itemId
                 df = df.sort_values(by='minQuantity')
                 for i in range(1, 4):
@@ -88,8 +90,8 @@ def get_fixed_prices(ti):
         "listPrice": "precio_modal",
         "1_quantity": "primera_cantidad",
         "1_price": "primer_precio",
-        "dateFrom": "fecha_inicio",
-        "dateTo": "fecha_termino",
+        "Date From": "fecha_inicio",
+        "Date To": "fecha_termino",
         "2_quantity": "segunda_cantidad",
         "2_price": "segundo_precio",
         "3_quantity": "tercera_cantidad",
