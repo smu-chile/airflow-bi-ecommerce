@@ -24,8 +24,7 @@ def get_fixed_prices(ti):
         and wp.umv not in ('KG','KGV')
         and wp.fecha_inicio_de_promocion  <= current_date
         and wp.fecha_fin_de_promocion >= current_date  + interval '1 days'
-        AND s.vtex_id IS NOT NULL
-        limit 30;"""
+        AND s.vtex_id IS NOT NULL;"""
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]
