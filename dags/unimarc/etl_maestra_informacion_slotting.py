@@ -46,6 +46,77 @@ def render_netezza_view():
 
     return df
 
+def render_netezza_view_2():
+    from io import StringIO
+    import os
+    import jaydebeapi
+    import pandas as pd
+
+    sql_str = """SELECT
+        J.SPL_RQS_DOC NroDocumento,
+        CAST(SKU_PRODUCT AS NUMERIC(18,0)) PLU_SAP60,
+        j.fecha_pedido FechaDocumento,
+        Z.DATE_VALUE FechaEntrega,
+        cast(I.OU_ID as varchar(4)) CD,
+        cast(D.OU_ID as varchar(4)) Tienda,
+        Posicion,
+        sum(J.Pedido_umb) CanpedUMB,
+        sum(J.Pedido_ump) Canped,
+        Sum(J.Recibido_umb) CanrecUMB,
+        Sum(J.Recibido_ump) Canrec,
+        sum(RECIBIDO_A_TIEMPO_UMB) CanRecTiempoUMB,
+        sum(RECIBIDO_A_TIEMPO_UMP) CanRecTiempo
+        FROM DWC_SMU.SMU.VW_FACT_COMPRAS AS J
+        INNER JOIN (
+            select SPL_RQS_DOC,SKU_KEY,max(DATE_VALUE)DATE_VALUE
+            from DWC_SMU.SMU.VW_FACT_COMPRAS_ESPERADO
+            where cast(DATE_VALUE as date) >= current_date -120
+            AND SKU_KEY NOT IN (4719571)
+            group by SPL_RQS_DOC,SKU_KEY
+            )Z 
+        on J.SPL_RQS_DOC=Z.SPL_RQS_DOC AND J.SKU_KEY=Z.SKU_KEY
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT D ON J.OU_RECEP_KEY=D.OU_KEY --DIM_ORGANIZATION_UNIT
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY E ON J.SKU_KEY=E.SKU_KEY --DIM_SKU_HIERARCHY
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT I ON J.OU_PROV_KEY=I.OU_KEY --DIM_ORGANIZATION_UNIT
+        where D.OU_ID = '1917'
+        AND Z.DATE_VALUE <= CURRENT_DATE 
+        group by J.SPL_RQS_DOC,
+        CAST(SKU_PRODUCT AS NUMERIC(18,0)),
+        j.fecha_pedido,
+        Z.DATE_VALUE,
+        cast(I.OU_ID as varchar(4)) ,
+        cast(D.OU_ID as varchar(4)) ,
+        POSICION
+        HAVING sum(J.Pedido_ump)>0"""
+    print(sql_str)
+
+    dsn_database = Variable.get("DW_SECRET_DATABASE") 
+    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
+    dsn_port = "5480" 
+    dsn_uid = Variable.get("DW_SECRET_USER")
+    dsn_pwd = Variable.get("DW_PASSWORD")
+    jdbc_driver_name = "org.netezza.Driver" 
+    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+
+    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
+    
+    conn = jaydebeapi.connect(jdbc_driver_name, 
+                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
+                                jars=jdbc_driver_loc)
+
+    cur = conn.cursor()
+    cur.execute(sql_str)
+    result = cur.fetchall()
+    column_names = [desc[0] for desc in cur.description]
+    df = pd.DataFrame(result, columns=column_names)
+    print(df.columns)
+    df = df[['PLU_SAP60','CD','CANPEDUMB','CANRECUMB']]
+    df.columns = ['material','CD','cant_pedida','cant_recibida']
+    cur.close()
+    conn.close()
+
+    return df
+
 def productos_mfc(ds):
     import pandas as pd
     productos_mfc_query = f"""select pt.ref_id,
@@ -97,6 +168,7 @@ def productos_mfc(ds):
 
 def load_slotting_to_s3(ds):
     import pandas as pd
+    import numpy as np
     import io
     from io import StringIO
     exec_date = ds.replace("-", "/")
@@ -105,7 +177,9 @@ def load_slotting_to_s3(ds):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
+    print("Empezando carga de fill_rate\n")
+    df_fill_rate = render_netezza_view_2()
+    print("Terminada carga de fillrate\n")
     print("Empezando carga de productos MFC\n")
     df_productos_mfc = productos_mfc(ds)
     print("Terminada carga de productos MFC\n")
@@ -121,9 +195,18 @@ def load_slotting_to_s3(ds):
     
     print(df_atributos_skus.head())
     print(df_productos_mfc.head())
+    print(df_fill_rate.head())
+
+    df_fill_rate_acum = df_fill_rate.groupby(['material'])['cant_pedida','cant_recibida'].sum().reset_index()
+    df_fill_rate_acum["fill_rate"] = df_fill_rate_acum["cant_pedida"]/df_fill_rate_acum["cant_recibida"]
+    df_fill_rate_acum = df_fill_rate_acum[['material','fill_rate']]
+    df_fill_rate_acum['material'] = df_fill_rate_acum['material'].apply(lambda x: str(int(x)) if pd.to_numeric(x, errors='coerce') == x else np.nan)
+    df_fill_rate_acum['material'] = df_fill_rate_acum['material'].apply(lambda x: x.zfill(18) if pd.notnull(x) else x)
+    df_fill_rate_acum.info()
     
     df_slotting = df_productos_mfc.merge(df_atributos_skus, how='left', on="material")
     df_slotting = df_slotting.drop_duplicates(subset=['ref_id'])
+    df_slotting = df_slotting.merge(df_fill_rate_acum, how='left', on="material")
 
     print(df_slotting.info())
 
