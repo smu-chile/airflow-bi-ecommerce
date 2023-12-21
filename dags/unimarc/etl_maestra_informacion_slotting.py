@@ -198,7 +198,7 @@ def load_slotting_to_s3(ds):
     print(df_fill_rate.head())
 
     df_fill_rate_acum = df_fill_rate.groupby(['material'])['cant_pedida','cant_recibida'].sum().reset_index()
-    df_fill_rate_acum["fill_rate"] = df_fill_rate_acum["cant_pedida"]/df_fill_rate_acum["cant_recibida"]
+    df_fill_rate_acum["fill_rate"] = df_fill_rate_acum["cant_recibida"]/df_fill_rate_acum["cant_pedida"]
     df_fill_rate_acum = df_fill_rate_acum[['material','fill_rate']]
     df_fill_rate_acum['material'] = df_fill_rate_acum['material'].apply(lambda x: str(int(x)) if pd.to_numeric(x, errors='coerce') == x else np.nan)
     df_fill_rate_acum['material'] = df_fill_rate_acum['material'].apply(lambda x: x.zfill(18) if pd.notnull(x) else x)
