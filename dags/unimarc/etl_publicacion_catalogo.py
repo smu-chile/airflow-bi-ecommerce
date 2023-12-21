@@ -186,7 +186,7 @@ with DAG(
     'etl_publicacion_catalogo',
     default_args=default_args,
     description="Carga de tabla publicacion catalogo",
-    schedule_interval="0 0/4 * * *",
+    schedule_interval="0 1,4/4 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
