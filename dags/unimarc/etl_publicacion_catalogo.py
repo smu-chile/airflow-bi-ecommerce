@@ -21,7 +21,7 @@ def _check_time(ts):
     print(exec_datetime_local_str)
 
     time_str = exec_datetime_local_str.split("T")[1]
-    if (time_str == "20:00") or (time_str == "00:00"):
+    if (time_str == "20:00") or (time_str == "01:00"):
         return "task_skip"
     else:
         return "load_table_publicacion_catalogo"
