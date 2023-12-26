@@ -155,7 +155,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
-    df_stock_seguridad_aux
+
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
@@ -259,7 +259,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
-    print(df_stock_seguridad["cantidad"])
 
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
@@ -297,6 +296,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
     print("transformacion de datos listo \n")
+
     #################
     #Matrix de Pesos#
     #################
@@ -360,7 +360,7 @@ def stock_seguridad_to_postgres_am(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+
     df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
@@ -410,7 +410,7 @@ def stock_seguridad_to_postgres_am(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+
     df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
@@ -460,7 +460,6 @@ def stock_seguridad_to_postgres_pm(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
     df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
