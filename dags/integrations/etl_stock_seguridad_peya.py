@@ -393,6 +393,56 @@ def stock_seguridad_to_postgres_am(ti):
     import sqlalchemy
     from sqlalchemy import text
 
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_am"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
+    df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
+    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.stock_seguridad")
+        df.to_sql(name="stock_seguridad",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
+def stock_seguridad_to_postgres_pm(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_pm"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -480,17 +530,17 @@ with DAG(
     )
 
     t2_am = PythonOperator(
-        task_id = "stock_ventas_tiendas_to_s3_am",
-        python_callable = stock_ventas_tiendas_to_s3_am,
+        task_id = "stock_seguridad_to_postgres_am",
+        python_callable = stock_seguridad_to_postgres_am,
     )
 
     t2_pm = PythonOperator(
-        task_id = "stock_ventas_tiendas_to_s3_pm",
-        python_callable = stock_ventas_tiendas_to_s3_pm,
+        task_id = "stock_seguridad_to_postgres_pm",
+        python_callable = stock_seguridad_to_postgres_pm,
     )
 
-    t0 >> t1_am
-    t0 >> t1_pm
+    t0 >> t1_am >> t2_am
+    t0 >> t1_pm >> t2_pm
     t0 >> t_dummy
 
 
