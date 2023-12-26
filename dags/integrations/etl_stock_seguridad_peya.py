@@ -28,8 +28,11 @@ def _check_time(ts):
         return "stock_ventas_tiendas_to_s3_pm"
 
 def stock(ds):
-    stock_tiendas_query = f"""select id_tienda , concat(material,'-',unidad_de_medida) as ref_id, date_part('dow',{ds}::date) as dia
-                            from integraciones.lm_stock_precio_promo lspp"""
+    stock_tiendas_query = f"""select id_tienda ,
+                        concat(material,'-',unidad_de_medida) as ref_id, 
+                        date_part('dow','{ds}'::date) as dia,
+                        date_part('week','{ds}'::date) as semana
+                        from integraciones.lm_stock_precio_promo lspp"""
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -79,9 +82,9 @@ def venta_tienda():
     ventas_skus_tienda_query = """select 
                 lpad(id_tienda,4,'0') as id_tienda,
                 concat(lpad(material,18,'0'),'-' ,umv) as ref_id, 
-                sum(venta_umv) as cantidad,
                 date_part('dow',fecha) as dia,
-                date_part('week',fecha) as semana
+                date_part('week',fecha) as semana,
+                sum(venta_umv) as cantidad
                 from ecommdata.venta_sku_tienda vst
                 where id_tienda in (select ltrim(id,'0')
                     from integraciones.tiendas_last_millers tlm 
@@ -113,13 +116,13 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock = pd.DataFrame(stock(ds))
     print("se ha cargado stock\n")
     print(df_stock)
-    df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
+    df_stock.columns = ["id_tienda","ref_id","dia","semana"]
     df_venta_tienda = pd.DataFrame(venta_tienda())
     print("se ha cargado ventas\n")
     print(df_venta_tienda)
-    df_venta_tienda.columns =["id_tienda","ref_id","cantidad","dia","semana"]
+    df_venta_tienda.columns = ["id_tienda","ref_id","dia","semana","cantidad"]
     df_promociones = promociones()
-    df_promociones=df_promociones.drop_duplicates(subset='ref_id')
+    df_promociones = df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
     print(df_promociones)
     
@@ -129,12 +132,12 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #transformacion de datos#
     #########################
 
-    df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
-    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
-
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
+    print(df_aux1.head())
+    df_aux1 = df_aux1[["id_tienda","ref_id","dia","cantidad"]]
     df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
-    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    print(df_aux2.head())
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
 
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
@@ -149,7 +152,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
-    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
+    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux
@@ -168,7 +171,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
         .query('_merge == "left_only"')
         .drop('_merge', 1))
 
-    df_final = df_final[["id_tienda","ref_id","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
@@ -184,16 +187,19 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_matriz = matriz_ss()
 
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final["peso"] = df_final["peso"].fillna(1)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
 
-    condlist = [df_stock_seguridad["nuevo_stock_seguridad"]>=2,
-                df_stock_seguridad["nuevo_stock_seguridad"]<2]
-    choicelist = [df_stock_seguridad["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=2,
+                df_final["nuevo_stock_seguridad"]<2]
+    choicelist = [df_final["nuevo_stock_seguridad"], 2]
 
-    df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    df_final.columns = ["id_tienda","ref_id","dia","stock_seguridad"]
+    print(df_final.head())
 
     ##############
     #cargar datos#
@@ -228,13 +234,13 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock = pd.DataFrame(stock(ds))
     print("se ha cargado stock\n")
     print(df_stock)
-    df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
+    df_stock.columns = ["id_tienda","ref_id","dia","semana"]
     df_venta_tienda = pd.DataFrame(venta_tienda())
     print("se ha cargado ventas\n")
     print(df_venta_tienda)
-    df_venta_tienda.columns =["id_tienda","ref_id","cantidad","dia","semana"]
+    df_venta_tienda.columns = ["id_tienda","ref_id","dia","semana","cantidad"]
     df_promociones = promociones()
-    df_promociones=df_promociones.drop_duplicates(subset='ref_id')
+    df_promociones = df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
     print(df_promociones)
     
@@ -244,12 +250,12 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #transformacion de datos#
     #########################
 
-    df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
-    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
-
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
+    print(df_aux1.head())
+    df_aux1 = df_aux1[["id_tienda","ref_id","dia","cantidad"]]
     df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
-    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    print(df_aux2.head())
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
 
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
@@ -262,13 +268,14 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
-    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
+    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
-    df_stock_seguridad_aux
+
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
+
     fecha_str = ds
     formato_str = "%Y-%m-%d"
 
@@ -281,7 +288,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
         .query('_merge == "left_only"')
         .drop('_merge', 1))
 
-    df_final = df_final[["id_tienda","ref_id","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
@@ -290,7 +297,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
     print("transformacion de datos listo \n")
-    
     #################
     #Matrix de Pesos#
     #################
@@ -298,17 +304,19 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_matriz = matriz_ss()
 
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final["peso"] = df_final["peso"].fillna(1)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
 
-    condlist = [df_stock_seguridad["nuevo_stock_seguridad"]>=2,
-                df_stock_seguridad["nuevo_stock_seguridad"]<2]
-    choicelist = [df_stock_seguridad["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=2,
+                df_final["nuevo_stock_seguridad"]<2]
+    choicelist = [df_final["nuevo_stock_seguridad"], 2]
 
-    df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
-
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    df_final.columns = ["id_tienda","ref_id","dia","stock_seguridad"]
+    print(df_final.head())
 
     ##############
     #cargar datos#
@@ -329,6 +337,106 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     return filename
 
+def stock_seguridad_to_postgres_am(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_am"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
+    df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
+    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.stock_seguridad")
+        df.to_sql(name="stock_seguridad",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
+def stock_seguridad_to_postgres_am(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_pm"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    print(df.info())
+    df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
+    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.stock_seguridad")
+        df.to_sql(name="stock_seguridad",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -340,7 +448,7 @@ default_args = {
 with DAG(
     'etl_stock_seguridad_peya',
     default_args=default_args,
-    description="cargar stock de seguridad",
+    description="cargar stock de seguridad a peya",
     schedule_interval="10 1/4 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
@@ -367,6 +475,16 @@ with DAG(
     )
 
     t1_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_s3_pm",
+        python_callable = stock_ventas_tiendas_to_s3_pm,
+    )
+
+    t2_am = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_s3_am",
+        python_callable = stock_ventas_tiendas_to_s3_am,
+    )
+
+    t2_pm = PythonOperator(
         task_id = "stock_ventas_tiendas_to_s3_pm",
         python_callable = stock_ventas_tiendas_to_s3_pm,
     )
