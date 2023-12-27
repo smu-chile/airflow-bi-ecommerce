@@ -461,7 +461,6 @@ def stock_seguridad_to_postgres_pm(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
     df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
-    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
 
     host = Variable.get("POSTGRESQL_HOST")
