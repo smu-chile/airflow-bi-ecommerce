@@ -44,61 +44,43 @@ def get_fixed_prices(ti):
     }
 
     df_final = pd.DataFrame()
-
     for itemId in list_skus:
-        get_fixed_prices = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
-        print("GET_FIXED_PRICES: ", get_fixed_prices)
-
-        r = requests.get(get_fixed_prices, headers=headers)
-
+        df = pd.DataFrame()
+        GET_FIXED_PRICES = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
+        print("GET_FIXED_PRICES: ", GET_FIXED_PRICES)
+        r = requests.get(GET_FIXED_PRICES, headers=headers)
+        print(r.content)
         if r.status_code == 404:
-            print(f"Error 404: Resource not found for SKU ID {itemId}")
+            print("Error 404: Recurso no encontrado")
             continue
         elif r.status_code == 200:
             r.raise_for_status()
-            response = r.json()
-            df = pd.DataFrame()
-            df['vtexId'] = itemId
-            df['tradePolicyId'] = response.get("rows", [])[0]
-
-            if not df.empty and 'dateRange' in df.columns:
-                df['Date From'] = df['dateRange'].apply(lambda x: x['from'] if pd.notna(x) else 'NULL')
-                df['Date To'] = df['dateRange'].apply(lambda x: x['to'] if pd.notna(x) else 'NULL')
-
-                df = df.drop(['dateRange'], axis=1)
-                df = df.reindex(columns=['vtexId', 'tradePolicyId', 'listPrice', 'value', 'minQuantity', 'Date From', 'Date To'])
-                df['vtex_id'] = itemId
-                df = df.sort_values(by='minQuantity')
-                for i in range(1, 4):
-                    quantity_col = f'{i}_quantity'
-                    price_col = f'{i}_price'
-                    df[quantity_col] = df['minQuantity'].apply(lambda x: x if x == i else 0)
-                    df[price_col] = df['value']
-                    df_final = pd.concat([df_final, df[['vtexId', 'tradePolicyId', 'listPrice', quantity_col, price_col, 'dateFrom', 'dateTo']]], ignore_index=True)
-
-            else:
-                print(f"No pricing info obtained for SKU ID {itemId}")
+            data = r.json()
+            df = pd.DataFrame(data)
+            if not df.empty:
+                if 'dateRange' not in df.columns:
+                    continue
+                df = df.assign(vtex_id=itemId)
+                for index, row in df.iterrows():
+                    if pd.isna(row['dateRange']) or (row['dateRange'] == ''):
+                        df.at[index, 'Date From'] = 'NULL'
+                        df.at[index, 'Date To'] = 'NULL'
+                    else:
+                        df.at[index, 'Date From'] = row['dateRange']['from']
+                        df.at[index, 'Date To'] = row['dateRange']['to']
+                df = df.drop('dateRange', axis=1)
+            df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value',
+                            'listPrice', 'minQuantity', 'Date From', 'Date To'])
+            df_final = pd.concat([df_final, df])
         else:
-            print(f"Failed to retrieve data for SKU ID {itemId}. Status code: {r.status_code}")
-    df_final.info()
+            print(f"No se obtuvo info del producto {itemId}")
 
-    df_final['vtexId'] = df_final['vtexId'].apply(lambda x: int(x) if pd.to_numeric(x, errors='coerce') == x else np.nan)
-    df_final = df_final.rename(columns={
-        "vtexId": "vtex_id",
-        "tradePolicyId": "id_lista_precios",
-        "listPrice": "precio_modal",
-        "1_quantity": "primera_cantidad",
-        "1_price": "primer_precio",
-        "Date From": "fecha_inicio",
-        "Date To": "fecha_termino",
-        "2_quantity": "segunda_cantidad",
-        "2_price": "segundo_precio",
-        "3_quantity": "tercera_cantidad",
-        "3_price": "tercer_precio"
-    })
-
+    df_final = df_final.rename(columns={'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy',
+                                        'value': 'Price', 'listPrice': 'List Price',
+                                        'minQuantity': 'Min Quantity'})
+    df_final = df_final.astype(
+        {'SKU ID': 'int', 'Price': 'int64', 'Min Quantity': 'int64'})
     return df_final.to_json(orient='records')
-
 
 
 def upload_fixed_prices(ti):
