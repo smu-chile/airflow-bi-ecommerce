@@ -34,7 +34,7 @@ def get_fixed_prices(ti):
 
     X_VTEX_API_AppKey = Variable.get("X_VTEX_ALVI_API_Appkey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_ALVI_API_Apptoken")
-    accountName = Variable.get("VTEX_ALVI_accountName")
+    accountName = Variable.get("VTEX_ALVI_ACCOUNT_NAME")
     headers = {
         'Accept': "application/json",
         'Content-Type': "application/json",
