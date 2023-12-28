@@ -130,7 +130,7 @@ def publicacion_1917_today(ts):
                     and pc.fecha_hora >= '{ts}'::date+1
                     and pc.stock_janis > 0
                     ;"""
-    #
+
     print(mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -220,8 +220,6 @@ def load_tables_to_s3(ts,ds):
     print(f"\nfiltro por producto valido: {len(df_activos.index)}\n")
 
     skus_validos = df_skus["ref_id"].to_list()
-    df_xd = df_activos[~df_activos['ref_id'].isin(skus_validos)]
-    df_xd.to_excel("excluidos_por_no_estar_en_skus.xlsx", index= False)
     df_activos = df_activos[df_activos['ref_id'].isin(skus_validos)]
     print(f"\nfiltro por skus valido: {len(df_activos.index)}\n")
 
@@ -288,7 +286,6 @@ def load_tables_to_s3(ts,ds):
     df_final_productos_activos = df_final_productos_activos.drop_duplicates()
     df_final_productos_activos = df_final_productos_activos.reset_index(drop=True)
 
-    #desactivados
     df_lista8_desactivar = pd.concat([df_lista8, df_publicacion_mfc_hoy], axis=0)
 
     df_desactivados = (df_producto_tienda_janis.merge(df_lista8_desactivar, on=["ref_id","id_tienda"], how='left', indicator=True)
@@ -339,6 +336,7 @@ def load_tables_to_s3(ts,ds):
 
     df_final_productos = pd.concat([df_desactivados_productos, df_final_productos_activos], axis=0)
     df_final_skus = pd.concat([df_desactivados_sku, df_final_skus_activos], axis=0)
+
 
     buffer_1 = io.StringIO()
     df_final_productos.to_csv(buffer_1, header=True, index=False, encoding="utf-8")
