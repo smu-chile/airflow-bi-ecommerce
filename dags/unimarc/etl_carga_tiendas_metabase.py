@@ -127,7 +127,7 @@ def publicacion_1917_today(ts):
                     TO_CHAR(DATE_TRUNC('DAY', fecha_hora),'YYYY-MM-DD') AS fecha
                     from ecommdata.publicacion_catalogo pc
                     where pc.mfc is true
-                    and pc.fecha_hora = '{ts}'::timestamp
+                    and pc.fecha_hora = '{ts}'::timestamp + INTERVAL '1 day'
                     and pc.stock_janis > 0
                     ;"""
     #
