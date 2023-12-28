@@ -104,7 +104,7 @@ def producto_tienda_janis():
 
 def excluidos_x_tiendas():
     import pandas as pd
-    excluidos_query = """select ref_id,id_tienda,is_mfc,all_stores,fecha_carga
+    excluidos_query = """select ref_id,id_tienda,all_stores,fecha_carga
                     from ecommdata_alvi.producto_tienda_excluidos"""
     print(excluidos_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -113,8 +113,8 @@ def excluidos_x_tiendas():
     cursor.execute(excluidos_query)
     results = cursor.fetchall()
     results = pd.DataFrame(results)
-    results.columns = ["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]
-    results = results[["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]]
+    results.columns = ["ref_id","id_tienda","all_stores","fecha_carga"]
+    results = results[["ref_id","id_tienda","all_stores","fecha_carga"]]
     print(results.head())
     cursor.close()
     pg_connection.close()
@@ -163,7 +163,6 @@ def load_tables_to_s3(ts,ds):
 
     df_lista8_hoy = df_lista8
 
-    print(f"\nRegistros de mfc + L8: {len(df_lista8_hoy.index)}\n")
     print(f"\nRegistros de productos tienda en janis: {len(df_producto_tienda_janis.index)}\n")
 
     df_activos = (df_lista8_hoy.merge(df_producto_tienda_janis, on=["ref_id","id_tienda"], how='left', indicator=True)
@@ -172,7 +171,7 @@ def load_tables_to_s3(ts,ds):
 
     df_activos = df_activos[["ref_id","id_tienda"]]
 
-    print(f"\nRegistros que no se encuentran en janis pero si en L8 + MFC : {len(df_activos.index)}\n")
+    print(f"\nRegistros que no se encuentran en janis pero si en L8: {len(df_activos.index)}\n")
 
     df_activos = df_activos.drop_duplicates()
     df_activos = df_activos.reset_index(drop=True)
@@ -223,7 +222,7 @@ def load_tables_to_s3(ts,ds):
     df_lista8_clean = df_lista8_clean.drop_duplicates()
     df_lista8_clean = df_lista8_clean.reset_index(drop=True)
 
-    print(f"\nRegistros de (Lista8+mfc): {len(df_lista8_clean.index)}\n")
+    print(f"\nRegistros de (Lista8): {len(df_lista8_clean.index)}\n")
 
     #acá sacamos el archivo listo de skus activos
     df_activos_skus = df_lista8_clean[df_lista8_clean['ref_id'].isin(valores_unicos_skus)]
@@ -241,7 +240,7 @@ def load_tables_to_s3(ts,ds):
     df_activos_productos = df_activos_productos[["ref_id","id_tienda"]]
     df_activos_productos = df_activos_productos.drop_duplicates()
     df_activos_productos = df_activos_productos.reset_index(drop=True)
-    print(f"\nRegistros validos para productos activos desde lista8+mfc: {len(df_activos_productos.index)}\n")
+    print(f"\nRegistros validos para productos activos desde lista8: {len(df_activos_productos.index)}\n")
     df_final_productos_activos = df_activos_productos.groupby('ref_id')['id_tienda'].apply(list).reset_index()
     df_final_productos_activos['id_tienda'] = df_final_productos_activos['id_tienda'].apply(lambda x: ', '.join(map(str, x)))
     df_final_productos_activos.columns = ["refId","stores"]
