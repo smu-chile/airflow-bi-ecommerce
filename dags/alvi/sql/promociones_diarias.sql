@@ -12,14 +12,28 @@ SELECT
             wp.factor,
             wp.factor_2,
             wp.desc_promocion,
-            wp.material || '-' || CASE
-                WHEN wp.umv = 'ST' THEN 'UN'
-                WHEN wp.umv = 'CS' THEN 'CJ'
-            END AS ref_id,
-            null as idcalculatorconfigurator
+            s.ref_id,
+            s.vtex_id,
+            pdvd.idcalculatorconfigurator,
+    		pdvd.nombre_promocion_vtex,
+    		pdvd.link_promocion
         FROM ecommdata_alvi.workflow_promociones wp
+        LEFT JOIN ecommdata_alvi.skus s ON s.ref_id::text = ((wp.material::text || '-'::text) ||
+            CASE
+                WHEN wp.umv::text = 'ST'::text THEN 'UN'::character varying
+                WHEN wp.umv::text = 'CS'::text THEN 'CJ'::character varying
+                ELSE wp.umv
+            END::text)
+       	left join (select coalesce(lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
+                    pdv.id as idcalculatorconfigurator,
+                    pdv.nombre_promocion as nombre_promocion_vtex,
+                    concat('https://alvicl.myvtex.com/admin/promotions/',pdv.id) as link_promocion
+                    from ecommdata_alvi.promociones_detalle_vtex pdv
+                    LEFT JOIN ecommdata_alvi.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy") as pdvd 
+                    on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
         WHERE wp.tipo_promocion IN (10)
         and wp.id_mecanica in (18,83,40)
-        AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '1 day'
+        and s.vtex_id is not null
+        AND wp.fecha_inicio_de_promocion <= '{ds}'::date
         AND wp.fecha_fin_de_promocion >= '{ds}'::date + interval '1 day'
         ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion DESC;
