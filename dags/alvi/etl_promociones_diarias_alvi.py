@@ -74,6 +74,7 @@ def create_list_price(ti):
     df['nombre_promocion'] = df['nombre_promocion'].apply(lambda x: x.strip(
     ).replace(' ', '').replace('.', '').replace('+', '').replace('-', '').replace(',', ''))
 
+    df_vtex = df
     df_vtex = df_vtex.sort_values(by='precio_promocional_2')
     df_vtex = df_vtex.drop_duplicates(subset='ref_id', keep='first')
 
@@ -175,9 +176,9 @@ def create_list_price(ti):
         POST_CREATE_UPDATE_FIXED_PRICES = f"https://api.vtex.com/{accountName}/pricing/prices/{itemId}/fixed/{priceTableId}"
         print(POST_CREATE_UPDATE_FIXED_PRICES)
 
-        '''r = requests.post(POST_CREATE_UPDATE_FIXED_PRICES, json=payload_list, headers=headers)
+        r = requests.post(POST_CREATE_UPDATE_FIXED_PRICES, json=payload_list, headers=headers)
         print("r.status_code: ", r.status_code)
-        print("r.text: ", r.text)'''
+        print("r.text: ", r.text)
     
     df['nombre_vtex'] = df['n_promocion'].astype(str) + ' ' + df['nombre_promocion']
 
@@ -382,10 +383,12 @@ def load_json_to_publisher(ti):
     POST_PUBLISH_FIXED_PRICES = f"https://ms-integrations-publisher.smu-service.cl/promotions"
     print(POST_PUBLISH_FIXED_PRICES)
     r = requests.post(POST_PUBLISH_FIXED_PRICES, json=result)
-    '''print("r.status_code: ", r.status_code)
-    print("r.text: ", r.text)'''
+    print("r.status_code: ", r.status_code)
+    print("r.text: ", r.text)
     
     return
+
+
     
 def truncate_and_load_postgres(ti):
     import numpy as np
