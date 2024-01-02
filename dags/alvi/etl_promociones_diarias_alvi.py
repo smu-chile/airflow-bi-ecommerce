@@ -299,7 +299,7 @@ def create_list_price(ti):
                 'percentualDiscountValueList': []
         }
         print(payload)
-        '''try:
+        try:
             r = requests.post(url, headers=headers, json=payload)
             r.raise_for_status()
         except requests.exceptions.RequestException as e:
@@ -307,7 +307,7 @@ def create_list_price(ti):
             continue
 
         print("API request status code: ", r.status_code)
-        print("API response content: ", r.content)'''
+        print("API response content: ", r.content)
     
     return
     
@@ -380,9 +380,13 @@ def load_json_to_publisher(ti):
 
     print(result)
 
+    headers = {
+        'Content-Type': 'application/json'
+    }
+
     POST_PUBLISH_FIXED_PRICES = "https://ms-integrations-publisher.smu-service.cl/promotions"
     print(POST_PUBLISH_FIXED_PRICES)
-    r = requests.post(POST_PUBLISH_FIXED_PRICES, json=result)
+    r = requests.request("POST", POST_PUBLISH_FIXED_PRICES, headers=headers, data=result)
     print("r.status_code: ", r.status_code)
     print("r.text: ", r.text)
 
