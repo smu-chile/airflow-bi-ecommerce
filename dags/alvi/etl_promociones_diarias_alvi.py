@@ -23,7 +23,7 @@ def create_and_load_s3(ds):
     curr_working_directory = os.getcwd()
     print(os.getcwd())
 
-    with open(curr_working_directory+f"/dags/alvi/sql/promociones_diarias.sql", "r") as query_file:
+    with open(f"{curr_working_directory}/dags/alvi/sql/promociones_diarias.sql", "r") as query_file:
         promociones_query = query_file.read()
     
     promociones_query = promociones_query.replace("{ds}", ds)
@@ -83,7 +83,7 @@ def create_list_price(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df_vtex.info())
+    df.info()
 
     X_VTEX_API_AppKey = Variable.get("X_VTEX_ALVI_API_Appkey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_ALVI_API_Apptoken")
@@ -311,12 +311,12 @@ def create_list_price(ti):
     
     return
     
-    return
 def load_json_to_publisher(ti):
     import datetime
     from datetime import datetime
     import pandas as pd
     import requests
+    import sqlalchemy
 
     filename = ti.xcom_pull(key="return_value", task_ids=["create_and_load_s3"])[0]
 
@@ -339,7 +339,7 @@ def load_json_to_publisher(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+    df.info()
 
     df['nombre_promocion'] = df['nombre_promocion'].apply(lambda x: x.strip(
     ).replace(' ', '').replace('.', '').replace('+', '').replace('-', '').replace(',', ''))
@@ -380,12 +380,12 @@ def load_json_to_publisher(ti):
 
     print(result)
 
-    POST_PUBLISH_FIXED_PRICES = f"https://ms-integrations-publisher.smu-service.cl/promotions"
+    POST_PUBLISH_FIXED_PRICES = "https://ms-integrations-publisher.smu-service.cl/promotions"
     print(POST_PUBLISH_FIXED_PRICES)
     r = requests.post(POST_PUBLISH_FIXED_PRICES, json=result)
     print("r.status_code: ", r.status_code)
     print("r.text: ", r.text)
-    
+
     return
 
 
@@ -413,7 +413,7 @@ def truncate_and_load_postgres(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+    df.info()
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
