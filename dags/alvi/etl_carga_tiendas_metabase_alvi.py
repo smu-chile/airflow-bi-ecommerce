@@ -199,11 +199,7 @@ def load_tables_to_s3(ts,ds):
     df_activos = df_activos.drop_duplicates()
     df_activos = df_activos.reset_index(drop=True)
 
-
     df_activos_skus = df_activos_productos = df_activos
-
-    df_activos_productos = df_activos
-
 
     valores_unicos_skus = df_activos_skus['ref_id'].unique()
     print(f"\nSkus unicos: {len(valores_unicos_skus)}")
@@ -217,8 +213,6 @@ def load_tables_to_s3(ts,ds):
     df_lista8_clean = df_lista8_clean[~df_lista8_clean['ref_id'].isin(lista_skus_excluidos)]
     print(f"\nregistros de lista8 validos: {len(df_lista8_clean.index)}\n")
 
-
-    df_lista8_clean = df_lista8_clean
     df_lista8_clean = df_lista8_clean.drop_duplicates()
     df_lista8_clean = df_lista8_clean.reset_index(drop=True)
 
@@ -348,24 +342,24 @@ def load_tables_to_postgres(ti):
     #productos
     print("Searching file: "+filename_productos)
     if not s3_hook.check_for_key(filename_productos, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % filename_productos)
+        raise Exception("Key %s products does not exist." % filename_productos)
 
     s_stock_object = s3_hook.get_key(filename_productos, bucket_name=s3_bucket)
 
     df_productos = pd.read_csv(s_stock_object.get()["Body"])
     if len(df_productos.index) == 0:
-        print("There are no new nor updated records to load. Task will exit as successfull.")
+        print("There are no new nor updated products records to load. Task will exit as successfull.")
         return
     #skus
     print("Searching file: "+filename_skus)
     if not s3_hook.check_for_key(filename_skus, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % filename_skus)
+        raise Exception("Key %s skus does not exist." % filename_skus)
 
     s_stock_object = s3_hook.get_key(filename_skus, bucket_name=s3_bucket)
 
     df_skus = pd.read_csv(s_stock_object.get()["Body"])
     if len(df_skus.index) == 0:
-        print("There are no new nor updated records to load. Task will exit as successfull.")
+        print("There are no new nor updated skus records to load. Task will exit as successfull.")
         return
     
     print(f"Number of records extracted: {len(df_skus.index)}")
@@ -408,7 +402,7 @@ with DAG(
     'etl_carga_tiendas_metabase_alvi',
     default_args=default_args,
     description="cargar tabla de productos y skus de carga tiendas",
-    schedule_interval="0 5 * * *",
+    schedule_interval="30 8 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "tiendas", "ecommdata", "metabase", "alvi"],
