@@ -11,11 +11,11 @@ from ecommdata.stock_mfc_takeoff smt
 left join(
 	select split_part(tom_id,'-',1) as material, count(*) as contador
 	from ecommdata.stock_mfc_takeoff smt
-	where fecha::date = '{{ds}}'::date
+	where fecha::date = '{{ds}}'::date+1
 	group by split_part(tom_id,'-',1)) as _t
 	on _t.material = split_part(smt.tom_id,'-',1)
 where _t.contador >1
 and _t.material is not null
-and smt.fecha::date >= '{{ds}}'::date
+and smt.fecha::date >= '{{ds}}'::date+1
 and smt.quantity_on_hand = 0;
 commit;
