@@ -127,7 +127,7 @@ def publicacion_1917_today(ts):
                     TO_CHAR(DATE_TRUNC('DAY', fecha_hora),'YYYY-MM-DD') AS fecha
                     from ecommdata.publicacion_catalogo pc
                     where pc.mfc is true
-                    and pc.fecha_hora >= '{ts}'::date+1
+                    and pc.fecha_hora::date >= '{ts}'::date+1
                     and pc.stock_janis > 0
                     ;"""
 
@@ -444,7 +444,7 @@ with DAG(
     'etl_carga_tiendas_metabase',
     default_args=default_args,
     description="cargar tabla de productos y skus de carga tiendas",
-    schedule_interval="0 5 * * *",
+    schedule_interval="30 8 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "tiendas", "ecommdata", "metabase", "unimarc"],
