@@ -34,6 +34,6 @@ SELECT
         WHERE wp.tipo_promocion IN (10)
         and wp.id_mecanica in (18,83,40)
         and s.vtex_id is not null
-        AND wp.fecha_inicio_de_promocion <= '{ds}'::date
-        AND wp.fecha_fin_de_promocion >= '{ds}'::date + interval '1 day'
+        AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '1 day'
+        AND wp.fecha_fin_de_promocion >= '{ds}'::date
         ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion DESC;
