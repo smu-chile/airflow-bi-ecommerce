@@ -63,7 +63,7 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-    and wp.id_mecanica not in (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123)
+    and wp.id_mecanica not in (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
     group by wp.ean
 ) _t3
 on _t.ean = _t3.ean
@@ -142,7 +142,7 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-    and wp.id_mecanica not in (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123)
+    and wp.id_mecanica not in (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
     group by wp.ean
 ) _t3
 on _t.ean = _t3.ean
