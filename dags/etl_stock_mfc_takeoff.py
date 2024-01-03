@@ -99,6 +99,7 @@ def stock_mfc_to_s3(ds,ts):
 
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
+    date_aux_filename = ts.replace("-","_")
     prefix = f"stock_mfc_takeoff/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
@@ -111,7 +112,7 @@ def stock_mfc_to_s3(ds,ts):
 
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_mfc_takeoff/{exec_date}/stock_mfc_takeoff_{date_aux}.csv"
+    filename = f"stock_mfc_takeoff/{exec_date}/stock_mfc_takeoff_{date_aux_filename}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
