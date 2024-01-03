@@ -93,14 +93,16 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                         ELSE round((lspp.precio) * s.multiplicador_unidad_medida)
                     END AS price ,
                     CASE
-                        WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7) THEN 1
-                        WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= 7) THEN 1
+                        WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= ssp.stock_seguridad) THEN 1
+                        WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= ssp.stock_seguridad) THEN 1
                         ELSE 0
                     END AS active
                     FROM integraciones.lm_stock_precio_promo lspp
                     inner JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
+                    inner join integraciones.stock_seguridad_peya ssp on ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                 AND lspp.id_tienda = '{store_id}'
+                and ssp.id_tienda = '{store_id}'
                
             ;
         """
@@ -132,8 +134,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             df_prev = pd.read_csv(prev_stock_file.get()["Body"])
 
             df_prev = df_prev[~df_prev["SKU"].isin(df["SKU"])]
-            df_prev = df_prev[df_prev["STOCK"]==1]
-            df_prev["STOCK"] = 0
+            df_prev = df_prev[df_prev["SKU"]==1]
+            df_prev["SKU"] = 0
 
             print(f"Adding {len(df_prev.index)} missing products as inactive: STOCK = 0.")
 
@@ -330,7 +332,7 @@ def _send_joined_data_to_stfp(ds):
                                 port=ftp_port, 
                                 password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
-            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/SMU_{output_stock_file}"
+            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/SMUCatalog_{output_stock_file}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
