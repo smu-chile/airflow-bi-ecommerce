@@ -32,7 +32,11 @@ SELECT
                     LEFT JOIN ecommdata_alvi.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy") as pdvd 
                     on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
         WHERE wp.tipo_promocion IN (10)
-        and wp.id_mecanica in (18,83,40)
+        and wp.id_mecanica in (18,83,40,26)
+        and wp.nombre_promocion not ilike '%LOCAL%'
+        and wp.nombre_promocion not ilike '%LIQUIDACION%' 
+        and wp.nombre_promocion not ilike '%TERMINAL%' 
+        and wp.nombre_promocion not ilike '%LOC%'
         and s.vtex_id is not null
         AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '1 day'
         AND wp.fecha_fin_de_promocion >= '{ds}'::date
