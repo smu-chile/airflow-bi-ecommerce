@@ -53,6 +53,53 @@ def create_and_load_s3(ds):
 
     return filename
 
+def truncate_and_load_postgres(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["create_and_load_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_promotion_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_promotion_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df.info()
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # Save to PostgreSQL:
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata_alvi.promociones_diarias") 
+        df.to_sql(name="promociones_diarias",
+                    con=conn,         
+                    schema="ecommdata_alvi",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data loaded to Postgres: ecommdata_alvi.promociones_diarias")
+    return
+
 def create_list_price(ti):
     import json
     import pandas as pd
@@ -67,9 +114,9 @@ def create_list_price(ti):
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % filename)
 
-    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+    s_promotion_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_promotion_object.get()["Body"])
 
     df['nombre_promocion'] = df['nombre_promocion'].apply(lambda x: x.strip(
     ).replace(' ', '').replace('.', '').replace('+', '').replace('-', '').replace(',', ''))
@@ -327,9 +374,9 @@ def load_json_to_publisher(ti):
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % filename)
 
-    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+    s_promotion_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_promotion_object.get()["Body"])
 
     df = df.sort_values(by='precio_promocional_2')
     df = df.drop_duplicates(subset='ref_id', keep='first')
@@ -392,14 +439,12 @@ def load_json_to_publisher(ti):
 
     return
 
-
-    
-def truncate_and_load_postgres(ti):
+def load_prices_to_postgres(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
-
+    
     filename = ti.xcom_pull(key="return_value", task_ids=["create_and_load_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -409,15 +454,75 @@ def truncate_and_load_postgres(ti):
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % filename)
 
-    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+    s_promotion_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
-    if len(df.index) == 0:
+    df = pd.read_csv(s_promotion_object.get()["Body"])
+
+    df['nombre_promocion'] = df['nombre_promocion'].apply(lambda x: x.strip(
+    ).replace(' ', '').replace('.', '').replace('+', '').replace('-', '').replace(',', ''))
+
+    df_vtex = df
+    df_vtex = df_vtex.sort_values(by='precio_promocional_2')
+    df_vtex = df_vtex.drop_duplicates(subset='ref_id', keep='first')
+
+    if len(df_vtex.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
-        return
+        '''return'''
     
     print(f"Number of records extracted: {len(df.index)}")
     df.info()
+
+    column_mapping = {
+        "nombre_promocion": 'promotionName',
+        'ref_id': "refId",
+        'precio_modal': "modalPrice",
+        "precio_promocional": "PrecPro1",
+        'precio_promocional_2': "PrecPro2",
+        'factor': "Factor1",
+        'factor_2': "Factor2",
+        'fecha_inicio_de_promocion': 'startDate',
+        'fecha_fin_de_promocion': 'endDate'
+    }
+    df_vtex = df_vtex.rename(columns=column_mapping)
+
+    df_vtex = df_vtex.assign(Factor0=1)
+    df_vtex['PrecPro0'] = df_vtex['modalPrice']
+    df_vtex['Factor0'] = df_vtex.apply(
+        lambda row: 0 if row['Factor1'] == 1 else row['Factor0'], axis=1)
+
+    df_vtex_w2l = (
+        pd.wide_to_long(df_vtex, stubnames=["PrecPro", "Factor"], i=["refId"], j="n")
+        .droplevel(-1)
+        .reset_index()
+    )
+
+    df_vtex_w2l = df_vtex_w2l[df_vtex_w2l["Factor"] != 0]
+
+    df_vtex_w2l["startDate"] = pd.to_datetime(
+        df_vtex_w2l["startDate"], dayfirst=True).dt.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+    df_vtex_w2l["endDate"] = (pd.to_datetime(df_vtex_w2l["endDate"], dayfirst=True) +
+                              pd.Timedelta(days=1)).dt.strftime(("%Y-%m-%dT%H:%M:%S-04:00"))
+
+    df_vtex_w2l = df_vtex_w2l.rename(
+        columns={
+            "refId": "ref_id",
+            "promotionName": "nombre_promocion",
+            "PrecPro": "precio_promocional",
+            "Factor": "cantidad",
+            "startDate": "fecha_inicio_promocion",
+            "endDate": "fecha_fin_promocion"
+        }
+    )
+
+    cols_vtex = ["ref_id", "nombre_promocion", "precio_promocional", "cantidad", "fecha_inicio_promocion", "fecha_fin_promocion"]
+    df_vtex_w2l = df_vtex_w2l[cols_vtex]
+
+    df_vtex_w2l.info()
+
+    print(df_vtex_w2l)
+
+    print("Number of records to be loaded: "+str(len(df.index)))
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -426,20 +531,23 @@ def truncate_and_load_postgres(ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE ecommdata_alvi.precios_promocionales"
+    connection.execute(text(truncate_query))
+    connection.close()
+
     # Save to PostgreSQL:
+    df_vtex_w2l.to_sql(name="precios_promocionales",
+                con=engine,         
+                schema="ecommdata_alvi",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
 
-    with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata_alvi.promociones_diarias") 
-        df.to_sql(name="promociones_diarias",
-                    con=conn,         
-                    schema="ecommdata_alvi",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
-
-    print("Data loaded to Postgres: ecommdata_alvi.promociones_diarias")
+    print("Data saved to PostgreSQL. Table: ecommdata_alvi.precios_promocionales")
     return
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -482,5 +590,10 @@ with DAG(
         task_id = "load_json_to_publisher",
         python_callable = load_json_to_publisher,
     )
+
+    t4 = PythonOperator(
+        task_id = "load_prices_to_postgres",
+        python_callable = load_prices_to_postgres,
+    )
     
-    t0 >> t1 >> t2 >> t3
+    t0 >> t1 >> t2 >> t3 >> t4
