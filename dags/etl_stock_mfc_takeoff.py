@@ -183,7 +183,7 @@ with DAG(
     'etl_stock_mfc_takeoff_2',
     default_args=default_args,
     description="utiliza la API de takeoff para extraer el stock de MFC, lo carga a S3 y lo sube a postgresql",
-    schedule_interval= "0 0/4 * * *",
+    schedule_interval= "0 1,4/4 * * *",
     start_date=pendulum.datetime(2023, 9, 27, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "MFC", "s3","stock","takeoff"],
