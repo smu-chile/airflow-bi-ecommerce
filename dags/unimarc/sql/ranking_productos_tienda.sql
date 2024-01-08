@@ -48,8 +48,10 @@ FROM (
         r.ref_id_sku,
         s.nombre_sku,
         CASE
-            WHEN s2.stock_janis IS NULL THEN 0
-            ELSE s2.stock_janis
+            WHEN r.id_tienda = '1917' THEN
+                COALESCE(smfc.stock, 0)
+            ELSE
+                COALESCE(s2.stock_janis, 0)
         END as stock_dia,
         c.n1 as nivel_categoria_1,
         c.n2 as nivel_categoria_2,
@@ -62,12 +64,16 @@ FROM (
         RankedData r
         LEFT JOIN ecommdata.skus s ON s.ref_id = r.ref_id_sku
         LEFT JOIN ecommdata.stock s2 ON r.id_tienda = s2.id_tienda AND r.ref_id_sku = s2.ref_id
-        left join ecommdata.productos p on p.ref_id  = r.ref_id_sku
-        left join ecommdata.categorias c on p.id_categoria = c.id
-        left join ecommdata.marcas m on m.id = p.id_marca 
+        LEFT JOIN ecommdata.stock_mfc smfc ON r.id_tienda = smfc.id_tienda AND LPAD(smfc.material::text, 18, '0') || '-' || smfc.unidad_venta ::text = r.ref_id_sku
+        LEFT JOIN ecommdata.productos p ON p.ref_id  = r.ref_id_sku
+        LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id
+        LEFT JOIN ecommdata.marcas m ON m.id = p.id_marca 
     WHERE
-        s2.fecha = '{ds}'::date
-        and s2.surtido_ecommerce = true
+        (
+            (r.id_tienda = '1917' AND smfc.fecha_carga = '{ds}'::date)
+            OR
+            (r.id_tienda <> '1917' AND s2.fecha = '{ds}'::date AND s2.surtido_ecommerce = true)
+        )
     ORDER BY
         ranking, id_tienda
 ) AS Subquery;
