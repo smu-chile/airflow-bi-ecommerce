@@ -11,16 +11,16 @@ import pendulum
 
 def lista8():
     import pandas as pd
-    promociones_query = """select concat(material,'-',umv) as ref_id, id_tienda, fecha
+    promociones_query = """select concat(material,'-',umv) as ref_id, id_tienda
                     from ecommdata.lista8"""
     print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","id_tienda","fecha"]
+    results.columns = ["ref_id","id_tienda"]
     print(results.head())
     cursor.close()
     pg_connection.close()
@@ -32,7 +32,7 @@ def productos():
     productos_query = """select ref_id, nombre 
                     from ecommdata.productos"""
     print(productos_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(productos_query)
@@ -51,7 +51,7 @@ def tiendas():
                     from ecommdata.tiendas t 
                     where status = 1"""
     print(tiendas_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(tiendas_query)
@@ -69,7 +69,7 @@ def skus():
     skus_query = """select ref_id, nombre_sku
                     from ecommdata.skus"""
     print(skus_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(skus_query)
@@ -85,10 +85,9 @@ def skus():
 def producto_tienda_janis():
     import pandas as pd
     productos_tienda_query = """select ref_id, id_tienda, activo
-                        from ecommdata.productos_tienda
-                        where activo is true"""
+                        from ecommdata.productos_tienda"""
     print(productos_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(productos_tienda_query)
@@ -107,7 +106,7 @@ def excluidos_x_tiendas():
     excluidos_query = """select ref_id,id_tienda,is_mfc,all_stores,fecha_carga
                     from ecommdata.producto_tienda_excluidos"""
     print(excluidos_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(excluidos_query)
@@ -127,12 +126,12 @@ def publicacion_1917_today(ts):
                     TO_CHAR(DATE_TRUNC('DAY', fecha_hora),'YYYY-MM-DD') AS fecha
                     from ecommdata.publicacion_catalogo pc
                     where pc.mfc is true
-                    and pc.fecha_hora::date >= '{ts}'::date+1
+                    and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                     and pc.stock_janis > 0
                     ;"""
 
     print(mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(mfc_query)
@@ -152,16 +151,16 @@ def load_tables_to_s3(ts,ds):
     import io
     from io import StringIO
     exec_date = ds.replace("-", "/")
-    date_aux = ds.replace("-", "_")
+    date_aux = ts.replace("-", "_")
     prefix = f"carga_tiendas/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     df_producto_tienda_janis = producto_tienda_janis()
-    print(f"Ready productos por tienda en janis de hoy{len(df_producto_tienda_janis.index)}\n")
-    df_lista8 = lista8()
-    print(f"Ready lista8 de hoy {len(df_lista8.index)}\n")
+    print(f"Ready productos por tienda en janis de hoy\n")
+    df_lista_8 = lista8()
+    print(f"Ready lista8 de hoy\n")
     df_productos = productos()
     print("Ready productos\n")
     df_skus = skus()
@@ -174,169 +173,79 @@ def load_tables_to_s3(ts,ds):
     print("Ready publicacion_1917_today activas\n")
 
     #Activos
-    df_excluidos_x_tiendas_clean = df_excluidos_x_tiendas[df_excluidos_x_tiendas["all_stores"]== 1]
-    df_excluidos_x_tiendas_mfc = df_excluidos_x_tiendas[df_excluidos_x_tiendas["is_mfc"]== 1]
+    #generamos los insumos de datos
+    #productos activos por tiendas en janis
+    print(f"\ncantidad de registros de productos por tiendas en janis: {len(df_producto_tienda_janis.index)}\n")
+    df_productos_janis_tienda = df_producto_tienda_janis
+    #lista8 con productos validos
+    lista_productos = df_productos['ref_id'].unique()
+    df_not_in_janis = df_lista_8[~df_lista_8['ref_id'].isin(lista_productos)]
+    df_not_in_janis = df_not_in_janis[["ref_id"]]
+    print(f"\ncantidad de registros en lista8 con productos no validos: {len(df_not_in_janis.index)}\n")
+    #lista8+mfc
+    df_lista8 = pd.concat([df_lista_8, df_publicacion_mfc_hoy], axis=0)
+    excluidos_x_tiendas_tiendas = df_excluidos_x_tiendas[df_excluidos_x_tiendas["all_stores"]==1]
+    lista_excluidos = excluidos_x_tiendas_tiendas['ref_id'].unique()
+    df_lista8 = df_lista8[~df_lista8['ref_id'].isin(lista_excluidos)]
+    df_lista8 = df_lista8[["ref_id","id_tienda"]]
+    print(f"\ncantidad de registros en lista8 con MFC: {len(df_lista8.index)}\n")
+    #exclusiones con skus validos
+    lista_skus = df_skus['ref_id'].unique()
+    df_exclusions = excluidos_x_tiendas_tiendas[excluidos_x_tiendas_tiendas['ref_id'].isin(lista_skus)]
+    df_exclusions = df_exclusions[["ref_id"]]
+    print(f"\ncantidad de registros en excluidos con skus validos: {len(df_lista8.index)}\n")
+    ##tiendas activcas
+    df_tiendas = df_tiendas[["id_tienda"]]
+    series_active_stores = df_tiendas['id_tienda'].unique()
 
-    df_productos_sin_skus = df_productos.merge(df_lista8, on = ["ref_id"], how = 'left')
-    df_skus_sin_producto = df_productos_sin_skus.merge(df_skus, on = ["ref_id"], how = 'left')
-    df_skus_sin_producto = df_skus_sin_producto[(df_skus_sin_producto["id_tienda"].notna()) &
-                                                (df_skus_sin_producto["nombre_sku"].isna())
-                                                ].drop_duplicates(subset=['ref_id']).reset_index(drop=True)
+    #transformacion de datos
+    df_lista8 = df_lista8[df_lista8['id_tienda'].isin(series_active_stores)]
 
-    df_skus_sin_producto = df_skus_sin_producto[["ref_id"]]
-    lista_skus_sin_producto = df_skus_sin_producto["ref_id"].to_list()
-    lista_skus_excluidos = df_excluidos_x_tiendas_clean["ref_id"].to_list()
+    df_deact = df_productos_janis_tienda.merge(df_lista8,how='left',on='ref_id')
+    df_deact = df_deact[df_deact['id_tienda_y'].isna()]
+    df_deact = pd.concat([df_exclusions, df_deact])
 
-    print(f"\nRegistros de Lista8: {len(df_lista8.index)}\n")
-    print(f"\nRegistros de mfc: {len(df_publicacion_mfc_hoy.index)}\n")
+    series_deact = pd.Series(df_deact.loc[:,'ref_id'].unique())
 
-    df_lista8_hoy = pd.concat([df_lista8, df_publicacion_mfc_hoy], axis=0)
+    df = pd.concat([df_productos_janis_tienda, df_lista8])
 
-    print(f"\nRegistros de mfc + L8: {len(df_lista8_hoy.index)}\n")
-    print(f"\nRegistros de productos tienda en janis: {len(df_producto_tienda_janis.index)}\n")
+    df = df.merge(df_not_in_janis,how='left',on='ref_id',indicator=True)
+    df = df[df['_merge']!='both'][['ref_id','id_tienda']].reset_index(drop=True)
+    
+    df_gpby = df.groupby(list(df.columns))
 
-    df_activos = (df_lista8_hoy.merge(df_producto_tienda_janis, on=["ref_id","id_tienda"], how='left', indicator=True)
-        .query('_merge == "left_only"')
-        .drop('_merge',axis= 1))
+    idx = [x[0] for x in df_gpby.groups.values() if len(x) == 1]
+    df_changes = df.reindex(idx)
 
-    df_activos = df_activos[["ref_id","id_tienda"]]
+    df_changes = df_changes.loc[~df_changes['ref_id'].isin(series_deact)]
+    series_changes = pd.Series(df_changes['ref_id'].unique())
 
-    print(f"\nRegistros que no se encuentran en janis pero si en L8 + MFC : {len(df_activos.index)}\n")
+    df_lista8_changes = df_lista8.loc[df_lista8['ref_id'].isin(series_changes)]
 
-    df_activos = df_activos.drop_duplicates()
-    df_activos = df_activos.reset_index(drop=True)
+    df_lista8_changes.loc[:,'idx'] = df_lista8_changes.groupby(['ref_id']).cumcount()
+    df_changes_final = df_lista8_changes.pivot_table(index=['ref_id'], columns='idx', 
+                        values=['id_tienda'], aggfunc='first')
 
-    print(f"\nRegistros Productos tienda actualizables en total sin duplicados: {len(df_activos.index)}\n")
+    df_changes_final = df_changes_final.sort_index(axis=1, level=1)
+    df_changes_final.columns = [f'{x}_{y}' for x,y in df_changes_final.columns]
+    df_changes_final = df_changes_final.reset_index()
 
-    df_activos = df_activos[~df_activos['ref_id'].isin(lista_skus_excluidos)]
-    print(f"\nfiltro quitando excluidos: {len(df_activos.index)}\n")
+    cols = df_changes_final.filter(like='id_tienda_').columns
 
-    tiendas_activas = df_tiendas["id_tienda"].to_list()
-    df_activos = df_activos[df_activos['id_tienda'].isin(tiendas_activas)]
-    print(f"\nfiltro por tiendas activas: {len(df_activos.index)}\n")
+    df_changes_final['tiendas'] = df_changes_final[cols].agg(lambda s: s.dropna().str.cat(sep=','), axis=1)
+    df_changes_final.drop(columns=cols, inplace=True)
 
-    productos_validos = df_productos["ref_id"].to_list()
-    df_activos = df_activos[df_activos['ref_id'].isin(productos_validos)]
-    print(f"\nfiltro por producto valido: {len(df_activos.index)}\n")
-
-    skus_validos = df_skus["ref_id"].to_list()
-    df_activos = df_activos[df_activos['ref_id'].isin(skus_validos)]
-    print(f"\nfiltro por skus valido: {len(df_activos.index)}\n")
-
-    df_activos = df_activos[~df_activos['ref_id'].isin(lista_skus_sin_producto)]
-    print(f"\nfiltro por skus sin producto: {len(df_activos.index)}\n")
-
-    df_activos = df_activos.drop_duplicates()
-    df_activos = df_activos.reset_index(drop=True)
-
-
-    df_activos_skus = df_activos_productos = df_activos
-
-    df_activos_productos = df_activos
-
-
-    valores_unicos_skus = df_activos_skus['ref_id'].unique()
-    print(f"\nSkus unicos: {len(valores_unicos_skus)}")
-    valores_unicos_productos = df_activos_productos['ref_id'].unique()
-    print(f"\nProductos unicos: {len(valores_unicos_productos)}")
-
-    tiendas_activas = df_tiendas["id_tienda"].to_list()
-
-    df_lista8_clean = df_lista8[df_lista8['ref_id'].isin(valores_unicos_productos)]
-    df_lista8_clean = df_lista8_clean[df_lista8_clean['id_tienda'].isin(tiendas_activas)]
-    df_lista8_clean = df_lista8_clean[~df_lista8_clean['ref_id'].isin(lista_skus_excluidos)]
-    print(f"\nregistros de lista8 validos: {len(df_lista8_clean.index)}\n")
-
-    df_lista8_mfc = df_publicacion_mfc_hoy[df_publicacion_mfc_hoy['ref_id'].isin(valores_unicos_productos)]
-    df_lista8_mfc = df_lista8_mfc[df_lista8_mfc['id_tienda'].isin(tiendas_activas)]
-    df_lista8_mfc = df_lista8_mfc[~df_lista8_mfc['ref_id'].isin(lista_skus_excluidos)]
-    print(f"\nregistros de mfc validos: {len(df_lista8_mfc.index)}\n")
-
-    df_lista8_clean = pd.concat([df_lista8_clean, df_lista8_mfc], axis=0)
-    df_lista8_clean = df_lista8_clean.drop_duplicates()
-    df_lista8_clean = df_lista8_clean.reset_index(drop=True)
-
-    print(f"\nRegistros de (Lista8+mfc): {len(df_lista8_clean.index)}\n")
-
-    #acá sacamos el archivo listo de skus activos
-    df_activos_skus = df_lista8_clean[df_lista8_clean['ref_id'].isin(valores_unicos_skus)]
-    df_activos_skus = df_activos_skus[["ref_id"]]
-    df_final_skus_activos = df_activos_skus.drop_duplicates(subset=['ref_id']).reset_index(drop=True)
-    df_final_skus_activos.columns = ["refId"]
-    df_final_skus_activos["publish"] = 1
-    df_final_skus_activos["updatePending"] = 1
-    df_final_skus_activos["active"] = 1
-
-    #acá sacamos el archivo listo de productos activos
-    df_activos_productos = df_lista8_clean.merge(df_excluidos_x_tiendas_mfc, how = 'left', on= ["ref_id","id_tienda"])
-    df_activos_productos = df_activos_productos[df_activos_productos["is_mfc"]!= 1] 
-    df_activos_productos = df_activos_productos[df_activos_productos['ref_id'].isin(valores_unicos_productos)]
-    df_activos_productos = df_activos_productos[df_activos_productos['id_tienda'].isin(tiendas_activas)]
-    df_activos_productos = df_activos_productos[["ref_id","id_tienda"]]
-    df_activos_productos = df_activos_productos.drop_duplicates()
-    df_activos_productos = df_activos_productos.reset_index(drop=True)
-    print(f"\nRegistros validos para productos activos desde lista8+mfc: {len(df_activos_productos.index)}\n")
-    df_final_productos_activos = df_activos_productos.groupby('ref_id')['id_tienda'].apply(list).reset_index()
-    df_final_productos_activos['id_tienda'] = df_final_productos_activos['id_tienda'].apply(lambda x: ', '.join(map(str, x)))
-    df_final_productos_activos.columns = ["refId","stores"]
-    df_final_productos_activos["visible"] = 1
-    df_final_productos_activos["publish"] = 1
-    df_final_productos_activos["updatePending"] = 1
-    df_final_productos_activos["active"] = 1
-    df_final_productos_activos = df_final_productos_activos.drop_duplicates()
-    df_final_productos_activos = df_final_productos_activos.reset_index(drop=True)
-
-    df_lista8_desactivar = pd.concat([df_lista8, df_publicacion_mfc_hoy], axis=0)
-
-    df_desactivados = (df_producto_tienda_janis.merge(df_lista8_desactivar, on=["ref_id","id_tienda"], how='left', indicator=True)
-        .query('_merge == "left_only"')
-        .drop('_merge',axis= 1))
-
-    print(f"\nRegistros a desactivar {len(df_desactivados.index)}\n")
-
-    df_desactivados = df_desactivados[df_desactivados['id_tienda'].isin(tiendas_activas)]
-    print(f"\nfiltro por tienda inactivas: {len(df_desactivados.index)}\n")
-
-    lista_skus_activos = df_final_skus_activos['refId'].unique()
-    df_desactivados = df_desactivados[~df_desactivados['ref_id'].isin(lista_skus_activos)]
-    print(f"\nfiltro por skus activos: {len(df_desactivados.index)}\n")
-
-    valores_unicos_skus = df_desactivados['ref_id'].unique()
-    print(f"\nSkus unicos: {len(valores_unicos_skus)}")
-
-    df_excluidos = df_producto_tienda_janis.merge(df_excluidos_x_tiendas_clean, on=["ref_id"], how='inner')
-    df_excluidos = df_excluidos[df_excluidos["id_tienda_x"]!= '9212']
-    df_excluidos = df_excluidos[df_excluidos['id_tienda_x'].isin(tiendas_activas)]
-    df_excluidos = df_excluidos[~df_excluidos['ref_id'].isin(lista_skus_activos)]
-    df_excluidos = df_excluidos.drop_duplicates(subset="ref_id")
-    df_excluidos = df_excluidos.reset_index(drop=True)
-    df_excluidos = df_excluidos[["ref_id"]]
-    df_excluidos.columns = ["refId"]
-    print("\ndf_excluidos: ",len(df_excluidos.index))
+    df_changes_final["publish"] = 1
+    df_changes_final["visible"] = 1
+    df_changes_final["updatePending"] = 1
+    df_changes_final["active"] = 1
+    df_changes_final.rename(columns={"ref_id":"refId","tiendas":"stores"}, inplace=True)
+    df_changes_final["date"] = pd.to_datetime('today')
 
 
-    df_desactivados_sku = df_desactivados[["ref_id"]]
-    df_desactivados_sku.columns = ["refId"]
-    df_desactivados_sku = pd.concat([df_desactivados_sku, df_excluidos], axis=0)
-    df_desactivados_sku = df_desactivados_sku.drop_duplicates(subset=['refId']).reset_index(drop=True)
-    df_desactivados_sku["publish"] = 1
-    df_desactivados_sku["updatePending"] = 1
-    df_desactivados_sku["active"] = 0
-
-
-    df_desactivados_productos = df_desactivados[["ref_id"]]
-    df_desactivados_productos.columns = ["refId"]
-    df_desactivados_productos = pd.concat([df_desactivados_productos, df_excluidos], axis=0)
-    df_desactivados_productos = df_desactivados_productos.drop_duplicates(subset=['refId']).reset_index(drop=True)
-    df_desactivados_productos["stores"] = "9212"
-    df_desactivados_productos["publish"] = 1
-    df_desactivados_productos["updatePending"] = 1
-    df_desactivados_productos["visible"] = 0
-    df_desactivados_productos["active"] = 0
-
-    df_final_productos = pd.concat([df_desactivados_productos, df_final_productos_activos], axis=0)
-    df_final_skus = pd.concat([df_desactivados_sku, df_final_skus_activos], axis=0)
-
+    df_final_productos =  df_changes_final[["refId","stores","publish","updatePending","visible","active"]]
+    df_final_skus = df_changes_final[["refId","publish","updatePending","active"]]
+    
 
     buffer_1 = io.StringIO()
     df_final_productos.to_csv(buffer_1, header=True, index=False, encoding="utf-8")
@@ -466,7 +375,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "truncate_and_load_table_producto_tienda_excluidos",
-        postgres_conn_id="postgresql_conn",
+        postgres_conn_id="postgresql_conn_prod",
         sql="sql/truncate_load_table_producto_tienda_excluidos.sql",
     )
 
