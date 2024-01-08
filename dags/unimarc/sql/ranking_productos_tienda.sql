@@ -63,17 +63,11 @@ FROM (
     FROM
         RankedData r
         LEFT JOIN ecommdata.skus s ON s.ref_id = r.ref_id_sku
-        LEFT JOIN ecommdata.stock s2 ON r.id_tienda = s2.id_tienda AND r.ref_id_sku = s2.ref_id
-        LEFT JOIN ecommdata.stock_mfc smfc ON r.id_tienda = smfc.id_tienda AND LPAD(smfc.material::text, 18, '0') || '-' || smfc.unidad_venta ::text = r.ref_id_sku
+		LEFT JOIN ecommdata.stock_mfc smfc ON r.id_tienda = '1917' AND LPAD(smfc.material::text, 18, '0') || '-' || smfc.unidad_venta::text = r.ref_id_sku AND smfc.fecha_carga = '{ds}'::date
+        LEFT JOIN ecommdata.stock s2 ON r.id_tienda <> '1917' AND r.id_tienda = s2.id_tienda AND r.ref_id_sku = s2.ref_id AND s2.fecha = '{ds}'::date AND s2.surtido_ecommerce = true
         LEFT JOIN ecommdata.productos p ON p.ref_id  = r.ref_id_sku
         LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id
         LEFT JOIN ecommdata.marcas m ON m.id = p.id_marca 
-    WHERE
-        (
-            (r.id_tienda = '1917' AND smfc.fecha_carga = '{ds}'::date)
-            OR
-            (r.id_tienda <> '1917' AND s2.fecha = '{ds}'::date AND s2.surtido_ecommerce = true)
-        )
     ORDER BY
         ranking, id_tienda
 ) AS Subquery;
