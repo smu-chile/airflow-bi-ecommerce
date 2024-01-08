@@ -172,6 +172,15 @@ def load_tables_to_s3(ts,ds):
     df_publicacion_mfc_hoy = publicacion_1917_today(ts)
     print("Ready publicacion_1917_today activas\n")
 
+    df_productos_sin_skus = df_productos.merge(df_lista8, on = ["ref_id"], how = 'left')
+    df_skus_sin_producto = df_productos_sin_skus.merge(df_skus, on = ["ref_id"], how = 'left')
+    df_skus_sin_producto = df_skus_sin_producto[(df_skus_sin_producto["id_tienda"].notna()) &
+                                                (df_skus_sin_producto["nombre_sku"].isna())
+                                                ].drop_duplicates(subset=['ref_id']).reset_index(drop=True)
+
+    df_skus_sin_producto = df_skus_sin_producto[["ref_id"]]
+    lista_skus_sin_producto = df_skus_sin_producto["ref_id"].to_list()
+
     #Activos
     #generamos los insumos de datos
     #productos activos por tiendas en janis
@@ -242,10 +251,58 @@ def load_tables_to_s3(ts,ds):
     df_changes_final.rename(columns={"ref_id":"refId","tiendas":"stores"}, inplace=True)
     df_changes_final["date"] = pd.to_datetime('today')
 
+    #desactivados
+    df_lista8_desactivar = df_lista8
 
-    df_final_productos =  df_changes_final[["refId","stores","publish","updatePending","visible","active"]]
+    df_desactivados = (df_producto_tienda_janis.merge(df_lista8_desactivar, on=["ref_id","id_tienda"], how='left', indicator=True)
+        .query('_merge == "left_only"')
+        .drop('_merge',axis= 1))
+
+    print(f"\nRegistros a desactivar {len(df_desactivados.index)}\n")
+
+    df_desactivados = df_desactivados[df_desactivados['id_tienda'].isin(series_active_stores)]
+    print(f"\nfiltro por tienda inactivas: {len(df_desactivados.index)}\n")
+
+    lista_skus_activos = df_changes_final['refId'].unique()
+    df_desactivados = df_desactivados[~df_desactivados['ref_id'].isin(lista_skus_activos)]
+    print(f"\nfiltro por skus activos: {len(df_desactivados.index)}\n")
+
+    valores_unicos_skus = df_desactivados['ref_id'].unique()
+    print(f"\nSkus unicos: {len(valores_unicos_skus)}")
+
+    df_excluidos = df_producto_tienda_janis.merge(excluidos_x_tiendas_tiendas, on=["ref_id"], how='inner')
+    df_excluidos = df_excluidos[df_excluidos["id_tienda_x"]!= '9212']
+    df_excluidos = df_excluidos[df_excluidos['id_tienda_x'].isin(series_active_stores)]
+    df_excluidos = df_excluidos[~df_excluidos['ref_id'].isin(lista_skus_activos)]
+    df_excluidos = df_excluidos.drop_duplicates(subset="ref_id")
+    df_excluidos = df_excluidos.reset_index(drop=True)
+    df_excluidos = df_excluidos[["ref_id"]]
+    df_excluidos.columns = ["refId"]
+    print("\ndf_excluidos: ",len(df_excluidos.index))
+
+    df_desactivados_sku = df_desactivados[["ref_id"]]
+    df_desactivados_sku.columns = ["refId"]
+    df_desactivados_sku = pd.concat([df_desactivados_sku, df_excluidos], axis=0)
+    df_desactivados_sku = df_desactivados_sku.drop_duplicates(subset=['refId']).reset_index(drop=True)
+    df_desactivados_sku["publish"] = 1
+    df_desactivados_sku["updatePending"] = 1
+    df_desactivados_sku["active"] = 0
+
+    df_desactivados_productos = df_desactivados[["ref_id"]]
+    df_desactivados_productos.columns = ["refId"]
+    df_desactivados_productos = pd.concat([df_desactivados_productos, df_excluidos], axis=0)
+    df_desactivados_productos = df_desactivados_productos.drop_duplicates(subset=['refId']).reset_index(drop=True)
+    df_desactivados_productos["stores"] = "9212"
+    df_desactivados_productos["publish"] = 1
+    df_desactivados_productos["updatePending"] = 1
+    df_desactivados_productos["visible"] = 0
+    df_desactivados_productos["active"] = 0
+
+    df_changes_final = df_changes_final[["refId","stores","publish","updatePending","visible","active"]]
     df_final_skus = df_changes_final[["refId","publish","updatePending","active"]]
-    
+    df_final_productos = pd.concat([df_changes_final,df_desactivados_productos], axis=0)
+    df_final_skus = pd.concat([df_final_skus,df_desactivados_sku], axis=0)
+    df_final_skus = df_final_skus[~df_final_skus['refId'].isin(lista_skus_sin_producto)]
 
     buffer_1 = io.StringIO()
     df_final_productos.to_csv(buffer_1, header=True, index=False, encoding="utf-8")
