@@ -14,7 +14,7 @@ def lista8():
     promociones_query = """select concat(material,'-',umv) as ref_id, id_tienda
                     from ecommdata.lista8"""
     print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="aws_s3_connection")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
@@ -32,7 +32,7 @@ def productos():
     productos_query = """select ref_id, nombre 
                     from ecommdata.productos"""
     print(productos_query)
-    pg_hook = PostgresHook(postgres_conn_id="aws_s3_connection")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(productos_query)
@@ -51,7 +51,7 @@ def tiendas():
                     from ecommdata.tiendas t 
                     where status = 1"""
     print(tiendas_query)
-    pg_hook = PostgresHook(postgres_conn_id="aws_s3_connection")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(tiendas_query)
@@ -69,7 +69,7 @@ def skus():
     skus_query = """select ref_id, nombre_sku
                     from ecommdata.skus"""
     print(skus_query)
-    pg_hook = PostgresHook(postgres_conn_id="aws_s3_connection")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(skus_query)
@@ -87,7 +87,7 @@ def producto_tienda_janis():
     productos_tienda_query = """select ref_id, id_tienda, activo
                         from ecommdata.productos_tienda"""
     print(productos_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="aws_s3_connection")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(productos_tienda_query)
@@ -106,7 +106,7 @@ def excluidos_x_tiendas():
     excluidos_query = """select ref_id,id_tienda,is_mfc,all_stores,fecha_carga
                     from ecommdata.producto_tienda_excluidos"""
     print(excluidos_query)
-    pg_hook = PostgresHook(postgres_conn_id="aws_s3_connection")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(excluidos_query)
@@ -131,7 +131,7 @@ def publicacion_1917_today(ts):
                     ;"""
 
     print(mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="aws_s3_connection")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(mfc_query)
@@ -155,7 +155,7 @@ def load_tables_to_s3(ts,ds):
     prefix = f"carga_tiendas/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    s3_hook = S3Hook(aws_conn_id="postgresql_conn")
 
     df_producto_tienda_janis = producto_tienda_janis()
     print(f"Ready productos por tienda en janis de hoy\n")
@@ -345,7 +345,7 @@ def load_tables_to_postgres(ti):
     filename_productos,filename_skus = ti.xcom_pull(key="return_value", task_ids=["load_tables_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    s3_hook = S3Hook(aws_conn_id="postgresql_conn")
 
     #productos
     print("Searching file: "+filename_productos)
@@ -432,7 +432,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "truncate_and_load_table_producto_tienda_excluidos",
-        postgres_conn_id="aws_s3_connection",
+        postgres_conn_id="postgresql_conn",
         sql="sql/truncate_load_table_producto_tienda_excluidos.sql",
     )
 
