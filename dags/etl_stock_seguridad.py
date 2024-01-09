@@ -28,17 +28,14 @@ def _check_time(ts):
         return "stock_ventas_tiendas_to_s3_pm"
 
 def stock(ds):
-    stock_tiendas_query = """select id_tienda,
-                            glosa_tienda,
+    stock_tiendas_query = f"""select id_tienda,
                             ref_id,
-                            stock_janis,
-                            stock_seguridad_janis,
                             date_part('dow',fecha) as dia,
                             date_part('week',fecha) as semana
                             from ecommdata.stock s
                             left join ecommdata.tiendas t
                             on t.id = s.id_tienda
-                            where fecha = current_date--'"""+ds+"""'::date
+                            where fecha = '{ds}'::date
                             and surtido_ecommerce is true
                             and stock_infinito_janis is not true
                             and id_tienda not in ('1917')
@@ -71,7 +68,7 @@ def matriz_ss():
 
 def promociones(ds):
     import pandas as pd
-    promociones_query = """select df.*
+    promociones_query = f"""select df.*
                     from(select 
                         CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv) as ref_id,
                         _t.fecha_inicio_de_promocion,
@@ -86,8 +83,8 @@ def promociones(ds):
                             fecha_fin_de_promocion,
                             id_mecanica
                             from ecommdata.workflow_promociones 
-                            where fecha_inicio_de_promocion <= '"""+ds+"""'::date
-                            and fecha_fin_de_promocion >= '"""+ds+"""'::date
+                            where fecha_inicio_de_promocion <= '{ds}'::date
+                            and fecha_fin_de_promocion >= '{ds}'::date
                             and id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
                             and id_evento not in (551)) as _t
                             group by
@@ -111,38 +108,17 @@ def promociones(ds):
 
 
 def venta_tienda(ds):
-    ventas_skus_tienda_query = """select _t.*
-                    from ( 
-                        select LPAD(v.id_tienda , 4, '0') as id_tienda,
-                        CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
-                        case
-                            when (v.umv in ('UN','DIS','KG')) then round(v.venta_bruta/v.venta_umv,0)
-                            else v.venta_bruta
-                        end as precio_venta,
-                        p.precio_lista,
-                        v.venta_umv,
-                        date_part('dow',v.fecha) as dia,
-                        date_part('week',v.fecha) as semana
-                        from ecommdata.venta_sku_tienda as v
-                        left join ecommdata.tiendas as t
-                        on LPAD(v.id_tienda , 4, '0') = t.id
-                        left join ecommdata.precios as p
-                        on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id
-                        and p.id_tienda_janis = t.id_janis  
-                        where v.fecha >= '"""+ds+"""'::date -30
-                        and v.venta_umv > 0 
-                        and v.venta_bruta <> 0 
-                        and v.organizacion = 'Unimarc'
-                        and p.precio_lista is not null
-                        and LPAD(v.id_tienda , 4, '0') not in ('1917')) as _t
-                        where precio_venta/precio_lista > 0.8 
-                        group by _t.id_tienda,
-                        _t.ref_id,
-                        _t.precio_venta,
-                        _t.precio_lista,
-                        _t.venta_umv, 
-                        _t.dia,
-                        _t.semana"""
+    ventas_skus_tienda_query = f"""select LPAD(v.id_tienda , 4, '0') as id_tienda,
+                    CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
+                    v.venta_umv,
+                    date_part('dow',v.fecha)::int as dia,
+                    date_part('week',v.fecha)::int as semana
+                    from ecommdata.venta_sku_tienda as v
+                    left join ecommdata.tiendas as t
+                    on LPAD(v.id_tienda , 4, '0') = t.id
+                    where v.fecha >= '{ds}'::date -30
+                    and v.organizacion = 'Unimarc'
+                    and LPAD(v.id_tienda , 4, '0') not in ('1917')"""
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -167,11 +143,11 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock = pd.DataFrame(stock(ds))
     print("se ha cargado stock\n")
     print(df_stock)
-    df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
+    df_stock.columns=["id_tienda","ref_id","dia","semana"]
     df_venta_tienda = pd.DataFrame(venta_tienda(ds))
     print("se ha cargado ventas\n")
     print(df_venta_tienda)
-    df_venta_tienda.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
+    df_venta_tienda.columns =["id_tienda","ref_id","cantidad","dia","semana"]
     df_promociones = promociones(ds)
     df_promociones=df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
@@ -183,7 +159,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #transformacion de datos#
     #########################
 
-    df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
@@ -206,7 +181,8 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
-    df_stock_seguridad_aux
+    df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
+    df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
@@ -222,8 +198,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
         .query('_merge == "left_only"')
         .drop('_merge', 1))
 
-    df_final = df_final[["id_tienda","ref_id","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
-    print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
@@ -245,6 +219,12 @@ def stock_ventas_tiendas_to_s3_am(ds):
     ##############
     #cargar datos#
     ##############
+    condlist = [df_final["nuevo_stock_seguridad"]>=2,
+                df_final["nuevo_stock_seguridad"]<2]
+    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -276,8 +256,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print("se ha cargado stock\n")
     df_venta_tienda = pd.DataFrame(venta_tienda(ds))
     print("se ha cargado ventas\n")
-    df_stock.columns=["id_tienda","glosa_tienda","ref_id","stock_janis","stock_seguridad","dia","semana"]
-    df_venta_tienda.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
+    df_stock.columns=["id_tienda","ref_id","dia","semana"]
+    df_venta_tienda.columns =["id_tienda","ref_id","cantidad","dia","semana"]
     df_promociones = promociones(ds)
     df_promociones=df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
@@ -288,7 +268,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #transformacion de datos#
     #########################
 
-    df_venta_tienda.precio_lista.fillna(df_venta_tienda.venta, inplace=True)
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
@@ -306,10 +285,11 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
-    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
+    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
-    print(df_stock_seguridad_aux)
+    df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
+    df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
@@ -319,14 +299,13 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
     dia = (dia + 1) % 7
+    print(f"\ndia: {dia}\n")
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
 
     df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
         .query('_merge == "left_only"')
         .drop('_merge', 1))
 
-    df_final = df_final[["id_tienda","ref_id","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
-    print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
@@ -349,11 +328,16 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     print("\n")
     print(df_final)
-
-
     ##############
     #cargar datos#
     ##############
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=2,
+                df_final["nuevo_stock_seguridad"]<2]
+    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
