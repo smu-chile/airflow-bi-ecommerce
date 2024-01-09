@@ -345,7 +345,7 @@ def load_tables_to_postgres(ti):
     filename_productos,filename_skus = ti.xcom_pull(key="return_value", task_ids=["load_tables_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="postgresql_conn")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     #productos
     print("Searching file: "+filename_productos)
