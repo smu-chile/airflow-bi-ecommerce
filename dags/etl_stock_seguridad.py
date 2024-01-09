@@ -178,7 +178,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
-    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","stock_janis","stock_seguridad","nuevo_stock_seguridad"]]
+    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
