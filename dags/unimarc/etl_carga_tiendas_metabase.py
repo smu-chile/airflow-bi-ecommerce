@@ -155,7 +155,7 @@ def load_tables_to_s3(ts,ds):
     prefix = f"carga_tiendas/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
-    s3_hook = S3Hook(aws_conn_id="postgresql_conn")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     df_producto_tienda_janis = producto_tienda_janis()
     print(f"Ready productos por tienda en janis de hoy\n")
