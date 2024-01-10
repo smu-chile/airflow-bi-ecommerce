@@ -275,7 +275,7 @@ with DAG(
                 FROM janis_jackie.wms_order_payments wop
                 JOIN janis_jackie.wms_orders wo
                     on wo.id = wop.order_id 
-                WHERE wop.transaction_date > {{ti.xcom_pull(key="return_value", task_ids="check_full_or_incremental_load")}} or SPLIT_PART('{{ts}}', 'T', 2)::time = '03:30:00'
+                WHERE wop.transaction_date > {{ti.xcom_pull(key="return_value", task_ids="check_full_or_incremental_load")}} or SUBSTRING_INDEX(SUBSTRING_INDEX('{{ts}}', 'T', -1), '+', 1) = '03:30:00'
             """,
             "query_name": "wms_order_payments",
         }
