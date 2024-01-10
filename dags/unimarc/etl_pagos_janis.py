@@ -125,7 +125,7 @@ def _incremental_load_pagos_janis(ti):
         "tid": "string",
         "id_merchant": "string",
         "fecha_transaccion": "string",
-        "fecha_transaccion_unixtime": "int64",
+        "fecha_transaccion_unixtime": "int64",  
         "id_sistema_de_pago": "string",
         "sistema_de_pago": "string",
         "grupo_pago": "string",
@@ -275,7 +275,7 @@ with DAG(
                 FROM janis_jackie.wms_order_payments wop
                 JOIN janis_jackie.wms_orders wo
                     on wo.id = wop.order_id 
-                WHERE wop.transaction_date > {{ti.xcom_pull(key="return_value", task_ids="check_full_or_incremental_load")}}
+                WHERE wop.transaction_date > {{ti.xcom_pull(key="return_value", task_ids="check_full_or_incremental_load")}} or {{ts}}::time = '00:30:00'
             """,
             "query_name": "wms_order_payments",
         }
