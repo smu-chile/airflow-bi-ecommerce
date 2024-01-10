@@ -241,7 +241,7 @@ with DAG(
     'proc_contenido_ppum_janis.py',
     default_args=default_args,
     description="""""",
-    schedule_interval="55 8 * * *",
+    schedule_interval="0 7 * * MON",
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
