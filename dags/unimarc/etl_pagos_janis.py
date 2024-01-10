@@ -125,7 +125,7 @@ def _incremental_load_pagos_janis(ti):
         "tid": "string",
         "id_merchant": "string",
         "fecha_transaccion": "string",
-        "fecha_transaccion_unixtime": "int64",  
+        "fecha_transaccion_unixtime": "int64",
         "id_sistema_de_pago": "string",
         "sistema_de_pago": "string",
         "grupo_pago": "string",
