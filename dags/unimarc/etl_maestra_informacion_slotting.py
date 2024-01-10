@@ -60,6 +60,7 @@ def render_netezza_view_2():
         cast(I.OU_ID as varchar(4)) CD,
         cast(D.OU_ID as varchar(4)) Tienda,
         Posicion,
+        Z.DATE_VALUE,
         sum(J.Pedido_umb) CanpedUMB,
         sum(J.Pedido_ump) Canped,
         Sum(J.Recibido_umb) CanrecUMB,
@@ -110,8 +111,8 @@ def render_netezza_view_2():
     column_names = [desc[0] for desc in cur.description]
     df = pd.DataFrame(result, columns=column_names)
     print(df.columns)
-    df = df[['PLU_SAP60','CD','CANPEDUMB','CANRECUMB']]
-    df.columns = ['material','CD','cant_pedida','cant_recibida']
+    df = df[['PLU_SAP60','CD','DATE_VALUE','CANPEDUMB','CANRECUMB']]
+    df.columns = ['material','CD','ultimo_recibido','cant_pedida','cant_recibida']
     cur.close()
     conn.close()
 
@@ -165,6 +166,21 @@ def productos_mfc(ds):
     pg_connection.close()
     return results
 
+def sku_atributos_mfc():
+    import pandas as pd
+    productos_mfc_query = f"""select split_part(tom_id,'-',1) as material, *
+from ecommdata.sku_atributos_mfc sam """
+    print(productos_mfc_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(productos_mfc_query)
+    results = cursor.fetchall()
+    results = pd.DataFrame(results)
+    results.columns = ["material","ref_id","food_safety","temperature_zone","is_hazardous"]
+    cursor.close()
+    pg_connection.close()
+    return results
 
 
 def load_slotting_to_s3(ds):
@@ -187,6 +203,7 @@ def load_slotting_to_s3(ds):
     print("Empezando carga de atributos skus\n")
     df_atributos_skus = render_netezza_view()
     print("Terminada carga de atributos skus\n")
+    df_sku_atributos_mfc = sku_atributos_mfc()
     df_atributos_skus.columns = ['sku_key', 'altura', 'ancho', 'brnd_id', 'categoria_material_desc',
                 'condicion_de_almacenaje', 'contenido_bruto', 'contenido_neto',
                 'gds_pd_tp_dsc', 'grado_alcoholico', 'longitud', 'marca_propia',
@@ -198,9 +215,9 @@ def load_slotting_to_s3(ds):
     print(df_productos_mfc.head())
     print(df_fill_rate.head())
 
-    df_fill_rate_acum = df_fill_rate.groupby(['material'])['cant_pedida','cant_recibida'].sum().reset_index()
+    df_fill_rate_acum = df_fill_rate.groupby(['material','ultimo_recibido'])['cant_pedida','cant_recibida'].sum().reset_index()
     df_fill_rate_acum["fill_rate"] = df_fill_rate_acum["cant_recibida"]/df_fill_rate_acum["cant_pedida"]
-    df_fill_rate_acum = df_fill_rate_acum[['material','fill_rate']]
+    df_fill_rate_acum = df_fill_rate_acum[['material','ultimo_recibido','fill_rate']]
     df_fill_rate_acum['material'] = df_fill_rate_acum['material'].apply(lambda x: str(int(x)) if pd.to_numeric(x, errors='coerce') == x else np.nan)
     df_fill_rate_acum['material'] = df_fill_rate_acum['material'].apply(lambda x: x.zfill(18) if pd.notnull(x) else x)
     df_fill_rate_acum.info()
@@ -208,6 +225,7 @@ def load_slotting_to_s3(ds):
     df_slotting = df_productos_mfc.merge(df_atributos_skus, how='left', on="material")
     df_slotting = df_slotting.drop_duplicates(subset=['ref_id'])
     df_slotting = df_slotting.merge(df_fill_rate_acum, how='left', on="material")
+    df_slotting = df_slotting.merge(df_sku_atributos_mfc, how='left', on="material")
 
     print(df_slotting.info())
 
