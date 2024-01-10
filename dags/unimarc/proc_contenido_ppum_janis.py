@@ -137,12 +137,6 @@ def get_ppum_data_from_janis(ds):
     df_atributos['attribute'] = df.apply(map_attribute, axis=1)
     df_atributos = df_atributos.dropna(subset=['attribute'])
 
-    df_atributos.info()
-    print(df_atributos)
-
-    records = list(df_atributos.to_records(index=False))
-    print(records)
-
     buffer = io.StringIO()
     df_atributos.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"atributos_janis/{exec_date}/atributo_contenido_{date_aux}.csv"
@@ -181,7 +175,7 @@ def set_atributo_contenido(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+    df.info()
 
     headers = {
         "janis-api-key": Variable.get("JANIS_API_KEY"),
@@ -202,7 +196,6 @@ def set_atributo_contenido(ti):
                 }
             ]
         }
-        print(item)
         jst.append(item)
 
     # Partición de big-json
