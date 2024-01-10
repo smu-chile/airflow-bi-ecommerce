@@ -145,7 +145,8 @@ def productos_mfc(ds):
                         round(avg(venta_umv),2) as venta_dia
                         from ecommdata.ventas_ecommerce_datawarehouse ved
                         where id_tienda = '1917'
-                        and fecha_facturacion > '{ds}'::date - 90
+                        and fecha_facturacion >= '2023-12-01 00:00:00.000'::date --cambio poligonos MFC
+                        and fecha_facturacion >= '{ds}'::date - 90
                         group by ref_id_sku
                     ) as venta_dia
                 on venta_dia.ref_id = pt.ref_id
