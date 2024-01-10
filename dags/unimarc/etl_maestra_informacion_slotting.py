@@ -283,9 +283,15 @@ def load_slotting_to_postgres(ti):
     df['peso_neto'] = df['peso_neto'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
     df['volumen'] = df['volumen'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
     df['vida_util'] = df['vida_util'].apply(lambda x: round(x, 2) if pd.notnull(x) else x)
+    df = df[['ref_id_x','material','descripcion','categoria_1','categoria_2','categoria_3','marca','proveedor','id_proveer','umv','ump','peso_bruto','venta_diaria_90d','sku_key','altura','ancho','brnd_id','categoria_material_desc','condicion_de_almacenaje','contenido_bruto','contenido_neto','gds_pd_tp_dsc','grado_alcoholico','longitud','marca_propia','numerador_ump','pais_origen_id','peso_neto','um_contenido','umb','unidad','unidad_de_medida_pedido','unidad_de_volumen','unidad_laa','unidad_peso','volumen','vida_util','ultimo_recibido','fill_rate','food_safety','temperature_zone','is_hazardous']]
+    df.columns = ['ref_id','material','descripcion','categoria_1','categoria_2','categoria_3','marca','proveedor','id_proveer','umv','ump','peso_bruto','venta_diaria_90d','sku_key','altura','ancho','brnd_id','categoria_material_desc','condicion_de_almacenaje','contenido_bruto','contenido_neto','gds_pd_tp_dsc','grado_alcoholico','longitud','marca_propia','numerador_ump','pais_origen_id','peso_neto','um_contenido','umb','unidad','unidad_de_medida_pedido','unidad_de_volumen','unidad_laa','unidad_peso','volumen','vida_util','ultimo_recibido','fill_rate','food_safety','temperature_zone','is_hazardous']
 
-    print(df.info())
-    print(df.head())
+    df['ultimo_recibido'] = pd.to_datetime(df['ultimo_recibido'])
+    df_sorted = df.sort_values(by='ultimo_recibido', ascending=False)
+    df_final = df_sorted.drop_duplicates(subset=df.columns.difference(['ultimo_recibido']), keep='first')
+
+    print(df_final.info())
+    print(df_final.head())
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -297,7 +303,7 @@ def load_slotting_to_postgres(ti):
 
     with engine.begin() as conn:
         conn.execute("TRUNCATE ecommdata.maestra_slotting")
-        df.to_sql(name="maestra_slotting",
+        df_final.to_sql(name="maestra_slotting",
                     con=conn,         
                     schema="ecommdata",         
                     if_exists='append',         
