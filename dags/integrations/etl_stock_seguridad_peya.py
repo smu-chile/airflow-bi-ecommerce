@@ -167,12 +167,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
     dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
 
-    df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
-        .query('_merge == "left_only"')
-        .drop('_merge', 1))
-
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-    print(df_final)
+    df_final=df_stock_seguridad_aux #arreglar para corregir con promos
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
@@ -283,12 +280,10 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     dia = (dia + 1) % 7
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
 
-    df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
-        .query('_merge == "left_only"')
-        .drop('_merge', 1))
+    df_final=df_stock_seguridad_aux #corregir por promos
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-    print(df_final)
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
