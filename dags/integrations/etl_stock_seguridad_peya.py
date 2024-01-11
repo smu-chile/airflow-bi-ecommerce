@@ -33,7 +33,7 @@ def stock(ds):
                         date_part('dow','{ds}'::date) as dia,
                         date_part('week','{ds}'::date) as semana
                         from integraciones.lm_stock_precio_promo lspp"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -48,7 +48,7 @@ def matriz_ss():
     matriz_query = """select *
                     from catalogo.matriz_ss_peya ms """
     print(matriz_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(matriz_query)
@@ -65,7 +65,7 @@ def promociones():
                     from integraciones.lm_stock_precio_promo lspp 
                     where lspp.precio_promocional is not null """
     print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
@@ -91,9 +91,10 @@ def venta_tienda():
                     where (id_peya is not null 
                     or id_peya_botilleria is not null
                     or peya_market is not null))
-                group by id_tienda,concat(lpad(material,18,'0'),'-',umv),fecha"""
+                group by id_tienda,concat(lpad(material,18,'0'),'-',umv),fecha
+                limit 10000"""
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -139,6 +140,8 @@ def stock_ventas_tiendas_to_s3_am(ds):
     print(df_aux2.head())
     df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
 
+    df_max = df_aux1.groupby(['id_tienda', 'ref_id', 'dia']).max().reset_index()
+
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
     print(df_stock_seguridad["cantidad"])
@@ -159,22 +162,26 @@ def stock_ventas_tiendas_to_s3_am(ds):
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
+
+    lista_promos = df_promociones['ref_id'].unique()
+
     fecha_str = ds
     formato_str = "%Y-%m-%d"
 
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
     dia = (dia + 1) % 7
-    df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
-
-    df_final=df_stock_seguridad_aux #arreglar para corregir con promos
-    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-    #print(df_final)
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final=df_stock_seguridad_aux.merge(df_max, on = ['ref_id','id_tienda','dia'])
+    df_final=df_final[df_stock_seguridad_aux["dia"] == dia]
+    print("\n wea con max!\n")
+    print(df_final)
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad","cantidad"]]
     print(df_final)
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final['is_promo'] = df_final['ref_id'].apply(lambda x: 'X' if x in lista_promos else '')
 
     print("transformacion de datos listo \n")
     #################
@@ -187,7 +194,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final["peso"] = df_final["peso"].fillna(1)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad","cantidad","is_promo"]]
 
     condlist = [df_final["nuevo_stock_seguridad"]>=2,
                 df_final["nuevo_stock_seguridad"]<2]
@@ -195,8 +202,14 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
-    df_final.columns = ["id_tienda","ref_id","dia","stock_seguridad"]
+    df_final.columns = ["id_tienda","ref_id","dia","stock_seguridad","maximo","is_promo"]
     print(df_final.head())
+
+    condlist = [df_final["is_promo"] == 'X',
+                df_final["is_promo"] != 'X']
+    choicelist = [df_final["maximo"], df_final["stock_seguridad"]]
+
+    df_final["stock_seguridad"] = np.select(condlist, choicelist)
 
     ##############
     #cargar datos#
@@ -254,6 +267,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print(df_aux2.head())
     df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
 
+    df_max = df_aux1.groupby(['id_tienda', 'ref_id', 'dia']).max().reset_index()
+
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
 
@@ -272,23 +287,25 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #        filtrado por dia y promociones       #
     ###############################################
 
+    lista_promos = df_promociones['ref_id'].unique()
+
     fecha_str = ds
     formato_str = "%Y-%m-%d"
 
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
     dia = (dia + 1) % 7
-    df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
-
-    df_final=df_stock_seguridad_aux #corregir por promos
-
-    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-    #print(df_final)
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final=df_stock_seguridad_aux.merge(df_max, on = ['ref_id','id_tienda','dia'])
+    df_final=df_final[df_stock_seguridad_aux["dia"] == dia]
+    print("\n wea con max!\n")
+    print(df_final)
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad","cantidad"]]
     print(df_final)
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final['is_promo'] = df_final['ref_id'].apply(lambda x: 'X' if x in lista_promos else '')
 
     print("transformacion de datos listo \n")
 
@@ -302,7 +319,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final["peso"] = df_final["peso"].fillna(1)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad","cantidad","is_promo"]]
 
     condlist = [df_final["nuevo_stock_seguridad"]>=2,
                 df_final["nuevo_stock_seguridad"]<2]
@@ -310,8 +327,12 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
-    df_final.columns = ["id_tienda","ref_id","dia","stock_seguridad"]
+    df_final.columns = ["id_tienda","ref_id","dia","stock_seguridad","maximo","is_promo"]
     print(df_final.head())
+
+    condlist = [df_final["is_promo"] == 'X',
+                df_final["is_promo"] != 'X']
+    choicelist = [df_final["maximo"], df_final["stock_seguridad"]]
 
     ##############
     #cargar datos#
