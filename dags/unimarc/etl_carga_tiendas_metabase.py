@@ -11,8 +11,13 @@ import pendulum
 
 def lista8():
     import pandas as pd
-    promociones_query = """select concat(material,'-',umv) as ref_id, id_tienda
-                    from ecommdata.lista8"""
+    promociones_query = """select concat(l.material,'-',l.umv) as ref_id, l.id_tienda
+                        from ecommdata.lista8 l
+                        left join (select concat(sap_code,'-',measurement_unit) as ref_id, store as id_tienda 
+                                    from ecommdata.ubicacion_mfc um 
+                                    where mfc_is_item_side = 'REG') as ubi
+                                    on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
+                        where ubi.ref_id is null"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
