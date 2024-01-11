@@ -33,7 +33,7 @@ def stock(ds):
                         date_part('dow','{ds}'::date) as dia,
                         date_part('week','{ds}'::date) as semana
                         from integraciones.lm_stock_precio_promo lspp"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -48,7 +48,7 @@ def matriz_ss():
     matriz_query = """select *
                     from catalogo.matriz_ss_peya ms """
     print(matriz_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(matriz_query)
@@ -65,7 +65,7 @@ def promociones():
                     from integraciones.lm_stock_precio_promo lspp 
                     where lspp.precio_promocional is not null """
     print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
@@ -94,7 +94,7 @@ def venta_tienda():
                 group by id_tienda,concat(lpad(material,18,'0'),'-',umv),fecha
                 limit 10000"""
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -208,6 +208,12 @@ def stock_ventas_tiendas_to_s3_am(ds):
     condlist = [df_final["is_promo"] == 'X',
                 df_final["is_promo"] != 'X']
     choicelist = [df_final["maximo"], df_final["stock_seguridad"]]
+
+    df_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+    condlist = [df_final["stock_seguridad"]>=2,
+                df_final["stock_seguridad"]<2]
+    choicelist = [df_final["stock_seguridad"], 2]
 
     df_final["stock_seguridad"] = np.select(condlist, choicelist)
 
@@ -333,6 +339,13 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     condlist = [df_final["is_promo"] == 'X',
                 df_final["is_promo"] != 'X']
     choicelist = [df_final["maximo"], df_final["stock_seguridad"]]
+    df_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+    condlist = [df_final["stock_seguridad"]>=2,
+                df_final["stock_seguridad"]<2]
+    choicelist = [df_final["stock_seguridad"], 2]
+
+    df_final["stock_seguridad"] = np.select(condlist, choicelist)
 
     ##############
     #cargar datos#
