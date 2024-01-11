@@ -91,8 +91,7 @@ def venta_tienda():
                     where (id_peya is not null 
                     or id_peya_botilleria is not null
                     or peya_market is not null))
-                group by id_tienda,concat(lpad(material,18,'0'),'-',umv),fecha
-                limit 10000"""
+                group by id_tienda,concat(lpad(material,18,'0'),'-',umv),fecha"""
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
