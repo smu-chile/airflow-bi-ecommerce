@@ -392,6 +392,7 @@ def stock_seguridad_to_postgres_am(ti):
 
     df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
+    df = df[['id_tienda','ref_id','dia','stock_seguridad']]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -440,6 +441,7 @@ def stock_seguridad_to_postgres_pm(ti):
     print(f"Number of records extracted: {len(df.index)}")
     df['stock_seguridad'] = pd.to_numeric(df['stock_seguridad'], errors='coerce').astype('Int64')
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
+    df = df[['id_tienda','ref_id','dia','stock_seguridad']]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
