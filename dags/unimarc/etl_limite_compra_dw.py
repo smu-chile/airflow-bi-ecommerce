@@ -201,7 +201,7 @@ with DAG(
                         GROUP BY
                             fvt.EAN, dph.NM, dph.SKU_PRODUCT,fvt.UNIDAD_MEDIDA 
                         HAVING
-                            PURCHASE_LIMIT > 22
+                            PURCHASE_LIMIT > 999
                         ORDER BY
                             fvt.EAN;
             """,
