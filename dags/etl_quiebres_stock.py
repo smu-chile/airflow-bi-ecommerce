@@ -149,7 +149,7 @@ with DAG(
     default_args=default_args,
     description="Carga de datos de quiebres stock 60 dias S3.",
     schedule_interval="0 5 1/15 * *",
-    start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
+    start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "ecommdata", "S3"],
