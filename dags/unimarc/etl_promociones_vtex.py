@@ -499,23 +499,39 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = i.get('id',None)
             nombre_coleccion = i.get('name',None)
             tipo = "collections"
-            page = 1
+            max_retries = 3  # Set the maximum number of retries
+            page=1
+            print("nombre coleccion")
+            print(nombre_coleccion)
             df_collections = pd.DataFrame()
+            retry_count = 0
             while True:
-                params = {'pageSize': 50, 'page': page}
+                params = {'pageSize': 1000, 'page': page}
+                print("Page:")
+                print(page)
                 products_url = f'{url}{vtex_id_coleccion}/products'
-                response = requests.get(products_url, params=params, headers=headers)
-                
-                if response.status_code == 200:
-                    collection_skus = response.json()
-                    df_collections = df_collections.append(pd.DataFrame(collection_skus))
-                    if response.json()['TotalPage'] <= page:
-                        page += 1
+                try:
+                    response = requests.get(products_url, params=params, headers=headers)
+                    response.raise_for_status()
+                    if response.status_code == 200:
+                        collection_skus = response.json()
+                        df_collections = df_collections.append(pd.DataFrame(collection_skus))
+                        print(response.json()['TotalPage'])  
+                        if page < response.json()['TotalPage']:
+                            page += 1
+                        else:
+                            break
                     else:
+                        print(f"Request failed with status code {response.status_code}")
                         break
-                else:
-                    print(f"Request failed with status code {response.status_code}")
-                    break
+                except Exception as e:
+                    print(e)
+                    if retry_count < max_retries - 1:
+                        retry_count += 1
+                        print(f"Retrying... ({retry_count}/{max_retries})")
+                    else:
+                        print("Max retries reached. Exiting.")
+                        break
             for index, row in df_collections.iterrows():
                 data_column = row['Data']
                 vtex_id_sku = data_column['SkuId']
