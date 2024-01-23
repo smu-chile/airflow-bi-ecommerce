@@ -163,4 +163,8 @@ with DAG(
         task_id = "extraccion_s3_publicacion_catalogo",
         python_callable = extraccion_s3_publicacion_catalogo
     )
-    t1 
+    t2 = PythonOperator(
+        task_id = "quiebres_to_postgres",
+        python_callable = quiebres_to_postgres
+    )
+    t1 >> t2
