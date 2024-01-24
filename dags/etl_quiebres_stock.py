@@ -39,7 +39,7 @@ def extraccion_s3_publicacion_catalogo(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     hoy = datetime.now().date() - timedelta(days=15)
-    dias_a_restar = 5 #cambiar por 45
+    dias_a_restar = 45
     fecha_inicial = hoy - timedelta(days=dias_a_restar)
 
     lista = []
