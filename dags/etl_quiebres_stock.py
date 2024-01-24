@@ -145,7 +145,7 @@ def quiebres_to_postgres(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+    df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
