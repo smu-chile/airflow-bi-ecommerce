@@ -11,11 +11,12 @@ from datetime import datetime, timedelta
 import pendulum
 
 def publicacion_catalogo(ds):
+    import pandas as pd
     publicacion_query = f"""SELECT *
                         from ecommdata.publicacion_catalogo pc
                         where fecha_hora > '{ds}'::date-15
                         and c1 = 'Frutas y Verduras'
-                        and stock_janis < 1
+                        and stock_janis is null
                         and EXTRACT(HOUR FROM fecha_hora) = 12"""
     print(publicacion_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -23,6 +24,7 @@ def publicacion_catalogo(ds):
     cursor = pg_connection.cursor()
     cursor.execute(publicacion_query)
     results = cursor.fetchall()
+    results = pd.DataFrame(results)
     cursor.close()
     pg_connection.close()
     return results
@@ -64,19 +66,49 @@ def extraccion_s3_publicacion_catalogo(ds):
         s3_object = s3_hook.get_key(s3_filename, bucket_name=s3_bucket)
         df = pd.read_csv(s3_object.get()["Body"])
         df = df[df["c1"] == "Frutas y Verduras"]
-        df = df[df["stock_janis"]<1]
+        df = df[df["stock_janis"].isnull()]
         dataframes_list.append(df)
 
     result_df = pd.concat(dataframes_list, ignore_index=True)
+    result_df.info()
     df_catalogo_15d = publicacion_catalogo(ds)
-    df_catalogo_15d.columns = result_df.columns
-    result_df = pd.concat(result_df,df_catalogo_15d)
+    df_catalogo_15d.columns = ["fecha_hora" ,
+                            "material" ,
+                            "ref_id" ,
+                            "descripcion" ,
+                            "c1" ,
+                            "c2" ,
+                            "c3" ,
+                            "id_tienda" ,
+                            "id_bodega" ,
+                            "marca" ,
+                            "foto_valida" ,
+                            "cantidad_foto" ,
+                            "foto_en_preparacion" ,
+                            "categoria_valida" ,
+                            "stock_valido" ,
+                            "precio_valido" ,
+                            "tienda_valida" ,
+                            "publicacion_valida" ,
+                            "disponible_web" ,
+                            "infaltable" ,
+                            "stock_janis" ,
+                            "stock_seguridad_janis" ,
+                            "stock_infinito_janis" ,
+                            "stock_vtex" ,
+                            "stock_reservado_vtex" ,
+                            "stock_infinito_vtex" ,
+                            "surtido_ecommerce" ,
+                            "top_300" ,
+                            "mfc"]
+    print(df_catalogo_15d)
+    df_final = pd.concat([result_df,df_catalogo_15d],axis=0)
 
     print("Final DataFrame:")
-    print(result_df.info())
+    df_final.info()
 
     buffer = io.StringIO()
-    result_df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"quiebres_inventario/{exec_date}/quiebres_inventario_{date_aux}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
@@ -124,7 +156,7 @@ def quiebres_to_postgres(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata.quiebres_inventario")
+        conn.execute("TRUNCATE ecommdata.quiebres_inventario;")
         df.to_sql(name="quiebres_inventario",
                     con=conn,         
                     schema="ecommdata",         
