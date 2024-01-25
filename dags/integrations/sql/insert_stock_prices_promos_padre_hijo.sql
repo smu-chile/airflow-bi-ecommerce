@@ -1,5 +1,5 @@
 BEGIN TRANSACTION;
---PRODUCTOS REGULARES
+--TRADUCCION PRODUCTOS PADRE - HIJO
 insert into integraciones.lm_stock_precio_promo 
 select _t.id_tienda,
 	_t.ean,
@@ -12,24 +12,26 @@ select _t.id_tienda,
 	_t2.precio,
 	_t3.precio_promocional
 from (
-	select s.sku_product as material 
+	select split_part(s2.ref_id, '-', 1) as material
 		, s.ou_id as id_tienda 
 		, s.nbr_itm as stock_unitario
-		, p.ean as ean 
+		, s2.ean_primario as ean
 		, p.cont_conv_umb as multiplicador_unidad
-		, p.nm as nombre
+		, s2.nombre_sku as nombre
 		, p.brand_desc as marca
-		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida   
+		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida
 	from integraciones.stock s 
 	left join integraciones.productos p 
-		on p.sku_key = s.sku_key 
-	left join ecommdata.tiendas t 
-		on s.ou_id = t.id  
+		on p.sku_key = s.sku_key
+	join ecommdata.skus s2 
+		on s2.erp_id = s.sku_product
+		and s2.erp_id::int8 <> split_part(s2.ref_id, '-', 1)::int8 
 	where p.ean is not null 
-	and p.cont_conv_umb is not null 
-	and p.nm is not null 
-	and p.brand_desc is not null 
-	and p.unidad_de_medida is not null) _t
+		and p.cont_conv_umb is not null 
+		and p.nm is not null 
+		and p.brand_desc is not null 
+		and p.unidad_de_medida is not null
+	) _t
 join (
 	select t.id as id_tienda
 		, p.ref_id
@@ -58,7 +60,7 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-   	and  (wp.id_mecanica NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+	and (wp.id_mecanica NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
         OR (wp.n_promocion = 5510012023)
         AND (wp.n_promocion != 5680022023))
     group by wp.ean
@@ -66,4 +68,4 @@ left join (
 on _t.ean = _t3.ean
 where floor(_t.stock_unitario/_t.multiplicador_unidad) > 0
 ;
-COMMIT
+COMMIT;
