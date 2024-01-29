@@ -141,8 +141,11 @@ SELECT wp.n_promocion,
                     pdv.nombre_promocion as nombre_promocion_vtex,
                     concat('https://unimarc.myvtex.com/admin/promotions/',pdv.id) as link_promocion
                     from ecommdata.promociones_detalle_vtex pdv
+                    left join ecommdata.promociones_vtex pv on pv.id = pdv.id
                     LEFT JOIN catalogo.vtex_products_collections vpc ON pdv.vtex_id_coleccion::numeric = vpc.collection_id::numeric
-                    LEFT JOIN catalogo.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy") as pdvd on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
+                    LEFT JOIN catalogo.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy"
+                    where pdv.archivado is false
+                    and pv.estado = 'active') as pdvd on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
     WHERE (wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 37, 51, 93, 53, 96, 77, 59]))
     AND wp.fecha_inicio_de_promocion <= '{ds}'::date + 1
     AND wp.fecha_fin_de_promocion >= '{ds}'::date
