@@ -151,6 +151,7 @@ SELECT wp.n_promocion,
     AND wp.fecha_fin_de_promocion >= '{ds}'::date
     and wp.tipo_promocion <> 3
     AND wp.nombre_promocion::text !~~ '%MFC%'::text
+    AND wp.nombre_promocion::text !~~ '%BANCO ESTADO%'::text
     AND wp.nombre_promocion::text !~~ '%NO ELIMINAR%'::text 
     AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text 
     AND wp.nombre_promocion::text !~~ '%917%'::text
