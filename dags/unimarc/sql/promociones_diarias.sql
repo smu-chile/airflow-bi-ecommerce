@@ -2,7 +2,7 @@ SELECT wp.n_promocion,
     wp.nombre_promocion,
     (((((wp.n_promocion || ' '::text) || regexp_replace(wp.nombre_promocion::text, '[^a-zA-Z0-9]'::text, ''::text, 'g'::text)) || '_'::text) ||
         CASE
-            WHEN wp.id_mecanica = 11 THEN 'C003'::text
+            WHEN wp.id_mecanica = 13 THEN 'C003'::text
             WHEN wp.id_mecanica = 10 THEN 'C004'::text
             WHEN wp.id_mecanica = 9  THEN 'C005'::text
             WHEN wp.id_mecanica = 30 THEN 'C008'::text
