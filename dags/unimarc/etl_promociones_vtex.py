@@ -198,6 +198,9 @@ def _load_promociones_detalle_vtex_to_S3(final_responses, ts, file_name):
         "lastModified",
         "isActive",
         "isArchived",
+        "absoluteShippingDiscountValue",
+        "nominalShippingDiscountValue",
+        "percentualShippingDiscountValue",
         "priceTableName",
         "brands",
         "products",
@@ -236,6 +239,9 @@ def _load_promociones_detalle_vtex_to_S3(final_responses, ts, file_name):
         "lastModified" : "ultima_modificacion",
         "isActive" : "activo",
         "isArchived" : "archivado",
+        "absoluteShippingDiscountValue": "decuento_despacho_absoluto",
+        "nominalShippingDiscountValue": "descuento_despacho_nominal",
+        "percentualShippingDiscountValue": "descuento_despacho_percentual",
         "priceTableName" : "tabla_nombre_precio",
         "brands" : "marcas",
         "products" : "productos",
@@ -399,6 +405,9 @@ def _save_table_detalle_promociones(ts, ti, ds):
         "ultima_modificacion",
         "activo",
         "archivado",
+        "decuento_despacho_absoluto",
+        "descuento_despacho_nominal",
+        "descuento_despacho_percentual",
         "tabla_nombre_precio",
         "marcas",
         "productos",
@@ -437,6 +446,22 @@ def _save_table_detalle_promociones(ts, ti, ds):
         valor_descuento_percentual = df['percentualDiscountValue'][ind]
         acumular_precio_fijo= df['accumulateWithManualPrice'][ind]
         campana_cupon = df['campana_cupon'][ind]
+        if any(isinstance(df[col][ind], list) and df[col][ind] for col in ['productos', 'skus', 'collections1BuyTogether', 'collections2BuyTogether', 'listSku1BuyTogether', 'listSku2BuyTogether', 'collections']) and str(tabla_nombre_precio) != 'nan':
+            total_carro = False
+        else:
+            total_carro = True
+        if df['decuento_despacho_absoluto'][ind] != 0 or df['descuento_despacho_nominal'][ind] != 0 or df['descuento_despacho_percentual'][ind] != 0 :
+            afecta_despacho = True
+            vtex_id_producto = None
+            nombre_producto = None
+            vtex_id_sku = None
+            nombre_sku = None
+            vtex_id_coleccion = None
+            nombre_coleccion = None
+            tipo = "despacho"
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
+        else:
+            afecta_despacho = False
         for i in ast.literal_eval(df['productos'][ind]):
             vtex_id_producto = i.get('id',None)
             nombre_producto = i.get('name',None)
@@ -445,7 +470,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "producto"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
         for i in ast.literal_eval(df['skus'][ind]):
             vtex_id_producto = None
             nombre_producto = None
@@ -454,7 +479,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             tipo = "sku"
             vtex_id_coleccion = None
             nombre_coleccion = None
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
         for i in ast.literal_eval(df['collections1BuyTogether'][ind]):
             vtex_id_producto = i.get('id',None)
             nombre_producto = i.get('name',None)
@@ -463,7 +488,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "collections1BuyTogether"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
         for i in ast.literal_eval(df['collections2BuyTogether'][ind]):
             vtex_id_producto = i.get('id',None)
             nombre_producto = i.get('name',None)
@@ -472,7 +497,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "collections2BuyTogether"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
         for i in ast.literal_eval(df['listSku1BuyTogether'][ind]):
             vtex_id_producto = None
             nombre_producto = None
@@ -481,7 +506,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "listSku1BuyTogether"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
         for i in ast.literal_eval(df['listSku2BuyTogether'][ind]):
             vtex_id_producto = None
             nombre_producto = None
@@ -490,8 +515,8 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "listSku2BuyTogether"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
-        for i in ast.literal_eval(df['collections'][ind]):
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
+        '''for i in ast.literal_eval(df['collections'][ind]):
             vtex_id_producto = None
             nombre_producto = None
             vtex_id_sku = None
@@ -524,7 +549,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
                                     activo, archivado, tabla_nombre_precio, marcas, cupon, vtex_id_producto,
                                     nombre_producto, vtex_id_sku, nombre_sku, tipo, maxima_unidad_pd, min_cantidad_bt,
                                     cantidad_a_afectar_bt, valor_descuento_percentual, acumular_precio_fijo,
-                                    vtex_id_coleccion, nombre_coleccion,campana_cupon])
+                                    vtex_id_coleccion, nombre_coleccion,campana_cupon,afecta_despacho,total_carro])'''
         if str(tabla_nombre_precio) != 'nan':
             vtex_id_producto = None
             nombre_producto = None
@@ -533,7 +558,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "tabla_nombre_precio"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
         if marcas != '[]':
             vtex_id_producto = None
             nombre_producto = None
@@ -542,7 +567,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "marcas"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
         if str(campana_cupon) != 'nan':
             vtex_id_producto = None
             nombre_producto = None
@@ -551,9 +576,9 @@ def _save_table_detalle_promociones(ts, ti, ds):
             vtex_id_coleccion = None
             nombre_coleccion = None
             tipo = "cupon"
-            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon])
+            aux_list.append([id,nombre_promocion,valores_generales,fecha_inicio,fecha_fin,ultima_modificacion,activo,archivado,tabla_nombre_precio,marcas,cupon,vtex_id_producto,nombre_producto, vtex_id_sku, nombre_sku, tipo,maxima_unidad_pd,min_cantidad_bt,cantidad_a_afectar_bt,valor_descuento_percentual,acumular_precio_fijo,vtex_id_coleccion,nombre_coleccion,campana_cupon,afecta_despacho,total_carro])
 
-    df2 = pd.DataFrame(aux_list, columns = ['id','nombre_promocion','valores_generales','fecha_inicio','fecha_fin','ultima_modificacion','activo','archivado','tabla_nombre_precio','marcas','cupon','vtex_id_producto','nombre_producto','vtex_id_sku','nombre_sku','tipo','maxima_unidad_pd','min_cantidad_bt','cantidad_a_afectar_bt','valor_descuento_percentual','acumular_precio_fijo','vtex_id_coleccion','nombre_coleccion','campana_cupon'])
+    df2 = pd.DataFrame(aux_list, columns = ['id','nombre_promocion','valores_generales','fecha_inicio','fecha_fin','ultima_modificacion','activo','archivado','tabla_nombre_precio','marcas','cupon','vtex_id_producto','nombre_producto','vtex_id_sku','nombre_sku','tipo','maxima_unidad_pd','min_cantidad_bt','cantidad_a_afectar_bt','valor_descuento_percentual','acumular_precio_fijo','vtex_id_coleccion','nombre_coleccion','campana_cupon','afecta_despacho','total_carro'])
         
 
 
