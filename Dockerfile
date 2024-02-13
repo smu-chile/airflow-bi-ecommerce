@@ -7,6 +7,8 @@ RUN apt-get install default-jre -y
 RUN apt-get install python3-dev -y
 ENV JAVA_HOME="/usr/lib/jvm/java-1.8-openjdk/"
 ENV LD_LIBRARY_PATH="/usr/lib/jvm/java-8-openjdk/jre/lib/amd64/server/"
+ADD requirements.txt /opt/airflow/
+
 USER airflow
 RUN pip install --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
