@@ -1,4 +1,4 @@
-FROM apache/airflow:2.8.1
+FROM apache/airflow:2.2.5
 
 USER root
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys B7B3B788A8D3785C
