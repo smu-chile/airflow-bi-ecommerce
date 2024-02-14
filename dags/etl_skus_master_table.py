@@ -248,7 +248,6 @@ with DAG(
                 FROM DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY AS H
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SUPPLIER AS S on H.PROVEEDOR_PPAL_KEY = S.SUPPLIER_KEY
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_ENVASE AS E on E.CODIGO = H.ENVASE 
-                limit 5000
             """,
             "query_name": "HIERARCHYxSUPPLIER_query"
         },
