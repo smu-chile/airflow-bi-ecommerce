@@ -323,7 +323,7 @@ with DAG(
     )
 
     t11 = PostgresOperator(
-        task_id = "calculate_stock_prices_promos",
+        task_id = "calculate_stock_prices_promos_ph",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/insert_stock_prices_promos_padre_hijo.sql"
     )
@@ -335,7 +335,7 @@ with DAG(
     )
 
     t13 = PostgresOperator(
-        task_id = "calculate_stock_prices_promos_no_ecommerce",
+        task_id = "calculate_stock_prices_promos_no_ecommerce_ph",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/insert_stock_prices_promos_no_ecommmerce_padre_hijo.sql"
     )
