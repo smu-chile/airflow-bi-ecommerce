@@ -7,7 +7,7 @@ jaydebeapi
 oauth2client
 openpyxl
 ortools
-pandas
+pandas==1.3.4
 pydrive2
 pymongo[srv]==3.12
 pysftp==0.2.8
