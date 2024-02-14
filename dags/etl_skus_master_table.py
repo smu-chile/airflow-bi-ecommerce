@@ -84,9 +84,9 @@ def master_sku_to_s3(ds,ti):
     "SUPPLIER_ID": "str",
     "SUPPLIER_NM": "str",
     "SUPPLIER_TYPE": "str",
-    "SUPPLIER_RETAIL": "bool",
-    "NUESTRO_100": "bool",
-    "MARCA_PROPIA": "bool"
+    "SUPPLIER_RETAIL": "str",
+    "NUESTRO_100": "str",
+    "MARCA_PROPIA": "str"
     }
 
     df_supp = pd.read_csv(ventas_sala_dw_object.get()["Body"], dtype=column_types)
