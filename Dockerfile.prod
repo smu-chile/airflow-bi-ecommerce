@@ -1,4 +1,4 @@
-FROM apache/airflow:2.2.5
+FROM reigncl/airflow:2.2.4-python3.9-onbuild
 
 USER root
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys B7B3B788A8D3785C
