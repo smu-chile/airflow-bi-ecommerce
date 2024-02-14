@@ -171,9 +171,9 @@ def create_list_price(ti):
     df_vtex_w2l = df_vtex_w2l[df_vtex_w2l["Factor"] != 0]
 
     df_vtex_w2l["startDate"] = pd.to_datetime(
-        df_vtex_w2l["startDate"], dayfirst=True).dt.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+        df_vtex_w2l["startDate"], dayfirst=True).dt.strftime("%Y-%m-%dT%H:%M:%S-03:00")
     df_vtex_w2l["endDate"] = (pd.to_datetime(df_vtex_w2l["endDate"], dayfirst=True) +
-                              pd.Timedelta(days=1)).dt.strftime(("%Y-%m-%dT%H:%M:%S-04:00"))
+                              pd.Timedelta(days=1)).dt.strftime(("%Y-%m-%dT%H:%M:%S-03:00"))
 
     df_vtex_w2l = df_vtex_w2l.rename(
         columns={
@@ -241,14 +241,14 @@ def create_list_price(ti):
 
     base = f"https://{accountName}.{environment}.com.br"
     url = base + "/api/rnb/pvt/calculatorconfiguration"
-
+    
     for index, row in unique_df.iterrows():
         payload = {
                 'idCalculatorConfiguration': "",
                 'name': row['nombre_vtex'],
                 'generalValues': {'WORKFLOWID': row['n_promocion']},
-                'beginDateUtc': row['fecha_inicio_de_promocion'],
-                'endDateUtc': row['fecha_fin_de_promocion'],
+                'beginDateUtc': str(pendulum.parse(row['fecha_inicio_de_promocion'], tz='America/Santiago')),
+                'endDateUtc': str(pendulum.parse(row['fecha_fin_de_promocion'], tz='America/Santiago').add(days=1)),
                 'lastModified': "",
                 'daysAgoOfPurchases': 0,
                 'isActive': True,
@@ -467,7 +467,7 @@ def load_prices_to_postgres(ti):
 
     if len(df_vtex.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
-        '''return'''
+        return
     
     print(f"Number of records extracted: {len(df.index)}")
     df.info()
@@ -499,9 +499,9 @@ def load_prices_to_postgres(ti):
     df_vtex_w2l = df_vtex_w2l[df_vtex_w2l["Factor"] != 0]
 
     df_vtex_w2l["startDate"] = pd.to_datetime(
-        df_vtex_w2l["startDate"], dayfirst=True).dt.strftime("%Y-%m-%dT%H:%M:%S-04:00")
+        df_vtex_w2l["startDate"], dayfirst=True).dt.strftime("%Y-%m-%dT%H:%M:%S-03:00")
     df_vtex_w2l["endDate"] = (pd.to_datetime(df_vtex_w2l["endDate"], dayfirst=True) +
-                              pd.Timedelta(days=1)).dt.strftime(("%Y-%m-%dT%H:%M:%S-04:00"))
+                              pd.Timedelta(days=1)).dt.strftime(("%Y-%m-%dT%H:%M:%S-03:00"))
 
     df_vtex_w2l = df_vtex_w2l.rename(
         columns={

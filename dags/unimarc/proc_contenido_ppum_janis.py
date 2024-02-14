@@ -206,7 +206,6 @@ def set_atributo_contenido(ti):
     else:
         jst = [jst]
     
-    # Seteo vía API al atriubuto limite de compra de la lista de refid
     API_JANIS = Variable.get("JANIS_API_URL")
     cargando = 0
     for arr_dic in jst:
@@ -217,9 +216,9 @@ def set_atributo_contenido(ti):
         else:
             print(f"Carga sin éxito | Status_Code: {r.status_code} ")
             print(f"Response Print: {r.content}")
-            raise ValueError("Janis API response != 200")
+            continue
     print("La carga de atributo contenido a finalizado")      
-    return 
+    return
 
 
 default_args = {

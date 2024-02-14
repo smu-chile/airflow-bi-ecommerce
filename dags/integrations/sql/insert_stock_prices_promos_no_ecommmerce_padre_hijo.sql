@@ -1,5 +1,5 @@
 BEGIN TRANSACTION;
---PRODUCTOS REGULARES
+--TRADUCCION PRODUCTOS PADRE-HIJO
 insert into integraciones.lm_stock_precio_promo
 with productos_lista8 as (
 	select material || '-' || umv as ref_id
@@ -27,22 +27,25 @@ select _t.id_tienda,
 	_t2.precio,
 	_t3.precio_promocional
 from (
-	select s.sku_product as material 
+	select split_part(s2.ref_id, '-', 1) as material
 		, s.ou_id as id_tienda 
 		, s.nbr_itm as stock_unitario
-		, p.ean as ean 
+		, s2.ean_primario as ean
 		, p.cont_conv_umb as multiplicador_unidad
-		, p.nm as nombre
-		, p.brand_desc as trademark
-		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida   
+		, s2.nombre_sku as nombre
+		, p.brand_desc as trademark 
+		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida
 	from integraciones.stock s 
 	left join integraciones.productos p 
-		on p.sku_key = s.sku_key 
+		on p.sku_key = s.sku_key
+	join ecommdata.skus s2 
+		on s2.erp_id = s.sku_product
+		and s2.erp_id::int8 <> split_part(s2.ref_id, '-', 1)::int8 
 	where p.ean is not null 
-	and p.cont_conv_umb is not null 
-	and p.nm is not null 
-	and p.brand_desc is not null 
-	and p.unidad_de_medida is not null
+		and p.cont_conv_umb is not null 
+		and p.nm is not null 
+		and p.brand_desc is not null 
+		and p.unidad_de_medida is not null
 	) _t
 join (
 	select pm.ref_id
@@ -75,5 +78,4 @@ and not exists (
 	and t.status = 1
 ) 
 ;
-COMMIT
-
+COMMIT;
