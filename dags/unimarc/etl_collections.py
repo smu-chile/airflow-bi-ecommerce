@@ -179,7 +179,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 26, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["vtex", "promociones", "colecciones", "workflow_promociones"],
+    tags=["vtex", "promociones", "colecciones", "workflow_promociones", "SERGIO"],
 ) as dag:
 
     dag.doc_md = """

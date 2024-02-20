@@ -53,7 +53,7 @@ with DAG(
     schedule_interval="*/10 * * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["DW"],
+    tags=["DW", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

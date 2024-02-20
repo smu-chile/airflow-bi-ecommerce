@@ -26,7 +26,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 10, 23, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
-    tags=["DATA", "resumen_catalogo", "ecommdata", "unimarc"],
+    tags=["DATA", "resumen_catalogo", "ecommdata", "unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

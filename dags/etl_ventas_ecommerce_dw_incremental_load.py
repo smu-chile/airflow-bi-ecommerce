@@ -161,7 +161,7 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     concurrency=2,
-    tags=["DATA", "DW", "S3", "workspace", "ventas_ecommerce_datawarehouse", "unimarc"],
+    tags=["DATA", "DW", "S3", "workspace", "ventas_ecommerce_datawarehouse", "unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

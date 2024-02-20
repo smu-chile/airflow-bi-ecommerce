@@ -237,7 +237,7 @@ with DAG(
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["janis", "ppum", "ecommdata_unimarc", "atributos_producto"],
+    tags=["janis", "ppum", "ecommdata_unimarc", "atributos_producto", "SERGIO"],
 ) as dag:
 
     t0 = PythonOperator(

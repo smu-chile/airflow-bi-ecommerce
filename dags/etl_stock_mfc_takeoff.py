@@ -186,7 +186,7 @@ with DAG(
     schedule_interval= "0 1,4/4 * * *",
     start_date=pendulum.datetime(2023, 9, 27, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "postgres", "MFC", "s3","stock","takeoff"],
+    tags=["DATA", "postgres", "MFC", "s3", "stock", "takeoff", "PATRICIO"],
 ) as dag:
 
     dag.doc_md = """
