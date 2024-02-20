@@ -829,7 +829,7 @@ with DAG(
     start_date=datetime(2022, 4, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones", "mw_inscripciones"],
+    tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones", "mw_inscripciones", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

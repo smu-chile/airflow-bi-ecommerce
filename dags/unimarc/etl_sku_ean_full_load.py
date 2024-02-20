@@ -69,7 +69,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["DATA", "Janis", "ecommdata", "sku_ean", "unimarc"],
+    tags=["DATA", "Janis", "ecommdata", "sku_ean", "unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

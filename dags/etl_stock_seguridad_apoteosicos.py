@@ -466,7 +466,7 @@ with DAG(
     schedule_interval="30 1/4 * * *",
     start_date=pendulum.datetime(2023, 9, 21, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc", "apoteosicos"],
+    tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc", "apoteosicos", "PATRICIO"],
 ) as dag:
     
 

@@ -242,7 +242,7 @@ with DAG(
     schedule_interval="0 8 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "Janis", "forcast_and_plannig", "polygons", "unimarc"],
+    tags=["DATA", "Janis", "forcast_and_plannig", "polygons", "unimarc", "PATRICIO"],
 ) as dag:
     
 

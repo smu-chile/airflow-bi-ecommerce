@@ -208,7 +208,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "Frogmi", "API", "POST", "foundrate"],
+    tags=["OPS", "Frogmi", "API", "POST", "foundrate", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

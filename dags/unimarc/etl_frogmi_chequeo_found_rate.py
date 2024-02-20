@@ -206,7 +206,7 @@ with DAG(
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["frogmi", "foundrate"],
+    tags=["frogmi", "foundrate", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

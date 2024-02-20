@@ -265,7 +265,7 @@ with DAG(
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata", "despachos", "unimarc", "cumplimiento_despacho"],
+    tags=["DATA", "Janis", "ecommdata", "despachos", "unimarc", "cumplimiento_despacho", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """
