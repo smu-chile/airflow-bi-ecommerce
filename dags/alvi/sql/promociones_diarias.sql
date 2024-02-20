@@ -38,6 +38,6 @@ SELECT
         and wp.nombre_promocion not ilike '%TERMINAL%' 
         and wp.nombre_promocion not ilike '%LOC%'
         and s.vtex_id is not null
-        AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '1 day'
-        AND wp.fecha_fin_de_promocion >= '{ds}'::date
+        AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '2 day'
+        AND wp.fecha_fin_de_promocion >= '{ds}'::date + interval '1 day'
         ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion DESC;
