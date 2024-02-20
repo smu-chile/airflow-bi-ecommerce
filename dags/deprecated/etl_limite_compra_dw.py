@@ -168,6 +168,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["ecommdata", "DW", "limite_compra", "unimarc", "SERGIO"],
+
 ) as dag:
     
     dag.doc_md = """
