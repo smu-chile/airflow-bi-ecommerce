@@ -54,6 +54,7 @@ def _load_limite_compra_promocion_table(ti,ds):
 
 def _set_lim_compra(ts):
     import requests
+    from datetime import datetime
     import pandas as pd
 
     query_lista8 = """select * from ecommdata.limite_compra_promocion lcp;
@@ -82,8 +83,9 @@ def _set_lim_compra(ts):
 
     # Creación de big-json
     jst = []
+    unix_time = int(datetime.fromisoformat(ts).timestamp())
     for index, row in results.iterrows():
-        if(int(row["fecha_fin_de_promocion"].strftime('%s'))<ts):
+        if(int(row["fecha_fin_de_promocion"].strftime('%s')) < unix_time):
             item = {
                 "item_id": row["ref_id"],
                 "attributes": [
@@ -105,6 +107,8 @@ def _set_lim_compra(ts):
             }
         jst.append(item)
 
+    print(jst)
+    
     # Partición de big-json
     lim_json = 500
     total_size = len(jst)
@@ -116,7 +120,7 @@ def _set_lim_compra(ts):
     # Seteo vía API al atriubuto limite de compra de la lista de refid
     API_JANIS = Variable.get("JANIS_API_URL")
     cargando = 0
-    '''for arr_dic in jst:
+    for arr_dic in jst:
         r = requests.post(f'{API_JANIS}attribute_value', headers = headers, json=arr_dic)
         cargando += len(arr_dic )
         if r.status_code == 200:
@@ -124,7 +128,7 @@ def _set_lim_compra(ts):
         else:
             print(f"Carga sin éxito | Status_Code: {r.status_code} ")
             print(f"Response Print: {r.content}")
-            raise ValueError("Janis API response != 200")'''
+            raise ValueError("Janis API response != 200")
     print("La carga de límites a finalizado")          
     return
 
@@ -136,7 +140,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_limite_compra_promociones',
+    'etl_limite_promociones',
     default_args=default_args,
     description="Extraer productos con promociones vigentes y setear limite de compra estatico",
     schedule_interval="30 8 1,10,20 1-12 *",
@@ -157,5 +161,4 @@ with DAG(
         task_id = "_set_lim_compra",
         python_callable = _set_lim_compra
     )
-
-    t0 > t1
+    t0 >> t1
