@@ -109,7 +109,7 @@ with DAG(
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["janis", "limite_compra", "ecommdata_unimarc", "atributos_producto", "API"],
+    tags=["janis", "limite_compra", "ecommdata_unimarc", "atributos_producto", "API", "SERGIO"],
 ) as dag:
 
     dag.doc_md = """

@@ -157,7 +157,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["DATA", "mongodb", "workspace", "ecommdata_meli", "ordenes", "mercadolibre"],
+    tags=["DATA", "mongodb", "workspace", "ecommdata_meli", "ordenes", "mercadolibre", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

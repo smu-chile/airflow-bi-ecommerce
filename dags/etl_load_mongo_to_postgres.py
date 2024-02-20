@@ -115,7 +115,7 @@ with DAG(
         start_date=pendulum.datetime(2023, 5, 24, tz="America/Santiago"),
         catchup=False,
         max_active_runs = 1,
-        tags=["mongo", "postgres"],
+        tags=["mongo", "postgres", "PATRICIO"],
     ) as dag:
         dag.doc_md = """
         funciona. \n

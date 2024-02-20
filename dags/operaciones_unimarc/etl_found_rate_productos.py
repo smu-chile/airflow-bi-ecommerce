@@ -47,7 +47,7 @@ with DAG(
     start_date=pendulum.datetime(2021, 9, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "found_rate_productos", "operaciones_unimarc", "unimarc", "cyber"],
+    tags=["DATA", "found_rate_productos", "operaciones_unimarc", "unimarc", "cyber", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

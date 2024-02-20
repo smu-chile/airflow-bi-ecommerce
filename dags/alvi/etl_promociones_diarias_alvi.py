@@ -563,7 +563,7 @@ with DAG(
     schedule_interval="50 8 * * *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["ecommdata", "VTEX", "promociones", "unimarc","workflow"],
+    tags=["ecommdata", "VTEX", "promociones", "unimarc", "workflow", "SERGIO"],
 ) as dag:
     
     dag.doc_md = """

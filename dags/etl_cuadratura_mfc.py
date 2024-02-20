@@ -357,7 +357,7 @@ with DAG(
     schedule_interval="30 9 * * *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["catalogo", "cuadratura", "MFC", "unimarc"],
+    tags=["catalogo", "cuadratura", "MFC", "unimarc", "PATRICIO"],
 ) as dag:
     
     dag.doc_md = """

@@ -329,7 +329,7 @@ with DAG(
     schedule_interval= "30 10 * * *",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "postgres", "ecommdata_unimarc", "slotting","MFC"],
+    tags=["DATA", "postgres", "ecommdata_unimarc", "slotting", "MFC", "PATRICIO"],
 ) as dag:
     
 
