@@ -241,8 +241,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             df_prev = pd.read_csv(prev_promo_file.get()["Body"])
 
             df_prev = df_prev[~df_prev["SKU"].isin(df["SKU"])]
-            df_prev = df_prev[df_prev["STOCK"]==1]
-            df_prev["STOCK"] = 0
+            df_prev = df_prev[df_prev["sku"]==1]
+            df_prev["sku"] = 0
 
             print(f"Adding {len(df_prev.index)} missing products as inactive: STOCK = 0.")
 
