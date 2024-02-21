@@ -7,7 +7,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 import pendulum
 
 
-def get_fixed_prices(ti):
+def get_fixed_prices(ti,ds):
     import pandas as pd
     import requests
     import json
@@ -17,13 +17,13 @@ def get_fixed_prices(ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     print("Getting vtex_ids of products in WP with Fixed Price")
-    query = """select distinct s.vtex_id
+    query = f"""select distinct s.vtex_id
         from ecommdata_alvi.workflow_promociones wp 
         inner join ecommdata_alvi.skus s on s.ref_id = wp.material||'-'|| CASE WHEN wp.umv = 'ST' THEN 'UN' WHEN wp.umv = 'CS' THEN 'CJ' WHEN wp.umv = 'DIS' THEN 'DIS' END
         where wp.tipo_promocion = 10
         and wp.umv not in ('KG','KGV')
-        and wp.fecha_inicio_de_promocion  <= current_date
-        and wp.fecha_fin_de_promocion >= current_date  + interval '1 days'
+        and wp.fecha_inicio_de_promocion  <= '{ds}'::date
+        and wp.fecha_fin_de_promocion >= '{ds}'::date
         AND s.vtex_id IS NOT NULL;"""
     cursor.execute(query)
     results = cursor.fetchall()
@@ -31,6 +31,10 @@ def get_fixed_prices(ti):
     cursor.close()
     pg_connection.close()
     print(f"Se obtuvieron {len(list_skus)} skus")
+
+    if(len(list_skus) == 0):
+        print("no hay SKUS activos en VTEX")
+        return
 
     X_VTEX_API_AppKey = Variable.get("X_VTEX_ALVI_API_Appkey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_ALVI_API_Apptoken")
