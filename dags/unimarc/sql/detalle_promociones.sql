@@ -38,7 +38,6 @@ SELECT oj.fecha_creacion,
      LEFT JOIN ecommdata.orden_productos op ON op.id_orden = oj.id
      LEFT JOIN ecommdata.categorias c ON op.ref_id_categoria = c.ref_id
      LEFT JOIN ecommdata.orden_producto_promociones opp ON op.id = opp.orden_producto
-     LEFT JOIN ecommdata.orden_producto_promociones opp ON op.id = opp.orden_producto
 	 LEFT JOIN (
 		SELECT DISTINCT ON (id) id,afecta_despacho,total_carro
 		FROM ecommdata.promociones_detalle_vtex
