@@ -144,7 +144,7 @@ def venta_promocional_to_postgresql(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+    df.info()
 
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
     df.columns = ['id_tienda','ref_id','ventas_75d']
