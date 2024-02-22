@@ -55,7 +55,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
     import pandas as pd
     ventas_skus_tienda_query = f"""select lpad(vst.id_tienda,4,'0'),
             concat(lpad(vst.material,18,'0'),'-',vst.umv),
-            (sum(vst.venta_umv)/('{fecha_inicio}'::date - '{fecha_fin}'::date))*-1
+            sum(vst.venta_umv)
             from ecommdata.venta_sku_tienda vst 
             left join ecommdata.tiendas t
             on t.id = lpad(vst.id_tienda,4,'0')
@@ -63,7 +63,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and vst.fecha <= '{fecha_fin}'::date -- fecha fin
             and concat(lpad(vst.material,18,'0'),'-',vst.umv) in ({list_material})
             and t.status = 1
-            and lpad(vst.id_tienda,4,'0') not in ('1917')
+            and vst.venta_umv >= 0
             group by vst.id_tienda, concat(lpad(vst.material,18,'0'),'-',vst.umv)"""
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -100,6 +100,10 @@ def venta_promocional_to_s3(ds):
         df_final = pd.concat([df_final, df_aux])
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
+    print("\ntermino de concatenar los df de ventas por rango de fechas")
+
+    df_final = df_final.groupby(['id_tienda', 'material'], as_index=False)['prom_ventas'].sum()
+    print("\ntermino de agrupar y sumar la venta")
 
     df_final.info()
     print(df_final.head(20))
