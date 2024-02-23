@@ -60,9 +60,15 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-	and (wp.id_mecanica NOT IN (25, 26, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
-        OR (wp.n_promocion = 5510012023)
-        AND (wp.n_promocion != 5680022023))
+	and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+	AND wp.nombre_promocion::text !~~ '%MFC%'::text
+    AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+    AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+	AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+	AND wp.nombre_promocion::text !~~ '%917%'::text
+	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+	and wp.nombre_promocion::text !~~ '% LOC%'::text
+	and wp.nombre_promocion::text !~~ '%LIQ%'::text
     group by wp.ean
 ) _t3
 on _t.ean = _t3.ean
