@@ -85,26 +85,23 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             continue
         
         peya_stock_query = f"""
-              select	
-  				null as barcode,
-                lspp.ean AS sku,
-                    CASE
-                        WHEN  lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN round(lspp.precio)
-                        ELSE round((lspp.precio) * s.multiplicador_unidad_medida)
-                    END AS price ,
-                    CASE
-                        WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= ssp.stock_seguridad) THEN 1
-                        WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= ssp.stock_seguridad) THEN 1
-                        ELSE 0
-                    END AS active
-                    FROM integraciones.lm_stock_precio_promo lspp
-                    inner JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
-                    INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                    inner join integraciones.stock_seguridad_peya ssp on ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                AND lspp.id_tienda = '{store_id}'
-                and ssp.id_tienda = '{store_id}'
-               
-            ;
+        SELECT	
+            NULL AS barcode,
+            lspp.ean AS sku,
+            CASE
+                WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio)
+                ELSE ROUND((lspp.precio) * s.multiplicador_unidad_medida)
+            END AS price,
+            CASE
+                WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= COALESCE(ssp.stock_seguridad, 2)) THEN 1
+                WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= COALESCE(ssp.stock_seguridad, 2)) THEN 1
+                ELSE 0
+            END AS active
+            FROM integraciones.lm_stock_precio_promo lspp
+            INNER JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
+            INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
+            LEFT JOIN integraciones.stock_seguridad_peya ssp ON ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida) AND lspp.id_tienda = ssp.id_tienda
+            WHERE lspp.id_tienda = '{store_id}'
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
