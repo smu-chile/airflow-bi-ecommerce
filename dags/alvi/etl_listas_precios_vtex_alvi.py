@@ -32,8 +32,7 @@ def get_fixed_prices(ti,ds):
     print("Getting vtex_ids of products in WP with Fixed Price")
     query = f"""select distinct s.vtex_id
         from ecommdata_alvi.skus s
-        where s.vtex_id IS NOT NULL
-        limit 100;"""
+        where s.vtex_id IS NOT NULL;"""
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]
