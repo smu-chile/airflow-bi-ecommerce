@@ -319,7 +319,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     dia = (dia + 1) % 7
     df_final=df_stock_seguridad_aux.merge(df_max, on = ['ref_id','id_tienda','dia'])
     df_final=df_final[df_stock_seguridad_aux["dia"] == dia]
-    print("\n wea con max!\n")
     print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad","cantidad"]]
     print(df_final)
