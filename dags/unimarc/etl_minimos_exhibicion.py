@@ -12,60 +12,78 @@ import pendulum
 
 from datetime import datetime, timedelta
 
-def minimos_exhibicion_to_s3(ti,ds):
-    import pandas as pd
-    import numpy as np
-    import io
-    from io import StringIO
 
-    exec_date = ds.replace("-", "/")
-    date_aux = ds.replace("-", "_")
-    prefix = f"minimos_exhibicion_/{exec_date}/"
+def minimos_exhibicion_to_postgresql(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    filename = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
 
     print("Searching file: "+filename)
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % filename)
 
-    ventas_sala_dw_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
     column_types = {
-    
-    "SUPPLIER_RETAIL": "str",
-    "NUESTRO_100": "str",
-    "MARCA_PROPIA": "str"
+    "SKU_PRODUCT": "str", 
+    "STORE_ID": "str", 
+    "STORE": "str", 
+    "ORG_IP": "str" , 
+    "SKU_NM": "str" , 
+    "MINIMO_EXHIBICION": "float", 
+    "PLANOGRAMADO_FLG": "str",
+    "STOCK_SEGURIDAD": "float",
+    "IN_OUT" :"str",
+    "CATALOGADO": "str",
+    "PLANOGRAMADO_CANTIDAD": "str"
     }
 
-    df = pd.read_csv(ventas_sala_dw_object.get()["Body"], dtype=column_types)
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype=column_types)
     print(f"Number of records found: {len(df.index)}")
-
     if len(df.index) == 0:
-        print("There are no new records to load. Task will exit as successfull.")
+        print("There are no new nor updated records to load. Task will exit as successfull.")
         return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df.columns = ["material",
+                  "id_tienda",
+                  "tienda",
+                  "org_id",
+                  "name",
+                  "minimo_exhibicion",
+                  "planogramado",
+                  "stock_seguridad",
+                  "in_out",
+                  "catalogado",
+                  "planogramado_cant"]
     df.info()
 
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"minimos_exhibicion_/{exec_date}/minimos_exhibicion_{date_aux}.csv"
-    buffer.seek(0)
-    print("se logro transformar el dataframe a un archivo .csv")
-    print(f"con fecha {ds} y nombre de filename como {filename}")
-    s3_hook.load_string(buffer.getvalue(),
-                key=filename,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
     
-    print(f"File load on S3: {prefix}")
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
 
-    return filename
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.tienda_sku_minimos_exhibicion_in_out")
+        df.to_sql(name="tienda_sku_minimos_exhibicion_in_out",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
 
-def minimos_exhibicion_to_postgresql():
-    print("check")
+    print("Data saved to PostgreSQL.")
+
     return
 
 default_args = {
@@ -114,15 +132,10 @@ with DAG(
         execution_timeout = timedelta(minutes=60),
         pool = "backfill_pool"
     )
-
-    t1 = PythonOperator(
-        task_id='minimos_exhibicion_to_s3',
-        python_callable=minimos_exhibicion_to_s3,
-    )
     
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id = "minimos_exhibicion_to_postgresql",
         python_callable = minimos_exhibicion_to_postgresql,
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1

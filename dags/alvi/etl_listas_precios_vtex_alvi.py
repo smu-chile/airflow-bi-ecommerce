@@ -105,6 +105,14 @@ def get_fixed_prices(ti,ds):
 
     aux_list = []
 
+    headers = {
+        'Accept': "application/json",
+        'Content-Type': "application/json",
+        "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
+        "X-VTEX-API-AppToken":  X_VTEX_API_AppToken,
+        "Connection": "keep-alive"
+    }
+    
     for index, row in df.iterrows():
         if (df.at[index, 'Date To'] < ds):
             print(f"Promoción caducada {df.at[index, 'tradePolicyId']}")
@@ -115,7 +123,7 @@ def get_fixed_prices(ti,ds):
             if price_table_id not in aux_list:
                 aux_list.append(price_table_id)
             df.drop(index, inplace=True)
-            response = requests.delete(url)
+            response = requests.delete(url, headers =headers)
             if response.status_code == 200:
                 print("DELETE request successful")
             else:

@@ -350,6 +350,7 @@ def _order_items_table_incremental_load(ti):
 		"category",
 		"measurement_unit",
 		"unit_multiplier",
+        "note"
     ]]  
 
     df = df.merge(df_orders, how="inner", left_on="order_id", right_on="original_id").drop(columns=["order_id", "original_id"])
@@ -388,6 +389,7 @@ def _order_items_table_incremental_load(ti):
 		"category": "ref_id_categoria",
 		"measurement_unit": "unidad_de_medida",
 		"unit_multiplier": "multiplicador_unidad",
+        "note": "nota"
     }
 
     df = df.rename(columns=columns_rename)
@@ -415,6 +417,7 @@ def _order_items_table_incremental_load(ti):
 		"ref_id_categoria",
 		"unidad_de_medida",
 		"multiplicador_unidad",
+        "nota"
     ]
 
     df = df[["id"]+columns]
