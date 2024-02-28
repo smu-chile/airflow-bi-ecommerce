@@ -34,10 +34,17 @@ def minimos_exhibicion_to_s3(ti,ds):
     ventas_sala_dw_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
     column_types = {
-    
-    "SUPPLIER_RETAIL": "str",
-    "NUESTRO_100": "str",
-    "MARCA_PROPIA": "str"
+    "SKU_PRODUCT": "str", 
+    "STORE_ID": "str", 
+    "STORE": "str", 
+    "ORG_IP": "str" , 
+    "SKU_NM": "str" , 
+    "MINIMO_EXHIBICION": "float", 
+    "PLANOGRAMADO_FLG": "str",
+    "STOCK_SEGURIDAD": "float",
+    "IN_OUT" :"str",
+    "CATALOGADO": "str",
+    "PLANOGRAMADO_CANTIDAD": "str"
     }
 
     df = pd.read_csv(ventas_sala_dw_object.get()["Body"], dtype=column_types)
@@ -64,8 +71,62 @@ def minimos_exhibicion_to_s3(ti,ds):
 
     return filename
 
-def minimos_exhibicion_to_postgresql():
-    print("check")
+def minimos_exhibicion_to_postgresql(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["minimos_exhibicion_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df.columns = ["material",
+                  "id_tienda",
+                  "tienda",
+                  "org_id",
+                  "name",
+                  "minimo_exhibicion",
+                  "planogramado",
+                  "stock_seguridad",
+                  "in_out",
+                  "catalogado",
+                  "planogramado_cant"]
+    df.info()
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        df.to_sql(name="tienda_sku_minimos_exhibicion_in_out",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
     return
 
 default_args = {
