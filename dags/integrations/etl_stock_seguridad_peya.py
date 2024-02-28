@@ -32,7 +32,8 @@ def stock(ds):
                         concat(material,'-',unidad_de_medida) as ref_id, 
                         date_part('dow','{ds}'::date) as dia,
                         date_part('week','{ds}'::date) as semana
-                        from integraciones.lm_stock_precio_promo lspp"""
+                        from integraciones.lm_stock_precio_promo lspp
+                        """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -172,7 +173,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
     dia = (dia + 1) % 7
     df_final=df_stock_seguridad_aux.merge(df_max, on = ['ref_id','id_tienda','dia'])
     df_final=df_final[df_stock_seguridad_aux["dia"] == dia]
-    print("\n wea con max!\n")
     print(df_final)
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad","cantidad"]]
     print(df_final)
@@ -215,6 +215,23 @@ def stock_ventas_tiendas_to_s3_am(ds):
     choicelist = [df_final["stock_seguridad"], 2]
 
     df_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+
+    df_stock_incluir = df_stock[df_stock["dia"] == dia]
+    df_stock_incluir.info()
+    df_incluir = df_stock_incluir.merge(df_final, how = 'left', on = ['id_tienda','ref_id'])
+    print("\nmerge listo\n")
+    df_incluir = df_incluir[df_incluir["dia_y"].isnull()]
+    print("\nfiltro null listo\n")
+    df_incluir = df_incluir[['id_tienda','ref_id']]
+    df_incluir["dia"] = dia
+    df_incluir["stock_seguridad"] = 2
+    df_incluir["is_promo"] = ''
+    df_incluir["maximo"] = 0
+    df_incluir.info()
+    print(df_incluir.head(30))
+
+    df_final = pd.concat([df_final, df_incluir], ignore_index=True)
 
     ##############
     #cargar datos#
@@ -345,6 +362,22 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     choicelist = [df_final["stock_seguridad"], 2]
 
     df_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+    df_stock_incluir = df_stock[df_stock["dia"] == dia]
+    df_stock_incluir.info()
+    df_incluir = df_stock_incluir.merge(df_final, how = 'left', on = ['id_tienda','ref_id'])
+    print("\nmerge listo\n")
+    df_incluir = df_incluir[df_incluir["dia_y"].isnull()]
+    print("\nfiltro null listo\n")
+    df_incluir = df_incluir[['id_tienda','ref_id']]
+    df_incluir["dia"] = dia
+    df_incluir["stock_seguridad"] = 2
+    df_incluir["is_promo"] = ''
+    df_incluir["maximo"] = 0
+    df_incluir.info()
+    print(df_incluir.head(30))
+
+    df_final = pd.concat([df_final, df_incluir], ignore_index=True)
 
     ##############
     #cargar datos#
