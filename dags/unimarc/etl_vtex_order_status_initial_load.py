@@ -24,7 +24,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
     print("Getting vtex_ids of orders")
     query = f"""select oj.vtex_id 
         from ecommdata.ordenes_janis oj
-        where oj.fecha_modificacion >= '{ds}'::date - interval '7 days'  """
+        where oj.fecha_modificacion >= '{ds}'::date - interval '365 days'  """
     cursor.execute(query)
     results = cursor.fetchall()
     list_vtex_id = [result[0] for result in results]
