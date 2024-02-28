@@ -127,7 +127,6 @@ def minimos_exhibicion_to_postgresql(ti):
     print("Data saved to PostgreSQL.")
 
     return
-    return
 
 default_args = {
     "owner": "ecommerce_data",
