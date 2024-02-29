@@ -10,6 +10,22 @@ from datetime import datetime
 
 import pendulum
 
+def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
+    r = session.get(url, headers = {'Accept': "application/json", 'Content-Type': "application/json", "X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken, "Connection": "keep-alive"})
+    try:
+        responses.append({'json':r.json(), 'url':url})
+    except Exception as e:
+        print(e)
+        print(url)
+        print(r)
+        print(r.status_code)
+        exception_cases.append(url)
+
+
+def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
+    for url in url_sublist:
+        get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
+    return
 
 def _load_vtex_order_status_to_s3(ti, ds, ts):
     import pandas as pd
@@ -17,6 +33,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
     import json
     from io import StringIO
     import boto3
+    from threading import Thread
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -32,42 +49,58 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
     pg_connection.close()
     print(f"Se obtuvieron {len(list_vtex_id)} vtex_id de ordenes")
 
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+    if len(list_vtex_id) == 0:
+        print('the list of vtex id was empty')
+        return
+
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
-    headers = {
-        'Accept': "application/json",
-        'Content-Type': "application/json",
-        "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
-        "X-VTEX-API-AppToken":  X_VTEX_API_AppToken,
-        "Connection": "keep-alive"
-    }
+    url_list = [f"https://{accountName}.{env}.com.br/api/oms/pvt/orders/{i[0]}" for i in list_vtex_id]
+    
+    session = requests.session()
+    thread_num = 40
+    task_num = len(url_list)//thread_num # division entera
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    session.mount('https://', adapter)
+    thread_tasks = []
+    count = 0
+    responses = []
+    exception_cases = []
 
-    lista_lineas = []
-    for vtex_id in list_vtex_id:
-        GET_VTEX_ORDER_DETAILS = f"https://{accountName}.{env}.com.br/api/oms/pvt/orders/{str(vtex_id)}"
-        print("GET_VTEX_ORDER_DETAILS: ", GET_VTEX_ORDER_DETAILS)
-        r = requests.get(GET_VTEX_ORDER_DETAILS, headers=headers)
-        print(r.content)
-        if r.status_code == 404:
-            print("Error 404: Recurso no encontrado")
-            continue
-        elif r.status_code == 200:
-            r.raise_for_status()
-            data = json.loads(r.text)
-            order_id = vtex_id
-            state = data['status']
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
+    for thr in range(thread_num):
+        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+        count = count + 1
+    # tareas resagadas:
+    if task_num*thread_num != len(url_list):
+        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+    for task in thread_tasks:
+        task.join()
+        thread_tasks = []
+    
+    final_responses = []
+
+    for response in responses:
+        try:
+            order_id = response['json']['orderId']
+            state = response['json']['status']
             lastState = None
-            lastChange = data['lastChange']
-            linea = [data, order_id, state, lastState, lastChange]
-            lista_lineas.append(linea)
+            lastChange = response['json']['lastChange']
+            linea = [order_id, state, lastState, lastChange]
+            final_responses.append(linea)
+        except KeyError as e:
+            print(e)
+            print(response)
+            exception_cases.append(response['url'])
 
-        else:
-            print(f"No se obtuvo info de la orden {vtex_id}")
-            print(r.status_code)
-
-    df = pd.DataFrame(lista_lineas, columns =['order_id', 'state', 'lastState', 'lastChange'])
+    print(exception_cases)
+    df = pd.DataFrame(final_responses, columns =['order_id', 'state', 'lastState', 'lastChange'])
     df = df.astype({
         "order_id": "string",
         "state": "bool",
