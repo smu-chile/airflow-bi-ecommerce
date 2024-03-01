@@ -55,7 +55,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
 
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
-    url_list = [f"https://{accountName}.{env}.com.br/api/oms/pvt/orders/{i[0]}" for i in list_vtex_id]
+    url_list = [f"https://{accountName}.{env}.com.br/api/oms/pvt/orders/{i}" for i in list_vtex_id]
     
     session = requests.session()
     thread_num = 40
@@ -88,6 +88,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
 
     for response in responses:
         try:
+            print(response['json'])
             order_id = response['json']['orderId']
             state = response['json']['status']
             lastState = None
