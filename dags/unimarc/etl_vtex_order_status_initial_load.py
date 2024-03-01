@@ -14,6 +14,7 @@ def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_
     r = session.get(url, headers = {'Accept': "application/json", 'Content-Type': "application/json", "X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken, "Connection": "keep-alive"})
     try:
         responses.append({'json':r.json(), 'url':url})
+        print(r)
     except Exception as e:
         print(e)
         print(url)
@@ -88,7 +89,6 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
 
     for response in responses:
         try:
-            print(response['json'])
             order_id = response['json']['orderId']
             state = response['json']['status']
             lastState = None
