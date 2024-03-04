@@ -28,6 +28,7 @@ def _check_time(ts):
         return "stock_ventas_tiendas_to_s3_pm"
 
 def stock(ds):
+    import pandas as pd
     stock_tiendas_query = f"""select id_tienda,
                             ref_id,
                             date_part('dow',fecha) as dia,
@@ -46,6 +47,8 @@ def stock(ds):
     cursor = pg_connection.cursor()
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","ref_id","dia","semana"]
     cursor.close()
     pg_connection.close()
     return results
@@ -85,7 +88,7 @@ def promociones(ds):
                             from ecommdata.workflow_promociones 
                             where fecha_inicio_de_promocion <= '{ds}'::date
                             and fecha_fin_de_promocion >= '{ds}'::date
-                            and id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
+                            and id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
                             and id_evento not in (551)) as _t
                             group by
                             _t.material,
@@ -108,6 +111,7 @@ def promociones(ds):
 
 
 def venta_tienda(ds):
+    import pandas as pd
     ventas_skus_tienda_query = f"""select LPAD(v.id_tienda , 4, '0') as id_tienda,
                     CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
                     v.venta_umv,
@@ -125,6 +129,8 @@ def venta_tienda(ds):
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
     results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["id_tienda","ref_id","cantidad","dia","semana"]
     cursor.close()
     pg_connection.close()
     return results
@@ -140,17 +146,17 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    df_stock = pd.DataFrame(stock(ds))
+    df_stock = stock(ds)
     print("se ha cargado stock\n")
     print(df_stock)
-    df_stock.columns=["id_tienda","ref_id","dia","semana"]
-    df_venta_tienda = pd.DataFrame(venta_tienda(ds))
+
+    df_venta_tienda = venta_tienda(ds)
     print("se ha cargado ventas\n")
     print(df_venta_tienda)
-    df_venta_tienda.columns =["id_tienda","ref_id","cantidad","dia","semana"]
+
     df_promociones = promociones(ds)
-    df_promociones=df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
+    df_promociones = df_promociones.drop_duplicates(subset='ref_id')
     print(df_promociones)
     
     print("\nse ha terminado de extraer data \n")
@@ -159,18 +165,31 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #transformacion de datos#
     #########################
 
+    #filtramos columnas necesarias de dataframe de ventas
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
+    #sumamos venta umv a nivel tienda, sku, dia, semana
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
+
+    #promediamos venta a nivel tienda,sku, dia
     df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+
+    #filtramos columnas necesarias de venta con la venta promedio de dia de la semana
     df_aux2=df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
 
+
+    #hacemos merge de stock con venta promedio a nivel tienda, sku, dia
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
+
+    #rellenamos los registros con 0 para los que no hubo venta en el merge
     df_stock_seguridad = df_stock_seguridad.fillna(0)
     print(df_stock_seguridad["cantidad"])
+
+    #multiplicamos la venta por 0.5 para cargar la mitad del stock de seguridad por regla de negocio
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
     print(df_stock_seguridad["cantidad"])
 
+    #Condicion para que si la venta fue menor a dos setear stock seguridad igual a 2
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
     choicelist = [df_stock_seguridad["cantidad"], 2]
@@ -178,7 +197,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
-    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+    #filtrar columnas necesarias del nuevo dataFrame      
+    df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
@@ -192,7 +213,8 @@ def stock_ventas_tiendas_to_s3_am(ds):
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
     dia = (dia + 1) % 7
-    df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
+    df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
+    df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
 
     df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
         .query('_merge == "left_only"')
@@ -498,6 +520,99 @@ def carga_stock_seguridad_janis_am(ds,ti):
 
     return
 
+def stock_ventas_tiendas_to_postgresql_am(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_am"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df.info()
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        df.to_sql(name="stock_seguridad_tiendas",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
+def stock_ventas_tiendas_to_postgresql_pm(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_pm"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df.info()
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        df.to_sql(name="stock_seguridad_tiendas",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -540,17 +655,27 @@ with DAG(
     )
 
     t2_am = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_am",
+        python_callable = stock_ventas_tiendas_to_postgresql_am,
+    )
+
+    t2_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_pm",
+        python_callable = stock_ventas_tiendas_to_postgresql_pm,
+    )
+
+    t3_am = PythonOperator(
         task_id = "carga_stock_seguridad_janis_am",
         python_callable = carga_stock_seguridad_janis_am
     )
 
-    t2_pm = PythonOperator(
+    t3_pm = PythonOperator(
         task_id = "carga_stock_seguridad_janis_pm",
         python_callable = carga_stock_seguridad_janis_pm
     )
 
-    t0 >> t1_am >> t2_am
-    t0 >> t1_pm >> t2_pm
+    t0 >> t1_am >> t2_am >> t3_am
+    t0 >> t1_pm >> t2_pm >> t3_pm
     t0 >> t_dummy
 
 
