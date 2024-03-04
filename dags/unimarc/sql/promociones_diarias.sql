@@ -136,13 +136,12 @@ SELECT wp.n_promocion,
 			    WHEN wp.umv::text = 'CS' THEN 'CJ'
 			    ELSE wp.umv
 			END) ::text)
-        left join (select coalesce(vpc."SkuId"::numeric,lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
+        left join (select coalesce(lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
                     pdv.id as idcalculatorconfigurator,
                     pdv.nombre_promocion as nombre_promocion_vtex,
                     concat('https://unimarc.myvtex.com/admin/promotions/',pdv.id) as link_promocion
                     from ecommdata.promociones_detalle_vtex pdv
                     left join ecommdata.promociones_vtex pv on pv.id = pdv.id
-                    LEFT JOIN catalogo.vtex_products_collections vpc ON pdv.vtex_id_coleccion::numeric = vpc.collection_id::numeric
                     LEFT JOIN catalogo.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy"
                     where pdv.archivado is false
                     and pv.estado = 'active') as pdvd on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
@@ -152,13 +151,9 @@ SELECT wp.n_promocion,
     and wp.tipo_promocion <> 3
     AND wp.nombre_promocion::text !~~ '%MFC%'::text
     AND wp.nombre_promocion::text !~~ '%BANCO ESTADO%'::text
-    AND wp.nombre_promocion::text !~~ '%NO ELIMINAR%'::text 
     AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text 
     AND wp.nombre_promocion::text !~~ '%917%'::text
-    AND wp.nombre_promocion::text !~~ '%0743%'::text
     and wp.nombre_promocion::text !~~ '% LOC%'::text
-    and wp.nombre_promocion::text !~~ '%L65%'::text
-    and wp.nombre_promocion::text !~~ '%L0089%'::text
     and s.vtex_id <> ALL (ARRAY[3610,471,3611,472,473,658,82183,82184,39730])
     and s.vtex_id IS NOT null
     and
