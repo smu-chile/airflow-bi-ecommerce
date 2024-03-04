@@ -116,8 +116,8 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
         }, errors="ignore")
         
         curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-        file_name = f"vtex/vtex_state/initial_load/{curr_datetime}_{count}_vtex_state.csv"
-        count += 1
+        file_name = f"vtex/vtex_state/initial_load/{curr_datetime}_{aux_count}_vtex_state.csv"
+        aux_count += 1
         buffer = StringIO()
 
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
