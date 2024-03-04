@@ -14,7 +14,6 @@ def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_
     r = session.get(url, headers = {'Accept': "application/json", 'Content-Type': "application/json", "X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken, "Connection": "keep-alive"})
     try:
         responses.append({'json':r.json(), 'url':url})
-        print(r)
     except Exception as e:
         print(e)
         print(url)
@@ -136,6 +135,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
         response = s3_client.put_object(
             Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
         )
+        print(f"file {count} out of 300 done with name {file_name}")
         s3_file_list.append(file_name)
     return s3_file_list
 
