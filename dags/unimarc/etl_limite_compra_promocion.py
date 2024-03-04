@@ -146,7 +146,7 @@ with DAG(
     schedule_interval="30 8 1,10,20 1-12 *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["ecommdata", "promociones", "limite_compra", "unimarc"],
+    tags=["ecommdata", "promociones", "limite_compra", "unimarc", "SERGIO"],
 ) as dag:
     
     dag.doc_md = """
