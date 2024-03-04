@@ -59,7 +59,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
     url_list = [f"https://{accountName}.{env}.com.br/api/oms/pvt/orders/{i}" for i in list_vtex_id]
     
     session = requests.session()
-    thread_num = 40
+    thread_num = 10
     task_num = len(url_list)//thread_num # division entera
     adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
     session.mount('https://', adapter)
