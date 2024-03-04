@@ -60,7 +60,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
     
     url_list_array = np.array_split(url_total_list, 300)
     s3_file_list = []
-    count = 0
+    aux_count = 0
 
     for url_list in url_list_array:
 
@@ -135,7 +135,7 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
         response = s3_client.put_object(
             Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
         )
-        print(f"file {count} out of 300 done with name {file_name}")
+        print(f"file {aux_count} out of 300 done with name {file_name}")
         s3_file_list.append(file_name)
     return s3_file_list
 
