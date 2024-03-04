@@ -30,6 +30,7 @@ def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey
 
 def _load_vtex_order_status_to_s3(ti, ds, ts):
     import pandas as pd
+    import numpy as np
     import requests
     import json
     from io import StringIO
@@ -56,104 +57,118 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
 
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
-    url_list = [f"https://{accountName}.{env}.com.br/api/oms/pvt/orders/{i}" for i in list_vtex_id]
+    url_total_list = [f"https://{accountName}.{env}.com.br/api/oms/pvt/orders/{i}" for i in list_vtex_id]
     
-    session = requests.session()
-    thread_num = 10
-    task_num = len(url_list)//thread_num # division entera
-    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
-    session.mount('https://', adapter)
-    thread_tasks = []
+    url_list_array = np.array_split(url_total_list, 300)
+    s3_file_list = []
     count = 0
-    responses = []
-    exception_cases = []
 
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+    for url_list in url_list_array:
 
-    for thr in range(thread_num):
-        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-        count = count + 1
-    # tareas resagadas:
-    if task_num*thread_num != len(url_list):
-        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-    for task in thread_tasks:
-        task.join()
+        session = requests.session()
+        thread_num = 10
+        task_num = len(url_list)//thread_num # division entera
+        adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+        session.mount('https://', adapter)
         thread_tasks = []
-    
-    final_responses = []
+        count = 0
+        responses = []
+        exception_cases = []
 
-    for response in responses:
-        try:
-            order_id = response['json']['orderId']
-            state = response['json']['status']
-            lastState = None
-            lastChange = response['json']['lastChange']
-            linea = [order_id, state, lastState, lastChange]
-            final_responses.append(linea)
-        except KeyError as e:
-            print(e)
-            print(response)
-            exception_cases.append(response['url'])
+        X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+        X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
 
-    print(exception_cases)
-    df = pd.DataFrame(final_responses, columns =['order_id', 'state', 'lastState', 'lastChange'])
-    df = df.astype({
-        "order_id": "string",
-        "state": "bool",
-        "lastState": "string",
-        "lastChange": "string"
-    }, errors="ignore")
-    
-    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    file_name = f"vtex/vtex_state/initial_load/{curr_datetime}_vtex_state.csv"
-    buffer = StringIO()
+        for thr in range(thread_num):
+            new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+            new_task.start()
+            thread_tasks.append(new_task)
+            count = count + 1
+        # tareas resagadas:
+        if task_num*thread_num != len(url_list):
+            new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+            new_task.start()
+            thread_tasks.append(new_task)
+        for task in thread_tasks:
+            task.join()
+            thread_tasks = []
+        
+        final_responses = []
 
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
+        for response in responses:
+            try:
+                order_id = response['json']['orderId']
+                state = response['json']['status']
+                lastState = None
+                lastChange = response['json']['lastChange']
+                linea = [order_id, state, lastState, lastChange]
+                final_responses.append(linea)
+            except KeyError as e:
+                print(e)
+                print(response)
+                exception_cases.append(response['url'])
 
-    access_key = Variable.get("AWS_ACCESS_KEY")
-    secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_client = boto3.client(
-        "s3",
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name = "us-east-1"
-    )
-    response = s3_client.put_object(
-        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
-    )
-    return file_name
+        print(exception_cases)
+        df = pd.DataFrame(final_responses, columns =['order_id', 'state', 'lastState', 'lastChange'])
+        df = df.astype({
+            "order_id": "string",
+            "state": "bool",
+            "lastState": "string",
+            "lastChange": "string"
+        }, errors="ignore")
+        
+        curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+        file_name = f"vtex/vtex_state/initial_load/{curr_datetime}_{count}_vtex_state.csv"
+        count += 1
+        buffer = StringIO()
+
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
+
+        access_key = Variable.get("AWS_ACCESS_KEY")
+        secret_key = Variable.get("AWS_SECRET_KEY")
+        bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_client = boto3.client(
+            "s3",
+            aws_access_key_id=access_key,
+            aws_secret_access_key=secret_key,
+            region_name = "us-east-1"
+        )
+        response = s3_client.put_object(
+            Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
+        )
+        s3_file_list.append(file_name)
+    return s3_file_list
 
 def _get_table_vtex_order_status(ti):
     import pandas as pd
 
-    alerta_found_rate_file = ti.xcom_pull(key="return_value", task_ids=["load_vtex_order_status_to_s3"])[0]
+    alerta_found_rate_file_list = ti.xcom_pull(key="return_value", task_ids=["load_vtex_order_status_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+alerta_found_rate_file)
-    if not s3_hook.check_for_key(alerta_found_rate_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % alerta_found_rate_file)
+    df_list = []
 
-    alerta_found_rate_object = s3_hook.get_key(alerta_found_rate_file, bucket_name=s3_bucket)
+    for alerta_found_rate_file in alerta_found_rate_file_list:
 
-    df = pd.read_csv(alerta_found_rate_object.get()["Body"])
-    print(f"Number of records found: {len(df.index)}")
+        print("Searching file: "+alerta_found_rate_file)
+        if not s3_hook.check_for_key(alerta_found_rate_file, bucket_name=s3_bucket):
+            raise Exception("Key %s does not exist." % alerta_found_rate_file)
 
-    df = df.astype({
-        "order_id": "string",
-        "state": "bool",
-        "lastState": "string",
-        "lastChange": "string"
-    }, errors="ignore")
+        alerta_found_rate_object = s3_hook.get_key(alerta_found_rate_file, bucket_name=s3_bucket)
 
-    return df
+        df = pd.read_csv(alerta_found_rate_object.get()["Body"])
+        print(f"Number of records found: {len(df.index)}")
+
+        df = df.astype({
+            "order_id": "string",
+            "state": "bool",
+            "lastState": "string",
+            "lastChange": "string"
+        }, errors="ignore")
+
+        df_list.append(df)
+    df_final = pd.concat(df_list)
+    return df_final
 
 def _upload_order_status(ts, ti, ds):
     import pandas as pd
