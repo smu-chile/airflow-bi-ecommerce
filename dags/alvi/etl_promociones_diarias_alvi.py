@@ -410,6 +410,10 @@ def load_json_to_publisher(ti):
         isRemoved=False
     )
 
+    df['secondPromotionalPrice'] = df['secondPromotionalPrice'].apply(lambda x: None if x == 0 else x)
+    df['secondMinQuantity'] = df['secondMinQuantity'].apply(lambda x: None if x == 0 else x)
+
+
     df['startDate'] = pd.to_datetime(df['startDate'], unit='ns').dt.strftime('%Y-%m-%d')
     df['endDate'] = pd.to_datetime(df['endDate'], unit='ns').dt.strftime('%Y-%m-%d')
 
