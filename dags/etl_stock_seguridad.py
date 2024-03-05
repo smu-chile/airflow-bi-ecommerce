@@ -560,6 +560,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
     df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -607,6 +608,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
         return
     
     print(f"Number of records extracted: {len(df.index)}")
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
     df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
