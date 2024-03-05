@@ -39,7 +39,7 @@ def materiales_dentro_ventas(list_material,ds):
                     and id_evento not in (551)
                     group by material 
                     order by max( fecha_fin_de_promocion)"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
