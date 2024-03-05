@@ -97,9 +97,15 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
             try:
                 order_id = response['json']['orderId']
                 state = response['json']['status']
+                status_description = response['json']['statusDescription']
                 lastState = None
                 lastChange = response['json']['lastChange']
-                linea = [order_id, state, lastState, lastChange]
+                value = response['json']['value']
+                totals = response['json']['totals'][0]['value']
+                discount = response['json']['totals'][1]['value']
+                email = response['json']['clientProfileData']['email']
+                rut = response['json']['clientProfileData']['document']
+                linea = [order_id, state, status_description, lastState, lastChange, value, totals, discount, email, rut]
                 final_responses.append(linea)
             except KeyError as e:
                 print(e)
@@ -107,12 +113,18 @@ def _load_vtex_order_status_to_s3(ti, ds, ts):
                 exception_cases.append(response['url'])
 
         print(exception_cases)
-        df = pd.DataFrame(final_responses, columns =['order_id', 'state', 'lastState', 'lastChange'])
+        df = pd.DataFrame(final_responses, columns =['order_id', 'state', 'status_description', 'lastState', 'lastChange', 'value', 'totals', 'discount', 'email', 'rut'])
         df = df.astype({
             "order_id": "string",
-            "state": "bool",
+            "state": "string",
+            "status_description": "string",
             "lastState": "string",
-            "lastChange": "string"
+            "lastChange": "string",
+            "value": "int",
+            "totals": "int",
+            "discount": "int",
+            "email": "string",
+            "rut": "string"
         }, errors="ignore")
         
         curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
@@ -161,9 +173,15 @@ def _get_table_vtex_order_status(ti):
 
         df = df.astype({
             "order_id": "string",
-            "state": "bool",
+            "state": "string",
+            "status_description": "string",
             "lastState": "string",
-            "lastChange": "string"
+            "lastChange": "string",
+            "value": "int",
+            "totals": "int",
+            "discount": "int",
+            "email": "string",
+            "rut": "string"
         }, errors="ignore")
 
         df_list.append(df)
@@ -175,7 +193,7 @@ def _upload_order_status(ts, ti, ds):
     import sqlalchemy
 
     df = _get_table_vtex_order_status(ti)
-    df = df[['order_id', 'state', 'lastState', 'lastChange']]
+    df = df[['order_id', 'state', 'status_description', 'lastState', 'lastChange', 'value', 'totals', 'discount', 'email', 'rut']]
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
