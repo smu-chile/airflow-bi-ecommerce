@@ -49,6 +49,7 @@ def stock(ds):
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["id_tienda","ref_id","dia","semana"]
+    results.info()
     cursor.close()
     pg_connection.close()
     return results
@@ -131,6 +132,7 @@ def venta_tienda(ds):
     results = cursor.fetchall()
     results=pd.DataFrame(results)
     results.columns = ["id_tienda","ref_id","cantidad","dia","semana"]
+    results.info()
     cursor.close()
     pg_connection.close()
     return results
@@ -165,6 +167,13 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #transformacion de datos#
     #########################
 
+    fecha_str = ds
+    formato_str = "%Y-%m-%d"
+
+    dia = datetime.strptime(fecha_str, formato_str) 
+    dia = dia.weekday()
+    dia = (dia + 1) % 7
+
     #filtramos columnas necesarias de dataframe de ventas
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
@@ -175,15 +184,15 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
 
     #filtramos columnas necesarias de venta con la venta promedio de dia de la semana
-    df_aux2=df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
-
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
 
     #hacemos merge de stock con venta promedio a nivel tienda, sku, dia
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
 
-    #rellenamos los registros con 0 para los que no hubo venta en el merge
-    df_stock_seguridad = df_stock_seguridad.fillna(0)
-    print(df_stock_seguridad["cantidad"])
+    #rellenamos los registros con dia y venta 0 para los que no hubo venta en el merge
+    df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
 
     #multiplicamos la venta por 0.5 para cargar la mitad del stock de seguridad por regla de negocio
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
@@ -207,24 +216,21 @@ def stock_ventas_tiendas_to_s3_am(ds):
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
-    fecha_str = ds
-    formato_str = "%Y-%m-%d"
-
-    dia = datetime.strptime(fecha_str, formato_str) 
-    dia = dia.weekday()
-    dia = (dia + 1) % 7
+    df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
     df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
+    df_stock_seguridad_aux.info()
 
-    df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
-        .query('_merge == "left_only"')
-        .drop('_merge', 1))
+    lista_skus_promos = df_promociones['ref_id'].unique()
+    df_final = df_stock_seguridad_aux[~df_stock_seguridad_aux['ref_id'].isin(lista_skus_promos)]
+    df_final.reset_index()
+    df_final.info()
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
-    df_final["dia"]=df_final["dia"].astype(int)
-    df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
+    df_final["dia"] = df_final["dia"].astype(int)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
     print("transformacion de datos listo \n")
     #################
@@ -289,16 +295,28 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #########################
     #transformacion de datos#
     #########################
+    fecha_str = ds
+    formato_str = "%Y-%m-%d"
+
+    dia = datetime.strptime(fecha_str, formato_str) 
+    dia = dia.weekday()
+    dia = (dia + 1) % 7
 
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
 
     df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
     df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
-    df_aux2=df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    print("\nventa promedio:\n")
+    df_aux2.info()
 
+    df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
+
+    df_aux2.info()
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
-    df_stock_seguridad = df_stock_seguridad.fillna(0)
-    print(df_stock_seguridad["cantidad"])
+    df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
+    df_stock_seguridad.info()
 
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
@@ -307,26 +325,25 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
-    df_stock_seguridad=df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+    df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
-    df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
+    df_stock_seguridad_aux["nuevo_stock_seguridad"] = round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
-    fecha_str = ds
-    formato_str = "%Y-%m-%d"
 
-    dia = datetime.strptime(fecha_str, formato_str) 
-    dia = dia.weekday()
-    dia = (dia + 1) % 7
     print(f"\ndia: {dia}\n")
-    df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia] #cambiar por ds
+    df_stock_seguridad_aux.info()
+    df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
+    df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
+    df_stock_seguridad_aux.info()
 
-    df_final=(df_stock_seguridad_aux.merge(df_promociones, on='ref_id', how='left', indicator=True)
-        .query('_merge == "left_only"')
-        .drop('_merge', 1))
+    lista_skus_promos = df_promociones['ref_id'].unique()
+    df_final = df_stock_seguridad_aux[~df_stock_seguridad_aux['ref_id'].isin(lista_skus_promos)]
+    df_final.reset_index()
+    df_final.info()
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
@@ -554,6 +571,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.stock_seguridad_tiendas") 
         df.to_sql(name="stock_seguridad_tiendas",
                     con=conn,         
                     schema="ecommdata",         
@@ -600,6 +618,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.stock_seguridad_tiendas") 
         df.to_sql(name="stock_seguridad_tiendas",
                     con=conn,         
                     schema="ecommdata",         
