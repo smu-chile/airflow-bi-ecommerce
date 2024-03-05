@@ -35,7 +35,7 @@ def materiales_dentro_ventas(list_material,ds):
                     where fecha_fin_de_promocion < '"""+ds+"""'::date 
                     and fecha_inicio_de_promocion >= '"""+ds+"""'::date -30
                     and material in ('"""+list_material+"""')
-                    and id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
+                    and id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
                     and id_evento not in (551)
                     group by material 
                     order by max( fecha_fin_de_promocion)"""
@@ -59,7 +59,7 @@ def promociones(ds):
                     on wp.material = l.material
                     where wp.fecha_inicio_de_promocion <= '"""+ds+"""'::date 
                     and wp.fecha_fin_de_promocion >= '"""+ds+"""'::date 
-                    and wp.id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
+                    and wp.id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
                     and wp.id_evento not in (551)
                     and l.material is not null"""
     print(promociones_query)
@@ -68,10 +68,14 @@ def promociones(ds):
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
     results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    results.columns = ["material"]
-    cursor.close()
-    pg_connection.close()
+    if len(results)==0:
+        print("\n\n\tNo hay productos en periodo promocional")
+        return 
+    else:
+        results=pd.DataFrame(results)
+        results.columns = ["material"]
+        cursor.close()
+        pg_connection.close()
 
     return results
 
@@ -151,6 +155,7 @@ def ventas_maximos_apo_to_s3_am(ds):
     print(list_material)
 
     df = materiales_dentro_ventas(list_material,ds)
+    
     df_grouped = df.groupby(['fecha_inicio', 'fecha_fin']).agg(lista_materiales=('material', list)).reset_index()
 
     df_final = pd.DataFrame()
@@ -163,7 +168,6 @@ def ventas_maximos_apo_to_s3_am(ds):
         df_final = pd.concat([df_final, df_aux])
 
     df_final["prom_ventas"]= df_final["prom_ventas"].apply(np.ceil)
-
     
     list_material_aux = []
     list_material_aux = df_materiales['material'].tolist()
@@ -320,6 +324,7 @@ def ventas_maximos_apo_to_s3_pm(ds):
     print(list_material)
 
     df = materiales_dentro_ventas(list_material,ds)
+    
     df_grouped = df.groupby(['fecha_inicio', 'fecha_fin']).agg(lista_materiales=('material', list)).reset_index()
 
     df_final = pd.DataFrame()
@@ -451,6 +456,100 @@ def carga_stock_seguridad_janis_pm(ds,ti):
 
     return
 
+def stock_ventas_tiendas_to_postgresql_am(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["ventas_maximos_apo_to_s3_am"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
+    df.info()
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        df.to_sql(name="stock_seguridad_tiendas",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
+def stock_ventas_tiendas_to_postgresql_pm(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["ventas_maximos_apo_to_s3_pm"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
+    df.info()
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        df.to_sql(name="stock_seguridad_tiendas",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -471,7 +570,7 @@ with DAG(
     
 
     dag.doc_md = """
-    Carga stock de seguridad \n
+    Carga stock de seguridad a los productos en periodo promocional\n
     guardar en S3.
     """ 
 
@@ -490,6 +589,11 @@ with DAG(
     )
 
     t2_am = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_am",
+        python_callable = stock_ventas_tiendas_to_postgresql_am,
+    )
+
+    t3_am = PythonOperator(
         task_id = "carga_stock_seguridad_janis_am",
         python_callable = carga_stock_seguridad_janis_am
     )
@@ -500,12 +604,17 @@ with DAG(
     )
 
     t2_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_pm",
+        python_callable = stock_ventas_tiendas_to_postgresql_pm,
+    )
+
+    t3_pm = PythonOperator(
         task_id = "carga_stock_seguridad_janis_pm",
         python_callable = carga_stock_seguridad_janis_pm
     )
 
-    t0 >> t1_am >> t2_am
-    t0 >> t1_pm >> t2_pm
+    t0 >> t1_am >> t2_am >> t3_am
+    t0 >> t1_pm >> t2_pm >> t3_pm
     t0 >> t_dummy
 
 
