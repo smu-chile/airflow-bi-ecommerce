@@ -31,7 +31,8 @@ def minimos_exhibicion_to_postgresql(ti):
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
     column_types = {
-    "SKU_PRODUCT": "str", 
+    "SKU_PRODUCT": "str",
+    "UMB": "str",
     "STORE_ID": "str", 
     "STORE": "str", 
     "ORG_IP": "str" , 
@@ -52,16 +53,22 @@ def minimos_exhibicion_to_postgresql(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
     df.columns = ["material",
+                  "umv",
                   "id_tienda",
                   "tienda",
                   "org_id",
-                  "name",
+                  "nombre_sku",
                   "minimo_exhibicion",
                   "planogramado",
                   "stock_seguridad",
                   "in_out",
                   "catalogado",
                   "planogramado_cant"]
+    
+    df['in_out'] = df['in_out'].map(lambda x: True if x == 'X' else False if x is not None else False)
+    df['planogramado'] = df['planogramado'].map(lambda x: True if x == '1.0' else False if x is not None else False)
+    df['catalogado'] = df['catalogado'].map(lambda x: True if x == '1' else False if x is not None else False)
+    df['umv'] = df['umv'].replace('ST', 'UN')
     df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -73,8 +80,8 @@ def minimos_exhibicion_to_postgresql(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata.tienda_sku_minimos_exhibicion_in_out")
-        df.to_sql(name="tienda_sku_minimos_exhibicion_in_out",
+        conn.execute("TRUNCATE ecommdata.minimos_exhibicion_in_out")
+        df.to_sql(name="minimos_exhibicion_in_out",
                     con=conn,         
                     schema="ecommdata",         
                     if_exists='append',         
@@ -113,7 +120,7 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT h.SKU_PRODUCT, STORE_H.STORE_ID, STORE_H."STORE", STORE_H.ORG_IP , h.SKU_NM , s.MINIMO_EXHIBICION, s.PLANOGRAMADO_FLG,
+                SELECT h.SKU_PRODUCT,h.UMB, STORE_H.STORE_ID, STORE_H."STORE", STORE_H.ORG_IP , h.SKU_NM , s.MINIMO_EXHIBICION, s.PLANOGRAMADO_FLG,
                 s.STOCK_SEGURIDAD, s.IN_OUT , s.CATALOGADO, s.PLANOGRAMADO_CANTIDAD
                 FROM DWC_SMU.SMU.VW_DIM_ou_sku s
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY h
