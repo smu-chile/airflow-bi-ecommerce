@@ -410,10 +410,6 @@ def load_json_to_publisher(ti):
         isRemoved=False
     )
 
-    df['secondPromotionalPrice'] = df['secondPromotionalPrice'].apply(lambda x: None if x == 0 else x)
-    df['secondMinQuantity'] = df['secondMinQuantity'].apply(lambda x: None if x == 0 else x)
-
-
     df['startDate'] = pd.to_datetime(df['startDate'], unit='ns').dt.strftime('%Y-%m-%d')
     df['endDate'] = pd.to_datetime(df['endDate'], unit='ns').dt.strftime('%Y-%m-%d')
 
@@ -424,6 +420,9 @@ def load_json_to_publisher(ti):
         "firstMinQuantity": 'int64',
         "secondMinQuantity": 'int64'
     })
+
+    df['secondPromotionalPrice'] = df['secondPromotionalPrice'].apply(lambda x: None if x == 0 else x)
+    df['secondMinQuantity'] = df['secondMinQuantity'].apply(lambda x: None if x == 0 else x)
 
     main_cols = ['promotionType'] + list(column_mapping.values()) + ['local', 'isRemoved']
     df = df[main_cols]
