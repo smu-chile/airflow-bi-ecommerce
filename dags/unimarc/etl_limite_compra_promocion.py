@@ -143,7 +143,7 @@ with DAG(
     'etl_limite_promociones',
     default_args=default_args,
     description="Extraer productos con promociones vigentes y setear limite de compra estatico",
-    schedule_interval="30 8 1,10,20 1-12 *",
+    schedule_interval="30 9 * *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["ecommdata", "promociones", "limite_compra", "unimarc", "SERGIO"],
