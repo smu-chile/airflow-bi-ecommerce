@@ -491,7 +491,8 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        df.to_sql(name="stock_seguridad_tiendas",
+        conn.execute("TRUNCATE ecommdata.stock_seguridad_tiendas_apo") 
+        df.to_sql(name="stock_seguridad_tiendas_apo",
                     con=conn,         
                     schema="ecommdata",         
                     if_exists='append',         
@@ -538,7 +539,8 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        df.to_sql(name="stock_seguridad_tiendas",
+        conn.execute("TRUNCATE ecommdata.stock_seguridad_tiendas_apo") 
+        df.to_sql(name="stock_seguridad_tiendas_apo",
                     con=conn,         
                     schema="ecommdata",         
                     if_exists='append',         
