@@ -201,7 +201,7 @@ def forecast_to_s3(ds):
 
     return filename
 
-def forecast_to_postgresql_pm(ti):
+def forecast_to_postgresql(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
@@ -290,8 +290,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "forecast_to_postgresql_pm",
-        python_callable = forecast_to_postgresql_pm,
+        task_id = "forecast_to_postgresql",
+        python_callable = forecast_to_postgresql,
     )
 
     t0 >> t1
