@@ -190,7 +190,7 @@ def _incremental_load_orders_table(ti):
     # Filter marketing_data_fields_dataframe
     df_mdf = df_mdf[["order_id", "utm_source"]]
 
-    df = df.merge(df_cdf, left_on="janis_id", right_on="order_id", how="left")
+    df = df.merge(df_mdf, left_on="janis_id", right_on="order_id", how="left")
     df["utm_source"] = df["utm_source"].fillna("NULL")
     
     df = df.drop(columns=["order_id"])
