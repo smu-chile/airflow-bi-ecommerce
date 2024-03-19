@@ -544,7 +544,7 @@ def _order_marketing_data_field_incremental_load(ti, ts):
     """
     print(janis_query)
 
-    file_name = load_custom_query_to_s3(ts, query=janis_query, query_name="wms_orders_custom_data_fields")
+    file_name = load_custom_query_to_s3(ts, query=janis_query, query_name="wms_orders_marketing_data_fields")
 
     return file_name
 
@@ -594,7 +594,6 @@ with DAG(
     t2 = PythonOperator(
         task_id = "incremental_load_orders_table",
         python_callable = _incremental_load_orders_table,
-        trigger_rule = "none_failed"
     )
 
     t3 = BranchPythonOperator(
@@ -617,6 +616,7 @@ with DAG(
     t5a = PythonOperator(
         task_id = "order_marketing_data_field_incremental_load",
         python_callable = _order_marketing_data_field_incremental_load
+        trigger_rule = "none_failed"
     )
 
     t6 = PythonOperator(
