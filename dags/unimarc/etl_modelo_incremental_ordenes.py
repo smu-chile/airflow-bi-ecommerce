@@ -593,7 +593,7 @@ with DAG(
 
     t2 = PythonOperator(
         task_id = "incremental_load_orders_table",
-        python_callable = _incremental_load_orders_table,
+        python_callable = _incremental_load_orders_table
     )
 
     t3 = BranchPythonOperator(
@@ -615,7 +615,7 @@ with DAG(
 
     t5a = PythonOperator(
         task_id = "order_marketing_data_field_incremental_load",
-        python_callable = _order_marketing_data_field_incremental_load
+        python_callable = _order_marketing_data_field_incremental_load,
         trigger_rule = "none_failed"
     )
 
