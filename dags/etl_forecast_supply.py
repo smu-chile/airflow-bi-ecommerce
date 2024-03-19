@@ -237,6 +237,7 @@ def forecast_to_postgresql(ti):
     choicelist = ["Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"]
     df["dia"] = np.select(condlist, choicelist)
     df["dia"] = df["dia"].astype("str", errors="ignore")
+    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
