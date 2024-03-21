@@ -116,7 +116,7 @@ with DAG(
     default_args=default_args,
     description="Extracción de costos por sku de dw",
     schedule_interval="15 9 * * *",
-    start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
+    start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
     tags=["DATA", "DW", "S3", "costos", "MATIAS"],
