@@ -54,13 +54,11 @@ def _load_to_postgres(ti):
 
     df = df.rename(columns=column_names)
 
-    df = df[["sku" ,"descripcion", "fecha", "formato", "id_tienda", "canal_de_venta", "venta_neta", "costo_neto_calculado"]]
+    df = df[["sku" , "fecha", "id_tienda", "descripcion", "formato", "canal_de_venta", "venta_neta", "costo_neto_calculado"]]
 
     columns = [
         "descripcion",
-        "fecha",
         "formato",
-        "id_tienda",
         "canal_de_venta",
         "venta_neta",
         "costo_neto_calculado"
@@ -68,7 +66,7 @@ def _load_to_postgres(ti):
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = "%s,"+",".join(["%s" for column in columns])
+    values_query = "%s, %s, %s,"+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
     
@@ -88,7 +86,7 @@ def _load_to_postgres(ti):
     incremental_query = """
         INSERT INTO ecommdata.costos_dw (sku,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id_tienda, fecha)
+        ON CONFLICT (sku, fecha, id_tienda)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
     """
     print(incremental_query)
