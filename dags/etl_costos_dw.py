@@ -54,7 +54,7 @@ def _load_to_postgres(ti):
 
     df = df.rename(columns=column_names)
 
-    df = df[["descripcion", "fecha", "formato", "id_tienda", "canal_de_venta", "venta_neta", "costo_neto_calculado"]]
+    df = df[["sku" ,"descripcion", "fecha", "formato", "id_tienda", "canal_de_venta", "venta_neta", "costo_neto_calculado"]]
 
     columns = [
         "descripcion",
@@ -86,7 +86,7 @@ def _load_to_postgres(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.costos_dw (id_tienda, fecha,"""+columns_query+""") 
+        INSERT INTO ecommdata.costos_dw (sku,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id_tienda, fecha)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
