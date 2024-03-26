@@ -225,7 +225,7 @@ with DAG(
     'etl_borrado_stock_janis',
     default_args=default_args,
     description="Borrado de stock janis en base a productos removidos de lista8.",
-    schedule_interval="0 7 * * *",
+    schedule_interval="0 9 * * *",
     start_date=pendulum.datetime(2022, 11, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
