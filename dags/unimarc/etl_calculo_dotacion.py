@@ -7,7 +7,7 @@ from airflow.models import Variable
 
 import pendulum
 
-def get_matriz_dotacion_from_postgres(ds):
+def load_staffing_matrix_to_s3(ds):
     import pandas as pd
     import io
     from io import StringIO
@@ -19,15 +19,13 @@ def get_matriz_dotacion_from_postgres(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     matriz_query = """SELECT *
         from ecommdata.matriz_dotacion;"""
-    print(matriz_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(matriz_query)
     results = cursor.fetchall()
     matriz=pd.DataFrame(results)
-    print(matriz)
-    matriz.columns = ["turno","lunes","martes","miercoles","jueves","viernes","sabado","domingo","horas"]
+    matriz.columns = ["turno","lunes","martes","miercoles","jueves","viernes","sabado","domingo","jornada"]
     cursor.close()
     pg_connection.close()
     
@@ -44,6 +42,144 @@ def get_matriz_dotacion_from_postgres(ds):
                 encrypt=False)
     
     print(f"File load on S3: {prefix}")
+    return filename
+
+def calculate_and_load_turnos_to_s3(ti,ds):
+    import pandas as pd
+    from datetime import datetime, timedelta
+    import io
+    from io import StringIO
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"dotacion/{exec_date}/"
+
+    file_name = ti.xcom_pull(key="return_value", task_ids=["load_staffing_matrix_to_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % file_name)
+
+    s3_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
+    matriz_df = pd.read_csv(s3_object.get()["Body"])
+
+    print(matriz_df.to_string())
+
+    operadores_query = """SELECT *
+        from ecommdata.dotacion_operadores;"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(operadores_query)
+    results = cursor.fetchall()
+    operadores_df=pd.DataFrame(results)
+    operadores_df.columns = ["id_operador","nombre_operador","rut"]
+    cursor.close()
+    pg_connection.close()
+    
+    print(operadores_df.to_string())
+    start_date = datetime.strptime("2024-04-01", "%Y-%m-%d")
+    end_date = datetime.strptime("2024-12-31", "%Y-%m-%d")
+
+    auxlist = []
+
+    for index_operador, row_operador in operadores_df.iterrows():
+        start_index = index_operador % len(matriz_df)
+        current_date = start_date
+        while current_date <= end_date:
+            for index_matriz, row_matriz in matriz_df.iloc[start_index:].iterrows():
+                for day in ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]:
+                    print(row_operador["id_operador"],row_operador["rut"],row_operador["nombre_operador"],row_matriz["turno"],current_date.strftime("%Y-%m-%d"),row_matriz[day],row_matriz["jornada"])
+                    auxlist.append(row_operador["id_operador"],row_operador["rut"],row_operador["nombre_operador"],row_matriz["turno"],current_date.strftime("%Y-%m-%d"),row_matriz[day],row_matriz["jornada"])  
+                    current_date += timedelta(days=1)
+                if current_date > end_date:
+                    break
+            if current_date > end_date:
+                break
+        start_index = 0
+    
+    turnos_df = pd.DataFrame(auxlist, columns = ['id_operador','rut','nombres','rol','fecha','bloque','jornada'])
+    
+    buffer = io.StringIO()
+    turnos_df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"dotacion/{exec_date}/turnos_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    
+    print(f"File load on S3: {prefix}")
+    return filename
+
+def load_staffing_to_postgres(ti):
+    import pandas as pd
+
+    file_name = ti.xcom_pull(key="return_value", task_ids=["calculate_and_load_turnos_to_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % file_name)
+
+    s3_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
+    turnos_df = pd.read_csv(s3_object.get()["Body"])
+
+    operadores_query = """SELECT *
+        from ecommdata.dotacion_horarios;"""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(operadores_query)
+    results = cursor.fetchall()
+    horarios_df=pd.DataFrame(results)
+    horarios_df.columns = ["jornada","bloque","entrada","salida","horas"]
+    cursor.close()
+    pg_connection.close()
+
+    dotacion_df = pd.merge(turnos_df, horarios_df, on=['jornada', 'bloque'], how='left')
+
+    columns = ["id_operador","rut","nombres","rol","fecha","bloque","jornada","entrada","salida","horas"]
+
+    columns_query = ",".join(columns)
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.categorias (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO NOTHING; 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
+
+    return
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -59,18 +195,27 @@ with DAG(
     schedule_interval="0 12 1 1-12 *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["catalogo", "cuadratura", "MFC", "unimarc", "PATRICIO"],
+    tags=["catalogo", "Dotacion", "Staffing", "MFC", "unimarc", "SERGIO"],
 ) as dag:
     
     dag.doc_md = """
-    construir y cargar cuadratura mfc. \n
-    Upsert en tabla catalogo.cuadratura_mfc.
+    construir y cargar dotacion MFC
     """ 
 
     t0 = PythonOperator(
-        task_id = "get_matriz_dotacion_from_postgres",
-        python_callable = get_matriz_dotacion_from_postgres,
+        task_id = "load_staffing_matrix_to_s3",
+        python_callable = load_staffing_matrix_to_s3,
+    )
+
+    t1 = PythonOperator(
+        task_id = "calculate_and_load_turnos_to_s3",
+        python_callable = calculate_and_load_turnos_to_s3,
+    )
+
+    t2 = PythonOperator(
+        task_id = "load_staffing_to_postgres",
+        python_callable = load_staffing_to_postgres,
     )
     
-    t0
+    t0 >> t1 >> t2
     
