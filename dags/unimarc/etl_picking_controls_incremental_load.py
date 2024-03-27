@@ -36,6 +36,7 @@ def _incremental_load_picking_control_table(ti):
             "store_id",
             "entity",
             "entity_id",
+            "controller",
             "date_start",
             "date_end",
             "status",
