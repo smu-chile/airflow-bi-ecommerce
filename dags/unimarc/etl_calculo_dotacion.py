@@ -91,13 +91,13 @@ def calculate_and_load_turnos_to_s3(ti,ds):
             for index_matriz, row_matriz in matriz_df.iloc[start_index:].iterrows():
                 for day in ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]:
                     print(row_operador["id_operador"],row_operador["rut"],row_operador["nombre_operador"],row_matriz["turno"],current_date.strftime("%Y-%m-%d"),row_matriz[day],row_matriz["jornada"])
-                    auxlist.append(row_operador["id_operador"],row_operador["rut"],row_operador["nombre_operador"],row_matriz["turno"],current_date.strftime("%Y-%m-%d"),row_matriz[day],row_matriz["jornada"])  
+                    auxlist.append([row_operador["id_operador"],row_operador["rut"],row_operador["nombre_operador"],row_matriz["turno"],current_date.strftime("%Y-%m-%d"),row_matriz[day],row_matriz["jornada"]])  
                     current_date += timedelta(days=1)
                 if current_date > end_date:
                     break
+            start_index = 0
             if current_date > end_date:
                 break
-        start_index = 0
     
     turnos_df = pd.DataFrame(auxlist, columns = ['id_operador','rut','nombres','rol','fecha','bloque','jornada'])
     
@@ -118,6 +118,7 @@ def calculate_and_load_turnos_to_s3(ti,ds):
 
 def load_staffing_to_postgres(ti):
     import pandas as pd
+    import numpy as np
 
     file_name = ti.xcom_pull(key="return_value", task_ids=["calculate_and_load_turnos_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -143,12 +144,12 @@ def load_staffing_to_postgres(ti):
 
     dotacion_df = pd.merge(turnos_df, horarios_df, on=['jornada', 'bloque'], how='left')
 
-    columns = ["id_operador","rut","nombres","rol","fecha","bloque","jornada","entrada","salida","horas"]
+    columns = ["rut","nombres","rol","fecha","bloque","entrada","salida","jornada","horas"]
 
     columns_query = ",".join(columns)
     values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
-    records = list(df.to_records(index=False))
+    dotacion_df = dotacion_df.fillna("NULL")
+    records = list(dotacion_df.to_records(index=False))
     
     fixed_records = []
     for record in records:
@@ -163,9 +164,9 @@ def load_staffing_to_postgres(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.categorias (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.dotacion_mfc (id_operador,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id)
+        ON CONFLICT (id_operador, fecha)
         DO NOTHING; 
     """
     print(incremental_query)
