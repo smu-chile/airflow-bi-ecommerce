@@ -58,7 +58,7 @@ def _incremental_load_picking_control_table(ti):
         "date_created": "fecha_creacion",
         "user_created": "creacion_usuario",
         "date_modified": "fecha_modificacion",
-        "date_modified": "modificacion_usuario"
+        "user_modified": "modificacion_usuario"
     }
     df = df.rename(columns=columns_rename)
 
