@@ -82,6 +82,7 @@ def _incremental_load_picking_control_table(ti):
         "estado": "bool",
         "fecha_creacion": "string",
         "fecha_modificacion": "string",
+        "fecha_modificacion_unixtime": "int",
         "creacion_usuario": "bool",
         "modificacion_usuario": "bool"
     }, errors="ignore")
@@ -96,6 +97,7 @@ def _incremental_load_picking_control_table(ti):
         "estado",
         "fecha_creacion",
         "fecha_modificacion",
+        "fecha_modificacion_unixtime",
         "creacion_usuario",
         "modificacion_usuario"
     ]
