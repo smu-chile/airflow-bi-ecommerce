@@ -138,7 +138,7 @@ def load_staffing_to_postgres(ti):
     cursor.execute(operadores_query)
     results = cursor.fetchall()
     horarios_df=pd.DataFrame(results)
-    horarios_df.columns = ["jornada","bloque","entrada","salida","horas"]
+    horarios_df.columns = ["bloque","entrada","salida","jornada","horas"]
     cursor.close()
     pg_connection.close()
 
