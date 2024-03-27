@@ -193,7 +193,7 @@ with DAG(
     'etl_dotacion_mfc',
     default_args=default_args,
     description="calculo de dotacion con matriz de pesos de turnos para MFC",
-    schedule_interval="0 12 1 1-12 *",
+    schedule_interval=None,
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["catalogo", "Dotacion", "Staffing", "MFC", "unimarc", "SERGIO"],
