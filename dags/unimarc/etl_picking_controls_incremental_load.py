@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import incremental_unixtime_load_table_s3
+from utils.janis_utils import load_full_table_to_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
@@ -13,7 +13,7 @@ def _incremental_load_picking_control_table(ti):
     import numpy as np
     import pandas as pd
     
-    picking_controls_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+    picking_controls_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -177,30 +177,18 @@ with DAG(
     Extracción y carga de tabla de control picking de Janis Unimarc a Workspace. \n
     UPSERT incremental basado en fecha_modificacion_unixtime.
     """ 
+
     t0 = PythonOperator(
-        task_id = "get_max_updated_at_date",
-        python_callable = get_max_updated_at_value,
+        task_id = "load_full_table_to_s3",
+        python_callable = load_full_table_to_s3,
         op_kwargs = {
-            "schema": "ecommdata",
-            "table_name": "control_picking", 
-            "updated_at_field": "fecha_modificacion_unixtime",
-            "is_unixtime": True
+            "table_name": "picking_controls"
         }
     )
 
     t1 = PythonOperator(
-        task_id = "incremental_unixtime_load_table_to_s3",
-        python_callable = incremental_unixtime_load_table_s3,
-        op_kwargs = {
-            "table_name": "picking_controls", 
-            "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_modified"
-        }
-    )
-
-    t2 = PythonOperator(
         task_id = "incremental_load_picking_control_table",
         python_callable = _incremental_load_picking_control_table
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1
