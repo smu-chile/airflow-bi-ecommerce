@@ -80,18 +80,20 @@ def _set_lim_compra(ts):
         "janis-client": Variable.get("JANIS_CLIENT"),
         "Connection": "keep-alive"
     }
-
+    #seleccionar promociones con mayor duracion de promocion
+    results['fecha_fin_de_promocion'] = pd.to_datetime(results['fecha_fin_de_promocion'])
+    productos_promo = results.loc[results.groupby('ref_id')['fecha_fin_de_promocion'].idxmax()]
     # Creación de big-json
     jst = []
     unix_time = int(datetime.fromisoformat(ts).timestamp())
-    for index, row in results.iterrows():
+    for index, row in productos_promo.iterrows():
         if(int(row["fecha_fin_de_promocion"].strftime('%s')) < unix_time):
             item = {
                 "item_id": row["ref_id"],
                 "attributes": [
                     {
                         "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
-                        "values": ["999"]
+                        "values": ["36"]
                     }
                 ]
             }
