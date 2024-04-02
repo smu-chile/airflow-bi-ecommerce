@@ -24,8 +24,7 @@ left join ecommdata.productos p ON p.ref_id::text = ((wp.material::text || '-'::
                 ELSE wp.umv
             END::text)
 left join ecommdata.categorias c on c.id = p.id_categoria
-where (abs(wp.precio_promocional - wp.precio_modal) >= 5000 or wp.porcentaje_descuento_final >= 0.25)
-and (wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 37, 51, 93, 53, 96, 77, 59]))
+where (wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 37, 51, 93, 53, 96, 77, 59]))
 AND wp.fecha_inicio_de_promocion <= '{ds}'::date + 1
 AND wp.fecha_fin_de_promocion >= '{ds}'::date -1 
 and wp.tipo_promocion <> 3
