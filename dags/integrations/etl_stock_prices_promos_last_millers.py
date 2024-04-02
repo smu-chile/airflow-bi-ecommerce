@@ -11,21 +11,6 @@ import pendulum
 from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
-
-def _check_time(ts):
-    
-    exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
-    exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
-    local_tz = pendulum.timezone("America/Santiago")
-    exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
-    print(exec_datetime_local_str)
-
-    time_str = exec_datetime_local_str.split("T")[1]
-    if (time_str == "20:00") or (time_str == "01:00"):
-        return "task_skip"
-    else:
-        return "get_last_millers_stores"
     
 def _get_last_millers_stores():
     last_millers_stores_query = """
@@ -79,57 +64,50 @@ def extract_stock_from_dw(ti,ds,ts):
             ;"""
     print(query)
 
-    filename = load_custom_query_to_s3(ts,query,"stock_sap_query")
-
-    print("\ntodo bien acá!\n")
-
-    print("Searching file: "+filename)
-    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % filename)
-
-    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
-
-    df = pd.read_csv(s_stock_object.get()["Body"])
-    if len(df.index) == 0:
-        print("There are no new nor updated records to load. Task will exit as successfull.")
-        return
+    try:
+        filename = load_custom_query_to_s3(ts,query,"stock_sap_query")
+        print("Searching file: "+filename)
+        return "stock_to_postgresql"
+    except Exception as err:
+        print(f"error: {err}")
+        return "fallo_dw_stock"
     
-    print(f"Number of records extracted: {len(df.index)}")
+def extract_product_from_dw(ts):
+    import os
+    import pandas as pd
+    import io
+    from io import StringIO
+    from utils.netezza_utils import load_custom_query_to_s3
 
-    df.info()
+    query = f"""--SELECT P.SKU_KEY
+                    , P.EAN 
+                    , P.CONT_CONV_UMB
+                    , P.NM
+                    , P.BRAND_DESC
+                    , P.UNIDAD_DE_MEDIDA
+                FROM DWC_SMU.SMU.VW_DIM_PRODUCT P
+                WHERE p.indic_ean_ppal = 'X';
+            """
+    print(query)
 
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"ls_millers_patito/{exec_date}/ls_millers_{date_aux}.csv"
-    buffer.seek(0)
-    print("se logro transformar el dataframe a un archivo .csv")
-    print(f"con fecha {ds} y nombre de filename como {filename}")
-    s3_hook.load_string(buffer.getvalue(),
-                key=filename,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-    
-    print(f"File load on S3: {prefix}")
-
-    return filename
+    try:
+        filename = load_custom_query_to_s3(ts,query,"product_dw")
+        print("Searching file: "+filename)
+        return "product_to_postgresql"
+    except Exception as err:
+        print(f"error: {err}")
+        return "fallo_dw_producto"
 
 
 def stock_to_postgresql(ti):
-    print('todo bien acá')
+    print('\n carga de stock sap a postgresql')
     return
 
 def product_to_postgresql(ti):
-    print('todo bien acá')
+    print('\n carga de productos sap a postgresql')
     return
 
-def stock_prices_promos_llss_to_s3(ti):
-    print('todo bien acá')
-    return
 
-def stock_prices_promos_llss_to_postgres(ti):
-    print('todo bien acá')
-    return
 
 
 default_args = {
@@ -143,7 +121,7 @@ with DAG(
     'etl_stock_prices_promos_last_millers',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos",
-    schedule_interval="0 1,4/4 * * *",
+    schedule_interval="20 9,15 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos"],
@@ -154,64 +132,41 @@ with DAG(
     cargar stock,precios y promos a la tabla lss_millers_promos\n
     guardar en S3 y postgresql.
     """ 
-    t0 = BranchPythonOperator(
-        task_id='check_time',
-        python_callable=_check_time,
-    )
 
-    t_dummy = DummyOperator(
-            task_id='task_skip',
+    t_dummy_p = DummyOperator(
+            task_id='fallo_dw_producto',
         )
     
-    t1  = PythonOperator(
+    t_dummy_s = DummyOperator(
+            task_id='fallo_dw_stock',
+        )
+    
+    t0  = PythonOperator(
         task_id = "get_last_millers_stores",
         python_callable = _get_last_millers_stores
     )
 
-    t2 = PythonOperator(
+    t1 = BranchPythonOperator(
         task_id = "extract_stock_from_dw",
         python_callable = extract_stock_from_dw,
     )
 
-    t3 = PythonOperator(
+    t2 = BranchPythonOperator(
         task_id = "extract_product_from_dw",
-        python_callable = load_custom_query_to_s3,
-        op_kwargs = {
-            "query": """SELECT P.SKU_KEY
-                    , P.EAN 
-                    , P.CONT_CONV_UMB
-                    , P.NM
-                    , P.BRAND_DESC
-                    , P.UNIDAD_DE_MEDIDA
-                FROM DWC_SMU.SMU.VW_DIM_PRODUCT P
-                WHERE p.indic_ean_ppal = 'X';
-            """,
-            "query_name": "product_dw",
-        }
+        python_callable = extract_product_from_dw,
     )
 
-    t4 = PythonOperator(
+    t3 = PythonOperator(
         task_id = "stock_to_postgresql",
         python_callable = stock_to_postgresql,
     )
-    t5 = PythonOperator(
+    t4 = PythonOperator(
         task_id = "product_to_postgresql",
         python_callable = product_to_postgresql,
     )
 
-    t6 = PythonOperator(
-        task_id = "stock_prices_promos_llss_to_s3",
-        python_callable = stock_prices_promos_llss_to_s3,
-    )
-
-    t7 = PythonOperator(
-        task_id = "stock_prices_promos_llss_to_postgres",
-        python_callable = stock_prices_promos_llss_to_postgres,
-    )
-        
-    t0 >> t_dummy
-    t1 >> [t2,t3]
+    t1 >>  t_dummy_s 
+    t2 >>  t_dummy_p
+    t0 >> [t1,t2]
+    t1 >> t3
     t2 >> t4
-    t3 >> t5
-    [t4,t5] >> t6
-    t6 >> t7
