@@ -66,7 +66,6 @@ def reposicion_to_s3(ds):
     nombre_dia = (lambda x: dias[x])(dia_de_la_semana)
 
     df = df[['material', 'minimo','maximo','doh_objetivo','lead_time',str(nombre_dia),'stock_janis','stock_takeoff','mfc_is_item_side']]
-    df
 
     df["venta"] = pd.to_numeric(df[str(nombre_dia)], errors='coerce')
     df['stock_janis'] = df['stock_janis'].fillna(0)
@@ -85,8 +84,6 @@ def reposicion_to_s3(ds):
     ]
     choicelist = [False, False, True]
     df["reponer"] = np.select(condlist, choicelist)
-
-
 
     df.info()
     #recuerda agregar enterar por multiplicador de medida
