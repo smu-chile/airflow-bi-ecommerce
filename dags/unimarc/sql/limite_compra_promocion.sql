@@ -28,7 +28,6 @@ where (wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 37, 51, 93, 53, 96, 77, 
 AND wp.fecha_inicio_de_promocion <= '{ds}'::date + 1
 AND wp.fecha_fin_de_promocion >= '{ds}'::date -1 
 and wp.tipo_promocion <> 3
-and c.n1 not in ('Carnes')
 and s.vtex_id is not null
 AND wp.nombre_promocion::text !~~ '%MFC%'::text
 AND wp.nombre_promocion::text !~~ '%S06%'::text
@@ -38,4 +37,8 @@ AND wp.nombre_promocion::text !~~ '%917%'::text
 AND wp.nombre_promocion::text !~~ '%0743%'::text
 and wp.nombre_promocion::text !~~ '% LOC%'::text
 and wp.nombre_promocion::text !~~ '%L65%'::text
-and wp.nombre_promocion::text !~~ '%L0089%'::text;
+and wp.nombre_promocion::text !~~ '%L0089%'::text
+AND (
+        wp.id_evento IN (402, 565, 566, 553, 404)
+        OR (abs(wp.precio_promocional - wp.precio_modal) >= 5000 or wp.porcentaje_descuento_final >= 0.25)
+    );
