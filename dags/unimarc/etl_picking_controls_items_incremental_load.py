@@ -50,6 +50,7 @@ def _incremental_load_picking_control_items_table(ti):
     columns_rename = {
         "id": "id",
         "picking_control_id": "id_control_picking",
+        "order_item_id": "id_orden_id",
         "reason_id": "id_razon",
         "basket": "canasta",
         "seal": "sello",
@@ -67,6 +68,7 @@ def _incremental_load_picking_control_items_table(ti):
     df = df.astype({
         "id": "int",
         "id_control_picking": "int",
+        "id_orden_id": "int",
         "id_razon": "int",
         "canasta": "int",
         "sello": "int",
@@ -81,6 +83,7 @@ def _incremental_load_picking_control_items_table(ti):
     columns = [
         "id_control_picking",
         "id_razon",
+        "id_orden_id",
         "canasta",
         "sello",
         "ean",
@@ -95,6 +98,7 @@ def _incremental_load_picking_control_items_table(ti):
         "id",
         "id_control_picking",
         "id_razon",
+        "id_orden_id",
         "canasta",
         "sello",
         "ean",
@@ -141,6 +145,7 @@ def _incremental_load_picking_control_items_table(ti):
     print("Data loaded to Postgres")
 
     return
+
 
 default_args = {
     "owner": "ecommerce_data",
