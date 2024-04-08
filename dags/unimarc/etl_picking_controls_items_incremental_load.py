@@ -168,7 +168,7 @@ with DAG(
         task_id = "load_full_table_to_s3",
         python_callable = load_full_table_to_s3,
         op_kwargs = {
-            "table_name": "picking_controls"
+            "table_name": "picking_controls_items"
         }
     )
 
