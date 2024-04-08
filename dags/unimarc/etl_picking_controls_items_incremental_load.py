@@ -50,7 +50,7 @@ def _incremental_load_picking_control_items_table(ti):
     columns_rename = {
         "id": "id",
         "picking_control_id": "id_control_picking",
-        "order_item_id": "id_orden_id",
+        "order_item_id": "id_orden_producto",
         "reason_id": "id_razon",
         "basket": "canasta",
         "seal": "sello",
@@ -68,7 +68,7 @@ def _incremental_load_picking_control_items_table(ti):
     df = df.astype({
         "id": "int",
         "id_control_picking": "int",
-        "id_orden_id": "int",
+        "id_orden_producto": "int",
         "id_razon": "int",
         "canasta": "int",
         "sello": "int",
@@ -83,7 +83,7 @@ def _incremental_load_picking_control_items_table(ti):
     columns = [
         "id_control_picking",
         "id_razon",
-        "id_orden_id",
+        "id_orden_producto",
         "canasta",
         "sello",
         "ean",
@@ -98,7 +98,7 @@ def _incremental_load_picking_control_items_table(ti):
         "id",
         "id_control_picking",
         "id_razon",
-        "id_orden_id",
+        "id_orden_producto",
         "canasta",
         "sello",
         "ean",
