@@ -93,7 +93,7 @@ def _set_lim_compra(ts):
                 "attributes": [
                     {
                         "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
-                        "values": ["36"]
+                        "values": ["999"]
                     }
                 ]
             }
