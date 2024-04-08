@@ -21,3 +21,4 @@ geopandas
 shapely
 Polygon
 Point
+slack_sdk
