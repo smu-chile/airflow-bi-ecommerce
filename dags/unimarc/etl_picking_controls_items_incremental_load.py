@@ -96,7 +96,7 @@ def _incremental_load_picking_control_items_table(ti):
         "id_control_picking",
         "id_razon",
         "canasta",
-        "seallo",
+        "sello",
         "ean",
         "resultado_control",
         "cantidad_a_auditar",
