@@ -45,6 +45,24 @@ def venta_mfc_semana():
 
     return results
 
+def reposicion():
+    import pandas as pd
+    ventas_query = """select msr.material,p.nombre ,minimo,maximo,stock_janis,venta, ROUND(CAST(reponer AS numeric), 2) as reponer,solicitado
+                from ecommdata.mfc_solicitud_reposicion msr
+                left join ecommdata.productos p 
+                on p.material = msr.material;
+                    """
+    print(ventas_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(ventas_query)
+    results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
+
+    return results
+
 def reposicion_to_s3(ds):
     import pandas as pd
     import numpy as np
@@ -174,6 +192,40 @@ def reposicion_to_postgres(ti):
     return
 
 
+def reposicion_to_slack():
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+
+    df = reposicion()
+    headers = ["material", "nombre", "minimo", "maximo", "stock_janis", "venta", "reponer", "solicitado"]
+
+    column_widths = [len(header) for header in headers]
+    for row in df:
+        for index, value in enumerate(row):
+            column_widths[index] = max(column_widths[index], len(str(value)))
+
+    formatted_header = " | ".join(header.upper().ljust(column_widths[index]) for index, header in enumerate(headers))
+
+    formatted_rows = [formatted_header]
+    for row in df:
+        formatted_row = " | ".join(str(value).ljust(column_widths[index]) for index, value in enumerate(row))
+        formatted_rows.append(formatted_row)
+
+    formatted_message = "```\n" + "\n".join(formatted_rows) + "\n```"
+    print(formatted_message)
+
+    token = Variable.get("token_slack")
+
+    client = WebClient(token=token)
+
+    try:
+        response = client.chat_postMessage(channel="alertas-reposiciones-mfc", text=formatted_message)
+    except SlackApiError as e:
+        print(f"Error sending message: {e}")
+
+    return
+
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -189,7 +241,7 @@ with DAG(
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "MFC", "ecommdata", "PATRICIO"],
+    tags=["DATA", "MFC", "ecommdata","SLACK" ,"PATRICIO"],
 ) as dag:
 
     dag.doc_md = """
@@ -204,4 +256,8 @@ with DAG(
         task_id = "reposicion_to_postgres",
         python_callable = reposicion_to_postgres
     )
-    t0 >> t1
+    t2 = PythonOperator(
+        task_id = "reposicion_to_slack",
+        python_callable = reposicion_to_slack
+    )
+    t0 >> t1 >> t2
