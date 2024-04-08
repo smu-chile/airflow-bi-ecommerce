@@ -145,6 +145,7 @@ def reposicion_to_postgres(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
     df["material"] = df["material"].apply(lambda x: str(x).zfill(18))
+    df = df[['material','maximo','minimo','stock_janis','stock_takeoff','venta','reponer','solicitado']]
     df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
