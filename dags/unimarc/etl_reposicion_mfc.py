@@ -57,7 +57,10 @@ def reposicion():
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_query)
+    column_names = [desc[0] for desc in cursor.description]
     results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
     cursor.close()
     pg_connection.close()
 
@@ -197,33 +200,29 @@ def reposicion_to_postgres(ti):
 def reposicion_to_slack():
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
+    import io
+    import pandas as pd
 
     df = reposicion()
-    headers = ["material", "descripcion_material", "solicitado"]
 
-    column_widths = [len(header) for header in headers]
-    for row in df:
-        for index, value in enumerate(row):
-            column_widths[index] = max(column_widths[index], len(str(value)))
-
-    formatted_header = " | ".join(header.upper().ljust(column_widths[index]) for index, header in enumerate(headers))
-
-    formatted_rows = [formatted_header]
-    for row in df:
-        formatted_row = " | ".join(str(value).ljust(column_widths[index]) for index, value in enumerate(row))
-        formatted_rows.append(formatted_row)
-
-    formatted_message = "```\n" + "\n".join(formatted_rows) + "\n```"
-    print(formatted_message)
-
-    token = Variable.get("token_slack")
-
-    client = WebClient(token=token)
-
-    try:
-        response = client.chat_postMessage(channel="alertas-reposiciones-mfc", text=formatted_message)
-    except SlackApiError as e:
-        print(f"Error sending message: {e}")
+    with io.BytesIO() as buffer:
+        df.to_csv(buffer, index=False, encoding='utf-8')
+        buffer.seek(0)
+        
+        token = Variable.get("token_slack")
+        
+        client = WebClient(token=token)
+        
+        try:
+            response = client.files_upload(
+                channels="alertas-reposiciones-mfc",
+                file=buffer,
+                filename="reporte_reposicion.csv",
+                title="Reporte de Reposición",
+                initial_comment="Aquí está el reporte de reposición actualizado."
+            )
+        except SlackApiError as e:
+            print(f"Error al subir archivo: {e}")
 
     return
 

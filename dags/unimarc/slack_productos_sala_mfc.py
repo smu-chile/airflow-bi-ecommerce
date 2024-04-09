@@ -132,7 +132,7 @@ def send_to_slack(ts, ds):
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
             initial_comment = "Listado de productos sala en mfc",
-            filename = "listado_productos_sala_mfc.csv",
+            filename = "listado_productos_sala_mfc.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
             print(f"Error sending message: {e}")
@@ -143,8 +143,9 @@ def send_to_slack(ts, ds):
     if df_list[1] is not None:
         print("SENDING DF2")
         df = df_list[1]
-        buffer = io.StringIO()
-        df.to_csv(buffer, header=True, index=False, encoding="utf-8", sep=';')
+        buffer = io.BytesIO()
+        writer = pd.ExcelWriter(buffer, engine='xlsxwriter')
+        df.to_excel(writer, header=True, index=False, sheet_name='Sheet1')
         buffer.seek(0)
         token = Variable.get("token_slack_2")
         client = WebClient(token=token)
@@ -153,7 +154,7 @@ def send_to_slack(ts, ds):
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
             initial_comment = "Listado de productos sala en mfc",
-            filename = "listado_productos_sala_mfc.csv",
+            filename = "listado_productos_sala_mfc.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
             print(f"Error sending message: {e}")
