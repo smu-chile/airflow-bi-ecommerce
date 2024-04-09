@@ -39,8 +39,12 @@ def listado_productos_sala_mfc():
 def send_to_slack():
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
+    import io
 
     df = listado_productos_sala_mfc()
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
     token = Variable.get("token_slack_2")
     client = WebClient(token=token)
 
@@ -49,7 +53,7 @@ def send_to_slack():
         channels = Variable.get("canal_slack_lps_mfc"),
         initial_comment = "Listado de productos sala en mfc",
         filename = "listado_productos_sala_mfc.csv",
-        content = df)
+        content = buffer.getvalue())
     except SlackApiError as e:
         print(f"Error sending message: {e}")
 
