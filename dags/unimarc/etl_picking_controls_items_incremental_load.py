@@ -9,7 +9,7 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
-def _incremental_load_picking_control_items_table(ti):
+def _incremental_load_picking_control_items_table(ti, ds):
     import numpy as np
     import pandas as pd
     
@@ -137,7 +137,8 @@ def _incremental_load_picking_control_items_table(ti):
         UPDATE ecommdata.control_picking_productos cpp
         SET descripcion = op.descripcion
         FROM ecommdata.orden_productos op
-        WHERE cpp.id_orden_producto = op.id;
+        left join ecommdata.control_picking cp
+        WHERE cpp.id_orden_producto = op.id and cp.fecha_inicio::date = """+ds+""";
         COMMIT;
     """
     print(incremental_query)
