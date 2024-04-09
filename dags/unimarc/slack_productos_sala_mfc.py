@@ -30,28 +30,28 @@ def listado_productos_sala_mfc(ts, ds):
     v_time = None
     v2_time = None
 
-    if time_str == "19:30":
-        v_time = macros.ds_add(ds, -1) + " 9:00"
-        v2_time = macros.ds_add(ds, -1) + " 10:00:00"
-    elif time_str == "7:30":
+    if time_str == "19:15":
+        v_time = macros.ds_add(ds, 1) + " 9:00"
+        v2_time = macros.ds_add(ds, 1) + " 10:00:00"
+    elif time_str == "7:15":
         v_time = ds + " 11:00"
-    elif time_str == "8:30":
+    elif time_str == "8:15":
         v_time = ds + " 12:00"
-    elif time_str == "9:15":
+    elif time_str == "9:00":
         v_time = ds + " 13:00"
-    elif time_str == "10:15":
+    elif time_str == "10:00":
         v_time = ds + " 14:00"
-    elif time_str == "11:15":
+    elif time_str == "11:00":
         v_time = ds + " 15:00"
-    elif time_str == "12:15":
+    elif time_str == "12:00":
         v_time = ds + " 16:00"
-    elif time_str == "13:15":
+    elif time_str == "13:00":
         v_time = ds + " 17:00"
-    elif time_str == "14:15":
+    elif time_str == "14:00":
         v_time = ds + " 18:00"
-    elif time_str == "15:15":
+    elif time_str == "15:00":
         v_time = ds + " 19:00"
-    elif time_str == "16:15":
+    elif time_str == "16:00":
         v_time = ds + " 20:00"
     
     results = []
