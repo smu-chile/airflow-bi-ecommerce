@@ -134,7 +134,7 @@ def _incremental_load_picking_control_items_table(ti):
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
-        UPDATE ecommdata.control_picking_productos
+        UPDATE ecommdata.control_picking_productos cpp
         SET descripcion = op.descripcion
         FROM ecommdata.orden_productos op
         WHERE cpp.id_orden_producto = op.id;
