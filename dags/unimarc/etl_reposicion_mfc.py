@@ -14,8 +14,8 @@ def venta_mfc_semana():
     ventas_query = """select mrm.*,
                     vpsm.domingo, vpsm.lunes, vpsm.martes,vpsm.miercoles,vpsm.jueves,vpsm.viernes,vpsm.sabado,
                     um.mfc_is_item_side,
-                    smt.quantity_on_hand as stock_takeoff,
-                    s.stock_janis,
+                    0::float as stock_takeoff,
+                    0::float as "stock_janis",
                     s.multiplicador_unidad_medida 
                     from ecommdata.maestra_reposicion_mfc mrm 
                     left join ecommdata.venta_prom_semanal_mfc vpsm
@@ -47,7 +47,7 @@ def venta_mfc_semana():
 
 def reposicion():
     import pandas as pd
-    ventas_query = """select msr.material,p.nombre ,minimo,maximo,stock_janis,venta, ROUND(CAST(reponer AS numeric), 2) as reponer,solicitado
+    ventas_query = """select msr.material,p.nombre as "descripcion_material",solicitado
                 from ecommdata.mfc_solicitud_reposicion msr
                 left join ecommdata.productos p 
                 on p.material = msr.material;
@@ -83,7 +83,7 @@ def reposicion_to_s3(ds):
     dias = {0: 'domingo', 1: 'lunes', 2: 'martes', 3: 'miercoles', 4: 'jueves', 5: 'viernes', 6: 'sabado'}
     nombre_dia = (lambda x: dias[x])(dia_de_la_semana)
 
-    df = df[['material', 'minimo','maximo','doh_objetivo','lead_time',str(nombre_dia),'stock_janis','stock_takeoff','mfc_is_item_side']]
+    df = df[['material', 'minimo','maximo','doh_objetivo','lead_time',str(nombre_dia),'stock_janis','stock_takeoff','mfc_is_item_side','multiplicador_unidad_medida']]
 
     df["venta"] = pd.to_numeric(df[str(nombre_dia)], errors='coerce')
     df['stock_janis'] = df['stock_janis'].fillna(0)
@@ -104,7 +104,6 @@ def reposicion_to_s3(ds):
     df["reponer"] = np.select(condlist, choicelist)
 
     df.info()
-    #recuerda agregar enterar por multiplicador de medida
 
     df = df[df["reponer"] == True]
 
@@ -121,6 +120,9 @@ def reposicion_to_s3(ds):
                 df["solicitado"] > df["minimo"]]
     choicelist = [df["minimo"], df["solicitado"]]
     df["solicitado"] = np.select(condlist, choicelist)
+
+    df['multiplicador_unidad_medida'] = df['multiplicador_unidad_medida'].astype(float)
+    df["solicitado"] = np.ceil(df["solicitado"] / df["multiplicador_unidad_medida"]) * df["multiplicador_unidad_medida"]
 
     df = df.drop_duplicates()
 
@@ -197,7 +199,7 @@ def reposicion_to_slack():
     from slack_sdk.errors import SlackApiError
 
     df = reposicion()
-    headers = ["material", "nombre", "minimo", "maximo", "stock_janis", "venta", "reponer", "solicitado"]
+    headers = ["material", "descripcion_material", "solicitado"]
 
     column_widths = [len(header) for header in headers]
     for row in df:
