@@ -114,14 +114,16 @@ def send_to_slack(ts, ds):
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
     import io
+    import pandas as pd
 
     df_list = listado_productos_sala_mfc(ts, ds)
     
     if df_list[0] is not None:
         print("SENDING DF1")
         df = df_list[0]
-        buffer = io.StringIO()
-        df.to_csv(buffer, header=True, index=False, encoding="utf-8", sep=';')
+        buffer = io.BytesIO()
+        writer = pd.ExcelWriter(buffer, engine='xlsxwriter')
+        df.to_excel(writer, header=True, index=False, sheet_name='Sheet1')
         buffer.seek(0)
         token = Variable.get("token_slack_2")
         client = WebClient(token=token)
