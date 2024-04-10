@@ -4,6 +4,7 @@ from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.operators.postgres_operator import PostgresOperator
 from airflow.operators.python import PythonOperator
 
 from datetime import datetime, timedelta
@@ -78,72 +79,74 @@ def reposicion_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    df = venta_mfc_semana()
+    df = venta_mfc_semana()  # Esta función debe devolver el DataFrame necesario
 
     fecha = datetime.strptime(ds, '%Y-%m-%d')
-    dia_de_la_semana = fecha.weekday()
-    dia_de_la_semana = (dia_de_la_semana +1)%7
-    dias = {0: 'domingo', 1: 'lunes', 2: 'martes', 3: 'miercoles', 4: 'jueves', 5: 'viernes', 6: 'sabado'}
-    nombre_dia = (lambda x: dias[x])(dia_de_la_semana)
+    print(fecha)
+    dia_de_la_semana = (fecha.weekday()+1)%7
+    print(dia_de_la_semana)
+    nombre_dia = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'][dia_de_la_semana]
+    print(nombre_dia)
 
-    df = df[['material', 'minimo','maximo','doh_objetivo','lead_time',str(nombre_dia),'stock_janis','stock_takeoff','mfc_is_item_side','multiplicador_unidad_medida']]
+    # Aplicamos la condición del contador igual a 0
+    df = df[df['contador'] == 0]
 
-    df["venta"] = pd.to_numeric(df[str(nombre_dia)], errors='coerce')
+    # Función para calcular ventas futuras según el doh_objetivo
+    def calcular_venta_futura(row, dias_de_la_semana, nombre_dia):
+        index_dia_actual = dias_de_la_semana.index(nombre_dia)
+        ventas_futuras = 0
+        # El rango de días para sumar inicia en 0 (día actual) y se extiende hasta doh_objetivo
+        for i in range(0, int(row['lead_time'])):
+            dia = dias_de_la_semana[(index_dia_actual + i) % len(dias_de_la_semana)]
+            ventas_futuras += row.get(dia, 0)  # Asume 0 si no hay datos para ese día
+        return ventas_futuras
+
+    dias_de_la_semana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
+    df['venta_futura'] = df.apply(calcular_venta_futura, args=(dias_de_la_semana, nombre_dia), axis=1)
+
+    # Lógica para decidir si se necesita reponer actualizada para usar venta_futura
     df['stock_janis'] = df['stock_janis'].fillna(0)
 
     condlist = [
-                df["venta"] > df["minimo"],
-                df["venta"] <= df["minimo"]
+        df["venta_futura"] > df["minimo"],
+        df["venta_futura"] <= df["minimo"]
     ]
     choicelist = [True, False]
     df["reponer"] = np.select(condlist, choicelist)
 
     condlist = [
-                df["reponer"] == False,
-                (df["reponer"] == True) & (df["stock_janis"] > df["venta"]),
-                (df["reponer"] == True) & (df["stock_janis"] <= df["venta"])                    
+        df["reponer"] == False,
+        (df["reponer"] == True) & (df["stock_janis"] > df["venta_futura"]),
+        (df["reponer"] == True) & (df["stock_janis"] <= df["venta_futura"])
     ]
     choicelist = [False, False, True]
     df["reponer"] = np.select(condlist, choicelist)
 
-    df.info()
-
-    df = df[df["reponer"] == True]
-
-    df["stock_objetivo"] = df["doh_objetivo"]*df["venta"]
-    df["reponer"] = df["stock_objetivo"]+df["lead_time"]*df["venta"]-df["stock_janis"]
-    df.info()
-
-    condlist = [df["reponer"] > df["maximo"],
-                df["reponer"] <= df["maximo"]]
-    choicelist = [df["maximo"], df["reponer"]]
-    df["solicitado"] = np.select(condlist, choicelist)
-
-    condlist = [df["solicitado"] <= df["minimo"],
-                df["solicitado"] > df["minimo"]]
-    choicelist = [df["minimo"], df["solicitado"]]
-    df["solicitado"] = np.select(condlist, choicelist)
+    # Ajustar 'solicitado' en función de 'maximo' y 'minimo'
+    df["venta_hoy"] = df[str(nombre_dia)]
+    df["stock_objetivo"] = df["doh_objetivo"] * df["venta_hoy"]
+    print(df.head())
+    df["solicitado"] = df["stock_objetivo"] + df["venta_futura"] - df["stock_janis"]
+    df["solicitado"] = np.select(
+        [df["solicitado"] > df["maximo"], df["solicitado"] < df["minimo"]],
+        [df["maximo"], df["minimo"]],
+        default=df["solicitado"]
+    )
 
     df['multiplicador_unidad_medida'] = df['multiplicador_unidad_medida'].astype(float)
     df["solicitado"] = np.ceil(df["solicitado"] / df["multiplicador_unidad_medida"]) * df["multiplicador_unidad_medida"]
 
-    df = df.drop_duplicates()
+    # Mantenemos solo los registros donde 'reponer' es True o 1 ?
+    df = df[df["reponer"] == 1]
 
-    df.info()
-
+    # Convertimos el DataFrame a un archivo CSV y lo cargamos a S3
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"mfc_reposicion/{exec_date}/mfc_reposicion_{date_aux}.csv"
     buffer.seek(0)
-    print("se logro transformar el dataframe a un archivo .csv")
-    print(f"con fecha {ds} y nombre de filename como {filename}")
-    s3_hook.load_string(buffer.getvalue(),
-                key=filename,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-    print(f"File load on S3: {prefix}")
+    s3_hook.load_string(buffer.getvalue(), key=filename, bucket_name=s3_bucket, replace=True)
 
+    print(f"Archivo cargado en S3: {prefix}{filename}")
     return filename
 
 def reposicion_to_postgres(ti):
@@ -170,7 +173,9 @@ def reposicion_to_postgres(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
     df["material"] = df["material"].apply(lambda x: str(x).zfill(18))
-    df = df[['material','maximo','minimo','stock_janis','stock_takeoff','venta','reponer','solicitado']]
+    df = df[['material','maximo','minimo','stock_janis','stock_takeoff','venta_futura','reponer','solicitado']]
+    df.columns = ['material','maximo','minimo','stock_janis','stock_takeoff','venta','reponer','solicitado']
+    df['reponer'] = df['reponer'].astype(bool)
     df = df.drop_duplicates()
     df.info()
 
@@ -215,7 +220,7 @@ def reposicion_to_slack():
         
         try:
             response = client.files_upload(
-                channels="alertas-reposiciones-mfc",
+                channels="alerta-reposiciones-mfc-qa",
                 file=buffer,
                 filename="reporte_reposicion.csv",
                 title="Reporte de Reposición",
@@ -238,7 +243,7 @@ with DAG(
     'etl_reposicion_mfc',
     default_args=default_args,
     description="consulta de datos de Stock MFC, maestra reposicion desde postgres para logica de reposicion.",
-    schedule_interval="0 8 * * *",
+    schedule_interval="50 17 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -261,4 +266,15 @@ with DAG(
         task_id = "reposicion_to_slack",
         python_callable = reposicion_to_slack
     )
-    t0 >> t1 >> t2
+    t3 = PostgresOperator(
+        task_id = "update_contador",
+        postgres_conn_id = "postgresql_conn",
+        sql = """BEGIN;
+            UPDATE ecommdata.maestra_reposicion_mfc
+            SET contador = contador - 1;
+            UPDATE ecommdata.maestra_reposicion_mfc
+            SET contador = lead_time
+            WHERE contador < 0;
+            COMMIT;"""
+    )
+    t0 >> t1 >> t2 >> t3
