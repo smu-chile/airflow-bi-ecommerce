@@ -31,13 +31,13 @@ def listado_productos_sala_mfc(ts, ds):
     v2_time = None
 
     if time_str == "19:15":
-        v_time = macros.ds_add(ds, 1) + " 9:00"
+        v_time = macros.ds_add(ds, 1) + " 09:00"
         v2_time = macros.ds_add(ds, 1) + " 10:00:00"
-    elif time_str == "7:15":
+    elif time_str == "07:15":
         v_time = ds + " 11:00"
-    elif time_str == "8:15":
+    elif time_str == "08:15":
         v_time = ds + " 12:00"
-    elif time_str == "9:00":
+    elif time_str == "09:00":
         v_time = ds + " 13:00"
     elif time_str == "10:00":
         v_time = ds + " 14:00"
@@ -58,7 +58,7 @@ def listado_productos_sala_mfc(ts, ds):
 
     if v_time is not None:
 
-        lp_query = f"""select op.id_orden as pedido, op.ref_id, op.ean, op.descripcion, oj.id_cliente_janis, du.nombre, du.apellido, du.fono, um.mfc_is_item_side, d.inicio_ventana::date as fecha, d.inicio_ventana::time as inicio_ventana, d.termino_ventana::time as termino_ventana  
+        lp_query = f"""select op.id_orden as pedido, op.ref_id, op.ean, op.descripcion, oj.id_cliente_janis, du.nombre, du.apellido, du.fono, um.mfc_is_item_side, d.inicio_ventana::date as fecha, d.inicio_ventana::time as inicio_ventana, d.termino_ventana::time as termino_ventana, op.precio_lista 
                         from ecommdata.orden_productos op
                         inner join ecommdata.ordenes_janis oj on oj.id = op.id_orden
                         inner join ecommdata.ubicacion_mfc um on CONCAT(um.sap_code, '-', um.measurement_unit) = op.ref_id
