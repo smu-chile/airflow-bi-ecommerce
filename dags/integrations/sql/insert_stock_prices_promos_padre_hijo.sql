@@ -51,7 +51,7 @@ on _t.material = _t2.material
 and _t.unidad_de_medida = _t2.umv
 and _t.id_tienda = _t2.id_tienda
 left join (
-	select ean
+	select ean, material
             , min(precio_promocional) AS precio_promocional 
     from ecommdata.workflow_promociones wp 
     where wp.fecha_inicio_de_promocion <= '{{macros.ds_add(ds,1)}}'
@@ -69,9 +69,9 @@ left join (
 	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
 	and wp.nombre_promocion::text !~~ '% LOC%'::text
 	and wp.nombre_promocion::text !~~ '%LIQ%'::text
-    group by wp.ean
+    group by wp.ean , wp.material
 ) _t3
-on _t.ean = _t3.ean
+on _t.material = _t3.material
 where floor(_t.stock_unitario/_t.multiplicador_unidad) > 0
 ;
 COMMIT;
