@@ -58,7 +58,7 @@ def listado_productos_sala_mfc(ts, ds):
 
     if v_time is not None:
 
-        lp_query = f"""select op.id_orden as pedido, op.ref_id, op.ean, op.descripcion, oj.id_cliente_janis, du.nombre, du.apellido, du.fono, um.mfc_is_item_side, d.inicio_ventana::date as fecha, d.inicio_ventana::time as inicio_ventana, d.termino_ventana::time as termino_ventana, op.precio_lista, op.unidades_solicitadas, op.unidades_pickeadas, op.unidad_de_medida, op.multiplicador_unidad, op.multiplicador_unidad*op.unidades_solicitadas  as Und_Kg_solicitado, 
+        lp_query = f"""select op.id_orden as pedido, op.ref_id, op.ean, op.descripcion, oj.id_cliente_janis, du.nombre, du.apellido, du.fono, um.mfc_is_item_side, d.inicio_ventana::date as fecha, d.inicio_ventana::time as inicio_ventana, d.termino_ventana::time as termino_ventana, op.precio_lista, op.unidades_solicitadas, op.unidades_pickeadas, op.unidad_de_medida, op.multiplicador_unidad, op.multiplicador_unidad*op.unidades_solicitadas  as Und_Kg_solicitado 
                         from ecommdata.orden_productos op
                         inner join ecommdata.ordenes_janis oj on oj.id = op.id_orden
                         inner join ecommdata.ubicacion_mfc um on CONCAT(um.sap_code, '-', um.measurement_unit) = op.ref_id
@@ -84,7 +84,7 @@ def listado_productos_sala_mfc(ts, ds):
 
     if v2_time is not None:
 
-        lp_query = f"""select op.id_orden as pedido, op.ref_id, op.ean, op.descripcion, oj.id_cliente_janis, du.nombre, du.apellido, du.fono, um.mfc_is_item_side, d.inicio_ventana::date as fecha, d.inicio_ventana::time as inicio_ventana, d.termino_ventana::time as termino_ventana  
+        lp_query = f"""select op.id_orden as pedido, op.ref_id, op.ean, op.descripcion, oj.id_cliente_janis, du.nombre, du.apellido, du.fono, um.mfc_is_item_side, d.inicio_ventana::date as fecha, d.inicio_ventana::time as inicio_ventana, d.termino_ventana::time as termino_ventana, op.precio_lista, op.unidades_solicitadas, op.unidades_pickeadas, op.unidad_de_medida, op.multiplicador_unidad, op.multiplicador_unidad*op.unidades_solicitadas  as Und_Kg_solicitado  
                         from ecommdata.orden_productos op
                         inner join ecommdata.ordenes_janis oj on oj.id = op.id_orden
                         inner join ecommdata.ubicacion_mfc um on CONCAT(um.sap_code, '-', um.measurement_unit) = op.ref_id
