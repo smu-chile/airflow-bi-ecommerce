@@ -15,8 +15,8 @@ def venta_mfc_semana():
     ventas_query = """select mrm.*,
                     vpsm.domingo, vpsm.lunes, vpsm.martes,vpsm.miercoles,vpsm.jueves,vpsm.viernes,vpsm.sabado,
                     um.mfc_is_item_side,
-                    0::float as stock_takeoff,
-                    0::float as "stock_janis",
+                    smt.quantity_on_hand as "stock_takeoff",
+                    s.stock_janis,
                     s.multiplicador_unidad_medida 
                     from ecommdata.maestra_reposicion_mfc mrm 
                     left join ecommdata.venta_prom_semanal_mfc vpsm
@@ -105,7 +105,7 @@ def reposicion_to_s3(ds):
     df['venta_futura'] = df.apply(calcular_venta_futura, args=(dias_de_la_semana, nombre_dia), axis=1)
 
     # Lógica para decidir si se necesita reponer actualizada para usar venta_futura
-    df['stock_janis'] = df['stock_janis'].fillna(0)
+    df['stock_takeoff'] = df['stock_takeoff'].fillna(0)
 
     condlist = [
         df["venta_futura"] > df["minimo"],
@@ -116,8 +116,8 @@ def reposicion_to_s3(ds):
 
     condlist = [
         df["reponer"] == False,
-        (df["reponer"] == True) & (df["stock_janis"] > df["venta_futura"]),
-        (df["reponer"] == True) & (df["stock_janis"] <= df["venta_futura"])
+        (df["reponer"] == True) & (df["stock_takeoff"] > df["venta_futura"]),
+        (df["reponer"] == True) & (df["stock_takeoff"] <= df["venta_futura"])
     ]
     choicelist = [False, False, True]
     df["reponer"] = np.select(condlist, choicelist)
@@ -126,7 +126,7 @@ def reposicion_to_s3(ds):
     df["venta_hoy"] = df[str(nombre_dia)]
     df["stock_objetivo"] = df["doh_objetivo"] * df["venta_hoy"]
     print(df.head())
-    df["solicitado"] = df["stock_objetivo"] + df["venta_futura"] - df["stock_janis"]
+    df["solicitado"] = df["stock_objetivo"] + df["venta_futura"] - df["stock_takeoff"]
     df["solicitado"] = np.select(
         [df["solicitado"] > df["maximo"], df["solicitado"] < df["minimo"]],
         [df["maximo"], df["minimo"]],
@@ -135,9 +135,9 @@ def reposicion_to_s3(ds):
 
     df['multiplicador_unidad_medida'] = df['multiplicador_unidad_medida'].astype(float)
     df["solicitado"] = np.ceil(df["solicitado"] / df["multiplicador_unidad_medida"]) * df["multiplicador_unidad_medida"]
-
     # Mantenemos solo los registros donde 'reponer' es True o 1 ?
     df = df[df["reponer"] == 1]
+    df = df[df['solicitado'] > 0]
 
     # Convertimos el DataFrame a un archivo CSV y lo cargamos a S3
     buffer = io.StringIO()
@@ -220,7 +220,7 @@ def reposicion_to_slack():
         
         try:
             response = client.files_upload(
-                channels="alerta-reposiciones-mfc-qa",
+                channels="alertas-reposiciones-mfc",
                 file=buffer,
                 filename="reporte_reposicion.csv",
                 title="Reporte de Reposición",
