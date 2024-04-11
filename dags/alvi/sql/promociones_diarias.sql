@@ -1,4 +1,4 @@
-SELECT
+SELECT DISTINCT
             wp.n_promocion,
             wp.nombre_promocion,
             wp.id_mecanica,
@@ -31,7 +31,7 @@ SELECT
                     from ecommdata_alvi.promociones_detalle_vtex pdv
                     LEFT JOIN ecommdata_alvi.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy") as pdvd 
                     on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
-        WHERE wp.tipo_promocion IN (10,9)
+        WHERE wp.tipo_promocion IN (10,9,4)
         and wp.id_mecanica in (18,83,40,26)
         and wp.nombre_promocion not ilike '%LOCAL%'
         and wp.nombre_promocion not ilike '%LIQUIDACION%' 
