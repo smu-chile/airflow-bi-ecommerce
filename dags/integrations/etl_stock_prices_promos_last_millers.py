@@ -5,6 +5,8 @@ from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.dummy import DummyOperator
+from airflow.utils.trigger_rule import TriggerRule
+
 
 import pendulum
 
@@ -107,7 +109,30 @@ def product_to_postgresql(ti):
     print('\n carga de productos sap a postgresql')
     return
 
+def prices_to_integrations(ti):
+    return
 
+def promos_to_integrations(ti):
+    return
+
+def check_stock():
+    return
+
+def check_product():
+    return
+
+def stock_prices_promos_lss_to_s3():
+    return
+
+def stock_prices_promos_lss_to_postgres(ti):
+    return
+def promos_postgres(ti):
+    return
+
+def check_promos():
+    return
+def check_prices():
+    return
 
 
 default_args = {
@@ -140,6 +165,13 @@ with DAG(
     t_dummy_s = DummyOperator(
             task_id='fallo_dw_stock',
         )
+    t_dummy_prom = DummyOperator(
+            task_id='fallo_postgres_promos',
+        )
+    
+    t_dummy_price = DummyOperator(
+            task_id='fallo_postgres_precios',
+        )
     
     t0  = PythonOperator(
         task_id = "get_last_millers_stores",
@@ -164,9 +196,70 @@ with DAG(
         task_id = "product_to_postgresql",
         python_callable = product_to_postgresql,
     )
+    t5 = PythonOperator(
+        task_id="prices_to_integrations_s3",
+        python_callable=prices_to_integrations,
+    )
+    t6 = PythonOperator(
+        task_id="promos_to_integrations_s3",
+        python_callable=prices_to_integrations,
+    )
+    t7 = PythonOperator(
+        task_id="check_stock",
+        python_callable=check_stock,
+        trigger_rule=TriggerRule.ONE_SUCCESS,
+    )
+    t8 = PythonOperator(
+        task_id="check_product",
+        python_callable=check_product,
+        trigger_rule=TriggerRule.ONE_SUCCESS,
+    )
+    t9 = PythonOperator(
+        task_id="stock_prices_promos_lss_to_s3",
+        python_callable=stock_prices_promos_lss_to_s3,
+    )
+    t10 = PythonOperator(
+        task_id="stock_prices_promos_lss_to_postgres",
+        python_callable=stock_prices_promos_lss_to_postgres,
+    )
+    t11 = PythonOperator(
+        task_id="precios_postgres",
+        python_callable=check_product,
+    )
+
+    t12 = PythonOperator(
+        task_id="check_prices",
+        python_callable=check_prices,
+        trigger_rule=TriggerRule.ONE_SUCCESS,
+    )
+    t13 = PythonOperator(
+        task_id="promos_postgres",
+        python_callable=promos_postgres,
+    )
+    t14 = PythonOperator(
+        task_id="check_promos",
+        python_callable=check_promos,
+        trigger_rule=TriggerRule.ONE_SUCCESS,
+    )
 
     t1 >>  t_dummy_s 
     t2 >>  t_dummy_p
-    t0 >> [t1,t2]
+    t0 >> [t1,t2,t5,t6]
     t1 >> t3
     t2 >> t4
+    t3 >> t7 
+    t_dummy_s >> t7
+    t4 >> t8 
+    t_dummy_p >> t8
+    t5 >> t_dummy_price
+    t5 >> t11
+    t_dummy_price >> t12
+    t11 >> t12
+    t6 >> t_dummy_prom
+    t6 >> t13
+    t_dummy_prom >> t14
+    t13 >> t14
+    [t7,t8,t12,t14] >> t9
+    t9 >> t10
+
+    
