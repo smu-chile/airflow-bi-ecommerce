@@ -30,7 +30,7 @@ def listado_productos_sala_mfc(ts, ds):
     v_time = None
     v2_time = None
 
-    if time_str == "19:15":
+    if time_str == "19:00":
         v_time = macros.ds_add(ds, 1) + " 09:00"
         v2_time = macros.ds_add(ds, 1) + " 10:00:00"
     elif time_str == "07:15":
