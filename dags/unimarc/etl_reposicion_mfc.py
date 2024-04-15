@@ -66,6 +66,15 @@ def reposicion():
     pg_connection.close()
 
     return results
+def calcular_venta_futura(row, dias_de_la_semana, nombre_dia):
+        index_dia_actual = dias_de_la_semana.index(nombre_dia)
+        ventas_futuras = 0
+        # Asegura que el 'lead_time' es un entero y maneja casos donde podría ser NaN o similar
+        lead_time = int(row.get('lead_time', 0))
+        for i in range(lead_time):
+            dia = dias_de_la_semana[(index_dia_actual + i) % len(dias_de_la_semana)]
+            ventas_futuras += row.get(dia, 0)  # Asume 0 si no hay datos para ese día
+        return ventas_futuras
 
 def reposicion_to_s3(ds):
     import pandas as pd
@@ -90,16 +99,7 @@ def reposicion_to_s3(ds):
 
     # Aplicamos la condición del contador igual a 0
     df = df[df['contador'] == 0]
-
-    # Función para calcular ventas futuras según el doh_objetivo
-    def calcular_venta_futura(row, dias_de_la_semana, nombre_dia):
-        index_dia_actual = dias_de_la_semana.index(nombre_dia)
-        ventas_futuras = 0
-        # El rango de días para sumar inicia en 0 (día actual) y se extiende hasta doh_objetivo
-        for i in range(0, int(row['lead_time'])):
-            dia = dias_de_la_semana[(index_dia_actual + i) % len(dias_de_la_semana)]
-            ventas_futuras += row.get(dia, 0)  # Asume 0 si no hay datos para ese día
-        return ventas_futuras
+    df.info()
 
     dias_de_la_semana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
     df['venta_futura'] = df.apply(calcular_venta_futura, args=(dias_de_la_semana, nombre_dia), axis=1)
