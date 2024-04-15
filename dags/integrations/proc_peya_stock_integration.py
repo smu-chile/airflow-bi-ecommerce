@@ -250,7 +250,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             continue
         
         peya_stock_query = f"""
-              SELECT DISTINCT
+             SELECT DISTINCT
                 null AS barcode,
                 lspp.ean AS sku,
                 'Promociones' AS campaign_name,
@@ -258,9 +258,11 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 concat(current_date ,' 10:00:00-03:00') AS start_date,
                 concat(current_date + 1,' 11:00:00-03:00') AS end_date,
                 CASE
-                    WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
-                    ELSE ROUND(lspp.precio_promocional * s.multiplicador_unidad_medida)
-                END AS discounted_price,
+    				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
+    				WHEN s.multiplicador_unidad_medida = '0.1' THEN ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida * 10))
+    				ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
+				END AS discounted_price,
+                --s.multiplicador_unidad_medida,
                 999 AS max_no_of_orders,
                 1 AS campaign_status
                 FROM integraciones.lm_stock_precio_promo lspp
@@ -278,8 +280,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 CASE
                     WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(LEAST(lspp.precio, lspp.precio_promocional))
                     ELSE ROUND(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida)
-                end
-            ;
+                end;
         """
         #AND lspp.id_tienda = '0755'
         #AND lspp.id_tienda = '{store_id}'
