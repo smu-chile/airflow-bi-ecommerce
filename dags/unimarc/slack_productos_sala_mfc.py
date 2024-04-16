@@ -91,6 +91,8 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
+                        inner join ecommdata.productos p on op.ref_id = p.ref_id
+                        inner join ecommdata.categorias c on p.id_categoria = c.id
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v_time}' and c.n1 = 'Carnes';
                         """
         print(lpc_query)
@@ -115,6 +117,8 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
+                        inner join ecommdata.productos p on op.ref_id = p.ref_id
+                        inner join ecommdata.categorias c on p.id_categoria = c.id
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v_time}' and c.n1 = 'Quesos y Fiambres';
                         """
         print(lpq_query)
@@ -168,6 +172,8 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
+                        inner join ecommdata.productos p on op.ref_id = p.ref_id
+                        inner join ecommdata.categorias c on p.id_categoria = c.id
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v2_time}' and c.n1 = 'Carnes';
                         """
         print(lpc_query)
@@ -192,6 +198,8 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
+                        inner join ecommdata.productos p on op.ref_id = p.ref_id
+                        inner join ecommdata.categorias c on p.id_categoria = c.id
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v2_time}' and c.n1 = 'Quesos y Fiambres';
                         """
         print(lpq_query)
