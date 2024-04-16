@@ -62,7 +62,7 @@ def extract_stock_from_dw(ti,ds,ts):
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
             AND PART.PARTICULARIDAD_COD = 'A'
             AND S.NBR_ITM > 0
-            limit 10000
+            limit 5000
             ;"""
     print(query)
 
@@ -81,7 +81,7 @@ def extract_product_from_dw(ts):
     from io import StringIO
     from utils.netezza_utils import load_custom_query_to_s3
 
-    query = f"""--SELECT P.SKU_KEY
+    query = f"""SELECT P.SKU_KEY
                     , P.EAN 
                     , P.CONT_CONV_UMB
                     , P.NM
@@ -101,37 +101,154 @@ def extract_product_from_dw(ts):
         return "fallo_dw_producto"
 
 
-def stock_to_postgresql(ti):
+def stock_to_postgresql(ti,ts):
     print('\n carga de stock sap a postgresql')
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+    BASE_S3_PATH = "data_warehouse/"
+    query_name = "stock_sap_query"
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+query_name+"/"+curr_datetime+"_"
+
+    filename = prefix+query_name+".csv"  
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df.columns = ["nbr_itm","sku_key","sku_product","ou_id"]
+    df = df[["sku_key","sku_product","ou_id","nbr_itm"]]
+    df['sku_product'] = df['sku_product'].apply(lambda x: str(x).zfill(18))
+    df['ou_id'] = df['ou_id'].apply(lambda x: str(x).zfill(4))
+    df.info()
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # Save to PostgreSQL:
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.stock_2") 
+        df.to_sql(name="stock_2",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data loaded to Postgres: integraciones.stock_2")
     return
 
-def product_to_postgresql(ti):
+def product_to_postgresql(ti,ts):
     print('\n carga de productos sap a postgresql')
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+    BASE_S3_PATH = "data_warehouse/"
+    query_name = "product_dw"
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+query_name+"/"+curr_datetime+"_"
+
+    filename = prefix+query_name+".csv"  
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df.columns = map(str.lower, df.columns)
+    df = df.dropna(subset=df.columns[:3])
+    df.info()
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # Save to PostgreSQL:
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.productos_2") 
+        df.to_sql(name="productos_2",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data loaded to Postgres: integraciones.productos_2")
     return
 
 def prices_to_integrations(ti):
-    return
+    try:
+        #filename = load_custom_query_to_s3(ts,query,"product_dw")
+        print("Searching file: ")#+filename)
+        return "precios_postgres"
+    except Exception as err:
+        print(f"error: {err}")
+        return "fallo_postgres_precios"
 
 def promos_to_integrations(ti):
-    return
-
-def check_stock():
-    return
-
-def check_product():
-    return
+    try:
+        #filename = load_custom_query_to_s3(ts,query,"product_dw")
+        print("Searching file: ")#+filename)
+        return "promos_postgres"
+    except Exception as err:
+        print(f"error: {err}")
+        return "fallo_postgres_promos"
 
 def stock_prices_promos_lss_to_s3():
+    print("Compilando la informacion de todas las tablas de insumos a S3")
     return
 
 def stock_prices_promos_lss_to_postgres(ti):
+    print("Cargando la data de last millers a postgres")
     return
 def promos_postgres(ti):
+    print("Cargando promociones del workflow promociones en postgres")
     return
-
 def check_promos():
+    print("Revisando que exista data en la tabla de promociones")
     return
 def check_prices():
+    print("Revisando que exista data en la tabla de precios")
+    return
+def check_stock():
+    print("Revisando que exista data en la tabla de stock")
+
+    return
+def check_product():
+    print("Revisando que exista data en la tabla de productos")
     return
 
 
@@ -196,13 +313,13 @@ with DAG(
         task_id = "product_to_postgresql",
         python_callable = product_to_postgresql,
     )
-    t5 = PythonOperator(
+    t5 = BranchPythonOperator(
         task_id="prices_to_integrations_s3",
         python_callable=prices_to_integrations,
     )
-    t6 = PythonOperator(
+    t6 = BranchPythonOperator(
         task_id="promos_to_integrations_s3",
-        python_callable=prices_to_integrations,
+        python_callable=promos_to_integrations,
     )
     t7 = PythonOperator(
         task_id="check_stock",
