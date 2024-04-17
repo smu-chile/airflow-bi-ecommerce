@@ -82,29 +82,38 @@ def promociones(ds):
 
 def ventas(list_material,fecha_inicio,fecha_fin):
     import pandas as pd
-    ventas_skus_tienda_query = """select lpad(vst.id_tienda,4,'0'),
-            lpad(vst.material,18,'0'),
-            (sum(vst.venta_umv)/('"""+fecha_inicio+"""'::date - '"""+fecha_fin+"""'::date))*-1
-            from ecommdata.venta_sku_tienda vst 
-            left join ecommdata.tiendas t
-            on t.id = lpad(vst.id_tienda,4,'0')
-            where vst.fecha >= '"""+fecha_inicio+"""'::date --fecha inicio
-            and vst.fecha <= '"""+fecha_fin+"""'::date -- fecha fin
-            and lpad(vst.material,18,'0') in ('"""+list_material+"""')
+    ventas_skus_tienda_query = f"""
+        select lpad(vst.id_tienda, 4, '0') as id_tienda,
+            lpad(vst.material, 18, '0') as material,
+            (sum(vst.venta_umv) / ('{fecha_inicio}'::date - '{fecha_fin}'::date)) * -1 as prom_ventas
+        from ecommdata.venta_sku_tienda vst 
+        left join ecommdata.tiendas t on t.id = lpad(vst.id_tienda, 4, '0')
+        where vst.fecha >= '{fecha_inicio}'::date
+            and vst.fecha <= '{fecha_fin}'::date
+            and lpad(vst.material, 18, '0') in ('{list_material}')
             and t.status = 1
-            and lpad(vst.id_tienda,4,'0') not in ('1917')
-            group by vst.id_tienda, vst.material"""
+            and lpad(vst.id_tienda, 4, '0') not in ('1917')
+        group by vst.id_tienda, vst.material
+    """
+    
     print(ventas_skus_tienda_query)
+    
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
     results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    results.columns = ["id_tienda","material","prom_ventas"]
+
+    try:
+        results = pd.DataFrame(results, columns=["id_tienda", "material", "prom_ventas"])
+    except ValueError:
+        print("No se encontraron datos para los parámetros dados.")
+        results = pd.DataFrame(columns=["id_tienda", "material", "prom_ventas"])
+
     cursor.close()
     pg_connection.close()
     return results
+
 
 def ventas_maximas(list_material,ds):
     import pandas as pd
