@@ -12,25 +12,34 @@ import pendulum
 
 def venta_mfc_semana():
     import pandas as pd
-    ventas_query = """select mrm.*,
-                    vpsm.domingo, vpsm.lunes, vpsm.martes,vpsm.miercoles,vpsm.jueves,vpsm.viernes,vpsm.sabado,
-                    um.mfc_is_item_side,
-                    smt.quantity_on_hand as "stock_takeoff",
-                    s.stock_janis,
-                    s.multiplicador_unidad_medida 
-                    from ecommdata.maestra_reposicion_mfc mrm 
-                    left join ecommdata.venta_prom_semanal_mfc vpsm
-                    on vpsm.material = mrm.material
-                    left join ecommdata.ubicacion_mfc um 
-                    on mrm.material = um.sap_code 
-                    left join ecommdata.stock_mfc_takeoff smt
-                    on split_part(smt.tom_id,'-',1) = mrm.material
-                    left join ecommdata.stock s 
-                    on s.material = mrm.material
-                    where vpsm.material is not null
-                    and smt.fecha = (select max(fecha) from ecommdata.stock_mfc_takeoff smt2 )
-                    and s.ultima_actualizacion = (select max(ultima_actualizacion) from ecommdata.stock s)
-                    and s.id_tienda = '1917';
+    ventas_query = """WITH stock_takeoff AS (
+            select tom_id, quantity_on_hand
+            from ecommdata.stock_mfc_takeoff smt2
+            where fecha = (select max(fecha) from ecommdata.stock_mfc_takeoff smt3)
+            ),
+            multiplicador as (
+            select distinct ref_id, multiplicador_unidad_medida 
+            from ecommdata.skus s
+            where erp_id in (select material from ecommdata.maestra_reposicion_mfc mrm)
+            and ref_id in (select distinct material||'-'||umv from ecommdata.lista8 l where id_tienda = '0917')	)
+        select distinct mrm.*,
+        vpsm.domingo, vpsm.lunes, vpsm.martes,vpsm.miercoles,vpsm.jueves,vpsm.viernes,vpsm.sabado,
+        um.mfc_is_item_side,
+        case
+            when st.quantity_on_hand is null then 0 
+            else st.quantity_on_hand
+        end as "stock_takeoff",
+        m.multiplicador_unidad_medida
+        from ecommdata.maestra_reposicion_mfc mrm 
+        left join ecommdata.venta_prom_semanal_mfc vpsm
+        on vpsm.material = mrm.material
+        left join ecommdata.ubicacion_mfc um 
+        on mrm.material = um.sap_code 
+        left join stock_takeoff st
+        on split_part(st.tom_id,'-',1) = mrm.material
+        left join multiplicador m
+        on mrm.material = split_part(m.ref_id ,'-',1)
+        where m.multiplicador_unidad_medida is not null
                     """
     print(ventas_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -48,10 +57,30 @@ def venta_mfc_semana():
 
 def reposicion():
     import pandas as pd
-    ventas_query = """select msr.material,p.nombre as "descripcion_material",solicitado
+    ventas_query = """ with producto as (
+                    select distinct material, nombre 
+                    from ecommdata.productos p
+                    where material in (select material from ecommdata.maestra_reposicion_mfc mrm)
+                    and ref_id in (select distinct material||'-'||umv from ecommdata.lista8 l where id_tienda = '0917'))
+                select distinct msr.material,p.nombre,msr.solicitado,
+                case 
+                	when _t.promedio_umv_boleta is null then null
+                	else round(1/_t.promedio_umv_boleta,1)
+                end as "multiplicador_inventario"
+                , msr.reponer
                 from ecommdata.mfc_solicitud_reposicion msr
-                left join ecommdata.productos p 
-                on p.material = msr.material;
+                left join producto p 
+                on p.material  = msr.material
+                left join (select distinct split_part(ved.ref_id_sku,'-',1) as material, round(avg(ved.venta_umv),1) as "promedio_umv_boleta"
+                        from ecommdata.ventas_ecommerce_datawarehouse ved
+                        where id_tienda = '0917'
+                        and fecha_facturacion::date > current_date -75
+                        and venta_umv > 0
+                        and split_part(ved.ref_id_sku,'-',2) = 'KG'
+                        and split_part(ved.ref_id_sku,'-',1) in (select material from ecommdata.maestra_reposicion_mfc mrm)
+                        group by split_part(ved.ref_id_sku,'-',1)
+                        ) as _t
+                on _t.material = msr.material;
                     """
     print(ventas_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -88,7 +117,7 @@ def reposicion_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    df = venta_mfc_semana()  # Esta función debe devolver el DataFrame necesario
+    df = venta_mfc_semana()
 
     fecha = datetime.strptime(ds, '%Y-%m-%d')
     print(fecha)
@@ -98,7 +127,7 @@ def reposicion_to_s3(ds):
     print(nombre_dia)
 
     # Aplicamos la condición del contador igual a 0
-    df = df[df['contador'] == 0]
+    #df = df[df['contador'] == 0]
     df.info()
 
     dias_de_la_semana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado']
@@ -132,12 +161,12 @@ def reposicion_to_s3(ds):
         [df["maximo"], df["minimo"]],
         default=df["solicitado"]
     )
-
+    print()
     df['multiplicador_unidad_medida'] = df['multiplicador_unidad_medida'].astype(float)
     df["solicitado"] = np.ceil(df["solicitado"] / df["multiplicador_unidad_medida"]) * df["multiplicador_unidad_medida"]
     # Mantenemos solo los registros donde 'reponer' es True o 1 ?
-    df = df[df["reponer"] == 1]
-    df = df[df['solicitado'] > 0]
+    #df = df[df["reponer"] == 1]
+    #df = df[df['solicitado'] > 0]
 
     # Convertimos el DataFrame a un archivo CSV y lo cargamos a S3
     buffer = io.StringIO()
@@ -173,8 +202,8 @@ def reposicion_to_postgres(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
     df["material"] = df["material"].apply(lambda x: str(x).zfill(18))
-    df = df[['material','maximo','minimo','stock_janis','stock_takeoff','venta_futura','reponer','solicitado']]
-    df.columns = ['material','maximo','minimo','stock_janis','stock_takeoff','venta','reponer','solicitado']
+    df = df[['material','maximo','minimo','stock_takeoff','venta_futura','reponer','solicitado']]
+    df.columns = ['material','maximo','minimo','stock_takeoff','venta','reponer','solicitado']
     df['reponer'] = df['reponer'].astype(bool)
     df = df.drop_duplicates()
     df.info()
@@ -243,7 +272,7 @@ with DAG(
     'etl_reposicion_mfc',
     default_args=default_args,
     description="consulta de datos de Stock MFC, maestra reposicion desde postgres para logica de reposicion.",
-    schedule_interval="50 17 * * *",
+    schedule_interval="0 19 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
