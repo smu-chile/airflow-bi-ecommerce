@@ -13,6 +13,21 @@ import pendulum
 from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
+
+def query_to_df(query):
+    import pandas as pd
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
+    cursor.close()
+    pg_connection.close()
+    return results
     
 def _get_last_millers_stores():
     last_millers_stores_query = """
@@ -101,7 +116,7 @@ def extract_product_from_dw(ts):
         return "fallo_dw_producto"
 
 
-def stock_to_postgresql(ti,ts):
+def stock_to_postgresql(ts):
     print('\n carga de stock sap a postgresql')
     import numpy as np
     import pandas as pd
@@ -156,7 +171,7 @@ def stock_to_postgresql(ti,ts):
     print("Data loaded to Postgres: integraciones.stock_2")
     return
 
-def product_to_postgresql(ti,ts):
+def product_to_postgresql(ts):
     print('\n carga de productos sap a postgresql')
     import numpy as np
     import pandas as pd
@@ -245,7 +260,6 @@ def check_prices():
     return
 def check_stock():
     print("Revisando que exista data en la tabla de stock")
-
     return
 def check_product():
     print("Revisando que exista data en la tabla de productos")
