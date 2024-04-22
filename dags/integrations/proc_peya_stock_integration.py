@@ -90,6 +90,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             lspp.ean AS sku,
             CASE
                 WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio)
+                when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio) * 0,25)
                 ELSE ROUND((lspp.precio) * s.multiplicador_unidad_medida)
             END AS price,
             CASE
@@ -102,50 +103,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
             LEFT JOIN integraciones.stock_seguridad_peya ssp ON ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida) AND lspp.id_tienda = ssp.id_tienda
             WHERE lspp.id_tienda = '{store_id}'
-            and lspp.material not in ('000000000000799735',
-'000000000000799735',
-'000000000000665119',
-'000000000000665119',
-'000000000000662733',
-'000000000000662733',
-'000000000000662731',
-'000000000000662731',
-'000000000000659770',
-'000000000000659770',
-'000000000000658794',
-'000000000000658794',
-'000000000000981883',
-'000000000000981883',
-'000000000000638095',
-'000000000000638095',
-'000000000000934362',
-'000000000000934362',
-'000000000000876828',
-'000000000000876828',
-'000000000000799737',
-'000000000000799737',
-'000000000000799736',
-'000000000000799736',
-'000000000000799734',
-'000000000000799734',
-'000000000000638832',
-'000000000000638832',
-'000000000000615589',
-'000000000000615589',
-'000000000000152920',
-'000000000000152920',
-'000000000000052074',
-'000000000000052074',
-'000000000000051938',
-'000000000000051938',
-'000000000000566247',
-'000000000000566247',
-'000000000000645990',
-'000000000000645990',
-'000000000000659769',
-'000000000000659769',
-'000000000000662732',
-'000000000000662732')
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
@@ -234,6 +191,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 concat(current_date + 1,' 11:00:00-03:00') AS end_date,
                 CASE
     				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
+                    when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0,25)
     				ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
 				END AS discounted_price,
                 --s.multiplicador_unidad_medida,
@@ -245,50 +203,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
                 and lspp.precio_promocional  is not null
                 AND lspp.id_tienda = '{store_id}'
-                and lspp.material not in ('000000000000799735',
-'000000000000799735',
-'000000000000665119',
-'000000000000665119',
-'000000000000662733',
-'000000000000662733',
-'000000000000662731',
-'000000000000662731',
-'000000000000659770',
-'000000000000659770',
-'000000000000658794',
-'000000000000658794',
-'000000000000981883',
-'000000000000981883',
-'000000000000638095',
-'000000000000638095',
-'000000000000934362',
-'000000000000934362',
-'000000000000876828',
-'000000000000876828',
-'000000000000799737',
-'000000000000799737',
-'000000000000799736',
-'000000000000799736',
-'000000000000799734',
-'000000000000799734',
-'000000000000638832',
-'000000000000638832',
-'000000000000615589',
-'000000000000615589',
-'000000000000152920',
-'000000000000152920',
-'000000000000052074',
-'000000000000052074',
-'000000000000051938',
-'000000000000051938',
-'000000000000566247',
-'000000000000566247',
-'000000000000645990',
-'000000000000645990',
-'000000000000659769',
-'000000000000659769',
-'000000000000662732',
-'000000000000662732')
                 GROUP BY
                 lspp.ean,
                 lspp.nombre,
