@@ -103,7 +103,8 @@ def extract_product_from_dw(ts):
                     , P.BRAND_DESC
                     , P.UNIDAD_DE_MEDIDA
                 FROM DWC_SMU.SMU.VW_DIM_PRODUCT P
-                WHERE p.indic_ean_ppal = 'X';
+                WHERE p.indic_ean_ppal = 'X'
+                limit 5000;
             """
     print(query)
 
@@ -224,20 +225,104 @@ def product_to_postgresql(ts):
     print("Data loaded to Postgres: integraciones.productos_2")
     return
 
-def prices_to_integrations(ti):
+def prices_to_integrations(ds):
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
     try:
-        #filename = load_custom_query_to_s3(ts,query,"product_dw")
-        print("Searching file: ")#+filename)
+        query = f"""select t.id as id_tienda
+                    , p.ref_id
+                    , split_part(p.ref_id, '-', 1) as material 
+                    , split_part(p.ref_id, '-', 2) as umv
+                    , p.precio
+                from ecommdata.precios p 
+                join ecommdata.tiendas t 
+                    on p.id_tienda_janis = t.id_janis 
+                    and t.status = 1
+                join ecommdata.lista8 l 
+                    on l.material || '-' || l.umv = p.ref_id 
+                    and l.id_tienda = t.id 
+                where p.fecha_carga = '{ds}'::date-1;"""
+        df = query_to_df(query)
+        print(f"informacion obbtenida de la Query: {df.info()}")
+
+        host = Variable.get("POSTGRESQL_HOST")
+        database = Variable.get("POSTGRESQL_DB")
+        username = Variable.get("POSTGRESQL_USER")
+        password = Variable.get("POSTGRESQL_PASSWORD")
+        
+        conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+        engine = sqlalchemy.create_engine(conn_url)
+
+        # Save to PostgreSQL:
+        with engine.begin() as conn:
+            conn.execute("TRUNCATE integraciones.precios") 
+            df.to_sql(name="precios",
+                        con=conn,         
+                        schema="integraciones",         
+                        if_exists='append',         
+                        index=False,         
+                        chunksize=20000,         
+                        method='multi')
+
+        print("Data loaded to Postgres: integraciones.precios")
         return "precios_postgres"
+    
     except Exception as err:
         print(f"error: {err}")
         return "fallo_postgres_precios"
 
-def promos_to_integrations(ti):
+def promos_to_integrations(ds):
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
     try:
-        #filename = load_custom_query_to_s3(ts,query,"product_dw")
-        print("Searching file: ")#+filename)
+        query = f"""select ean,
+                    concat(wp.material,'-',wp.umv) as ref_id,
+                    wp.material,
+                    min(precio_promocional) AS precio_promocional
+                    from ecommdata.workflow_promociones wp 
+                    where wp.fecha_inicio_de_promocion <= '{ds}'::date
+                    and wp.fecha_fin_de_promocion >= '{ds}'::date
+                    and wp.tipo_promocion IN (1,4)
+                    and wp.registro_valido = True
+                    and wp.organizacion_ventas = '1000'
+                    and wp.canal_distribucion = '10'
+                    and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                    AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                    AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                    AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                    AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                    AND wp.nombre_promocion::text !~~ '%917%'::text
+                    AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                    and wp.nombre_promocion::text !~~ '% LOC%'::text
+                    and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                    group by wp.ean, concat(wp.material,'-',wp.umv),wp.material;"""
+        df = query_to_df(query)
+        print(f"informacion obbtenida de la Query: {df.info()}")
+
+        host = Variable.get("POSTGRESQL_HOST")
+        database = Variable.get("POSTGRESQL_DB")
+        username = Variable.get("POSTGRESQL_USER")
+        password = Variable.get("POSTGRESQL_PASSWORD")
+        
+        conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+        engine = sqlalchemy.create_engine(conn_url)
+
+        # Save to PostgreSQL:
+        with engine.begin() as conn:
+            conn.execute("TRUNCATE integraciones.promociones") 
+            df.to_sql(name="promociones",
+                        con=conn,         
+                        schema="integraciones",         
+                        if_exists='append',         
+                        index=False,         
+                        chunksize=20000,         
+                        method='multi')
+
+        print("Data loaded to Postgres: integraciones.promociones")
         return "promos_postgres"
+        
     except Exception as err:
         print(f"error: {err}")
         return "fallo_postgres_promos"
@@ -262,6 +347,7 @@ def check_stock():
     print("Revisando que exista data en la tabla de stock")
     return
 def check_product():
+
     print("Revisando que exista data en la tabla de productos")
     return
 
@@ -277,7 +363,7 @@ with DAG(
     'etl_stock_prices_promos_last_millers',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos",
-    schedule_interval="20 9,15 * * *",
+    schedule_interval="30 9,12,16,20 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos"],
