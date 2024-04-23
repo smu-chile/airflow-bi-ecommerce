@@ -137,7 +137,7 @@ def _incremental_load_picking_control_items_table(ti, ds):
         UPDATE ecommdata.control_picking_productos cpp
         SET descripcion = op.descripcion
         FROM ecommdata.orden_productos op
-        WHERE cpp.id_orden_producto = op.id and cpp.descripcion is NULL
+        WHERE cpp.id_orden_producto = op.id and cpp.descripcion is NULL;
         COMMIT;
     """
     print(incremental_query)
