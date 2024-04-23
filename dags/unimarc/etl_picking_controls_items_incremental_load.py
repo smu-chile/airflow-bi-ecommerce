@@ -129,22 +129,23 @@ def _incremental_load_picking_control_items_table(ti, ds):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        BEGIN TRANSACTION;
         INSERT INTO ecommdata.control_picking_productos (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
-        UPDATE ecommdata.control_picking_productos cpp
-        SET descripcion = op.descripcion
-        FROM ecommdata.orden_productos op
-        WHERE cpp.id_orden_producto = op.id and cpp.descripcion is NULL;
-        COMMIT;
     """
     print(incremental_query)
+    update_query = """
+        UPDATE ecommdata.control_picking_productos cpp
+        SET descripcion = op.descripcion
+        FROM ecommdata.orden_productos op   
+        WHERE cpp.id_orden_producto = op.id and cpp.descripcion is NULL;
+    """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
+    cursor.execute(update_query)
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
