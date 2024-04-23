@@ -90,7 +90,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             lspp.ean AS sku,
             CASE
                 WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio)
-                when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio) * 0,25)
+                when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio) * 0.25)
                 ELSE ROUND((lspp.precio) * s.multiplicador_unidad_medida)
             END AS price,
             CASE
@@ -191,7 +191,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 concat(current_date + 1,' 11:00:00-03:00') AS end_date,
                 CASE
     				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
-                    when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0,25)
+                    when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0.25)
     				ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
 				END AS discounted_price,
                 --s.multiplicador_unidad_medida,
