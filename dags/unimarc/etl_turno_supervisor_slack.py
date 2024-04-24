@@ -352,19 +352,19 @@ with DAG(
     """ 
 
     t0 = PythonOperator(
-        id_tarea = "tareas_load_to_s3",
+        task_id = "tareas_load_to_s3",
         python_callable = tareas_load_to_s3
     )
     t1 = PythonOperator(
-        id_tarea = "operadores_load_to_s3",
+        task_id = "operadores_load_to_s3",
         python_callable = operadores_load_to_s3
     )
     t2 = PythonOperator(
-        id_tarea = "disponibilidad_load_to_s3",
+        task_id = "disponibilidad_load_to_s3",
         python_callable = disponibilidad_load_to_s3
     )
     t3 = PythonOperator(
-        id_tarea = "turnos_load_to_slack",
+        task_id = "turnos_load_to_slack",
         python_callable = turnos_load_to_slack
     )
 
