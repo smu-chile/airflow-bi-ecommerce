@@ -235,9 +235,9 @@ def turnos_load_to_slack(ti,ds):
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
 
-    tareas_filename = ti.xcom_pull(key="return_value", id_tareas=["tareas_load_to_s3"])[0]
-    operadores_filename = ti.xcom_pull(key="return_value", id_tareas=["operadores_load_to_s3"])[0]
-    disponibilidad_filename = ti.xcom_pull(key="return_value", id_tareas=["disponibilidad_load_to_s3"])[0]
+    tareas_filename = ti.xcom_pull(key="return_value", task_id=["tareas_load_to_s3"])[0]
+    operadores_filename = ti.xcom_pull(key="return_value", task_id=["operadores_load_to_s3"])[0]
+    disponibilidad_filename = ti.xcom_pull(key="return_value", task_id=["disponibilidad_load_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
