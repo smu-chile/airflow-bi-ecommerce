@@ -63,11 +63,11 @@ def reposicion():
                     where material in (select material from ecommdata.maestra_reposicion_mfc mrm)
                     and ref_id in (select distinct material||'-'||umv from ecommdata.lista8 l where id_tienda = '0917'))
                 select distinct msr.material,p.nombre,msr.solicitado,
+                msr.reponer,
                 case 
-                	when _t.promedio_umv_boleta is null then null
-                	else round(1/_t.promedio_umv_boleta,1)
-                end as "multiplicador_inventario"
-                , msr.reponer
+                    when _t.promedio_umv_boleta is null then null
+                    else ((1/_t.promedio_umv_boleta)*solicitado)::numeric(6,0)
+                end as "cargar_Tom"
                 from ecommdata.mfc_solicitud_reposicion msr
                 left join producto p 
                 on p.material  = msr.material
