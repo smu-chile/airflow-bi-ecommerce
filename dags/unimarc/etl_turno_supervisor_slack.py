@@ -25,7 +25,7 @@ def create_schedule(operadores_df, tareas_df):
 
     for hour in range(24):
         for _, task in tareas_df.iterrows():
-            task_id = task['id_tarea']
+            id_tarea = task['id_tarea']
             task_start_time = task['hora_inicio']
             task_end_time = task['hora_termino']
             min_workers = task['min_operadores']
@@ -33,7 +33,7 @@ def create_schedule(operadores_df, tareas_df):
             duration = task['duracion']
 
             if duration > 0 and is_within_task_time(hour, task_start_time, task_end_time):
-                workers_needed = min(min_workers, max_workers - schedule_df.iloc[:, hour].eq(task_id).sum())
+                workers_needed = min(min_workers, max_workers - schedule_df.iloc[:, hour].eq(id_tarea).sum())
                 for _, worker in operadores_df.iterrows():
                     worker_name = worker['rut']
                     entrada = int(worker['entrada'].split(':')[0])
@@ -43,13 +43,13 @@ def create_schedule(operadores_df, tareas_df):
                         if salida < entrada:
                             if (entrada <= hour < 24) or (0 <= hour < salida):
                                 if schedule_df.loc[worker_name, f"{hour:02d}:00"] == 0:
-                                    schedule_df.loc[worker_name, f"{hour:02d}:00"] = task_id
+                                    schedule_df.loc[worker_name, f"{hour:02d}:00"] = id_tarea
                                     workers_needed -= 1
                                     duration -= 1
                         else:
                             if entrada <= hour < salida:
                                 if schedule_df.loc[worker_name, f"{hour:02d}:00"] == 0:
-                                    schedule_df.loc[worker_name, f"{hour:02d}:00"] = task_id
+                                    schedule_df.loc[worker_name, f"{hour:02d}:00"] = id_tarea
                                     workers_needed -= 1
                                     duration -= 1
 
@@ -61,14 +61,14 @@ def create_schedule(operadores_df, tareas_df):
     
     for hour in range(24):
         for _, task in tareas_df.iterrows():
-            task_id = task['id_tarea']
+            id_tarea = task['id_tarea']
             task_start_time = task['hora_inicio']
             task_end_time = task['hora_termino']
             min_workers = task['min_operadores']
             duration = task['duracion']
 
             if duration > 0 and is_within_task_time(hour, task_start_time, task_end_time):
-                workers_assigned = schedule_df[f"{hour:02d}:00"].eq(task_id).sum()
+                workers_assigned = schedule_df[f"{hour:02d}:00"].eq(id_tarea).sum()
                 remaining_workers = min_workers - workers_assigned
 
                 if remaining_workers > 0:
@@ -79,7 +79,7 @@ def create_schedule(operadores_df, tareas_df):
 
                         if is_within_shift(hour, entrada, salida):
                             if schedule_df.loc[worker_name, f"{hour:02d}:00"] == 0:
-                                schedule_df.loc[worker_name, f"{hour:02d}:00"] = task_id
+                                schedule_df.loc[worker_name, f"{hour:02d}:00"] = id_tarea
                                 remaining_workers -= 1
                                 duration -= 1
 
@@ -277,9 +277,9 @@ def turnos_load_to_slack(ti,ds):
     
     schedule_df = create_schedule(df_operadores,df_tareas)
 
-    task_id_to_task = dict(zip(df_tareas['id_tarea'], df_tareas['nombre_tarea']))
+    id_a_nombre = dict(zip(df_tareas['id_tarea'], df_tareas['nombre_tarea']))
     rut_to_nombre_operador = dict(zip(df_operadores['rut'], df_operadores['nombre_operador']))
-    schedule_df = schedule_df.apply(lambda x: x.map(task_id_to_task) if x.name != 'rut' else x)
+    schedule_df = schedule_df.apply(lambda x: x.map(id_a_nombre) if x.name != 'rut' else x)
     schedule_df.index = schedule_df.index.map(rut_to_nombre_operador)
     schedule_df.index.name = 'nombre_operador'
     
