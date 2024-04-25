@@ -17,6 +17,21 @@ from datetime import datetime, timedelta
 def query_to_df(query):
     import pandas as pd
     print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def query_to_df_prod(query):
+    import pandas as pd
+    print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -54,12 +69,6 @@ def extract_stock_from_dw(ti,ds,ts):
     ids_tiendas = [id[0] for id in ids_tiendas]
     ids_tiendas_str = str(tuple(ids_tiendas))
     print(ids_tiendas_str)
-
-    exec_date = ds.replace("-", "/")
-    date_aux = ts.replace("-", "_")
-    prefix = f"ls_millers_patito/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     query = f"""SELECT S.NBR_ITM 
                 , S.SKU_KEY
@@ -115,7 +124,6 @@ def extract_product_from_dw(ts):
     except Exception as err:
         print(f"error: {err}")
         return "fallo_dw_producto"
-
 
 def stock_to_postgresql(ts):
     print('\n carga de stock sap a postgresql')
@@ -242,8 +250,9 @@ def prices_to_integrations(ds):
                 join ecommdata.lista8 l 
                     on l.material || '-' || l.umv = p.ref_id 
                     and l.id_tienda = t.id 
-                where p.fecha_carga = '{ds}'::date-1;"""
-        df = query_to_df(query)
+                where p.fecha_carga = '{ds}'::date-1
+                limit 5000;"""
+        df = query_to_df_prod(query)
         print(f"informacion obbtenida de la Query: {df.info()}")
 
         host = Variable.get("POSTGRESQL_HOST")
@@ -278,7 +287,10 @@ def promos_to_integrations(ds):
     from sqlalchemy import text
     try:
         query = f"""select ean,
-                    concat(wp.material,'-',wp.umv) as ref_id,
+                    case 
+                        when wp.umv = 'ST' then 'UN'
+                        else wp.umv
+                    end as umv ,
                     wp.material,
                     min(precio_promocional) AS precio_promocional
                     from ecommdata.workflow_promociones wp 
@@ -297,8 +309,9 @@ def promos_to_integrations(ds):
                     AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
                     and wp.nombre_promocion::text !~~ '% LOC%'::text
                     and wp.nombre_promocion::text !~~ '%LIQ%'::text
-                    group by wp.ean, concat(wp.material,'-',wp.umv),wp.material;"""
-        df = query_to_df(query)
+                    group by wp.ean, wp.umv, wp.material
+                    limit 10000;"""
+        df = query_to_df_prod(query)
         print(f"informacion obbtenida de la Query: {df.info()}")
 
         host = Variable.get("POSTGRESQL_HOST")
@@ -327,30 +340,291 @@ def promos_to_integrations(ds):
         print(f"error: {err}")
         return "fallo_postgres_promos"
 
-def stock_prices_promos_lss_to_s3():
-    print("Compilando la informacion de todas las tablas de insumos a S3")
+def stock_prices_promos_lss_to_s3(ti):
+    import os
+    import pandas as pd
+    import io
+    from io import StringIO
+    from utils.netezza_utils import load_custom_query_to_s3
+
+    #traemos tiendas lss_millers
+    ids_tiendas = ti.xcom_pull(key="return_value", task_ids=["get_last_millers_stores"])[0]
+    ids_tiendas_lss_millers = [id[0] for id in ids_tiendas]
+    print(ids_tiendas_lss_millers)
+
+    #traemos tiendas activas
+    query_tiendas_activas = """select id as id_tienda
+                        from ecommdata.tiendas t
+                        where t.status = 1
+                        and id <> '9051'"""
+    
+    df_tiendas_activas_ecommerce = query_to_df(query_tiendas_activas)
+    lista_tiendas_activas_ecommerce = df_tiendas_activas_ecommerce['id_tienda'].unique()
+    print(lista_tiendas_activas_ecommerce)
+
+    #traemos stock general
+    query_stock = """select *
+                    from integraciones.stock_2"""
+    
+    #df_stock = query_to_df(query_stock)
+    #df_stock.columns = ["sku_key","material","id_tienda","stock"]
+
+    #traemos productos general
+    query_productos = """select *
+                    from integraciones.productos_2"""
+    
+    df_productos = query_to_df(query_productos)
+    df_productos.columns = ["sku_key","ean","umb","descripcion_producto","marca","umv"]
+
+    #tiendas ecommerce en lss_millers
+
+    #Convertimos las listas a conjuntos
+    set_ids_tiendas_lss_millers = set(ids_tiendas_lss_millers)
+    set_lista_tiendas_activas_ecommerce = set(lista_tiendas_activas_ecommerce)
+
+    # Encontramos la intersección
+    tiendas_ecom_lss_millers = set_lista_tiendas_activas_ecommerce.intersection(set_ids_tiendas_lss_millers)
+
+    # Convertimos el resultado en lista si es necesario
+    lista_tiendas_ecom_lss_millers = list(tiendas_ecom_lss_millers)
+    print(lista_tiendas_ecom_lss_millers)
+
+    #stock no ecommerce
+    #df_stock_no_ecom = df_stock[~df_stock['id_tienda'].isin(lista_tiendas_activas_ecommerce)]
+    #print("\nMuestra stock no ecommerce\n",df_stock_no_ecom.head())
+
+    #primera tramo - Ecommerce
+    print("Primer Tramo Tiendas Ecommerce")
+    query_stock_ecommerce = f"""select distinct s.id_tienda, 
+                s2.ean_primario as "ean", 
+                s.material, 
+                split_part(s.ref_id, '-',2) as "unidad_de_medida",
+                s2.multiplicador_unidad_medida as "multiplicador_unidad",
+                s.descripcion as "nombre",
+                m.nombre as "marca",
+                s.stock_vtex as "stock_unitario"
+                from ecommdata.stock s 
+                left join ecommdata.skus s2 
+                on s2.ref_id = s.ref_id
+                left join ecommdata.productos p 
+                on p.ref_id = s.ref_id 
+                left join ecommdata.marcas m 
+                on p.id_marca = m.id 
+                where s.stock_janis > 0
+                and s.surtido_ecommerce is true 
+                and m.nombre is not null
+                and s2.ean_primario is not null
+                and s.id_tienda is not null
+                and s.material is not null
+                and s.descripcion is not null 
+                and s.ultima_actualizacion = (select max(ultima_actualizacion) from ecommdata.stock s3)
+                and s.c1 not in ('No Trabajar','Inactivos','Integración')
+                limit 1000"""
+    df_stock_ecom = query_to_df_prod(query_stock_ecommerce)
+    print("\nMuestra stock ecommerce\n",df_stock_ecom.head())
+    df_stock_ecom["ref_id"] = df_stock_ecom["material"]+"-"+df_stock_ecom["unidad_de_medida"]
+
+    #Extramos precios
+    query_precios = "select * from integraciones.precios"
+    df_precios = query_to_df(query_precios)
+
+    #Extramos promociones
+    query_promociones = "select * from integraciones.promociones"
+    df_promociones = query_to_df(query_promociones)
+    df_promociones["ref_id"] = df_promociones["material"]+"-"+df_promociones["umv"]
+
+
+    #Merge con Precios a nivel tienda-sku
+    df_lss_millers_ecom = df_stock_ecom.merge(df_precios, how = "left", on = ["id_tienda","ref_id"])
+
+    #Merge con Promociones a nivel sku
+    df_lss_millers_ecom = df_lss_millers_ecom.merge(df_promociones, how = "left", on = ["ref_id"])
+
+    #Eliminamos registros sin precio
+    df_lss_millers_ecom = df_lss_millers_ecom.dropna(subset=["precio"])
+
+    df_lss_millers_ecom = df_lss_millers_ecom[["id_tienda",
+                                               "ean_x",
+                                               "material_x",
+                                               "unidad_de_medida",
+                                               "multiplicador_unidad",
+                                               "nombre",
+                                               "marca",
+                                               "stock_unitario",
+                                               "precio",
+                                               "precio_promocional"]]
+    
+    df_lss_millers_ecom.columns = ["id_tienda",
+                                    "ean",
+                                    "material",
+                                    "unidad_de_medida",
+                                    "multiplicador_unidad",
+                                    "nombre",
+                                    "marca",
+                                    "stock_unitario",
+                                    "precio",
+                                    "precio_promocional"]
+
+    df_lss_millers_ecom.info()    
+
+
+     
+
+
+ 
+
     return
 
 def stock_prices_promos_lss_to_postgres(ti):
     print("Cargando la data de last millers a postgres")
     return
-def promos_postgres(ti):
-    print("Cargando promociones del workflow promociones en postgres")
+
+def promos_postgres():
+    print("todo bien con las promos")
     return
+
+def precios_postgres():
+    print("todo bien con los precios")
+    return
+
 def check_promos():
-    print("Revisando que exista data en la tabla de promociones")
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+    import io
+    import pandas as pd
+
+    #query = "select * from integraciones.promociones"
+    query = "select * from integraciones.promociones"
+    df = query_to_df(query)
+
+    print(f"informacion obtenida de la Query: {df.info()}")
+
+    with io.BytesIO() as buffer:
+        df.to_csv(buffer, index=False, encoding='utf-8')
+        buffer.seek(0)
+        
+        token = Variable.get("token_slack")
+        
+        client = WebClient(token=token)
+        
+        registros = len(df.index)
+
+        try:
+            response = client.files_upload(
+                channels="last-millers-avisos",
+                file=buffer,
+                filename="integraciones_promociones.csv",
+                title="Promociones LastMillers",
+                initial_comment=f"se registrar {registros} en la tabla de promociones"
+            )
+        except SlackApiError as e:
+            print(f"Error al subir archivo: {e}")
+
     return
+
 def check_prices():
-    print("Revisando que exista data en la tabla de precios")
+
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+    import io
+    import pandas as pd
+
+    #query = "select * from integraciones.precios"
+    query = "select * from integraciones.precios"
+    df = query_to_df(query)
+
+    print(f"informacion obtenida de la Query: {df.info()}")
+
+    with io.BytesIO() as buffer:
+        df.to_csv(buffer, index=False, encoding='utf-8')
+        buffer.seek(0)
+        
+        token = Variable.get("token_slack")
+        
+        client = WebClient(token=token)
+        
+        registros = len(df.index)
+
+        try:
+            response = client.files_upload(
+                channels="last-millers-avisos",
+                file=buffer,
+                filename="integraciones_precios.csv",
+                title="Precios LastMillers",
+                initial_comment=f"se registrar {registros} en la tabla de precios"
+            )
+        except SlackApiError as e:
+            print(f"Error al subir archivo: {e}")
+
     return
+
 def check_stock():
-    print("Revisando que exista data en la tabla de stock")
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+    import io
+    import pandas as pd
+
+    #query = "select * from integraciones.stock_2"
+    query = "select * from integraciones.stock_2"
+    df = query_to_df(query)
+
+    print(f"informacion obtenida de la Query: {df.info()}")
+
+    with io.BytesIO() as buffer:
+        df.to_csv(buffer, index=False, encoding='utf-8')
+        buffer.seek(0)
+        
+        token = Variable.get("token_slack")
+        
+        client = WebClient(token=token)
+        
+        registros = len(df.index)
+
+        try:
+            response = client.files_upload(
+                channels="last-millers-avisos",
+                file=buffer,
+                filename="integraciones_stock.csv",
+                title="Stock LastMillers",
+                initial_comment=f"se registrar {registros} en la tabla de stock"
+            )
+        except SlackApiError as e:
+            print(f"Error al subir archivo: {e}")
+
     return
+
 def check_product():
+    from slack_sdk import WebClient
+    from slack_sdk.errors import SlackApiError
+    import io
+    import pandas as pd
 
-    print("Revisando que exista data en la tabla de productos")
+    #query = "select * from integraciones.productos_2"
+    query = "select * from integraciones.productos_2"
+    df = query_to_df(query)
+
+    print(f"informacion obtenida de la Query: {df.info()}")
+
+    with io.BytesIO() as buffer:
+        df.to_csv(buffer, index=False, encoding='utf-8')
+        buffer.seek(0)
+        
+        token = Variable.get("token_slack")
+        
+        client = WebClient(token=token)
+        registros = len(df.index)
+        
+        try:
+            response = client.files_upload(
+                channels="last-millers-avisos",
+                file=buffer,
+                filename="integraciones_productos.csv",
+                title="Productos LastMillers",
+                initial_comment=f"se registrar {registros} en la tabla de productos"
+            )
+        except SlackApiError as e:
+            print(f"Error al subir archivo: {e}")
     return
-
 
 default_args = {
     "owner": "ecommerce_data",
@@ -441,7 +715,7 @@ with DAG(
     )
     t11 = PythonOperator(
         task_id="precios_postgres",
-        python_callable=check_product,
+        python_callable=precios_postgres,
     )
 
     t12 = PythonOperator(
