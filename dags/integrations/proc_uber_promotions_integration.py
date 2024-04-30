@@ -35,7 +35,7 @@ def _join_Catalog_from_s3(ds, ti):
     # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
 
-    join_file_name = f"integraciones/last_millers/stock/out/uber/Catalog_{exec_date}/{exec_date_formatted}.csv"
+    join_file_name = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/{exec_date_formatted}.csv"
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
@@ -208,7 +208,7 @@ def _join_stock_from_s3(ds, ti):
     # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
 
-    join_file_name = f"integraciones/last_millers/stock/out/uber/stock_{exec_date}/{exec_date_formatted}.csv"
+    join_file_name = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/{exec_date_formatted}.csv"
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
@@ -287,8 +287,8 @@ def _send_joined_data_to_sftp(ds):
 
     exec_date = ds.replace("-", "/")
     prefix_Promotions = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
-    prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog_{exec_date}/"
-    prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock_{exec_date}/"
+    prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/"
+    prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
