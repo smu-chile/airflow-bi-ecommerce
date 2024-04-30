@@ -17,7 +17,7 @@ def _join_Catalog_from_s3(ds, ti):
     import pandas as pd
     import io
     # Obtener la fecha actual
-    fecha_actual = datetime.datetime.now()
+    fecha_actual = datetime.strptime(ds, "%Y-%m-%d")
     # Obtener el día de la semana como un número
     numero_dia_semana = fecha_actual.weekday()
 
@@ -105,7 +105,7 @@ def _join_promo_prices_from_s3(ds, ti):
     import pandas as pd
     import io
     # Obtener la fecha actual
-    fecha_actual = datetime.datetime.now()
+    fecha_actual = datetime.strptime(ds, "%Y-%m-%d")
     # Obtener el día de la semana como un número
     numero_dia_semana = fecha_actual.weekday()
 
@@ -272,7 +272,7 @@ def _send_joined_data_to_sftp(ds):
     from datetime import datetime, timedelta
 
     # Obtener la fecha actual
-    fecha_actual = datetime.datetime.now()
+    fecha_actual = datetime.strptime(ds, "%Y-%m-%d")
     # Obtener el día de la semana como un número
     numero_dia_semana = fecha_actual.weekday()
     
