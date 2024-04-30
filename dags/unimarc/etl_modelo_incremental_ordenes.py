@@ -170,11 +170,30 @@ def _incremental_load_orders_table(ti):
 
     df = df.merge(df_cdf, left_on="janis_id", right_on="order_id", how="left")
     df["value"] = df["value"].fillna(0)
+    df["value"] = np.where(df["value"] == "Android", 1, df["value"])
+    df["value"] = np.where(df["value"] == "iOS", 1, df["value"])
     df["value"] = df["value"].astype("int")
     df["canal_venta"] = np.where(df["value"] == 1, "app",
                   np.where((df["call_center_operator_id"].isna()) | (df["call_center_operator_id"] == 0), "sitio", "callcenter"))
     
     df = df.drop(columns=["order_id", "call_center_operator_id", "value"])
+
+    marketing_data_fields_file = ti.xcom_pull(key="return_value", task_ids=["order_marketing_data_field_incremental_load"])[0]
+
+    print("Searching file: "+marketing_data_fields_file)
+    if not s3_hook.check_for_key(marketing_data_fields_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % marketing_data_fields_file)
+
+    marketing_data_fields_object = s3_hook.get_key(marketing_data_fields_file, bucket_name=s3_bucket)
+    df_mdf = pd.read_csv(marketing_data_fields_object.get()["Body"])
+
+    # Filter marketing_data_fields_dataframe
+    df_mdf = df_mdf[["order_id", "utm_source"]]
+
+    df = df.merge(df_mdf, left_on="janis_id", right_on="order_id", how="left")
+    df["utm_source"] = df["utm_source"].fillna("NULL")
+    
+    df = df.drop(columns=["order_id"])
 
     columns = [
         "janis_id",
@@ -220,7 +239,8 @@ def _incremental_load_orders_table(ti):
         "fecha_modificacion_unixtime",
         "documento_electronico",
         "id_picker",
-        "janis_cart_id"
+        "janis_cart_id",
+        "utm_source"
     ]
 
     df = df[["id"]+columns]
@@ -348,6 +368,7 @@ def _order_items_table_incremental_load(ti):
 		"category",
 		"measurement_unit",
 		"unit_multiplier",
+        "note"
     ]]  
 
     df = df.merge(df_orders, how="inner", left_on="order_id", right_on="original_id").drop(columns=["order_id", "original_id"])
@@ -386,6 +407,7 @@ def _order_items_table_incremental_load(ti):
 		"category": "ref_id_categoria",
 		"measurement_unit": "unidad_de_medida",
 		"unit_multiplier": "multiplicador_unidad",
+        "note": "nota"
     }
 
     df = df.rename(columns=columns_rename)
@@ -413,6 +435,7 @@ def _order_items_table_incremental_load(ti):
 		"ref_id_categoria",
 		"unidad_de_medida",
 		"multiplicador_unidad",
+        "nota"
     ]
 
     df = df[["id"]+columns]
@@ -493,6 +516,38 @@ def _order_custom_data_field_incremental_load(ti, ts):
 
     return file_name
 
+def _order_marketing_data_field_incremental_load(ti, ts):
+    import pandas as pd
+    new_orders_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+new_orders_file)
+    if not s3_hook.check_for_key(new_orders_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % new_orders_file)
+
+    new_orders_object = s3_hook.get_key(new_orders_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(new_orders_object.get()["Body"])
+    print(f"Number of records found: {len(df.index)}")
+
+    new_order_ids = df["id"].tolist()
+    if len(new_order_ids) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    new_order_ids_string = "("+",".join([str(order_id) for order_id in new_order_ids])+")"
+
+    janis_query = f"""
+        SELECT *
+        FROM janis_jackie.wms_order_marketing_data AS womd
+        WHERE womd.order_id IN {new_order_ids_string};
+    """
+    print(janis_query)
+
+    file_name = load_custom_query_to_s3(ts, query=janis_query, query_name="wms_orders_marketing_data_fields")
+
+    return file_name
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -507,7 +562,7 @@ with DAG(
     schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata", "ordenes_janis", "unimarc", "orden_productos"],
+    tags=["DATA", "Janis", "ecommdata", "ordenes_janis", "unimarc", "orden_productos", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -531,14 +586,14 @@ with DAG(
         op_kwargs = {
             "table_name": "wms_orders", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_modified"
+            "updated_column": "date_modified",
+            "inclusive": True
         }
     )
 
     t2 = PythonOperator(
         task_id = "incremental_load_orders_table",
-        python_callable = _incremental_load_orders_table,
-        trigger_rule = "none_failed"
+        python_callable = _incremental_load_orders_table
     )
 
     t3 = BranchPythonOperator(
@@ -558,6 +613,12 @@ with DAG(
         python_callable = _order_custom_data_field_incremental_load
     )
 
+    t5a = PythonOperator(
+        task_id = "order_marketing_data_field_incremental_load",
+        python_callable = _order_marketing_data_field_incremental_load,
+        trigger_rule = "none_failed"
+    )
+
     t6 = PythonOperator(
         task_id = "get_order_items_from_janis",
         python_callable = _get_order_items_from_janis
@@ -571,7 +632,8 @@ with DAG(
     # Ordenes
     t0 >> t1
     t1 >> t3 >> [t4, t5]
-    t4 >> t2
-    t5 >> t2
+    t4 >> t5a
+    t5 >> t5a
+    t5a >> t2
     # Orden productos
     t1 >> t6 >> t7

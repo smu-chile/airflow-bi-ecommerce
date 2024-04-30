@@ -126,7 +126,7 @@ with DAG(
     schedule_interval="0 0 * * *",
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "Janis_Alvi", "S3", "Alvi", "ecommdata_alvi"],
+    tags=["DATA", "Janis_Alvi", "S3", "Alvi", "ecommdata_alvi", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

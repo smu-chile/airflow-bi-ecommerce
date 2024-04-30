@@ -245,6 +245,14 @@ def check_update_attributes_products(ti):
 
     df_new_alergias = df_alergias[~df_alergias.isin(df_alergias_atr)].dropna()
     df_new_sellos = df_sellos[~df_sellos.isin(df_sellos_atr)].dropna()
+
+    df_new_sellos['sellos'] = df_new_sellos['sellos'].apply(lambda x: 
+        'Sin Sellos' if pd.isnull(x) else 
+        x + ',Un Sello' if ',' not in x else 
+        x + ',Dos Sellos' if x.count(',') == 1 else 
+        x + ',Tres Sellos' if x.count(',') == 2 else 
+        x + ',Cuatro Sellos')
+
     df_new_total = df_new_alergias.merge(
         df_new_sellos, on='ref_id', how='outer')
     print("Datos que se actualizarán")
@@ -334,7 +342,7 @@ with DAG(
     schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2023, 5, 21, tz="America/Santiago"),
     catchup=False,
-    tags=["API", "Janis", "ok_to_shop", 'atributos', 'atributos_producto'],
+    tags=["API", "Janis", "ok_to_shop", 'atributos', 'atributos_producto', "SERGIO"],
 ) as dag:
 
     dag.doc_md = """
@@ -355,3 +363,5 @@ with DAG(
     )
 
 t0 >> t1 >> t2
+
+

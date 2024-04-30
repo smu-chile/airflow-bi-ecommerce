@@ -19,7 +19,7 @@ with DAG(
     start_date=datetime(2021, 10, 1),
     catchup=True,
     max_active_runs = 1,
-    tags=["DATA", "ventas", "ventas_unimarc", "unimarc"],
+    tags=["DATA", "ventas", "ventas_unimarc", "unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

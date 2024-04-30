@@ -62,7 +62,7 @@ def set_lim_compra(ti):
             "attributes": [
                 {
                     "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
-                    "values": ["12"]
+                    "values": ["999"]
                 }
             ]
         }
@@ -109,7 +109,7 @@ with DAG(
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["janis", "limite_compra", "ecommdata_unimarc", "atributos_producto", "API"],
+    tags=["janis", "limite_compra", "ecommdata_unimarc", "atributos_producto", "API", "SERGIO"],
 ) as dag:
 
     dag.doc_md = """

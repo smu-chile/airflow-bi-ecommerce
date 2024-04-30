@@ -99,6 +99,7 @@ def stock_mfc_to_s3(ds,ts):
 
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
+    date_aux_filename = ts.replace("-","_")
     prefix = f"stock_mfc_takeoff/{exec_date}/"
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
 
@@ -111,7 +112,7 @@ def stock_mfc_to_s3(ds,ts):
 
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"stock_mfc_takeoff/{exec_date}/stock_mfc_takeoff_{date_aux}.csv"
+    filename = f"stock_mfc_takeoff/{exec_date}/stock_mfc_takeoff_{date_aux_filename}.csv"
     buffer.seek(0)
     print("se logro transformar el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -182,10 +183,10 @@ with DAG(
     'etl_stock_mfc_takeoff_2',
     default_args=default_args,
     description="utiliza la API de takeoff para extraer el stock de MFC, lo carga a S3 y lo sube a postgresql",
-    schedule_interval= "0 0/4 * * *",
+    schedule_interval= "0 1,4/4 * * *",
     start_date=pendulum.datetime(2023, 9, 27, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "postgres", "MFC", "s3","stock","takeoff"],
+    tags=["DATA", "postgres", "MFC", "s3", "stock", "takeoff", "PATRICIO"],
 ) as dag:
 
     dag.doc_md = """

@@ -234,12 +234,12 @@ with DAG(
     "proc_stock_precios_last_millers",
     default_args=default_args,
     description="Extracción de stock, precios y precios promocionales simples para integraciones Last Millers.",
-    schedule_interval="30 8 * * *", 
+    schedule_interval="0 9 * * *", 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "stock", "precios"],
+    tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -323,9 +323,21 @@ with DAG(
     )
 
     t11 = PostgresOperator(
+        task_id = "calculate_stock_prices_promos_ph",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/insert_stock_prices_promos_padre_hijo.sql"
+    )
+
+    t12 = PostgresOperator(
         task_id = "calculate_stock_prices_promos_no_ecommerce",
         postgres_conn_id = "postgresql_conn",
         sql = "sql/insert_stock_prices_promos_no_ecommerce.sql"
+    )
+
+    t13 = PostgresOperator(
+        task_id = "calculate_stock_prices_promos_no_ecommerce_ph",
+        postgres_conn_id = "postgresql_conn",
+        sql = "sql/insert_stock_prices_promos_no_ecommmerce_padre_hijo.sql"
     )
 
     td = DummyOperator(
@@ -333,19 +345,19 @@ with DAG(
     )
 
     # Trigger last miller's DAGs
-    t12 = TriggerDagRunOperator(
+    t14 = TriggerDagRunOperator(
         task_id="trigger_peya_stock_integration",
         trigger_dag_id="proc_peya_stock_integration",
         wait_for_completion=False
     )
 
-    t13 = TriggerDagRunOperator(
+    t15 = TriggerDagRunOperator(
         task_id="trigger_proc_rappi_stock_integration",
         trigger_dag_id="proc_rappi_stock_integration",
         wait_for_completion=False
     )
 
-    t14 = TriggerDagRunOperator(
+    t16 = TriggerDagRunOperator(
         task_id="trigger_proc_uber_promotions_integration",
         trigger_dag_id="proc_uber_promotions_integration",
         wait_for_completion=False
@@ -358,5 +370,5 @@ with DAG(
     t5 >> t8
     t3 >> td
     t8 >> td
-    td >> t9 >> t10 >> t11
-    t11 >> [t12, t13, t14]
+    td >> t9 >> t10 >> t11 >> t12 >> t13
+    t13 >> [t14, t15, t16]

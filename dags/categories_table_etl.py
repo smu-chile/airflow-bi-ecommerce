@@ -128,7 +128,7 @@ with DAG(
     schedule_interval="0 3 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["DATA", "Janis", "S3"],
+    tags=["DATA", "Janis", "S3", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

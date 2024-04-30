@@ -129,7 +129,7 @@ def ids_vtex():
             where s.vtex_id is not null
             UNION
             select distinct s.vtex_id
-            from staging.stock_alvi sa
+            from staging.stock_janis_alvi sa
             inner join ecommdata_alvi.skus s on s.id = sa.item_id
             where sa.stock > 0 and s.vtex_id is not null;
         """
@@ -220,7 +220,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     print(sku_list)
     vtex_account_name = {
         "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
-        "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
+        #"alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
         "alvicl008": Variable.get("VTEX_ALVI3089_ACCOUNT_NAME"),
         "alvicl001": Variable.get("VTEX_ALVI3092_ACCOUNT_NAME"),
         "alvicl010": Variable.get("VTEX_ALVI3093_ACCOUNT_NAME"),
@@ -356,7 +356,7 @@ def _vtex_get_stock_retries(ti, ts):
     print(retries)
     vtex_account_name = {
         "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
-        "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
+        #"alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
         "alvicl008": Variable.get("VTEX_ALVI3089_ACCOUNT_NAME"),
         "alvicl001": Variable.get("VTEX_ALVI3092_ACCOUNT_NAME"),
         "alvicl010": Variable.get("VTEX_ALVI3093_ACCOUNT_NAME"),
@@ -469,7 +469,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 8, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "vtex", "janis", "staging", "alvi", "vtex_stock", "janis_stock", "stock"],
+    tags=["DATA", "vtex", "janis", "staging", "alvi", "vtex_stock", "janis_stock", "stock", "PATRICIO"],
 ) as dag:
 
     dag.doc_md = """

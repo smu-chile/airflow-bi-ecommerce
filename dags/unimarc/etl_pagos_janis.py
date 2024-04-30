@@ -242,7 +242,7 @@ with DAG(
     schedule_interval="*/30 * * * *",
     start_date=datetime(2023, 3, 27),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata", "pagos_janis", "Unimarc"],
+    tags=["DATA", "Janis", "ecommdata", "pagos_janis", "Unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -275,7 +275,7 @@ with DAG(
                 FROM janis_jackie.wms_order_payments wop
                 JOIN janis_jackie.wms_orders wo
                     on wo.id = wop.order_id 
-                WHERE wop.transaction_date > {{ti.xcom_pull(key="return_value", task_ids="check_full_or_incremental_load")}}
+                WHERE wop.transaction_date > {{ti.xcom_pull(key="return_value", task_ids="check_full_or_incremental_load")}} or SUBSTRING_INDEX(SUBSTRING_INDEX('{{ts}}', 'T', -1), '+', 1) = '03:30:00'
             """,
             "query_name": "wms_order_payments",
         }

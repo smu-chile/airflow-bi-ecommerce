@@ -15,34 +15,21 @@ def stock_x_l8(ds):
     #si el UMV del sku es KG o KGV se divide por multiplicador_unidad_medida para transformar el dato a unidades
     import pandas as pd
     print("se está extrayendo la info de stock y lista 8\n")
-    stock_l8_query = """select _t.*
-                    from( 
-                    select s.fecha,
-                    s.ref_id,
-                    l.id_tienda,
-                    l.stock_x_umv,
-                    s.stock_janis,
+    stock_l8_query = f"""select s.fecha, pt.ref_id, pt.id_tienda,l.stock_x_umv ,s.stock_janis,
                     case
                         when (l.umv in ('DIS','CJ')) then trunc(l.stock_x_umv,0) 
                         when (l.umv in ('KG','KGV')) then round(l.stock_x_umv/s.multiplicador_unidad_medida,0)
-                        else l.stock_x_umv
-                    end as stock_sap,
+                        else l.stock_x_umv 
+                    end stock_sap,
                     s.multiplicador_unidad_medida
-                    from ecommdata.lista8 as l
-                    inner Join ecommdata.stock as s
-                    on l.fecha = s.fecha and l.id_tienda = s.id_tienda and s.ref_id = CONCAT(LPAD(l.material, 18, '0'), '-', l.umv)  
-                    where l.fecha = '"""+ds+"""'::date +1
-                    and l.umv <> 'PAQ'
-                    and l.id_tienda = '1917'
-                    and l.stock_x_umv > 0) as _t 
-                    group by 
-                    _t.fecha,
-                    _t.ref_id,
-                    _t.id_tienda,
-                    _t.stock_x_umv,
-                    _t.stock_janis,
-                    _t.stock_sap,
-                    _t.multiplicador_unidad_medida"""
+                    from ecommdata.productos_tienda pt
+                    left join ecommdata.stock s 
+                    on s.ref_id = pt.ref_id and s.id_tienda = pt.id_tienda
+                    left join ecommdata.lista8 l 
+                    on concat(l.material, '-', l.umv) = pt.ref_id and l.id_tienda  = pt.id_tienda 
+                    where pt.id_tienda = '1917'
+                    and pt.activo is true
+                    and s.fecha = '{ds}'::date+1"""
     print(stock_l8_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -370,7 +357,7 @@ with DAG(
     schedule_interval="30 9 * * *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["catalogo", "cuadratura", "MFC", "unimarc"],
+    tags=["catalogo", "cuadratura", "MFC", "unimarc", "PATRICIO"],
 ) as dag:
     
     dag.doc_md = """

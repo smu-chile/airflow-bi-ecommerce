@@ -78,7 +78,9 @@ def _promotions_table_incremental_load(ti, ts):
 		"PROMOEVENTMECHANISM": "str",
 		"DESCUENTOFINAL": "float",
 		"FECHA_MODIFICACION": "str",
-        "REGISTRO_VALIDO": "str"
+        "REGISTRO_VALIDO": "str",
+        "CATEGORIA": "str",
+        "DESC_CATEGORIA": "str",
     }
     df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
     df = df[["ID_WORKFLOW", "N_PROMOCION", "NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
@@ -90,7 +92,7 @@ def _promotions_table_incremental_load(ti, ts):
 		    "TIPO_FINANCIAMIENTO", "IMPORTE_NEGOCIADO", "PORCENTAJE_FINANCIAMIENTO", "COSTO_NETO_UMP",
 		    "PORCENTAJE_COSTO_PROMOCIONAL", "DESDE_SELL_IN", "HASTA_SELL_IN", "FECHA_INICIO_DE_PROMOCION",
 		    "FECHA_FIN_DE_PROMOCION", "PORCENTAJE_DE_DESCUENTO", "PROMOEVENTMECHANISM", "DESCUENTOFINAL",
-		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT", "FACTOR"]]
+		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT", "FACTOR", "CATEGORIA", "DESC_CATEGORIA"]]
     df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
     df["FACTOR"] = df["FACTOR"].astype("int", errors="ignore")
     
@@ -171,7 +173,9 @@ def _promotions_table_incremental_load(ti, ts):
         "REGISTRO_VALIDO": "registro_valido",
         "NOMBRE_DEL_PROVEEDOR_SELL_OUT": "nombre_proveedor_sell_out",
         "PROVEEDOR_SELL_OUT": "proveedor_sell_out",
-        "FACTOR": "factor"
+        "FACTOR": "factor",
+        "CATEGORIA": "categoria",
+		"DESC_CATEGORIA": "descripcion_categoria",
     }
 
     df = df.rename(columns=columns_rename)
@@ -219,7 +223,7 @@ with DAG(
     start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "DW", "S3", "ecommdata", "workflow_promociones", "Unimarc"],
+    tags=["DATA", "DW", "S3", "ecommdata", "workflow_promociones", "Unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

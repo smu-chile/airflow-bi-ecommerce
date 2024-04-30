@@ -228,9 +228,9 @@ with DAG(
     description="Extracción y carga de datos incrementales de workflow_promociones de Alvi desde Datawarehouse",
     schedule_interval="30 8,15 * * *",
     start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
-    catchup=True,
+    catchup=False,
     max_active_runs=1,
-    tags=["DATA", "DW", "S3", "ecommdata_alvi", "workflow_promociones", "Alvi"],
+    tags=["DATA", "DW", "S3", "ecommdata_alvi", "workflow_promociones", "Alvi", "SERGIO"],
 ) as dag:
 
     dag.doc_md = """

@@ -40,7 +40,7 @@ end as infaltable
 	else false
 end as top_300
 , case
-	when sm.material is not null then true
+	when (smt.ref_id is not null and smt.quantity_on_hand > 0 and um.mfc_is_item_side = 'REG')  then true
 	else false
 end as mfc
 from ecommdata.stock s
@@ -65,7 +65,11 @@ left join ecommdata.productos_tienda pt on s.ref_id = pt.ref_id and s.id_tienda 
 left join ecommdata.marcas m on p.id_marca = m.id
 left join ecommdata.lista_infaltables li on s.material = li.material
 left join ecommdata.top300 tp on s.material = tp.material
-left join ecommdata.stock_mfc sm on s.ref_id = CONCAT(LPAD(sm.material, 18, '0'), '-', sm.unidad_venta) and s.id_tienda = sm.id_tienda and s.fecha = sm.fecha_carga
+left join (select tom_id as ref_id,quantity_on_hand, '1917' as id_tienda
+			from ecommdata.stock_mfc_takeoff
+			where fecha = (select max(fecha) from ecommdata.stock_mfc_takeoff smt)) as smt
+			on smt.ref_id = s.ref_id and s.id_tienda = smt.id_tienda
+left join ecommdata.ubicacion_mfc um on concat(um.sap_code,'-',um.measurement_unit) = s.ref_id and um.store = s.id_tienda
 inner join lateral (select
 	case 
 	when foto.ref_id is null then false
