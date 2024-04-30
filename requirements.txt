@@ -17,3 +17,4 @@ sqlalchemy==1.3.24
 vincenty
 google
 google-analytics-data
+paramiko
