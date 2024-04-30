@@ -213,7 +213,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "Frogmi", "API", "POST", "foundrate", "Alvi"],
+    tags=["OPS", "Frogmi", "API", "POST", "foundrate", "Alvi", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

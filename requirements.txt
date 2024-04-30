@@ -18,3 +18,9 @@ vincenty
 google
 google-analytics-data
 paramiko
+geopandas
+shapely
+Polygon
+Point
+slack_sdk
+xlsxwriter

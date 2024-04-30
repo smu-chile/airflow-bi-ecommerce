@@ -180,7 +180,8 @@ def incremental_unixtime_load_table_s3(ti,
                               xcom_updated_date_task_id=None, 
                               updated_column=None, 
                               where=None, 
-                              extra_prefix=None):
+                              extra_prefix=None,
+                              inclusive=None):
     # Verify if there is enough incremental parameters:
     if created_column is None and updated_column is None:
         print("ERROR: No incremental column given.")
@@ -201,7 +202,10 @@ def incremental_unixtime_load_table_s3(ti,
         print(created_date)
         if created_date is None:
             created_date = 0
-        created_query = f"{created_column} > {created_date}"
+        if inclusive is None:
+            created_query = f"{created_column} > {created_date}"
+        if inclusive is True:
+            created_query = f"{created_column} >= {created_date}"
         date_query_strings.append(created_query)
     if updated_column is not None:
         updated_date = ti.xcom_pull(key="return_value", task_ids=[xcom_updated_date_task_id])[0]
@@ -209,7 +213,10 @@ def incremental_unixtime_load_table_s3(ti,
         print(updated_date)
         if updated_date is None:
             updated_date = 0
-        updated_query = f"{updated_column} > {updated_date}"
+        if inclusive is None:
+            updated_query = f"{updated_column} > {updated_date}"
+        if inclusive is True:
+            updated_query = f"{updated_column} >= {updated_date}"
         date_query_strings.append(updated_query)
     
     sql_str = sql_str + " AND ".join(date_query_strings)

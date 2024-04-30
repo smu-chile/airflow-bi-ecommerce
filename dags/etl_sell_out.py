@@ -226,7 +226,7 @@ with DAG(
     schedule_interval= "0 11 * * *",
     start_date=pendulum.datetime(2023, 10, 9, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "postgres", "ecommdata", "sell_out","S3"],
+    tags=["DATA", "postgres", "ecommdata", "sell_out", "S3", "PATRICIO"],
 ) as dag:
     
 
@@ -250,7 +250,7 @@ with DAG(
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
             FROM catalogo.sell_out
-            WHERE fecha_creacion_vtex = '{{ds}}'::date - interval '30 days' """
+            WHERE fecha_creacion_vtex = '{{ds}}'::date - interval '90 days' """
     )
 
 

@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
@@ -12,6 +13,7 @@ import pendulum
 
 def _incremental_load_order_status_changes(ti):
     import pandas as pd
+    import numpy as np
     import sqlalchemy
     
     order_status_changes_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
@@ -64,24 +66,50 @@ def _incremental_load_order_status_changes(ti):
         "fecha_creacion": "string"
     })
 
+    columns = [
+        "id_orden",
+        "estado_anterior",
+        "estado_nuevo",
+        "creado_por",
+        "fecha_creacion_unixtime",
+        "fecha_creacion"
+    ]
+
     print("Number of records to be loaded: "+str(len(df.index)))
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
     
-    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
-    engine = sqlalchemy.create_engine(conn_url)
-
-    # Save to PostgreSQL:
-    df.to_sql(name="orden_cambios_de_estado",
-                con=engine,         
-                schema="ecommdata_alvi",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata_alvi.orden_cambios_de_estado (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
     print("Data loaded to Postgres")
 
     return
@@ -100,7 +128,7 @@ with DAG(
     schedule_interval="30 * * * *",
     start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata_alvi", "orden_cambios_de_estado", "Alvi"],
+    tags=["DATA", "Janis", "ecommdata_alvi", "orden_cambios_de_estado", "Alvi", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -124,7 +152,8 @@ with DAG(
         op_kwargs = {
             "table_name": "wms_order_status_changes", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
-            "updated_column": "date_created"
+            "updated_column": "date_created",
+            "inclusive": True
         }
     )
 

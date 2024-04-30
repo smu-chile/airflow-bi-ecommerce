@@ -111,11 +111,11 @@ with DAG(
         'etl_load_mongo_to_postgres',
         default_args=default_args,
         description="carga a postgres desde mongodb",
-        schedule_interval="0 5 * * *",
+        schedule_interval="0 8 * * *",
         start_date=pendulum.datetime(2023, 5, 24, tz="America/Santiago"),
         catchup=False,
         max_active_runs = 1,
-        tags=["mongo", "postgres"],
+        tags=["mongo", "postgres", "PATRICIO"],
     ) as dag:
         dag.doc_md = """
         funciona. \n

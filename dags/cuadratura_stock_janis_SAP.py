@@ -29,7 +29,7 @@ def stock_lista8(ds):
                     inner Join ecommdata.stock as s
                     on l.fecha = s.fecha and l.id_tienda = s.id_tienda and s.ref_id = CONCAT(LPAD(l.material, 18, '0'), '-', l.umv)
                     and l.umv <> 'PAQ'
-                    and l.id_tienda not in ('1917','0917')) as _t 
+                    and l.id_tienda not in ('1917')) as _t 
                     group by 
                     _t.fecha,
                     _t.ref_id,
@@ -277,7 +277,7 @@ with DAG(
     schedule_interval= "30 9 * * *",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "postgres", "ecommdata_unimarc", "cuadratura","unimarc"],
+    tags=["DATA", "postgres", "ecommdata_unimarc", "cuadratura", "unimarc", "PATRICIO"],
 ) as dag:
     
 

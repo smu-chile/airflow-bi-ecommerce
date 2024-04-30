@@ -21,7 +21,7 @@ def _check_time(ts):
     print(exec_datetime_local_str)
 
     time_str = exec_datetime_local_str.split("T")[1]
-    if (time_str == "20:00") or (time_str == "00:00"):
+    if (time_str == "20:00") or (time_str == "01:00"):
         return "task_skip"
     else:
         return "load_table_publicacion_catalogo"
@@ -186,11 +186,11 @@ with DAG(
     'etl_publicacion_catalogo',
     default_args=default_args,
     description="Carga de tabla publicacion catalogo",
-    schedule_interval="0 0/4 * * *",
+    schedule_interval="0 1,4/4 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "publicacion_catalogo", "ecommdata", "unimarc"],
+    tags=["DATA", "publicacion_catalogo", "ecommdata", "unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

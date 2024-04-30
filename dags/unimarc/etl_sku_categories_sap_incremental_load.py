@@ -91,7 +91,7 @@ with DAG(
     start_date=pendulum.datetime(2022, 8, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "DW", "S3", "ecommdata", "sku_categorias_datawarehouse", "Unimarc"],
+    tags=["DATA", "DW", "S3", "ecommdata", "sku_categorias_datawarehouse", "Unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

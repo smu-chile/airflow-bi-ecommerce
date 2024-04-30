@@ -64,10 +64,11 @@ def _order_item_promotions_table_incremental_load(ts, ti):
     df = pd.read_csv(order_item_proms_object.get()["Body"])
     df = df[[
         "id", 
-        "order_item", 
+        "order_item",
         "name", 
         "quantity", 
-        "value"
+        "value",
+        "ref_id"
     ]]  
 
     # # Ensure correct datatypes:
@@ -76,17 +77,20 @@ def _order_item_promotions_table_incremental_load(ts, ti):
     df["name"] = df["name"].astype("str", errors="ignore")
     df["quantity"] = df["quantity"].astype("int", errors="ignore")
     df["value"] = df["value"].astype("float", errors="ignore")
+    df["ref_id"] = df["ref_id"].astype("str", errors="ignore")
+
 
     columns_rename = {
         "order_item": "orden_producto",
         "name": "nombre",
         "quantity": "cantidad",
-        "value": "valor"
+        "value": "valor",
+        "ref_id": "ref_id"
     }
 
     df = df.rename(columns=columns_rename)
 
-    columns = ["orden_producto", "nombre", "cantidad", "valor"]
+    columns = ["orden_producto", "nombre", "cantidad", "valor", "ref_id"]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
@@ -140,7 +144,7 @@ with DAG(
     start_date=datetime(2022, 2, 1),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata", "orden_producto_promociones", "unimarc", "cyber"],
+    tags=["DATA", "Janis", "ecommdata", "orden_producto_promociones", "unimarc", "cyber", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

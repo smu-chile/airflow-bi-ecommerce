@@ -2,24 +2,21 @@ SELECT wp.n_promocion,
     wp.nombre_promocion,
     (((((wp.n_promocion || ' '::text) || regexp_replace(wp.nombre_promocion::text, '[^a-zA-Z0-9]'::text, ''::text, 'g'::text)) || '_'::text) ||
         CASE
-            WHEN wp.descripcion_mecanica::text ~~ '%CHELAZO%'::text THEN 'C003'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%LECHAERAZO%'::text THEN 'C004'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%LIMPIAZO%'::text THEN 'C005'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%DESPENSAZO%'::text THEN 'C008'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%CLUB AHORRO%'::text THEN 'C011'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%PASCUERAZO%'::text THEN 'C015'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%FONDAZO%'::text THEN 'C017'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%GUAGUAZO%'::text THEN 'C018'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%CYBERAZO%'::text THEN 'C029'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%ASAITO%'::text THEN 'C031'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%REDFRIDAY%'::text THEN 'C064'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%EXCLUSIVO ECOMMERCE%'::text THEN 'C065'::text
+            WHEN wp.id_mecanica = 13 THEN 'C003'::text
+            WHEN wp.id_mecanica = 10 THEN 'C004'::text
+            WHEN wp.id_mecanica = 9  THEN 'C005'::text
+            WHEN wp.id_mecanica = 30 THEN 'C008'::text
+            WHEN wp.id_mecanica = 12 THEN 'C011'::text
+            WHEN wp.id_mecanica in (8,114,117) THEN 'C015'::text
+            WHEN wp.id_mecanica = 43 THEN 'C017'::text
+            WHEN wp.id_mecanica = 11 THEN 'C018'::text
+            WHEN wp.nombre_promocion::text ~~ '%CYBER%' THEN 'C029'::text
+            WHEN wp.id_mecanica = 57 THEN 'C031'::text
+            WHEN wp.id_mecanica = 7 THEN 'C064'::text
+            WHEN wp.id_evento = 400 THEN 'C065'::text
             WHEN wp.descripcion_mecanica::text ~~ '%MARCAS PROPIAS%'::text THEN 'C068'::text
             WHEN wp.descripcion_mecanica::text ~~ '%BLACK FRIDAYS%'::text THEN 'C070'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%2A UN CON DCTO%%'::text THEN 'C071'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%3X2'::text THEN 'C072'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%COPETITO%'::text THEN 'C073'::text
-            WHEN wp.descripcion_mecanica::text ~~ '%990%'::text THEN 'C074'::text
+            WHEN wp.id_mecanica = 115 THEN 'C073'::text
             ELSE 'C011'::text
         END) || '_'::text) ||
         CASE
@@ -133,22 +130,37 @@ SELECT wp.n_promocion,
                 WHEN wp.umv::text = 'CS'::text THEN 'CJ'::character varying
                 ELSE wp.umv
             END::text)
-        left join (select coalesce(vpc."SkuId"::numeric,lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
+        LEFT JOIN ecommdata.stock_mfc sm
+			ON (LPAD(sm.material::text, 18, '0') || '-' || sm.unidad_venta ::text) = ((wp.material::text || '-' || CASE
+			    WHEN wp.umv::text = 'ST' THEN 'UN'
+			    WHEN wp.umv::text = 'CS' THEN 'CJ'
+			    ELSE wp.umv
+			END) ::text)
+        left join (select coalesce(lpv."SKU ID"::numeric,pdv.vtex_id_sku::numeric) as id_vtex,
                     pdv.id as idcalculatorconfigurator,
                     pdv.nombre_promocion as nombre_promocion_vtex,
                     concat('https://unimarc.myvtex.com/admin/promotions/',pdv.id) as link_promocion
                     from ecommdata.promociones_detalle_vtex pdv
-                    LEFT JOIN catalogo.vtex_products_collections vpc ON pdv.vtex_id_coleccion::numeric = vpc.collection_id::numeric
-                    LEFT JOIN catalogo.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy") as pdvd on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
-    WHERE (wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 12, 37, 51, 93, 53, 96, 77, 59]))
-    AND wp.fecha_inicio_de_promocion <= current_date
-    AND wp.fecha_fin_de_promocion >= current_date
-    AND wp.nombre_promocion::text !~~ '%MFC%'::text 
+                    left join ecommdata.promociones_vtex pv on pv.id = pdv.id
+                    LEFT JOIN catalogo.listas_precios_vtex lpv ON pdv.tabla_nombre_precio = lpv."Trade Policy"
+                    where pdv.archivado is false
+                    and pv.estado = 'active') as pdvd on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
+    WHERE (wp.id_mecanica <> ALL (ARRAY[36, 67, 72, 99, 84, 37, 51, 93, 53, 96, 77, 59]))
+    AND wp.fecha_inicio_de_promocion <= '{ds}'::date + 1
+    AND wp.fecha_fin_de_promocion >= '{ds}'::date
+    and wp.tipo_promocion <> 3
+    AND wp.nombre_promocion::text !~~ '%MFC%'::text
+    AND wp.nombre_promocion::text !~~ '%BANCO ESTADO%'::text
     AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text 
     AND wp.nombre_promocion::text !~~ '%917%'::text
-    AND wp.nombre_promocion::text !~~ '%BANCO ESTADO%'::text
+    and wp.nombre_promocion::text !~~ '% LOC%'::text
     and s.vtex_id <> ALL (ARRAY[3610,471,3611,472,473,658,82183,82184,39730])
     and s.vtex_id IS NOT null
-    and ((l8.material::text || '-'::text) || l8.umv::text) IS NOT NULL
-    GROUP BY wp.n_promocion, wp.nombre_promocion, wp.id_mecanica, wp.descripcion_mecanica, wp.material, s.ref_id, wp.umv, wp.descripcion_material, wp.marca, wp.tipo_promocion, wp.desc_promocion, wp.precio_modal, wp.precio_promocional, s.multiplicador_unidad_medida, wp.ahorro, wp.cantidad_n, wp.cantidad_m, wp.llevas_n, wp.porcentaje_n, wp.fecha_inicio_de_promocion, wp.fecha_fin_de_promocion, wp.porcentaje_de_descuento, wp.fecha_modificacion, wp.factor, s.vtex_id, s.nombre_sku, s.id_producto, pdvd.idcalculatorconfigurator, pdvd.nombre_promocion_vtex, pdvd.link_promocion
+    and
+    (
+        ((l8.material::text || '-' || l8.umv::text) IS NOT NULL)
+        OR
+        (sm.stock >= 1)
+    )
+    GROUP BY wp.n_promocion, wp.nombre_promocion, wp.id_evento,wp.id_mecanica, wp.descripcion_mecanica, wp.material, s.ref_id, wp.umv, wp.descripcion_material, wp.marca, wp.tipo_promocion, wp.desc_promocion, wp.precio_modal, wp.precio_promocional, s.multiplicador_unidad_medida, wp.ahorro, wp.cantidad_n, wp.cantidad_m, wp.llevas_n, wp.porcentaje_n, wp.fecha_inicio_de_promocion, wp.fecha_fin_de_promocion, wp.porcentaje_de_descuento, wp.fecha_modificacion, wp.factor, s.vtex_id, s.nombre_sku, s.id_producto, pdvd.idcalculatorconfigurator, pdvd.nombre_promocion_vtex, pdvd.link_promocion
     ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion DESC;

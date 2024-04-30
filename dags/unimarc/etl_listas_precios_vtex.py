@@ -18,7 +18,7 @@ def get_fixed_prices(ti):
     print("Getting vtex_ids of products in WP with Fixed Price")
     query = """select distinct s.vtex_id
         from ecommdata.workflow_promociones wp 
-        inner join ecommdata.skus s on s.ref_id = wp.material||'-'|| CASE WHEN wp.umv = 'ST' THEN 'UN' WHEN wp.umv = 'CS' THEN 'CJ' END
+        inner join ecommdata.skus s on s.ref_id = wp.material||'-'|| CASE WHEN wp.umv = 'ST' THEN 'UN' WHEN wp.umv = 'CS' THEN 'CJ' WHEN wp.umv = 'DIS' THEN 'DIS' END
         where wp.tipo_promocion = 4
         and wp.umv not in ('KG','KGV')
         and wp.fecha_inicio_de_promocion  <= current_date + interval '1 days'
@@ -124,7 +124,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 6, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["vtex", "promociones", "listas_precios", "workflow_promociones"],
+    tags=["vtex", "promociones", "listas_precios", "workflow_promociones", "SERGIO"],
 ) as dag:
 
     dag.doc_md = """

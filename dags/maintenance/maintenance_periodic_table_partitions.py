@@ -97,7 +97,7 @@ with DAG(
     schedule_interval="0 3 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["MAINTENANCE", "partitions", "DB", "PostgreSQL"],
+    tags=["MAINTENANCE", "partitions", "DB", "PostgreSQL", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

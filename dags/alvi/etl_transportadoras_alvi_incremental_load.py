@@ -141,7 +141,7 @@ with DAG(
     schedule_interval="30 4 * * *",
     start_date=pendulum.datetime(2022, 8, 8, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "janis", "ecommdata_alvi", "transportadoras", "alvi"],
+    tags=["DATA", "janis", "ecommdata_alvi", "transportadoras", "alvi", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

@@ -156,7 +156,8 @@ with DAG(
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 7, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata", "atributos", "Unimarc"],
+    max_active_runs = 1,
+    tags=["DATA", "Janis", "ecommdata", "atributos", "Unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """

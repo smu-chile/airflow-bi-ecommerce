@@ -161,7 +161,7 @@ def _incremental_load_sales_table_unimarc(ti, ds):
     print(query)
     delete_query = f"""
         DELETE FROM ecommdata.venta_sku_tienda
-        where fecha < '{ds}'::date - interval '29 days'
+        where fecha < '{ds}'::date - interval '75 days'
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -352,7 +352,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 8, 15, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
-    tags=["DATA", "DW", "ecommdata", "ventas"],
+    tags=["DATA", "DW", "ecommdata", "ventas", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -387,7 +387,7 @@ with DAG(
             LEFT JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
             LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON VENTAC.SKU_KEY = S.SKU_KEY
             LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_UOM U ON P.UOM_BASE_KEY = U.UOM_KEY
+            LEFT JOIN DWC_SMU.SMU.VW_DIM_UOM U ON P.UOM_VTA_KEY = U.UOM_KEY
             LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON VENTAC.SKU_KEY = SH.SKU_KEY
             WHERE VENTAC.DATE_VALUE = '{{ds}}' AND STORE_H.ORG_IP_ID IN ('01', '06' , '08');
             """,
