@@ -35,7 +35,7 @@ def _join_Catalog_from_s3(ds, ti):
     # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
 
-    join_file_name = f"integraciones/last_millers/stock/out/uber/{exec_date}/Catalogo_{exec_date_formatted}.csv"
+    join_file_name = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/{exec_date_formatted}.csv"
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
@@ -208,7 +208,7 @@ def _join_stock_from_s3(ds, ti):
     # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
 
-    join_file_name = f"integraciones/last_millers/stock/out/uber/{exec_date}/stock_{exec_date_formatted}.csv"
+    join_file_name = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/{exec_date_formatted}.csv"
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
@@ -266,46 +266,124 @@ def _join_stock_from_s3(ds, ti):
 
 def _send_joined_data_to_sftp(ds):
     import os
-    import pysftp
+    import paramiko
     from airflow.models import Variable
-   #####################################################################################################
-   #                          Hay que actualizar al SFTP Nuevo                                         #
-   #####################################################################################################
-    ftp_host = Variable.get("Old_Uber_Host")
-    ftp_port = 22
-    ftp_user = Variable.get("Old_Uber_User")
-    ftp_rsa_key = Variable.get("Old_Uber_password")
+    import io
+    from datetime import datetime, timedelta
+
+    # Obtener la fecha actual
+    fecha_actual = datetime.datetime.now()
+    # Obtener el día de la semana como un número
+    numero_dia_semana = fecha_actual.weekday()
+    
+    #Variable de los datos
+
+    ftp_host = Variable.get("UBER_SFTP_HOST")
+    ftp_port = 2222
+    ftp_user = Variable.get("UBER_SFTP_USER")
+    ftp_rsa_key = Variable.get("UBER_SFTP_SECRET_RSA_KEY")
+
+    #Datos de los envios
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
+    prefix_Promotions = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
+    prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/"
+    prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    #Envio de promociones solo los dias lunes y jueves
 
-    print(f"Number of files found: {len(s3_file_list)}")
+    if numero_dia_semana == 0 or numero_dia_semana == 3 :
+        s3_file_list = s3_hook.list_keys(s3_bucket, prefix_Promotions=prefix_Promotions)
+
+        print(f"Number of files found: {len(s3_file_list)}")
     
-    for promotions_file in s3_file_list:
-        print(promotions_file)
+        for promotions_file in s3_file_list:
+            print(promotions_file)
 
-        promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
-        promotions_object_body = promotions_object.get()["Body"]
+            promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
+            promotions_object_body = promotions_object.get()["Body"]
 
-        output_promotions_file = promotions_file.split("/")[-1]
-        print(output_promotions_file)
-        print(f"File to load to SFTP Server: {output_promotions_file}")
+            output_promotions_file = promotions_file.split("/")[-1]
+            print(output_promotions_file)
+            print(f"File to load to SFTP Server: {output_promotions_file}")
+
+            key_buffer = io.StringIO(ftp_rsa_key)
+            p_key = paramiko.RSAKey.from_private_key(key_buffer)
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
+            sftp = ssh.open_sftp()
+
+            if numero_dia_semana == 0 :
+                fecha_limite = exec_date + timedelta(days=3)
+                remotePath = f"/test/delta/Archivo_promociones{output_promotions_file}_al_{fecha_limite}"
+            if numero_dia_semana == 3 :
+                 fecha_limite = exec_date + timedelta(days=4)
+                 remotePath = f"/test/delta/Archivo_promociones{output_promotions_file}_al_{fecha_limite}"
+            with sftp.open(remotePath, 'w') as f:
+                 f.write(promotions_object_body)
         
-        with pysftp.Connection(host=ftp_host, 
-                                username=ftp_user, 
-                                port=ftp_port,
-                                password=ftp_rsa_key) as sftp:
-            localFile = promotions_object_body
+            ssh.close()
+
+    #Envio de productos 
+        if numero_dia_semana == 0:
+         s3_file_list = s3_hook.list_keys(s3_bucket, prefix_Catalog=prefix_Catalog)
+
+        print(f"Number of files found: {len(s3_file_list)}")
+    
+        for promotions_file in s3_file_list:
+            print(promotions_file)
+
+            promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
+            promotions_object_body = promotions_object.get()["Body"]
+
+            output_promotions_file = promotions_file.split("/")[-1]
+            print(output_promotions_file)
+            print(f"File to load to SFTP Server: {output_promotions_file}")
+
+            key_buffer = io.StringIO(ftp_rsa_key)
+            p_key = paramiko.RSAKey.from_private_key(key_buffer)
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
+            sftp = ssh.open_sftp()
+
             
-            # Cambiar el nombre a Archivo promociones fecha de hoy a fecha n
-            
-            remotePath = f"/data/smu_promos_{output_promotions_file}"
-            sftp.putfo(localFile, remotePath, confirm=False)
+            remotePath = f"/test/delta/Archivo_productos_semana_{output_promotions_file}"
+            with sftp.open(remotePath, 'w') as f:
+                 f.write(promotions_object_body)
+        
+            ssh.close()
+        
+        #Envio de stock diario
+        s3_file_list = s3_hook.list_keys(s3_bucket, prefix_Stock=prefix_Stock)
+
+        print(f"Number of files found: {len(s3_file_list)}")
+     
+        for promotions_file in s3_file_list:
+            print(promotions_file)
+
+            promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
+            promotions_object_body = promotions_object.get()["Body"]
+
+            output_promotions_file = promotions_file.split("/")[-1]
+            print(output_promotions_file)
+            print(f"File to load to SFTP Server: {output_promotions_file}")
+
+            key_buffer = io.StringIO(ftp_rsa_key)
+            p_key = paramiko.RSAKey.from_private_key(key_buffer)
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
+            sftp = ssh.open_sftp()
+
+            remotePath = f"/test/delta/CS-UNI-STOCK-PRICES-{output_promotions_file}"
+
+            with sftp.open(remotePath, 'w') as f:
+                 f.write(promotions_object_body)
         
         print("File loaded.")
         
@@ -328,7 +406,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "promotions", "precios"],
+    tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS"],
 ) as dag:
 
     dag.doc_md = """
