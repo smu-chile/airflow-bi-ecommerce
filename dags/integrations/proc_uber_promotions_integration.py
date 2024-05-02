@@ -290,7 +290,7 @@ def _send_joined_data_to_sftp(ds):
     #Envio de promociones solo los dias lunes y jueves
 
     if numero_dia_semana == 0 or numero_dia_semana == 3 :
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix_Promotions=prefix_Promotions)
+        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Promotions)
 
         print(f"Number of files found: {len(s3_file_list)}")
     
@@ -324,7 +324,7 @@ def _send_joined_data_to_sftp(ds):
 
     #Envio de productos 
         if numero_dia_semana == 0:
-         s3_file_list = s3_hook.list_keys(s3_bucket, prefix_Catalog=prefix_Catalog)
+         s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Catalog)
 
         print(f"Number of files found: {len(s3_file_list)}")
     
@@ -353,7 +353,7 @@ def _send_joined_data_to_sftp(ds):
             ssh.close()
         
         #Envio de stock diario
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix_Stock=prefix_Stock)
+        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Stock)
 
         print(f"Number of files found: {len(s3_file_list)}")
      
