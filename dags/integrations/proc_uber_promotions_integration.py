@@ -40,7 +40,7 @@ def _join_Catalog_from_s3(ds, ti):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
     if numero_dia_semana == 0 :
-            uber_catalog_query = f"""
+        uber_catalog_query = f"""
                 select distinct  
 	                p.material as SKU,
 	                se.umv as Unidad_de_unidad_venta,
@@ -62,9 +62,9 @@ def _join_Catalog_from_s3(ds, ti):
                 AND c.n2 IS NOT NULL
                 AND c.n3 IS NOT NULL;
                 """
-    cursor.execute(uber_catalog_query)
-    results = cursor.fetchall()
-    columns = [i[0] for i in cursor.description]
+        cursor.execute(uber_catalog_query)
+        results = cursor.fetchall()
+        columns = [i[0] for i in cursor.description]
 
     if len(results) == 0:
         print(f"No records found. Skipping...")
@@ -401,7 +401,7 @@ with DAG(
     "proc_uber_promotions_integration",
     default_args=default_args,
     description="Cruce de precios y precios promocionales simples para integracion Uber",
-    schedule_interval="15 9 * * *", 
+    schedule_interval=None, 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
