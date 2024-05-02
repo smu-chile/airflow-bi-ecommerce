@@ -39,32 +39,32 @@ def _join_Catalog_from_s3(ds, ti):
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
-    if numero_dia_semana == 0 :
-        uber_catalog_query = f"""
-                select distinct  
-	                p.material as SKU,
-	                se.umv as Unidad_de_unidad_venta,
-	                se.ean as "código de barras",
-	                p.nombre as descripcion,
-	                m.nombre as Marca,
-	                concat('https://unimarc.vteximg.com.br', is2.imagen) as main_image_url,
-	                c.n2 as Category_level_1,
-                    c.n3 as Category_level_2
-                from ecommdata.productos p
-                left join ecommdata.sku_ean se on se.ref_id = p.ref_id 
-                left join ecommdata.marcas m on m.id  = p.id_marca 
-                LEFT JOIN ecommdata.imagenes_sku is2 ON is2.ref_id = p.ref_id
-                LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id
-                LEFT JOIN ecommdata.lista8 l ON l.material = p.material
-                WHERE is2.orden = '1'
-                and is2.ref_id = p.ref_id
-                AND l.material IS NOT NULL
-                AND c.n2 IS NOT NULL
-                AND c.n3 IS NOT NULL;
-                """
-        cursor.execute(uber_catalog_query)
-        results = cursor.fetchall()
-        columns = [i[0] for i in cursor.description]
+
+    uber_catalog_query = f"""
+            select distinct  
+                p.material as SKU,
+                se.umv as Unidad_de_unidad_venta,
+                se.ean as "código de barras",
+                p.nombre as descripcion,
+                m.nombre as Marca,
+                concat('https://unimarc.vteximg.com.br', is2.imagen) as main_image_url,
+                c.n2 as Category_level_1,
+                c.n3 as Category_level_2
+            from ecommdata.productos p
+            left join ecommdata.sku_ean se on se.ref_id = p.ref_id 
+            left join ecommdata.marcas m on m.id  = p.id_marca 
+            LEFT JOIN ecommdata.imagenes_sku is2 ON is2.ref_id = p.ref_id
+            LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id
+            LEFT JOIN ecommdata.lista8 l ON l.material = p.material
+            WHERE is2.orden = '1'
+            and is2.ref_id = p.ref_id
+            AND l.material IS NOT NULL
+            AND c.n2 IS NOT NULL
+            AND c.n3 IS NOT NULL;
+            """
+    cursor.execute(uber_catalog_query)
+    results = cursor.fetchall()
+    columns = [i[0] for i in cursor.description]
 
     if len(results) == 0:
         print(f"No records found. Skipping...")
@@ -72,17 +72,16 @@ def _join_Catalog_from_s3(ds, ti):
 
         df = pd.DataFrame(results, columns=columns)
         print(f"Number of records found on stock: {len(df.index)}")
-        
+    
 
         aux_list.append(df)
-    if aux_list:
-        final_df = pd.concat(aux_list, ignore_index=True)
-        
+
+    
         buffer = io.StringIO()
-        final_df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
     
-        final_df['SKU'] = final_df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        df['SKU'] = df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
         
         s3_hook.load_string(buffer.getvalue(),
                     key=join_file_name,
@@ -237,16 +236,11 @@ def _join_stock_from_s3(ds, ti):
         df = pd.DataFrame(results, columns=columns)
         print(f"Number of records found on stock: {len(df.index)}")
         
-
-        aux_list.append(df)
-    if aux_list:
-        final_df = pd.concat(aux_list, ignore_index=True)
-        
         buffer = io.StringIO()
-        final_df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
     
-        final_df['PRICE'] = final_df['PRICE'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        df['PRICE'] = df['PRICE'].apply(lambda x: int(x) if pd.notnull(x) else x)
         
         s3_hook.load_string(buffer.getvalue(),
                     key=join_file_name,
