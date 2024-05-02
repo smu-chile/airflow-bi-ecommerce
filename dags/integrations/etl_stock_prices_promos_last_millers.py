@@ -28,21 +28,6 @@ def query_to_df(query):
     cursor.close()
     pg_connection.close()
     return results
-
-def query_to_df_prod(query):
-    import pandas as pd
-    print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(query)
-    column_names = [desc[0] for desc in cursor.description]
-    results = cursor.fetchall()
-    results = pd.DataFrame(results, columns=column_names)
-    print(results.head(20))
-    cursor.close()
-    pg_connection.close()
-    return results
     
 def _get_last_millers_stores():
     last_millers_stores_query = """
@@ -86,7 +71,6 @@ def extract_stock_from_dw(ti,ds,ts):
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
             AND PART.PARTICULARIDAD_COD = 'A'
             AND S.NBR_ITM > 0
-            limit 5000
             ;"""
     print(query)
 
@@ -112,8 +96,7 @@ def extract_product_from_dw(ts):
                     , P.BRAND_DESC
                     , P.UNIDAD_DE_MEDIDA
                 FROM DWC_SMU.SMU.VW_DIM_PRODUCT P
-                WHERE p.indic_ean_ppal = 'X'
-                limit 5000;
+                WHERE p.indic_ean_ppal = 'X';
             """
     print(query)
 
@@ -250,9 +233,8 @@ def prices_to_integrations(ds):
                 join ecommdata.lista8 l 
                     on l.material || '-' || l.umv = p.ref_id 
                     and l.id_tienda = t.id 
-                where p.fecha_carga = '{ds}'::date-1
-                limit 5000;"""
-        df = query_to_df_prod(query)
+                where p.fecha_carga = '{ds}'::date-1"""
+        df = query_to_df(query)
         print(f"informacion obbtenida de la Query: {df.info()}")
 
         host = Variable.get("POSTGRESQL_HOST")
@@ -310,8 +292,8 @@ def promos_to_integrations(ds):
                     and wp.nombre_promocion::text !~~ '% LOC%'::text
                     and wp.nombre_promocion::text !~~ '%LIQ%'::text
                     group by wp.ean, wp.umv, wp.material
-                    limit 10000;"""
-        df = query_to_df_prod(query)
+                    ;"""
+        df = query_to_df(query)
         print(f"informacion obbtenida de la Query: {df.info()}")
 
         host = Variable.get("POSTGRESQL_HOST")
@@ -340,12 +322,18 @@ def promos_to_integrations(ds):
         print(f"error: {err}")
         return "fallo_postgres_promos"
 
-def stock_prices_promos_lss_to_s3(ti):
+def stock_prices_promos_lss_to_s3(ti,ds,ts):
     import os
     import pandas as pd
     import io
     from io import StringIO
-    from utils.netezza_utils import load_custom_query_to_s3
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ts.replace("-", "_")
+    prefix = f"re_factor_last_millers/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     #traemos tiendas lss_millers
     ids_tiendas = ti.xcom_pull(key="return_value", task_ids=["get_last_millers_stores"])[0]
@@ -366,8 +354,8 @@ def stock_prices_promos_lss_to_s3(ti):
     query_stock = """select *
                     from integraciones.stock_2"""
     
-    #df_stock = query_to_df(query_stock)
-    #df_stock.columns = ["sku_key","material","id_tienda","stock"]
+    df_stock = query_to_df(query_stock)
+    df_stock.columns = ["sku_key","material","id_tienda","stock"]
 
     #traemos productos general
     query_productos = """select *
@@ -375,6 +363,7 @@ def stock_prices_promos_lss_to_s3(ti):
     
     df_productos = query_to_df(query_productos)
     df_productos.columns = ["sku_key","ean","umb","descripcion_producto","marca","umv"]
+    df_productos['umv'] = df_productos['umv'].replace('ST', 'UN')
 
     #tiendas ecommerce en lss_millers
 
@@ -388,10 +377,6 @@ def stock_prices_promos_lss_to_s3(ti):
     # Convertimos el resultado en lista si es necesario
     lista_tiendas_ecom_lss_millers = list(tiendas_ecom_lss_millers)
     print(lista_tiendas_ecom_lss_millers)
-
-    #stock no ecommerce
-    #df_stock_no_ecom = df_stock[~df_stock['id_tienda'].isin(lista_tiendas_activas_ecommerce)]
-    #print("\nMuestra stock no ecommerce\n",df_stock_no_ecom.head())
 
     #primera tramo - Ecommerce
     print("Primer Tramo Tiendas Ecommerce")
@@ -418,9 +403,8 @@ def stock_prices_promos_lss_to_s3(ti):
                 and s.material is not null
                 and s.descripcion is not null 
                 and s.ultima_actualizacion = (select max(ultima_actualizacion) from ecommdata.stock s3)
-                and s.c1 not in ('No Trabajar','Inactivos','Integración')
-                limit 1000"""
-    df_stock_ecom = query_to_df_prod(query_stock_ecommerce)
+                and s.c1 not in ('No Trabajar','Inactivos','Integración')"""
+    df_stock_ecom = query_to_df(query_stock_ecommerce)
     print("\nMuestra stock ecommerce\n",df_stock_ecom.head())
     df_stock_ecom["ref_id"] = df_stock_ecom["material"]+"-"+df_stock_ecom["unidad_de_medida"]
 
@@ -433,18 +417,21 @@ def stock_prices_promos_lss_to_s3(ti):
     df_promociones = query_to_df(query_promociones)
     df_promociones["ref_id"] = df_promociones["material"]+"-"+df_promociones["umv"]
 
+    df_promos_min = df_promociones.groupby('ref_id')['precio_promocional'].min().reset_index()
+    print(df_promos_min.head())
 
     #Merge con Precios a nivel tienda-sku
     df_lss_millers_ecom = df_stock_ecom.merge(df_precios, how = "left", on = ["id_tienda","ref_id"])
 
     #Merge con Promociones a nivel sku
-    df_lss_millers_ecom = df_lss_millers_ecom.merge(df_promociones, how = "left", on = ["ref_id"])
+    df_lss_millers_ecom = df_lss_millers_ecom.merge(df_promos_min, how = "left", on = ["ref_id"])
 
     #Eliminamos registros sin precio
     df_lss_millers_ecom = df_lss_millers_ecom.dropna(subset=["precio"])
+    df_lss_millers_ecom.info()
 
     df_lss_millers_ecom = df_lss_millers_ecom[["id_tienda",
-                                               "ean_x",
+                                               "ean",
                                                "material_x",
                                                "unidad_de_medida",
                                                "multiplicador_unidad",
@@ -465,18 +452,164 @@ def stock_prices_promos_lss_to_s3(ti):
                                     "precio",
                                     "precio_promocional"]
 
-    df_lss_millers_ecom.info()    
+    print("\nInformación data tiendas Ecommerce: \n")
+    df_lss_millers_ecom.info()
 
+    #Data No Ecommerce
+    #traemos ref_id's de lista8
+    query_lista8 = """select distinct concat(material,'-',umv) as ref_id
+                        from ecommdata.lista8"""
+    
+    df_lista8 = query_to_df(query_lista8)
+    lista_ref_ids_lista8 = df_lista8['ref_id'].unique()
 
-     
+    #Convertimos las listas a conjuntos
+    lista_tiendas_no_ecommerce = set_ids_tiendas_lss_millers-set_lista_tiendas_activas_ecommerce
 
+    #filtro tiendas no Ecommerce
+    df_stock = df_stock[df_stock['id_tienda'].isin(lista_tiendas_no_ecommerce)]
 
- 
+    #merge stock x productos
+    df_lss_millers_no_ecom = df_stock.merge(df_productos, how = "left", on = ["sku_key"])
 
-    return
+    #eliminar registros sin umv
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.dropna(subset=["umv"])
+
+    #Crear ref_id
+    df_lss_millers_no_ecom["ref_id"] = df_lss_millers_no_ecom["material"]+"-"+df_lss_millers_no_ecom["umv"]
+
+    #preparamamos data precios, solo maximos por ref_id
+    df_precios_max = df_precios.groupby('ref_id')['precio'].max().reset_index()
+    print(df_precios_max.head())
+
+    #merge con precios
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.merge(df_precios_max, how = "left", on = ["ref_id"])
+
+    #merge con promociones
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.merge(df_promos_min, how = "left", on = ["ref_id"])
+
+    #merge skus
+    query_skus = """select ref_id, multiplicador_unidad_medida as multiplicador_unidad
+                    from ecommdata.skus s """
+    
+    df_skus = query_to_df(query_skus)
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.merge(df_skus,how = "left", on = ["ref_id"])
+
+    #limpieza de datos
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom[df_lss_millers_no_ecom["ref_id"].isin(lista_ref_ids_lista8)]
+
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom[["id_tienda",
+                                                    "ean",
+                                                    "material",
+                                                    "umv",
+                                                    "multiplicador_unidad",
+                                                    "descripcion_producto",
+                                                    "marca",
+                                                    "stock",
+                                                    "precio",
+                                                    "precio_promocional"]]
+    
+    df_lss_millers_no_ecom.columns = ["id_tienda",
+                                    "ean",
+                                    "material",
+                                    "unidad_de_medida",
+                                    "multiplicador_unidad",
+                                    "nombre",
+                                    "marca",
+                                    "stock_unitario",
+                                    "precio",
+                                    "precio_promocional"]
+
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.dropna(subset=["ean"])
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.dropna(subset=["marca"])
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.dropna(subset=["precio"])
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.dropna(subset=["stock_unitario"])
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.dropna(subset=["nombre"])
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom.dropna(subset=["multiplicador_unidad"])
+    
+    #imprimir informacion del df no ecommerce
+    print("\nInformacion DF No Ecommerce\n")
+    print(df_lss_millers_no_ecom.head())
+    df_lss_millers_no_ecom.info()
+
+    #concatemos los 2 dataframe de ecom y no ecom
+    df_final = pd.concat([df_lss_millers_no_ecom, df_lss_millers_ecom], ignore_index=True)
+
+    #imprimir informacion del df final
+    print("\nInformacion DF final\n")
+    df_final.drop_duplicates(inplace=True)
+    print(df_final.head())
+    df_final.info()
+
+    #envio a S3
+    buffer = io.StringIO()
+    df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"re_factor_last_millers/{exec_date}/re_factor_last_millers_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    
+    print(f"File load on S3: {prefix}")
+
+    return filename
 
 def stock_prices_promos_lss_to_postgres(ti):
-    print("Cargando la data de last millers a postgres")
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_prices_promos_lss_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
+    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['stock_unitario'] = df['stock_unitario'].astype(float).round(3)
+    df['precio'] = df['precio'].astype(np.int32)
+    df['precio_promocional'] = df['precio_promocional'].astype('Int32')
+    print(df.head(20))
+    df.info()
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.refactor_lss_millers")
+        df.to_sql(name="refactor_lss_millers",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
     return
 
 def promos_postgres():
@@ -493,7 +626,6 @@ def check_promos():
     import io
     import pandas as pd
 
-    #query = "select * from integraciones.promociones"
     query = "select * from integraciones.promociones"
     df = query_to_df(query)
 
@@ -529,7 +661,6 @@ def check_prices():
     import io
     import pandas as pd
 
-    #query = "select * from integraciones.precios"
     query = "select * from integraciones.precios"
     df = query_to_df(query)
 
@@ -564,7 +695,6 @@ def check_stock():
     import io
     import pandas as pd
 
-    #query = "select * from integraciones.stock_2"
     query = "select * from integraciones.stock_2"
     df = query_to_df(query)
 
@@ -599,7 +729,6 @@ def check_product():
     import io
     import pandas as pd
 
-    #query = "select * from integraciones.productos_2"
     query = "select * from integraciones.productos_2"
     df = query_to_df(query)
 
