@@ -261,6 +261,7 @@ def _join_stock_from_s3(ds, ti):
 def _send_joined_data_to_sftp(ds):
     import os
     import paramiko
+    import pandas as pd
     from airflow.models import Variable
     import io
     from datetime import datetime, timedelta
@@ -298,7 +299,7 @@ def _send_joined_data_to_sftp(ds):
             print(promotions_file)
 
             promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
-            promotions_object_body = promotions_object.get()["Body"]
+            promotions_object_body = pd.read_csv(promotions_object.get()["Body"])
 
             output_promotions_file = promotions_file.split("/")[-1]
             print(output_promotions_file)
@@ -312,7 +313,7 @@ def _send_joined_data_to_sftp(ds):
             sftp = ssh.open_sftp()
 
             exec_date = datetime.strptime(ds, "%Y-%m-%d")
-            
+
             if numero_dia_semana == 0 :
                 fecha_limite = exec_date + timedelta(days=3)
                 remotePath = f"/test/delta/Archivo_promociones{output_promotions_file}_al_{fecha_limite}"
@@ -320,7 +321,7 @@ def _send_joined_data_to_sftp(ds):
                  fecha_limite = exec_date + timedelta(days=4)
                  remotePath = f"/test/delta/Archivo_promociones{output_promotions_file}_al_{fecha_limite}"
             with sftp.open(remotePath, 'w') as f:
-                 f.write(promotions_object_body)
+                 f.write(promotions_object_body.to_csv(index=False, sep=';'))
         
             ssh.close()
 
@@ -330,15 +331,15 @@ def _send_joined_data_to_sftp(ds):
 
         print(f"Number of files found: {len(s3_file_list)}")
     
-        for promotions_file in s3_file_list:
-            print(promotions_file)
+        for products_file in s3_file_list:
+            print(products_file)
 
-            promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
-            promotions_object_body = promotions_object.get()["Body"]
+            products_object = s3_hook.get_key(products_file, bucket_name=s3_bucket)
+            products_object_body = pd.read_csv(products_object.get()["Body"])
 
-            output_promotions_file = promotions_file.split("/")[-1]
-            print(output_promotions_file)
-            print(f"File to load to SFTP Server: {output_promotions_file}")
+            output_products_file = products_file.split("/")[-1]
+            print(output_products_file)
+            print(f"File to load to SFTP Server: {output_products_file}")
 
             key_buffer = io.StringIO(ftp_rsa_key)
             p_key = paramiko.RSAKey.from_private_key(key_buffer)
@@ -348,9 +349,9 @@ def _send_joined_data_to_sftp(ds):
             sftp = ssh.open_sftp()
 
             
-            remotePath = f"/test/delta/Archivo_productos_semana_{output_promotions_file}"
+            remotePath = f"/test/delta/Archivo_productos_semana_{output_products_file}"
             with sftp.open(remotePath, 'w') as f:
-                 f.write(promotions_object_body)
+                 f.write(products_object_body.to_csv(index=False, sep=';'))
         
             ssh.close()
         
@@ -359,15 +360,15 @@ def _send_joined_data_to_sftp(ds):
 
         print(f"Number of files found: {len(s3_file_list)}")
      
-        for promotions_file in s3_file_list:
-            print(promotions_file)
+        for stock_file in s3_file_list:
+            print(stock_file)
 
-            promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
-            promotions_object_body = promotions_object.get()["Body"]
+            stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
+            stock_object_body = pd.read_csv(stock_object.get()["Body"])
 
-            output_promotions_file = promotions_file.split("/")[-1]
-            print(output_promotions_file)
-            print(f"File to load to SFTP Server: {output_promotions_file}")
+            output_stock_file = stock_file.split("/")[-1]
+            print(output_stock_file)
+            print(f"File to load to SFTP Server: {output_stock_file}")
 
             key_buffer = io.StringIO(ftp_rsa_key)
             p_key = paramiko.RSAKey.from_private_key(key_buffer)
@@ -376,10 +377,10 @@ def _send_joined_data_to_sftp(ds):
             ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
             sftp = ssh.open_sftp()
 
-            remotePath = f"/test/delta/CS-UNI-STOCK-PRICES-{output_promotions_file}"
+            remotePath = f"/test/delta/CS-UNI-STOCK-PRICES-{output_stock_file}"
 
             with sftp.open(remotePath, 'w') as f:
-                 f.write(promotions_object_body)
+                 f.write(stock_object_body.to_csv(index=False, sep=';'))
         
         print("File loaded.")
         
