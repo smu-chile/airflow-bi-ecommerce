@@ -34,7 +34,7 @@ def _get_last_millers_stores():
         SELECT id
         FROM integraciones.tiendas_last_millers;
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(last_millers_stores_query)
