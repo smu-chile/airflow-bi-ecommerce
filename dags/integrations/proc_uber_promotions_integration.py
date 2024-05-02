@@ -311,6 +311,8 @@ def _send_joined_data_to_sftp(ds):
             ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
             sftp = ssh.open_sftp()
 
+            exec_date = datetime.strptime(ds, "%Y-%m-%d")
+            
             if numero_dia_semana == 0 :
                 fecha_limite = exec_date + timedelta(days=3)
                 remotePath = f"/test/delta/Archivo_promociones{output_promotions_file}_al_{fecha_limite}"
