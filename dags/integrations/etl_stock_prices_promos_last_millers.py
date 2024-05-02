@@ -34,7 +34,7 @@ def _get_last_millers_stores():
         SELECT id
         FROM integraciones.tiendas_last_millers;
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(last_millers_stores_query)
@@ -769,7 +769,7 @@ with DAG(
     schedule_interval="30 9,12,16,20 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos"],
+    tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO"],
 ) as dag:
     
 
