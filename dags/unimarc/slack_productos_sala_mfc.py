@@ -463,7 +463,7 @@ with DAG(
     'slack_productos_sala_mfc',
     default_args=default_args,
     description="Envio de productos sala MFC a Slack",
-    schedule_interval="0,15,30 7-16,19 * * *",
+    schedule_interval="0,15,30 7-18,19 * * *",
     start_date=pendulum.datetime(2024, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
