@@ -13,13 +13,8 @@ import pendulum
    #####################################################################################################
 
 def _join_Catalog_from_s3(ds, ti):
-    import json
     import pandas as pd
     import io
-    # Obtener la fecha actual
-    fecha_actual = datetime.strptime(ds, "%Y-%m-%d")
-    # Obtener el día de la semana como un número
-    numero_dia_semana = fecha_actual.weekday()
 
     exec_date = ds.replace("-", "/")
 
@@ -68,31 +63,31 @@ def _join_Catalog_from_s3(ds, ti):
 
     if len(results) == 0:
         print(f"No records found. Skipping...")
-    
-
-        df = pd.DataFrame(results, columns=columns)
-        print(f"Number of records found on stock: {len(df.index)}")
-    
-
-        aux_list.append(df)
-
-    
-        buffer = io.StringIO()
-        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-        buffer.seek(0)
-    
-        df['SKU'] = df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
-        
-        s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-        print(f"File load on S3: {join_file_name}")
-    else:
-        print("No data collected in aux_list.")
         cursor.close()
         pg_connection.close()
+        return
+
+    df = pd.DataFrame(results, columns=columns)
+    print(f"Number of records found on stock: {len(df.index)}")
+
+
+    aux_list.append(df)
+
+
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    df['SKU'] = df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    
+    s3_hook.load_string(buffer.getvalue(),
+                key=join_file_name,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {join_file_name}")
+    cursor.close()
+    pg_connection.close()
     return
 
    #####################################################################################################
@@ -117,7 +112,6 @@ def _join_promo_prices_from_s3(ds, ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
-    aux_list = []
 
         # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
@@ -126,6 +120,8 @@ def _join_promo_prices_from_s3(ds, ti):
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
         print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
         
+
+    uber_promotions_query = None
 
     if numero_dia_semana == 0 :
             uber_promotions_query = f"""
@@ -151,38 +147,35 @@ def _join_promo_prices_from_s3(ds, ti):
                     LEAST(lspp.precio_promocional, lspp.precio) AS precio_venta
                 FROM integraciones.lm_stock_precio_promo lspp;
                 """
-    cursor.execute(uber_promotions_query)
-    results = cursor.fetchall()
-    columns = [i[0] for i in cursor.description]
+    if uber_promotions_query is not None:
+        cursor.execute(uber_promotions_query)
+        results = cursor.fetchall()
+        columns = [i[0] for i in cursor.description]
+    
+    else:
+         results = []
 
     if len(results) == 0:
         print(f"No records found. Skipping...")
+        return
     
 
     df = pd.DataFrame(results, columns=columns)
     print(f"Number of records found on stock: {len(df.index)}")
         
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
 
-    aux_list.append(df)
-    if aux_list:
-        final_df = pd.concat(aux_list, ignore_index=True)
-        
-        buffer = io.StringIO()
-        final_df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-        buffer.seek(0)
+    df['precio_venta'] = df['precio_venta'].apply(lambda x: int(x) if pd.notnull(x) else x)
     
-        final_df['precio_venta'] = final_df['precio_venta'].apply(lambda x: int(x) if pd.notnull(x) else x)
-        
-        s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-        print(f"File load on S3: {join_file_name}")
-    else:
-        print("No data collected in aux_list.")
-        cursor.close()
-        pg_connection.close()
+    s3_hook.load_string(buffer.getvalue(),
+                key=join_file_name,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {join_file_name}")
+    
     return
 
    #####################################################################################################
@@ -201,8 +194,6 @@ def _join_stock_from_s3(ds, ti):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-
-    aux_list = []
 
     # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
@@ -231,27 +222,29 @@ def _join_stock_from_s3(ds, ti):
 
     if len(results) == 0:
         print(f"No records found. Skipping...")
-    
-
-        df = pd.DataFrame(results, columns=columns)
-        print(f"Number of records found on stock: {len(df.index)}")
-        
-        buffer = io.StringIO()
-        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-        buffer.seek(0)
-    
-        df['PRICE'] = df['PRICE'].apply(lambda x: int(x) if pd.notnull(x) else x)
-        
-        s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-        print(f"File load on S3: {join_file_name}")
-    else:
-        print("No data collected in aux_list.")
         cursor.close()
         pg_connection.close()
+        return
+    
+
+    df = pd.DataFrame(results, columns=columns)
+    print(f"Number of records found on stock: {len(df.index)}")
+        
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+    
+    df['PRICE'] = df['PRICE'].apply(lambda x: int(x) if pd.notnull(x) else x)
+        
+    s3_hook.load_string(buffer.getvalue(),
+                key=join_file_name,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {join_file_name}")
+    
+    cursor.close()
+    pg_connection.close()
     return
 
    #####################################################################################################
