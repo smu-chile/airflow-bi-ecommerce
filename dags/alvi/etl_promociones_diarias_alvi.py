@@ -220,12 +220,12 @@ def create_list_price(ti):
         priceTableId = price_table_dict.get(itemId, "")
         
         print(payload_list)
-        POST_CREATE_UPDATE_FIXED_PRICES = f"https://api.vtex.com/{accountName}/pricing/prices/{itemId}/fixed/{priceTableId}"
+        '''POST_CREATE_UPDATE_FIXED_PRICES = f"https://api.vtex.com/{accountName}/pricing/prices/{itemId}/fixed/{priceTableId}"
         print(POST_CREATE_UPDATE_FIXED_PRICES)
 
         r = requests.post(POST_CREATE_UPDATE_FIXED_PRICES, json=payload_list, headers=headers)
         print("r.status_code: ", r.status_code)
-        print("r.text: ", r.text)
+        print("r.text: ", r.text)'''
     
     df['nombre_vtex'] = df['n_promocion'].astype(str) + ' ' + df['nombre_promocion']
 
@@ -346,7 +346,7 @@ def create_list_price(ti):
                 'percentualDiscountValueList': []
         }
         print(payload)
-        try:
+        '''try:
             r = requests.post(url, headers=headers, json=payload)
             r.raise_for_status()
         except requests.exceptions.RequestException as e:
@@ -354,7 +354,7 @@ def create_list_price(ti):
             continue
 
         print("API request status code: ", r.status_code)
-        print("API response content: ", r.content)
+        print("API response content: ", r.content)'''
     
     return
     
@@ -434,11 +434,11 @@ def load_json_to_publisher(ti):
         'Content-Type': 'application/json'
     }
 
-    POST_PUBLISH_FIXED_PRICES = "https://ms-integrations-publisher.smu-service.cl/promotions"
+    '''POST_PUBLISH_FIXED_PRICES = "https://ms-integrations-publisher.smu-service.cl/promotions"
     print(POST_PUBLISH_FIXED_PRICES)
     r = requests.request("POST", POST_PUBLISH_FIXED_PRICES, headers=headers, data=result)
     print("r.status_code: ", r.status_code)
-    print("r.text: ", r.text)
+    print("r.text: ", r.text)'''
 
     return
 
@@ -551,6 +551,55 @@ def load_prices_to_postgres(ti):
     print("Data saved to PostgreSQL. Table: ecommdata_alvi.precios_promocionales")
     return
 
+def load_lastmiller_data_to_postgres(ds):
+    import numpy as np
+    import pandas as pd
+    import os
+    import io
+    import sqlalchemy
+    from sqlalchemy import text
+
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
+
+    with open(f"{curr_working_directory}/dags/integrations/sql/promociones_alvi.sql", "r") as query_file:
+        promociones_query = query_file.read()
+    
+    promociones_query = promociones_query.replace("{ds}", ds)
+
+    print("Base query:")
+    print(promociones_query)
+
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+
+    df_promotions = pd.read_sql_query(promociones_query, pg_connection)
+
+    df_promotions.info()
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE integraciones.promociones_alvi"
+    connection.execute(text(truncate_query))
+    connection.close()
+
+    df_promotions.to_sql(name="promociones_alvi",
+                con=engine,         
+                schema="integraciones",         
+                if_exists='append',         
+                index=False,         
+                chunksize=20000,         
+                method='multi')
+
+    print("Data saved to PostgreSQL. Table: integraciones.promociones_alvi")
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -598,5 +647,10 @@ with DAG(
         task_id = "load_prices_to_postgres",
         python_callable = load_prices_to_postgres,
     )
+
+    t5 = PythonOperator(
+        task_id = "load_lastmiller_data_to_postgres",
+        python_callable = load_lastmiller_data_to_postgres,
+    )
     
-    t0 >> t1 >> t2 >> t3 >> t4
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5
