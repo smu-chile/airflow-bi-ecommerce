@@ -83,10 +83,11 @@ def _join_Catalog_from_s3(ds, ti):
 
 
     buffer = io.StringIO()
+    df['SKU'] = df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    df['SKU'] = df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    
     
     s3_hook.load_string(buffer.getvalue(),
                 key=join_file_name,
@@ -171,11 +172,13 @@ def _join_promo_prices_from_s3(ds, ti):
     df = pd.DataFrame(results, columns=columns)
     print(f"Number of records found on stock: {len(df.index)}")
         
+    df['precio_venta'] = df['precio_venta'].apply(lambda x: int(x) if pd.notnull(x) else x)
+
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    df['precio_venta'] = df['precio_venta'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    
     
     s3_hook.load_string(buffer.getvalue(),
                 key=join_file_name,
@@ -237,12 +240,12 @@ def _join_stock_from_s3(ds, ti):
 
     df = pd.DataFrame(results, columns=columns)
     print(f"Number of records found on stock: {len(df.index)}")
-        
+    
+    df['PRICE'] = df['PRICE'].apply(lambda x: int(x) if pd.notnull(x) else x)
+
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
-    
-    df['PRICE'] = df['PRICE'].apply(lambda x: int(x) if pd.notnull(x) else x)
         
     s3_hook.load_string(buffer.getvalue(),
                 key=join_file_name,
