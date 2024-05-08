@@ -35,7 +35,7 @@ def _load_to_postgres(ti):
         "NOMBRE_PROMOCION",
         "DESC_MATERIAL",
         "ID_EVENTO",
-        "DESCRIPCION_EVENTO_PROMOCION",
+        "DESCRIPCION_EVENTO_PROMOCIONAL",
         "ID_MECANICA",
         "DESCRIPCION_MECANICA",
         "UN_MEDIDA_VENTA",
@@ -61,7 +61,7 @@ def _load_to_postgres(ti):
     columns = [
         "NOMBRE_PROMOCION",
         "ID_EVENTO",
-        "DESCRIPCION_EVENTO_PROMOCION",
+        "DESCRIPCION_EVENTO_PROMOCIONAL",
         "ID_MECANICA",
         "DESCRIPCION_MECANICA",
         "DESC_MATERIAL",
