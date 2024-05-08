@@ -47,8 +47,8 @@ def _load_to_postgres(ti):
         "PRECIO_TOTAL_PROMOCIONAL": "str",
         "AHORRO": "str",
         "AHORRO_TOTAL": "str",
-        "CANTIDAD_N": "int",
-        "CANTIDAD_M": "int",
+        "CANTIDAD_N": "str",
+        "CANTIDAD_M": "str",
         "FECHA_INICIO_DE_PROMOCION": "str",
         "FECHA_FIN_DE_PROMOCION": "str"
     }
