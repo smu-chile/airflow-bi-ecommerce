@@ -109,7 +109,7 @@ def _load_to_postgres(ti):
         INSERT INTO ecommdata_m10.workflow (N_PROMOCION, MATERIAL ,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (N_PROMOCION, MATERIAL)
-        DO UPDATE SET """+columns_query+""" = """+excluded_query+""" ;
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
     """
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
