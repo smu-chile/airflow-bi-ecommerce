@@ -88,7 +88,7 @@ def _load_to_postgres(ti):
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = "%s, %s "+",".join(["%s" for column in columns])
+    values_query = "%s, %s,"+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
     
