@@ -23,37 +23,7 @@ def _load_to_postgres(ti):
 
     workflow_M10_object = s3_hook.get_key(workflow_M10_file, bucket_name=s3_bucket)
 
-    column_types = {
-        "N_PROMOCION": "int",
-        "NOMBRE_PROMOCION": "str",
-        "ID_EVENTO": "int",
-        "DESCRIPCION_EVENTO_PROMOCION": "str",
-        "ID_MECANICA": "int",
-        "DESCRIPCION_MECANICA": "str",
-        "MATERIAL": "int",
-        "DESC_MATERIAL": "str",
-        "UN_MEDIDA_VENTA": "str",
-        "ORGANIZACION_VENTAS": "str",
-        "CANAL_DISTRIBUCION": "str",
-        "EAN": "str",
-        "LINEA": "str",
-        "DESCRIPCION_LINEA": "str",
-        "MARCA": "str",
-        "TIPO_PROMOCION": "int",
-        "DESC_PROMOCION": "str",
-        "PRECIO_MODAL": "str",
-        "PRECIO_MODAL_TOTAL": "str",
-        "PRECIO_PROMOCIONAL": "str",
-        "PRECIO_TOTAL_PROMOCIONAL": "str",
-        "AHORRO": "str",
-        "AHORRO_TOTAL": "str",
-        "CANTIDAD_N": "str",
-        "CANTIDAD_M": "str",
-        "FECHA_INICIO_DE_PROMOCION": "str",
-        "FECHA_FIN_DE_PROMOCION": "str"
-    }
-
-    df = pd.read_csv(workflow_M10_object.get()["Body"], dtype=column_types)
+    df = pd.read_csv(workflow_M10_object.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
 
     if len(df.index) == 0:
