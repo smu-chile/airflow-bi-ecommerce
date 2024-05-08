@@ -456,7 +456,7 @@ def turnos_load_to_slack(ti,ds):
     schedule_df.index = schedule_df.index.map(rut_to_nombre_operador)
     schedule_df.index.name = 'nombre_operador'
     
-    token = Variable.get("token_slack_2")
+    token = Variable.get("token_slack")
     client = WebClient(token=token)
 
     with io.BytesIO() as buffer:
