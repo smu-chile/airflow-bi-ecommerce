@@ -532,8 +532,78 @@ def stock_prices_promos_lss_to_s3(ti,ds,ts):
     print(df_lss_millers_no_ecom.head())
     df_lss_millers_no_ecom.info()
 
-    #concatemos los 2 dataframe de ecom y no ecom
-    df_final = pd.concat([df_lss_millers_no_ecom, df_lss_millers_ecom], ignore_index=True)
+    #Traer registros de integraciones hijos
+    query_dw_ph = """select split_part(s2.ref_id, '-', 1) as material
+		, s.ou_id as id_tienda 
+		, s.nbr_itm as stock_unitario
+		, s2.ean_primario as ean
+		, p.cont_conv_umb as multiplicador_unidad
+		, s2.nombre_sku as nombre
+		, p.brand_desc as trademark 
+		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida
+	from integraciones.stock_2 s 
+	left join integraciones.productos_2 p 
+		on p.sku_key = s.sku_key
+	join ecommdata.skus s2 
+		on s2.erp_id = s.sku_product
+		and s2.erp_id::int8 <> split_part(s2.ref_id, '-', 1)::int8 
+	where p.ean is not null 
+		and p.cont_conv_umb is not null 
+		and p.nm is not null 
+		and p.brand_desc is not null 
+		and p.unidad_de_medida is not null"""
+    
+    df_dw_ph = query_to_df(query_dw_ph)
+    df_dw_ph["ref_id"] = df_dw_ph["material"]+"-"+df_dw_ph["unidad_de_medida"]
+
+    #merge con precios
+    df_lss_millers_no_ecom_ph = df_dw_ph.merge(df_precios_max, how = "left", on = ["ref_id"])
+
+    #merge con promociones
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph.merge(df_promos_min, how = "left", on = ["ref_id"])
+
+    #limpieza de datos
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph[df_lss_millers_no_ecom_ph["ref_id"].isin(lista_ref_ids_lista8)]
+
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph[["id_tienda",
+                                                    "ean",
+                                                    "material",
+                                                    "unidad_de_medida",
+                                                    "multiplicador_unidad",
+                                                    "nombre",
+                                                    "trademark",
+                                                    "stock_unitario",
+                                                    "precio",
+                                                    "precio_promocional"]]
+    
+    df_lss_millers_no_ecom_ph.columns = ["id_tienda",
+                                    "ean",
+                                    "material",
+                                    "unidad_de_medida",
+                                    "multiplicador_unidad",
+                                    "nombre",
+                                    "marca",
+                                    "stock_unitario",
+                                    "precio",
+                                    "precio_promocional"]
+    
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph.dropna(subset=["ean"])
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph.dropna(subset=["marca"])
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph.dropna(subset=["precio"])
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph.dropna(subset=["stock_unitario"])
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph.dropna(subset=["nombre"])
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph.dropna(subset=["multiplicador_unidad"])
+    
+    #imprimir informacion del df no ecommerce ph
+    print("\nInformacion DF No Ecommerce ph\n")
+    print(df_lss_millers_no_ecom_ph.head())
+    df_lss_millers_no_ecom_ph.info()
+
+    #concatemos los 3 dataframe de ecom, no ecom y no ecom ph
+    df_final = pd.concat([df_lss_millers_no_ecom, df_lss_millers_ecom, df_lss_millers_no_ecom_ph], ignore_index=True)
+    df_final = df_final[df_final["stock_unitario"]>0]
+    df_final.drop_duplicates()
+
 
     #imprimir informacion del df final
     print("\nInformacion DF final\n")
