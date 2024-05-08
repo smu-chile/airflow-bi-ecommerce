@@ -43,7 +43,7 @@ def _load_to_postgres(ti):
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-    values_query = "%s, %s,"+",".join(["%s" for column in columns])
+    values_query = "%s, "+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
     
@@ -94,7 +94,7 @@ with DAG(
     description="Extracción de categorias de M10 desde dw",
     schedule_interval="15 8 * * *",
     start_date=pendulum.datetime(2023, 1, 1, tz="America/Santiago"),
-    catchup=True,
+    catchup=False,
     max_active_runs = 1,
     tags=["M10", "DW", "S3", "categorias", "MATIAS"],
 ) as dag:
