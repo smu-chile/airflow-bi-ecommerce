@@ -106,7 +106,7 @@ def _load_to_postgres(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata_m10.workflow (N_PROMOCION, MATERIAL """+columns_query+""") 
+        INSERT INTO ecommdata_m10.workflow (N_PROMOCION, MATERIAL ,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (N_PROMOCION, MATERIAL)
         DO UPDATE SET """+columns_query+""" = """+excluded_query+""" ;
