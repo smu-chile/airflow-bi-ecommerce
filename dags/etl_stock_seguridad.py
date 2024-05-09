@@ -40,7 +40,8 @@ def stock(ds):
                             and surtido_ecommerce is true
                             and stock_infinito_janis is not true
                             and id_tienda not in ('1917')
-                            and t.status = 1"""
+                            and t.status = 1
+                            """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
@@ -72,31 +73,29 @@ def matriz_ss():
 
 def promociones(ds):
     import pandas as pd
-    promociones_query = f"""select df.*
-                    from(select 
-                        CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv) as ref_id,
-                        _t.fecha_inicio_de_promocion,
-                        _t.fecha_fin_de_promocion,
-                        _t.id_mecanica
-                        from(select distinct(material),
-                            case
-                                when (umv = 'ST') then 'UN'
-                                else umv
-                            end as umv,
-                            fecha_inicio_de_promocion,
-                            fecha_fin_de_promocion,
-                            id_mecanica
-                            from ecommdata.workflow_promociones 
-                            where fecha_inicio_de_promocion <= '{ds}'::date
-                            and fecha_fin_de_promocion >= '{ds}'::date
-                            and id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
-                            and id_evento not in (551)) as _t
-                            group by
-                            _t.material,
-                            _t.umv,
-                            _t.fecha_inicio_de_promocion,
-                            _t.fecha_fin_de_promocion,
-                            _t.id_mecanica) as df"""
+    promociones_query = f"""select distinct
+                    concat(wp.material, '-',
+                    case 
+                        when wp.umv = 'ST' then 'UN'
+                        else wp.umv
+                    end) as ref_id 
+                    from ecommdata.workflow_promociones wp 
+                    where wp.fecha_inicio_de_promocion <= '{ds}'::date
+                    and wp.fecha_fin_de_promocion >= '{ds}'::date
+                    and wp.tipo_promocion IN (1,4)
+                    and wp.registro_valido = True
+                    and wp.organizacion_ventas = '1000'
+                    and wp.canal_distribucion = '10'
+                    and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                    AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                    AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                    AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                    AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                    AND wp.nombre_promocion::text !~~ '%917%'::text
+                    AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                    and wp.nombre_promocion::text !~~ '% LOC%'::text
+                    and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                    group by wp.umv, wp.material"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -104,7 +103,7 @@ def promociones(ds):
     cursor.execute(promociones_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","fecha_inicio","fecha_final","id_mecanica"]
+    results.columns = ["ref_id"]
     cursor.close()
     pg_connection.close()
 
@@ -121,9 +120,10 @@ def venta_tienda(ds):
                     from ecommdata.venta_sku_tienda as v
                     left join ecommdata.tiendas as t
                     on LPAD(v.id_tienda , 4, '0') = t.id
-                    where v.fecha >= '{ds}'::date -30
+                    where v.fecha >= '{ds}'::date -70
                     and v.organizacion = 'Unimarc'
-                    and LPAD(v.id_tienda , 4, '0') not in ('1917')"""
+                    and LPAD(v.id_tienda , 4, '0') not in ('1917')
+                    """
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -133,6 +133,33 @@ def venta_tienda(ds):
     results=pd.DataFrame(results)
     results.columns = ["id_tienda","ref_id","cantidad","dia","semana"]
     results.info()
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def minimos_exhibicion():
+    import pandas as pd
+    query = """select concat(meio.material,'-',meio.umv) as ref_id, meio.id_tienda, meio.minimo_exhibicion
+                from ecommdata.minimos_exhibicion_in_out meio
+                left join ecommdata.tiendas t 
+                on t.id = meio.id_tienda
+                left join ecommdata.lista8 l 
+                on l.material = meio.material and l.umv = meio.umv  and l.id_tienda = meio.id_tienda 
+                where t.status = 1
+                and l.material  is not null
+                and l.id_tienda  is not null
+                and l.umv  is not null
+                and t.id is not null
+                and meio.minimo_exhibicion > 2"""
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
     cursor.close()
     pg_connection.close()
     return results
@@ -213,6 +240,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
+
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
@@ -227,10 +255,38 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final.info()
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-    print(df_final)
+
+    #Agregar logica minimos exhibicion
+    df_minimos = minimos_exhibicion()
+    print(f"\nCantidad de registros antes del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
+    print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final.info()
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final.info()
+    df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
+    print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
+    print("Verificación de condiciones:")
+    print((df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]).head())
+    print((df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]).head())
+    
+
+    condlist_1 = [
+            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
+            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
+            ]
+    choicelist_1 = [
+                df_final["minimo_exhibicion"],
+                df_final["nuevo_stock_seguridad"]
+                ]
+    
+    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final.info()
 
     print("transformacion de datos listo \n")
     #################
@@ -348,8 +404,37 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
-    df_final["dia"]=df_final["dia"].astype(int)
-    df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
+    #Agregar logica minimos exhibicion
+    df_minimos = minimos_exhibicion()
+    print(f"\nCantidad de registros antes del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
+    print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final.info()
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final.info()
+    df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
+    print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
+    print("Verificación de condiciones:")
+    print((df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]).head())
+    print((df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]).head())
+    
+
+    condlist_1 = [
+            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
+            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
+            ]
+    choicelist_1 = [
+                df_final["minimo_exhibicion"],
+                df_final["nuevo_stock_seguridad"]
+                ]
+    
+    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+
+    df_final["dia"] = df_final["dia"].astype(int)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final.info()
 
     print("transformacion de datos listo \n")
     #################
@@ -562,6 +647,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
     print(f"Number of records extracted: {len(df.index)}")
     df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
     df.info()
+    print(df.head())
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -610,6 +696,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
     print(f"Number of records extracted: {len(df.index)}")
     df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
     df.info()
+    print(df.head())
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
