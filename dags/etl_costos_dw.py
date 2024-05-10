@@ -205,11 +205,11 @@ with DAG(
                     NOT ( SH.STORE_ID LIKE '7%' ) AND
                     NOT ( SH.ORG_IP_ID IS NULL ) AND
                     NOT ( SH.ORG_IP_ID IN ('00', '03', '07','02','04', '09') ) AND
-                CAST(DD.DATE_VALUE AS TIMESTAMP) = '{{ds}}' AND
+                CAST(DD.DATE_VALUE AS TIMESTAMP) = '{{ds}}'::DATE - INTERVAL '7 days' AND
                     VEC.CANAL_VENTA IN ( 'E-COMMERCE' )
                 GROUP BY 1,2,3,4,5,6
             """,
-            "query_name": "venta_locales_pbi"
+            "query_name": "costos_dw"
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
