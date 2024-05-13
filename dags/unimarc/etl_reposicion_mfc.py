@@ -58,11 +58,11 @@ def venta_mfc_semana():
 def reposicion():
     import pandas as pd
     ventas_query = """ with producto as (
-                    select distinct material, nombre 
+                    select distinct material, nombre, id_categoria
                     from ecommdata.productos p
                     where material in (select material from ecommdata.maestra_reposicion_mfc mrm)
                     and ref_id in (select distinct material||'-'||umv from ecommdata.lista8 l where id_tienda = '0917'))
-                select distinct msr.material,p.nombre,msr.solicitado,
+                select distinct msr.material,c.n1,c.n2,c.n3,p.nombre,msr.solicitado,
                 msr.reponer,
                 case 
                     when _t.promedio_umv_boleta is null then null
@@ -80,7 +80,10 @@ def reposicion():
                         and split_part(ved.ref_id_sku,'-',1) in (select material from ecommdata.maestra_reposicion_mfc mrm)
                         group by split_part(ved.ref_id_sku,'-',1)
                         ) as _t
-                on _t.material = msr.material;
+                on _t.material = msr.material
+                left join ecommdata.categorias c 
+                on p.id_categoria = c.id
+                where msr.solicitado >0;
                     """
     print(ventas_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
