@@ -22,7 +22,7 @@ def _delete_fixed_prices_from_vtex(ti, ds):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+price_file)
+    print("Searching file: " + price_file)
     if not s3_hook.check_for_key(price_file, bucket_name=s3_bucket):
         raise Exception("Key %s does not exist." % price_file)
 
@@ -33,14 +33,14 @@ def _delete_fixed_prices_from_vtex(ti, ds):
     }
 
     df_precios_fijos = pd.read_csv(price_object.get()["Body"], dtype=column_types)
-    print(f"Number of records found: {len(df.index)}")
+    print(f"Number of records found: {len(df_precios_fijos.index)}")
 
     column_names = {
         "REF_ID": "ref_id",
         "PRICE_TABLE": "id_lista_precios"
     }
 
-    df = df.rename(columns=column_names)
+    df_precios_fijos = df_precios_fijos.rename(columns=column_names)
 
     list_ref_id = tuple(df_precios_fijos['ref_id'].tolist())
 
@@ -48,12 +48,12 @@ def _delete_fixed_prices_from_vtex(ti, ds):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     print("Getting vtex_ids of products in WP with Fixed Price")
-    query = f"""select distinct s.ref_id, s.vtex_id
-        from ecommdata.skus s
-        where s.ref_id in {list_ref_id};"""
+    query = f"""SELECT DISTINCT s.ref_id, s.vtex_id
+                FROM ecommdata.skus s
+                WHERE s.ref_id IN {list_ref_id};"""
     cursor.execute(query)
     results = cursor.fetchall()
-    df_vtex_id = pd.DataFrame(results)
+    df_vtex_id = pd.DataFrame(results, columns=['ref_id', 'vtex_id'])
     cursor.close()
     pg_connection.close()
 
@@ -66,18 +66,18 @@ def _delete_fixed_prices_from_vtex(ti, ds):
         'Accept': "application/json",
         'Content-Type': "application/json",
         "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
-        "X-VTEX-API-AppToken":  X_VTEX_API_AppToken,
+        "X-VTEX-API-AppToken": X_VTEX_API_AppToken,
         "Connection": "keep-alive"
     }
     for _, row in merged_df.iterrows():
-            endpoint = f"https://api.vtex.com/{accountName}/pricing/prices/{row['vtex_id']}/fixed/{row['id_lista_precios']}"
-            print(endpoint)
-            response = requests.delete(endpoint, headers=headers)
-            if response.status_code == 200:
-                print(f"Deleted price for VTEX ID: {row['vtex_id']} and Price Table ID: {row['id_lista_precios']}")
-            else:
-                print(f"Failed to delete price for VTEX ID: {row['vtex_id']}. Status code: {response.status_code}")
-                print(response.text)
+        endpoint = f"https://api.vtex.com/{accountName}/pricing/prices/{row['vtex_id']}/fixed/{row['id_lista_precios']}"
+        print(endpoint)
+        response = requests.delete(endpoint, headers=headers)
+        if response.status_code == 200:
+            print(f"Deleted price for VTEX ID: {row['vtex_id']} and Price Table ID: {row['id_lista_precios']}")
+        else:
+            print(f"Failed to delete price for VTEX ID: {row['vtex_id']}. Status code: {response.status_code}")
+            print(response.text)
 
     return
 
