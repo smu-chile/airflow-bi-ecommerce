@@ -62,24 +62,29 @@ def lista_eliminar_ss():
 
 def promociones(ds):
     import pandas as pd
-    promociones_query = """select 
-                        CONCAT(LPAD(_t.material, 18, '0'), '-', _t.umv) as ref_id,
-                        _t.fecha_inicio_de_promocion,
-                        _t.fecha_fin_de_promocion,
-                        _t.id_mecanica
-                        from(select distinct(material),
-                            case
-                                when (umv = 'ST') then 'UN'
-                                else umv
-                            end as umv,
-                            fecha_inicio_de_promocion,
-                            fecha_fin_de_promocion,
-                            id_mecanica
-                            from ecommdata.workflow_promociones 
-                            where id_mecanica not in (25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96)
-                            and id_evento not in (551)
-                            and fecha_inicio_de_promocion <= '"""+ds+"""'::date
-                            and fecha_fin_de_promocion >= '"""+ds+"""'::date) as _t
+    promociones_query = f"""select distinct
+                    concat(wp.material, '-',
+                    case 
+                        when wp.umv = 'ST' then 'UN'
+                        else wp.umv
+                    end) as ref_id 
+                    from ecommdata.workflow_promociones wp 
+                    where wp.fecha_inicio_de_promocion <= '{ds}'::date
+                    and wp.fecha_fin_de_promocion >= '{ds}'::date
+                    and wp.tipo_promocion IN (1,4)
+                    and wp.registro_valido = True
+                    and wp.organizacion_ventas = '1000'
+                    and wp.canal_distribucion = '10'
+                    and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                    AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                    AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                    AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                    AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                    AND wp.nombre_promocion::text !~~ '%917%'::text
+                    AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                    and wp.nombre_promocion::text !~~ '% LOC%'::text
+                    and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                    group by wp.umv, wp.material
                             """
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -88,7 +93,7 @@ def promociones(ds):
     cursor.execute(promociones_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","fecha_inicio","fecha_final","id_mecanica"]
+    results.columns = ["ref_id"]
     cursor.close()
     pg_connection.close()
 
@@ -128,6 +133,34 @@ def venta_tienda(ds):
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
     results = cursor.fetchall()
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def minimos_exhibicion():
+    import pandas as pd
+    query = """sselect concat(meio.material,'-',meio.umv) as ref_id, meio.id_tienda, meio.minimo_exhibicion
+                from ecommdata.minimos_exhibicion_in_out meio
+                left join ecommdata.tiendas t 
+                on t.id = meio.id_tienda
+                left join ecommdata.lista8 l 
+                on l.material = meio.material and l.umv = meio.umv  and l.id_tienda = meio.id_tienda 
+                where t.status = 1
+                and t.id = '0917'
+                and l.material  is not null
+                and l.id_tienda  is not null
+                and l.umv  is not null
+                and t.id is not null
+                and meio.minimo_exhibicion > 2"""
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
     cursor.close()
     pg_connection.close()
     return results
