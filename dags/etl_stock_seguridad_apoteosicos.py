@@ -53,15 +53,25 @@ def materiales_dentro_ventas(list_material,ds):
 
 def promociones(ds):
     import pandas as pd
-    promociones_query = """select distinct wp.material
-                    from ecommdata.workflow_promociones wp
-                    left join ecommdata.lista8 l 
-                    on wp.material = l.material
-                    where wp.fecha_inicio_de_promocion <= '"""+ds+"""'::date 
-                    and wp.fecha_fin_de_promocion >= '"""+ds+"""'::date 
-                    and wp.id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
-                    and wp.id_evento not in (551)
-                    and l.material is not null"""
+    promociones_query = f"""select distinct
+                    wp.material
+                    from ecommdata.workflow_promociones wp 
+                    where wp.fecha_inicio_de_promocion <= '{ds}'::date
+                    and wp.fecha_fin_de_promocion >= '{ds}'::date
+                    and wp.tipo_promocion IN (1,4)
+                    and wp.registro_valido = True
+                    and wp.organizacion_ventas = '1000'
+                    and wp.canal_distribucion = '10'
+                    and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                    AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                    AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                    AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                    AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                    AND wp.nombre_promocion::text !~~ '%917%'::text
+                    AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                    and wp.nombre_promocion::text !~~ '% LOC%'::text
+                    and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                    group by wp.umv, wp.material"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
