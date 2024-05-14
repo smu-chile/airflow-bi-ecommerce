@@ -601,6 +601,23 @@ def stock_prices_promos_lss_to_s3(ti,ds,ts):
     print(df_lss_millers_no_ecom_ph.head())
     df_lss_millers_no_ecom_ph.info()
 
+    #quitar productos con categorias invalidas
+    query_cat_invalidas= """select distinct p.ref_id 
+                        from ecommdata.productos p 
+                        left join ecommdata.categorias c 
+                        on p.id_categoria = c.id
+                        left join ecommdata.lista8 l 
+                        on concat(l.material,'-',l.umv ) = p.ref_id 
+                        where c.n1 in ('No Trabajar','Inactivos','Integración')
+                        and l.material is not null;
+                                                """
+    df_categorias_invalidas = query_to_df(query_cat_invalidas)
+    lista_ref_id_categorias_invalidas = df_categorias_invalidas['ref_id'].unique()
+    print(lista_ref_id_categorias_invalidas)
+
+    df_lss_millers_no_ecom = df_lss_millers_no_ecom[~df_lss_millers_no_ecom['ref_id'].isin(lista_ref_id_categorias_invalidas)]
+    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph[~df_lss_millers_no_ecom_ph['ref_id'].isin(lista_ref_id_categorias_invalidas)]
+    
     #concatemos los 3 dataframe de ecom, no ecom y no ecom ph
     df_final = pd.concat([df_lss_millers_no_ecom, df_lss_millers_ecom, df_lss_millers_no_ecom_ph], ignore_index=True)
     df_final = df_final[df_final["stock_unitario"]>0]
@@ -838,7 +855,7 @@ with DAG(
     'etl_stock_prices_promos_last_millers',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos",
-    schedule_interval="30 9,12,16,20 * * *",
+    schedule_interval="30 8,12,16,20 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO"],
