@@ -83,7 +83,7 @@ def _join_Catalog_from_s3(ds, ti):
 
 
     buffer = io.StringIO()
-    df['SKU'] = df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    df['sku'] = df['sku'].apply(lambda x: int(x) if pd.notnull(x) else x)
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
@@ -330,11 +330,11 @@ def _send_joined_data_to_sftp(ds):
             ssh.close()
 
     #Envio de productos 
-        if numero_dia_semana == 0:
-         s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Catalog)
+    if numero_dia_semana == 0:
+        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Catalog)
 
         print(f"Number of files found: {len(s3_file_list)}")
-    
+
         for products_file in s3_file_list:
             print(products_file)
 
@@ -355,38 +355,38 @@ def _send_joined_data_to_sftp(ds):
             
             remotePath = f"/test/delta/Archivo_productos_semana_{output_products_file}"
             with sftp.open(remotePath, 'w') as f:
-                 f.write(products_object_body.to_csv(index=False, sep=';'))
+                f.write(products_object_body.to_csv(index=False, sep=';'))
         
             ssh.close()
-        
-        #Envio de stock diario
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Stock)
+    
+    #Envio de stock diario
+    s3_file_list_stock = s3_hook.list_keys(s3_bucket, prefix=prefix_Stock)
 
-        print(f"Number of files found: {len(s3_file_list)}")
-     
-        for stock_file in s3_file_list:
-            print(stock_file)
+    print(f"Number of files found: {len(s3_file_list_stock)}")
+    
+    for stock_file in s3_file_list_stock:
+        print(stock_file)
 
-            stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
-            stock_object_body = pd.read_csv(stock_object.get()["Body"])
+        stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
+        stock_object_body = pd.read_csv(stock_object.get()["Body"])
 
-            output_stock_file = stock_file.split("/")[-1]
-            print(output_stock_file)
-            print(f"File to load to SFTP Server: {output_stock_file}")
+        output_stock_file = stock_file.split("/")[-1]
+        print(output_stock_file)
+        print(f"File to load to SFTP Server: {output_stock_file}")
 
-            key_buffer = io.StringIO(ftp_rsa_key)
-            p_key = paramiko.RSAKey.from_private_key(key_buffer)
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
-            sftp = ssh.open_sftp()
+        key_buffer = io.StringIO(ftp_rsa_key)
+        p_key = paramiko.RSAKey.from_private_key(key_buffer)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
+        sftp = ssh.open_sftp()
 
-            remotePath = f"/test/delta/CS-UNI-STOCK-PRICES-{output_stock_file}"
+        remotePath = f"/test/delta/CS-UNI-STOCK-PRICES-{output_stock_file}"
 
-            with sftp.open(remotePath, 'w') as f:
-                 f.write(stock_object_body.to_csv(index=False, sep=';'))
-        
-        print("File loaded.")
+        with sftp.open(remotePath, 'w') as f:
+                f.write(stock_object_body.to_csv(index=False, sep=';'))
+    
+    print("File loaded.")
         
     return
 
