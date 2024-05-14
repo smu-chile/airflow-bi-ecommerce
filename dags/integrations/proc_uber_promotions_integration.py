@@ -83,7 +83,7 @@ def _join_Catalog_from_s3(ds, ti):
 
 
     buffer = io.StringIO()
-    df['SKU'] = df['SKU'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    df['sku'] = df['sku'].apply(lambda x: int(x) if pd.notnull(x) else x)
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
@@ -360,11 +360,11 @@ def _send_joined_data_to_sftp(ds):
             ssh.close()
         
         #Envio de stock diario
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Stock)
+        s3_file_list_stock = s3_hook.list_keys(s3_bucket, prefix=prefix_Stock)
 
-        print(f"Number of files found: {len(s3_file_list)}")
+        print(f"Number of files found: {len(s3_file_list_stock)}")
      
-        for stock_file in s3_file_list:
+        for stock_file in s3_file_list_stock:
             print(stock_file)
 
             stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
