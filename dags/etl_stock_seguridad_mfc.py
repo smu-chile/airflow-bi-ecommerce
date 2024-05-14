@@ -119,7 +119,7 @@ def venta_tienda(ds):
                         left join ecommdata.precios as p
                         on CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) = p.ref_id
                         and p.id_tienda_janis = t.id_janis  
-                        where v.fecha >= '"""+ds+"""'::date -30
+                        where v.fecha >= '"""+ds+"""'::date -70
                         and v.venta_umv > 0 
                         and v.venta_bruta <> 0 
                         and v.organizacion = 'Unimarc'
@@ -139,19 +139,22 @@ def venta_tienda(ds):
 
 def minimos_exhibicion():
     import pandas as pd
-    query = """sselect concat(meio.material,'-',meio.umv) as ref_id, meio.id_tienda, meio.minimo_exhibicion
+    query = """select concat(meio.material,'-',meio.umv) as ref_id, meio.id_tienda, meio.minimo_exhibicion
                 from ecommdata.minimos_exhibicion_in_out meio
                 left join ecommdata.tiendas t 
                 on t.id = meio.id_tienda
                 left join ecommdata.lista8 l 
                 on l.material = meio.material and l.umv = meio.umv  and l.id_tienda = meio.id_tienda 
+                left join ecommdata.ubicacion_mfc um 
+                on um.sap_code = meio.material and um.measurement_unit = meio.umv 
                 where t.status = 1
                 and t.id = '0917'
                 and l.material  is not null
                 and l.id_tienda  is not null
                 and l.umv  is not null
                 and t.id is not null
-                and meio.minimo_exhibicion > 2"""
+                and meio.minimo_exhibicion > 2
+                and um.mfc_is_item_side = 'FLO'"""
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -235,7 +238,41 @@ def stock_ventas_tienda_1917_to_s3_am(ds):
     df_final["dia"]=df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
 
+    #Agregar logica minimos exhibicion
+    df_minimos = minimos_exhibicion()
+    print(f"\nCantidad de registros antes del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
+    print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final.info()
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final.info()
+    df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
+    print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
+    print("Verificación de condiciones:")
+    print((df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]).head())
+    print((df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]).head())
+
+    condlist_1 = [
+            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
+            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
+            ]
+    choicelist_1 = [
+                df_final["minimo_exhibicion"],
+                df_final["nuevo_stock_seguridad"]
+                ]
+    
+    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+
+    df_final["dia"] = df_final["dia"].astype(int)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final.info()
+
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+
     print("transformacion de datos listo \n")
+
 
     ##############
     #cargar datos#
@@ -346,7 +383,7 @@ def stock_ventas_tienda_1917_to_s3_pm(ds):
     df_stock.columns=["ref_id","id_tienda","dia","semana","mfc_is_item_side"]
     df_venta_tienda.columns =["id_tienda","ref_id","venta","precio_lista","cantidad","dia","semana"]
     df_promociones = promociones(ds)
-    df_promociones=df_promociones.drop_duplicates(subset='ref_id')
+    df_promociones = df_promociones.drop_duplicates(subset='ref_id')
     print("se ha cargado promociones \n")
 
     print("se ha terminado de extraer data \n")
@@ -396,6 +433,39 @@ def stock_ventas_tienda_1917_to_s3_pm(ds):
 
     df_final["dia"]=df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"]=df_final["nuevo_stock_seguridad"].astype(int)
+
+    #Agregar logica minimos exhibicion
+    df_minimos = minimos_exhibicion()
+    print(f"\nCantidad de registros antes del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
+    print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_final.info()
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final.info()
+    df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
+    print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
+    print("Verificación de condiciones:")
+    print((df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]).head())
+    print((df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]).head())
+
+    condlist_1 = [
+            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
+            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
+            ]
+    choicelist_1 = [
+                df_final["minimo_exhibicion"],
+                df_final["nuevo_stock_seguridad"]
+                ]
+    
+    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+
+    df_final["dia"] = df_final["dia"].astype(int)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final.info()
+
+    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
 
     print("transformacion de datos listo \n")
 
