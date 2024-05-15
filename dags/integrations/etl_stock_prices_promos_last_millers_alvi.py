@@ -51,7 +51,7 @@ def last_millers_alvi_to_s3(ds):
                         and p.cantidad_minima_sku = 1
                         and t.status = 1
                         and t.id_janis is not null
-                        and t.id in ('3193','3092')
+                        and t.id in ('3098','3092')
                         )
                     select s.id_tienda,
                     s2.ean_primario as "ean",
@@ -80,7 +80,7 @@ def last_millers_alvi_to_s3(ds):
                     and s.c1 not in ('No trabajar','Fizzmod Categoria')
                     and s2.ean_primario is not null
                     and m.nombre is not null
-                    and s.id_tienda in ('3193','3098')--lista_tiendas
+                    and s.id_tienda in ('3092','3098')--lista_tiendas
                     and p2.precio is not null"""
         df = query_to_df(query)
         print(f"informacion obtenida de la Query: {df.info()}")
