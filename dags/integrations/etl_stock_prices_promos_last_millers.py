@@ -638,7 +638,7 @@ def stock_prices_promos_lss_to_s3(ti,ds,ts):
                             "unidad_de_medida",
                             "multiplicador_unidad",
                             "nombre",
-                            "trademark",
+                            "marca",
                             "stock_unitario",
                             "precio",
                             "precio_promocional"]]
