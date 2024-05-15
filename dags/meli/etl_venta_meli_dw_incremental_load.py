@@ -201,7 +201,6 @@ with DAG(
             WHERE FRVC.DATE_VALUE BETWEEN TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days'
                                     AND TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
             AND (DS.STORE_ID = '0100'::"VARCHAR")
-            limit 100
             """,
             "query_name": "NZ_BU.ECOMERCE.VW_FACT_VENTA_MELI"
         },
