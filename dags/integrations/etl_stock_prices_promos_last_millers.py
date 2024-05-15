@@ -67,7 +67,7 @@ def extract_stock_from_dw(ti,ds,ts):
             LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
             WHERE OU.OU_ID in {ids_tiendas_str}
             AND O.PRIM_CMRCL_NM IN ('Unimarc')
-            AND S.DATE_VALUE = '{ds}'
+            AND S.DATE_VALUE = '{ds}'::date-1
             AND S.APLICA_STOCK = 'S'
             AND A.ALMACEN_COD = '0001'
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
@@ -237,7 +237,7 @@ def prices_to_integrations(ds):
                     and l.id_tienda = t.id 
                 where p.fecha_carga = '{ds}'::date-1"""
         df = query_to_df(query)
-        print(f"informacion obbtenida de la Query: {df.info()}")
+        print(f"informacion obtenida de la Query: {df.info()}")
 
         host = Variable.get("POSTGRESQL_HOST")
         database = Variable.get("POSTGRESQL_DB")
