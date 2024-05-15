@@ -65,17 +65,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 , case 
                     when lspp.unidad_de_medida in ('KG', 'KGV') then 'WW'
                     else 'U'
-                end as sale_type,
-                s.multiplicador_unidad_medida as quantity,
-                case
-	                when lspp.nombre LIKE '%Kg%' OR lspp.nombre LIKE '%g%' or lspp.nombre LIKE '%KG%' or lspp.nombre LIKE '%GR%' THEN 'g'
-                	ELSE 'ml'
-                end as unit_type,
-               concat('https://unimarc.vteximg.com.br', is2.imagen) as imagen
+                end as sale_type
             from integraciones.lm_stock_precio_promo lspp
-            left join ecommdata.skus s on s.ref_id  = concat(lspp.material,'-',lspp.unidad_de_medida)
-            left join ecommdata.imagenes_sku is2 on is2.ref_id  = concat(lspp.material,'-',lspp.unidad_de_medida)
-            where lspp.id_tienda = '{store_id}';
+            where lspp.id_tienda = '{store_id}';--
         ;
         """
 

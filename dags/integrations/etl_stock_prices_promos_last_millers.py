@@ -67,7 +67,7 @@ def extract_stock_from_dw(ti,ds,ts):
             LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
             WHERE OU.OU_ID in {ids_tiendas_str}
             AND O.PRIM_CMRCL_NM IN ('Unimarc')
-            AND S.DATE_VALUE = '{ds}'
+            AND S.DATE_VALUE = '{ds}'::date-1
             AND S.APLICA_STOCK = 'S'
             AND A.ALMACEN_COD = '0001'
             AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
@@ -237,7 +237,7 @@ def prices_to_integrations(ds):
                     and l.id_tienda = t.id 
                 where p.fecha_carga = '{ds}'::date-1"""
         df = query_to_df(query)
-        print(f"informacion obbtenida de la Query: {df.info()}")
+        print(f"informacion obtenida de la Query: {df.info()}")
 
         host = Variable.get("POSTGRESQL_HOST")
         database = Variable.get("POSTGRESQL_DB")
@@ -382,30 +382,40 @@ def stock_prices_promos_lss_to_s3(ti,ds,ts):
 
     #primera tramo - Ecommerce
     print("Primer Tramo Tiendas Ecommerce")
-    query_stock_ecommerce = f"""select distinct s.id_tienda, 
-                s2.ean_primario as "ean", 
-                s.material, 
-                split_part(s.ref_id, '-',2) as "unidad_de_medida",
-                s2.multiplicador_unidad_medida as "multiplicador_unidad",
-                s.descripcion as "nombre",
-                m.nombre as "marca",
-                s.stock_vtex as "stock_unitario"
-                from ecommdata.stock s 
-                left join ecommdata.skus s2 
-                on s2.ref_id = s.ref_id
-                left join ecommdata.productos p 
-                on p.ref_id = s.ref_id 
-                left join ecommdata.marcas m 
-                on p.id_marca = m.id 
-                where s.stock_janis > 0
-                and s.surtido_ecommerce is true 
-                and m.nombre is not null
-                and s2.ean_primario is not null
-                and s.id_tienda is not null
-                and s.material is not null
-                and s.descripcion is not null 
-                and s.ultima_actualizacion = (select max(ultima_actualizacion) from ecommdata.stock s3)
-                and s.c1 not in ('No Trabajar','Inactivos','Integración')"""
+    query_stock_ecommerce = f"""with tiendas as(
+                            select t.id 
+                            from integraciones.tiendas_last_millers tlm 
+                            left join ecommdata.tiendas t 
+                            on tlm.id = t.id 
+                            where t.status = 1
+                        )
+                        select distinct s.id_tienda, 
+                        s2.ean_primario as "ean", 
+                        s.material, 
+                        split_part(s.ref_id, '-',2) as "unidad_de_medida",
+                        s2.multiplicador_unidad_medida as "multiplicador_unidad",
+                        s.descripcion as "nombre",
+                        m.nombre as "marca",
+                        s.stock_vtex as "stock_unitario"
+                        from ecommdata.stock s 
+                        left join ecommdata.skus s2 
+                        on s2.ref_id = s.ref_id
+                        left join ecommdata.productos p 
+                        on p.ref_id = s.ref_id 
+                        left join ecommdata.marcas m 
+                        on p.id_marca = m.id
+                        left join tiendas t
+                        on s.id_tienda = t.id
+                        where s.stock_janis > 0
+                        and s.surtido_ecommerce is true 
+                        and m.nombre is not null
+                        and s2.ean_primario is not null
+                        and s.id_tienda is not null
+                        and s.material is not null
+                        and s.descripcion is not null 
+                        and s.ultima_actualizacion = (select max(ultima_actualizacion) from ecommdata.stock s3)
+                        and s.c1 not in ('No Trabajar','Inactivos','Integración')
+                        and t.id is not null"""
     df_stock_ecom = query_to_df(query_stock_ecommerce)
     print("\nMuestra stock ecommerce\n",df_stock_ecom.head())
     df_stock_ecom["ref_id"] = df_stock_ecom["material"]+"-"+df_stock_ecom["unidad_de_medida"]
@@ -615,12 +625,23 @@ def stock_prices_promos_lss_to_s3(ti,ds,ts):
     lista_ref_id_categorias_invalidas = df_categorias_invalidas['ref_id'].unique()
     print(lista_ref_id_categorias_invalidas)
 
-    df_lss_millers_no_ecom = df_lss_millers_no_ecom[~df_lss_millers_no_ecom['ref_id'].isin(lista_ref_id_categorias_invalidas)]
-    df_lss_millers_no_ecom_ph = df_lss_millers_no_ecom_ph[~df_lss_millers_no_ecom_ph['ref_id'].isin(lista_ref_id_categorias_invalidas)]
+    
     
     #concatemos los 3 dataframe de ecom, no ecom y no ecom ph
     df_final = pd.concat([df_lss_millers_no_ecom, df_lss_millers_ecom, df_lss_millers_no_ecom_ph], ignore_index=True)
     df_final = df_final[df_final["stock_unitario"]>0]
+    df_final["ref_id"] = df_final["material"]+"-"+["unidad_de_medida"]
+    df_final = df_final[~df_final["ref_id"].isin(lista_ref_id_categorias_invalidas)]
+    df_final = df_final[["id_tienda",
+                            "ean",
+                            "material",
+                            "unidad_de_medida",
+                            "multiplicador_unidad",
+                            "nombre",
+                            "trademark",
+                            "stock_unitario",
+                            "precio",
+                            "precio_promocional"]]
     df_final.drop_duplicates()
 
 
