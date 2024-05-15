@@ -41,7 +41,7 @@ def last_millers_alvi_to_s3(ds):
 
     try:
         query = f"""WITH precios AS (
-                        select distinct p.ref_id, t.id as id_tienda, p.precio 
+                        select p.ref_id, t.id as id_tienda, max(p.precio)
                         from ecommdata_alvi.precios p 
                         left join ecommdata_alvi.tiendas t 
                         on p.id_tienda_janis = t.id_janis 
@@ -52,6 +52,7 @@ def last_millers_alvi_to_s3(ds):
                         and t.status = 1
                         and t.id_janis is not null
                         and t.id in ('3098','3092')
+                        group by p.ref_id, t.id
                         )
                     select s.id_tienda,
                     s2.ean_primario as "ean",
