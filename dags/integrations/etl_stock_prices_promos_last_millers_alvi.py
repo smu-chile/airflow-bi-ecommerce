@@ -183,7 +183,7 @@ with DAG(
     guardar en S3 y postgresql.
     """ 
     t_dummy = DummyOperator(
-        task_id='fallo_dw_producto',
+        task_id='fallo_last_millers_alvi_to_s3',
     )
 
     t0  = BranchPythonOperator(
