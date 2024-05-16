@@ -6,6 +6,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.dummy import DummyOperator
 from airflow.utils.trigger_rule import TriggerRule
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 
 import pendulum
@@ -971,6 +972,12 @@ with DAG(
         python_callable=check_promos,
         trigger_rule=TriggerRule.ONE_SUCCESS,
     )
+    t15 = TriggerDagRunOperator(
+        task_id="trigger_peya_stock_multi_envio",
+        trigger_dag_id="proc_peya_stock_multi_envio",
+        wait_for_completion=False
+    )
+
 
     t1 >>  t_dummy_s 
     t2 >>  t_dummy_p
@@ -991,5 +998,6 @@ with DAG(
     t13 >> t14
     [t7,t8,t12,t14] >> t9
     t9 >> t10
+    t10 >> t15
 
     
