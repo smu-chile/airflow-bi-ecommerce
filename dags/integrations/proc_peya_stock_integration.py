@@ -91,6 +91,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             CASE
                 WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio)
                 when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio) * 0.25)
+                when lspp.ean in ('2152','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004',
+							'3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
+							'90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690','1740') then lspp.precio
                 ELSE ROUND((lspp.precio) * s.multiplicador_unidad_medida)
             END AS price,
             CASE
@@ -192,6 +195,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 CASE
     				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
                     when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0.25)
+                     when lspp.ean in ('2152','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004',
+							'3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
+							'90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690','1740') then lspp.precio_promocional
     				ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
 				END AS discounted_price,
                 --s.multiplicador_unidad_medida,
