@@ -283,6 +283,13 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
         #
         #guardarla en promociones out peya 
     
+    # Al final del script, eliminar los archivos generados de stock
+    delete_archivo_hora = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/_{aux_date}.csv"
+    print(delete_archivo_hora)
+    if s3_hook.check_for_key(delete_archivo_hora, bucket_name=s3_bucket):
+        s3_hook.delete_objects(bucket=s3_bucket, keys=delete_archivo_hora)
+        print(f"Deleted file from S3: {delete_archivo_hora}")
+
     cursor.close()
     pg_connection.close()
     return
@@ -304,14 +311,13 @@ def _send_joined_data_to_stfp(ds,ts):
      #Crear un prefix para promo
     prefix2 = f"integraciones/last_millers/promotions/out/peya/{exec_date}/"
     
-   
-    
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
     s3_file_list2 = s3_hook.list_keys(s3_bucket, prefix=prefix2)
     
+    s3_file_list.remove(f"{prefix}_{aux_date}.csv") 
 
     print(f"Number of files found: {len(s3_file_list)}")
 
