@@ -262,7 +262,6 @@ def stock_ventas_tienda_1917_to_s3_am(ds):
                 ]
     
     df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
-    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -270,6 +269,12 @@ def stock_ventas_tienda_1917_to_s3_am(ds):
     df_final.info()
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=100,
+                df_final["nuevo_stock_seguridad"]<100]
+    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
 
     print("transformacion de datos listo \n")
 
@@ -466,6 +471,12 @@ def stock_ventas_tienda_1917_to_s3_pm(ds):
     df_final.info()
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=100,
+                df_final["nuevo_stock_seguridad"]<100]
+    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
 
     print("transformacion de datos listo \n")
 

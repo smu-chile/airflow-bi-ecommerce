@@ -224,6 +224,15 @@ def ventas_maximos_apo_to_s3_am(ds):
 
     df_final_final["stock_seguridad"] = df_final_final["stock_seguridad"].apply(np.ceil)
 
+    condlist = [df_final_final["stock_seguridad"]>100,
+                df_final_final["stock_seguridad"]<=100
+    ]
+    choicelist = [100,df_final_final["stock_seguridad"]]
+
+    df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+    df_final_final["stock_seguridad"] = df_final_final["stock_seguridad"]*0.5
+
     print(df_final_final)
   
     ##############
@@ -379,6 +388,13 @@ def ventas_maximos_apo_to_s3_pm(ds):
                 df_final_final["prom_ventas"]<2,
                 df_final_final["prom_ventas"]>=2]
     choicelist = [df_final_final["venta_maxima"], 2,df_final_final["prom_ventas"]]
+
+    df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
+    
+    condlist = [df_final_final["stock_seguridad"]>100,
+                df_final_final["stock_seguridad"]<= 100
+    ]
+    choicelist = [100,df_final_final["stock_seguridad"]]
 
     df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
 
