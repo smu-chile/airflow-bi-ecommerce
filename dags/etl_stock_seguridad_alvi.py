@@ -189,6 +189,12 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #cargar datos#
     ##############
 
+    condlist = [df_final["nuevo_stock_seguridad"]>=200,
+                df_final["nuevo_stock_seguridad"]<200]
+    choicelist = [200, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"stock_seguridad_alvi_/{exec_date}/stock_seguridad_am_{date_aux}.csv"
@@ -286,6 +292,12 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     ##############
     #cargar datos#
     ##############
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=200,
+                df_final["nuevo_stock_seguridad"]<200]
+    choicelist = [200, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
