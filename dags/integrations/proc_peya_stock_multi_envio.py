@@ -82,7 +82,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
 
     for store_id in peya_store_ids.keys():
         print(f"PEYA id: {peya_store_ids[store_id]}")
-        join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/{peya_store_ids[store_id]}_{aux_date}.csv"
+        join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -129,7 +129,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
         #df["SKU"] = df["SKU"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{aux_date}/{peya_store_ids[store_id]}_{aux_date}.csv"
+        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{aux_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
         if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
             print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
@@ -159,7 +159,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
         print(f"File load on S3: {join_file_name}")
         
         if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/{peya_botilleria_store_ids[store_id]}_{aux_date}.csv"
+            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/{peya_botilleria_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -171,7 +171,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
             print(f"File load on S3: {join_file_name}")
             
         if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/{peya_market_store_ids[store_id]}_{aux_date}.csv"
+            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/{peya_market_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -284,11 +284,11 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
         #guardarla en promociones out peya 
     
     # Al final del script, eliminar los archivos generados de stock
-    delete_archivo_hora = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/_{aux_date}.csv"
-    print(delete_archivo_hora)
-    if s3_hook.check_for_key(delete_archivo_hora, bucket_name=s3_bucket):
-        s3_hook.delete_objects(bucket=s3_bucket, keys=delete_archivo_hora)
-        print(f"Deleted file from S3: {delete_archivo_hora}")
+    #delete_archivo_hora = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/.csv"
+    #print(delete_archivo_hora)
+    #if s3_hook.check_for_key(delete_archivo_hora, bucket_name=s3_bucket):
+    #    s3_hook.delete_objects(bucket=s3_bucket, keys=delete_archivo_hora)
+    #    print(f"Deleted file from S3: {delete_archivo_hora}")
 
     cursor.close()
     pg_connection.close()
@@ -308,7 +308,7 @@ def _send_joined_data_to_stfp(ds,ts):
     hora = datetime.fromisoformat(ts)
     aux_date = hora.strftime("%H%M")
     prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/{aux_date}/"
-     #Crear un prefix para promo
+    #Crear un prefix para promo
     prefix2 = f"integraciones/last_millers/promotions/out/peya/{exec_date}/"
     
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -316,8 +316,6 @@ def _send_joined_data_to_stfp(ds,ts):
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
     s3_file_list2 = s3_hook.list_keys(s3_bucket, prefix=prefix2)
-    
-    s3_file_list.remove(f"{prefix}_{aux_date}.csv") 
 
     print(f"Number of files found: {len(s3_file_list)}")
 
@@ -378,7 +376,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "stock", "precios", "Cazador de dragones","NICOLAS","PATRICIO","PEYA"],
+    tags=["OPS", "last_millers", "dw", "stock", "precios","NICOLAS","PATRICIO","PEYA"],
 ) as dag:
 
     dag.doc_md = """
