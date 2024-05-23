@@ -286,6 +286,8 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
+
+
     df_final.info()
 
     print("transformacion de datos listo \n")
@@ -309,6 +311,12 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=100,
+                df_final["nuevo_stock_seguridad"]<100]
+    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -462,6 +470,12 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=100,
+                df_final["nuevo_stock_seguridad"]<100]
+    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
