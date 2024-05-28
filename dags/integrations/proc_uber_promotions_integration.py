@@ -262,7 +262,7 @@ def _join_stock_from_s3(ds, ti):
    #####################################################################################################
    #                                 QUERY Promociones complejas                                       #
    #####################################################################################################
-def _join_promo_prices_from_s3(ds, ti):
+def _join_promo_prices_test_from_s3(ds, ti):
     import json
     import pandas as pd
     import io
@@ -449,7 +449,7 @@ def _send_joined_data_to_sftp(ds):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    #Envio de promociones solo los dias lunes y jueves
+    #Envio de promociones solo los dias lunes y jueves 
 
     if numero_dia_semana == 0 or numero_dia_semana == 3 :
         s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Promotions)
@@ -485,6 +485,9 @@ def _send_joined_data_to_sftp(ds):
                  f.write(promotions_object_body.to_csv(index=False, sep=';'))
         
             ssh.close()
+    
+  #Envio de promociones solo los dias lunes y jueves - Promos compljeas
+  
     if numero_dia_semana == 0 or numero_dia_semana == 3 :
         s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_test)
 
@@ -628,6 +631,11 @@ with DAG(
     )
 
     t3 = PythonOperator(
+        task_id = "join_stock_prices_test_from_s3",
+        python_callable = _join_promo_prices_test_from_s3
+    )
+
+    t4 = PythonOperator(
         task_id = "send_joined_data",
         python_callable = _send_joined_data_to_sftp
     )
@@ -635,3 +643,4 @@ with DAG(
     t0 >> t1
     t1 >> t2
     t2 >> t3
+    t3 >> t4
