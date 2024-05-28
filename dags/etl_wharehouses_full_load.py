@@ -98,13 +98,19 @@ with DAG(
         op_kwargs = {
             "query": """
                 SELECT wlw.ref_id as id
-                    , wlw.name as nombre
-                    , wlwd.dock
-                    , ws.ref_id as id_tienda
-                    , wlw.id as id_janis 
+                , wlw.name as nombre
+                , wlwd.dock
+                , ws.ref_id as id_tienda
+                , wlw.id as id_janis
+                , CASE 
+                    when wld.status > 0 then true
+                    else false
+                END as dock_activo
                 from wms_logistic_warehouses wlw 
                 left join wms_logistic_warehouse_docks wlwd 
-                    on wlwd.warehouse = wlw.id 
+                    on wlwd.warehouse = wlw.id
+                left join wms_logistic_docks wld 
+                        on wld.id = wlwd.dock 
                 left join wms_logistic_dock_stores wlds 
                     on wlds.dock = wlwd.dock 
                 left join wms_stores ws 

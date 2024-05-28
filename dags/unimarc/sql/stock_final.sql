@@ -39,7 +39,7 @@ left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
 left join ecommdata.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
 left join ecommdata.lista_infaltables li on p.material = li.material
-where t.status = 1;
+where t.status = 1 and (b.dock_activo is true);
 DELETE from ecommdata.stock
 WHERE ultima_actualizacion < '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' AND fecha = '{{ds}}'::date;
 COMMIT;
