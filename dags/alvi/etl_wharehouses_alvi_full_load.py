@@ -104,6 +104,10 @@ with DAG(
                     , wlwd.dock
                     , ws.ref_id as id_tienda 
                     , wlw.id as id_janis
+                    , CASE
+                        when wlds.status > 0 then true
+                        else false
+                    END as dock_activo
                     from wms_logistic_warehouses wlw 
                     left join wms_logistic_warehouse_docks wlwd 
                         on wlwd.warehouse = wlw.id 
@@ -112,7 +116,7 @@ with DAG(
                     left join ecommerce_accounts ea 
                         on ea.id = wlds.ecommerce_account
                     left join wms_stores ws
-                	    on ws.ecommerce_account_id = ea.id;
+                        on ws.ecommerce_account_id = ea.id;
             """,
             "query_name": "wms_logistic_warehouses",
         }
