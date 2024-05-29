@@ -877,10 +877,10 @@ with DAG(
     'etl_stock_prices_promos_last_millers',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos",
-    schedule_interval="30 8,12,16,20 * * *",
+    schedule_interval="0 12,15,18 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO"],
+    tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO","NICOLAS"],
 ) as dag:
     
 
