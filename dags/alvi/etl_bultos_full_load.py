@@ -70,7 +70,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_bultos_full_load',
+    'etl_bultos_alvi_full_load',
     default_args=default_args,
     description="Extracción y carga tabla bultos y su relación con la tabla ordenes desde Janis Replica hasta Workspace.",
     schedule_interval="0 9 * * *",
