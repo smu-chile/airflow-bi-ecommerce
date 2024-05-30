@@ -31,7 +31,8 @@ def _full_load_bodegas_table(ti):
             "nombre",
             "dock",
             "id_tienda",
-            "id_janis"
+            "id_janis",
+            "dock_activo"
     ]]   
 
     # # Ensure correct datatypes:
@@ -40,6 +41,7 @@ def _full_load_bodegas_table(ti):
     df["dock"] = df["dock"].astype("int", errors="ignore")
     df["id_tienda"] = df["id_tienda"].astype("int", errors="ignore")
     df["id_janis"] = df["id_janis"].astype("int", errors="ignore")
+    df["dock_activo"] = df["dock_activo"].astype("bool")
 
     df["id_tienda"] = df["id_tienda"].apply(lambda x: "{:04}".format(int(x)) if pd.notnull(x) else x) 
 
