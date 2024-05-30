@@ -88,15 +88,18 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
             continue
         
         peya_stock_query = f"""
-        SELECT	
+        SELECT  
             NULL AS barcode,
             lspp.ean AS sku,
             CASE
                 WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio)
                 when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio) * 0.25)
-                when lspp.ean in ('2152','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004',
-							'3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
-							'90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690','1740') then lspp.precio
+                   when lspp.ean in ('2152','28361','1121','2596602000008','97696','1448','7583','1261',
+                   '1276','51004','3252','94169','94171','1295','1410','1480','1570','2502499000007','28359',
+                   '1627','90707','1691','2713','4102','2145','2504','23243','2707','1690','1740','2245','1699','1333',
+                   '3252','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004','3252',
+                   '94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627','90707','
+                   1691','1699','2713','4102','2145','2504','23243','2707','1690','1740') then lspp.precio
                 ELSE ROUND((lspp.precio) * s.multiplicador_unidad_medida)
             END AS price,
             CASE
@@ -104,11 +107,13 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
                 WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= COALESCE(ssp.stock_seguridad, 2)) THEN 1
                 ELSE 0
             END AS active
-            FROM integraciones.refactor_lss_millers as lspp
+            FROM integraciones.lm_stock_precio_promo lspp
             INNER JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
             INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
             LEFT JOIN integraciones.stock_seguridad_peya ssp ON ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida) AND lspp.id_tienda = ssp.id_tienda
             WHERE lspp.id_tienda = '{store_id}'
+            and lspp.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
+                '000000000000653082', '000000000000653083','000000000000653084')
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
@@ -196,22 +201,24 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
                 concat(current_date ,' 10:00:00-03:00') AS start_date,
                 concat(current_date + 1,' 11:00:00-03:00') AS end_date,
                 CASE
-    				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
+                    WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
                     when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0.25)
                      when lspp.ean in ('2152','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004',
-							'3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
-							'90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690','1740') then lspp.precio_promocional
-    				ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
-				END AS discounted_price,
+                            '3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
+                            '90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690') then lspp.precio_promocional
+                    ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
+                END AS discounted_price,
                 --s.multiplicador_unidad_medida,
                 999 AS max_no_of_orders,
                 1 AS campaign_status
-                FROM integraciones.refactor_lss_millers as lspp
+                FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                 WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR
                     (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
                 and lspp.precio_promocional  is not null
                 AND lspp.id_tienda = '{store_id}'
+                and lspp.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
+                '000000000000653082', '000000000000653083','000000000000653084')
                 GROUP BY
                 lspp.ean,
                 lspp.nombre,
