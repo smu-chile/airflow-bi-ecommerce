@@ -397,7 +397,7 @@ def _join_promo_prices_test_from_s3(ds, ti):
     df = pd.DataFrame(results, columns=columns)
     print(f"Number of records found on stock: {len(df.index)}")
         
-    df['precio_venta'] = df['precio_venta'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    df['precio_venta_individual'] = df['precio_venta_individual'].apply(lambda x: int(x) if pd.notnull(x) else x)
 
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
