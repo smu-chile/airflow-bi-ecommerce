@@ -31,7 +31,6 @@ def _load_to_postgres(ti):
         "SKU": "str",
         "DESC_SKU": "str",
         "UMB": "str",
-        #"STOCK_UMB": "int",
         "INSTOCK": "bool",
         "BLOQUEOS": "bool"
 }
@@ -61,10 +60,10 @@ def _load_to_postgres(ti):
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
     df["umv"] = df["umv"].str.replace('ST', 'UN')
 
-    host = Variable.get("POSTGRESQL_HOST_PROD")
+    host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD_PROD")
+    password = Variable.get("POSTGRESQL_PASSWORD")
     
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
