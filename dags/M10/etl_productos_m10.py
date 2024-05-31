@@ -30,7 +30,9 @@ def _load_to_postgres(ti):
         "EAN": "int",
         "UNIDAD_MEDIDA": "str",
         "ID_CATEGORIA": "int",
-        "ID_MARCA": "str"
+        "ID_MARCA": "str",
+        "DESC_MARCA": "str",
+        "CONTENIDO": "int"
     }
 
     df = pd.read_csv(productos_M10_object.get()["Body"], dtype=column_types)
@@ -40,13 +42,17 @@ def _load_to_postgres(ti):
         print("There are no new records to load. Task will exit as successfull.")
         return
 
+    df = df[["ID", "MATERIAL", "NOMBRE", "EAN", "UNIDAD_MEDIDA", "ID_CATEGORIA", "ID_MARCA", "DESC_MARCA", "CONTENIDO"]]
+
     columns = [
         "MATERIAL",
         "NOMBRE",
         "EAN",
         "UNIDAD_MEDIDA",
         "ID_CATEGORIA",
-        "ID_MARCA"
+        "ID_MARCA",
+        "DESC_MARCA",
+        "CONTENIDO"
     ]
 
     columns_query = ",".join(columns)
