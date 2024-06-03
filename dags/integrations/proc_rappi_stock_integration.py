@@ -67,7 +67,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     else 'U'
                 end as sale_type
             from integraciones.lm_stock_precio_promo lspp
-            where lspp.id_tienda = '{store_id}
+            where lspp.id_tienda = '{store_id}'
             and lspp.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
 				'000000000000653082', '000000000000653083','000000000000653084');
         ;
