@@ -9,9 +9,12 @@ import pendulum
 
 def _get_peya_active_stores():
     peya_stores_query = """
-        SELECT id, id_peya
-        FROM integraciones.tiendas_last_millers
-        WHERE id_peya is not NULL;
+        SELECT tlm.id, tlm.id_peya
+        FROM integraciones.tiendas_last_millers tlm 
+        left join ecommdata.tiendas t 
+        on t.id = tlm.id 
+        WHERE id_peya is not null
+        and t.status = 1;
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -24,9 +27,13 @@ def _get_peya_active_stores():
 
 def _get_peya_botilleria_active_stores():
     peya_stores_query = """
-        SELECT id, id_peya_botilleria
-        FROM integraciones.tiendas_last_millers
-        WHERE id_peya_botilleria is not NULL;
+        SELECT tlm.id, tlm.id_peya_botilleria,
+        FROM integraciones.tiendas_last_millers tlm
+        left join ecommdata.tiendas t 
+        on t.id = tlm.id 
+        WHERE id_peya_botilleria is not null
+        and t.status = 1
+        ;
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -39,9 +46,12 @@ def _get_peya_botilleria_active_stores():
 
 def _get_peya_market_active_stores():
     peya_stores_query = """
-        SELECT id, peya_market
-        FROM integraciones.tiendas_last_millers
-        WHERE peya_market is not NULL;
+        SELECT tlm.id, tlm.peya_market
+        FROM integraciones.tiendas_last_millers tlm
+        left join ecommdata.tiendas t 
+        on t.id = tlm.id
+        WHERE peya_market is not null
+        and t.status = 1;
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
