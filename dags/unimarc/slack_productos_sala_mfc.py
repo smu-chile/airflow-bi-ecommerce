@@ -280,8 +280,8 @@ def send_to_slack(ts, ds):
 
     results = listado_productos_sala_mfc(ts, ds)
     df_list = results[0]
-    df_list_c = results(ts, ds)[1]
-    df_list_q = results(ts, ds)[2]
+    df_list_c = results[1]
+    df_list_q = results[2]
     df_list_FULL = results[3]
     v_time = results[4]
     v2_time = results[5]
