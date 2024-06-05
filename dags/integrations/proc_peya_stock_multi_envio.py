@@ -27,7 +27,7 @@ def _get_peya_active_stores():
 
 def _get_peya_botilleria_active_stores():
     peya_stores_query = """
-        SELECT tlm.id, tlm.id_peya_botilleria,
+        SELECT tlm.id, tlm.id_peya_botilleria
         FROM integraciones.tiendas_last_millers tlm
         left join ecommdata.tiendas t 
         on t.id = tlm.id 
