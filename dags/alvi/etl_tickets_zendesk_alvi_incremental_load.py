@@ -279,8 +279,8 @@ def _save_tickets_zendesk_in_postgres(ti):
         'tipo1_centro_de_ayuda': "string",
         'tipo2_centro_de_ayuda': "string",
         'tipo3_centro_de_ayuda': "string",
-        'tipo de registro': "string",
-        'estado de inscripcion': "string"
+        'tipo_de_registro': "string",
+        'estado_de_inscripcion': "string"
 
     }, errors="ignore")
 
@@ -335,8 +335,8 @@ def _save_tickets_zendesk_in_postgres(ti):
         'tipo1_centro_de_ayuda',
         'tipo2_centro_de_ayuda',
         'tipo3_centro_de_ayuda',
-        'tipo de registro',
-        'estado de inscripcion'
+        'tipo_de_registro',
+        'estado_de_inscripcion'
     
     ]
     columns_query = ",".join(columns)
