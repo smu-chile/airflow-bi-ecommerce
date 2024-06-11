@@ -134,8 +134,8 @@ def _load_ticket_zendesk_to_s3(ts, ds):
             'tipo1_centro_de_ayuda': tipologias_centro_de_ayuda['tipo1'],
             'tipo2_centro_de_ayuda': tipologias_centro_de_ayuda['tipo2'],
             'tipo3_centro_de_ayuda': tipologias_centro_de_ayuda['tipo3'],
-            'tipo de registro':get_value_from_key(23322081338519, array_campos_personalizados, fields),
-            'estado de inscripcion':get_value_from_key(15803739697687, array_campos_personalizados, fields)
+            'tipo_de_registro':get_value_from_key(23322081338519, array_campos_personalizados, fields),
+            'estado_de_inscripcion':get_value_from_key(15803739697687, array_campos_personalizados, fields)
         }
         
         estado = ticket_json['estado']
