@@ -274,7 +274,14 @@ def _save_tickets_zendesk_in_postgres(ti):
         'area_picking_mfc': "string",
         'nombre_pickeador': "string",
         'motivo_de_cancelacion': "string",
-        'motivo_de_cancelacion_otro': "string"
+        'motivo_de_cancelacion_otro': "string",
+        'motivo_centro_de_ayuda': "string",
+        'tipo1_centro_de_ayuda': "string",
+        'tipo2_centro_de_ayuda': "string",
+        'tipo3_centro_de_ayuda': "string",
+        'tipo de registro': "string",
+        'estado de inscripcion': "string"
+
     }, errors="ignore")
 
     columns = [
@@ -323,7 +330,13 @@ def _save_tickets_zendesk_in_postgres(ti):
         'area_picking_mfc',
         'nombre_pickeador',
         'motivo_de_cancelacion',
-        'motivo_de_cancelacion_otro'
+        'motivo_de_cancelacion_otro',
+        'motivo_centro_de_ayuda',
+        'tipo1_centro_de_ayuda',
+        'tipo2_centro_de_ayuda',
+        'tipo3_centro_de_ayuda',
+        'tipo de registro',
+        'estado de inscripcion'
     
     ]
     columns_query = ",".join(columns)
