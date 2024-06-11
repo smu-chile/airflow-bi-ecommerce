@@ -22,6 +22,9 @@ def _load_ticket_zendesk_to_s3(ts, ds):
     from utils.getUserById import get_user_by_id
     from utils.getIdTienda import get_id_tienda
     from utils.cut_otros import truncate_text
+    from utils.getTicketFormCentroDeAyuda import get_ticket_form_tipificacion_centro_ayuda
+    from utils.helperToGetTipologiasCentroAyuda import helpers_to_get_tipologias_centro_ayuda
+    from utils.getTipologiasCentroDeAyuda import get_tipologias_centro_de_ayuda
 
     
     import pandas as pd
@@ -35,6 +38,9 @@ def _load_ticket_zendesk_to_s3(ts, ds):
     formulario_tipificacion = get_ticket_form_tipificacion(url, API_KEY)
 
     helpers = helpers_to_get_tipologias(formulario_tipificacion, fields)
+
+    formulario_tipificacion_centro_ayuda = get_ticket_form_tipificacion_centro_ayuda(url, API_KEY)
+    helpers_centro_ayuda = helpers_to_get_tipologias_centro_ayuda(formulario_tipificacion_centro_ayuda, fields)
 
     ts_from = ((datetime.strptime(ts[:19], '%Y-%m-%dT%H:%M:%S')) + timedelta(hours=-1))
     ts_from = ts_from.strftime("%Y-%m-%dT%H:%M:%S")
@@ -70,6 +76,7 @@ def _load_ticket_zendesk_to_s3(ts, ds):
         tags = ticket['tags']
         
         tipologias = get_tipologias(array_campos_personalizados, fields, helpers)
+        tipologias_centro_de_ayuda = get_tipologias_centro_de_ayuda(array_campos_personalizados, fields, helpers_centro_ayuda)
         closed_by_merge = 'closed_by_merge' in tags
         print('id_ticket:', id)
         nombre_tienda = get_value_from_key(360052677134, array_campos_personalizados, fields)
@@ -122,7 +129,13 @@ def _load_ticket_zendesk_to_s3(ts, ds):
             'area_picking_mfc': get_value_from_key(16537458692631, array_campos_personalizados, fields),
             'nombre_pickeador': get_value_from_id_field_numeric(16537260072599, array_campos_personalizados),
             'motivo_de_cancelacion': get_value_from_key(7147271944599, array_campos_personalizados, fields),
-            'motivo_de_cancelacion_otro':truncate_text(get_value_from_id_field_numeric(7150722487959, array_campos_personalizados))
+            'motivo_de_cancelacion_otro':truncate_text(get_value_from_id_field_numeric(7150722487959, array_campos_personalizados)),
+            'motivo_centro_de_ayuda': tipologias_centro_de_ayuda['motivo'],
+            'tipo1_centro_de_ayuda': tipologias_centro_de_ayuda['tipo1'],
+            'tipo2_centro_de_ayuda': tipologias_centro_de_ayuda['tipo2'],
+            'tipo3_centro_de_ayuda': tipologias_centro_de_ayuda['tipo3'],
+            'tipo de registro':get_value_from_key(23322081338519, array_campos_personalizados, fields),
+            'estado de inscripcion':get_value_from_key(15803739697687, array_campos_personalizados, fields)
         }
         
         estado = ticket_json['estado']
