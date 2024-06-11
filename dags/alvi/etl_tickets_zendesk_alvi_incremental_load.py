@@ -331,7 +331,6 @@ def _save_tickets_zendesk_in_postgres(ti):
         'nombre_pickeador',
         'motivo_de_cancelacion',
         'motivo_de_cancelacion_otro',
-        'motivo_de_cancelacion_otro'
         'motivo_centro_de_ayuda',
         'tipo1_centro_de_ayuda',
         'tipo2_centro_de_ayuda',
