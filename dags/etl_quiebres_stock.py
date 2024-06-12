@@ -48,7 +48,7 @@ def extraccion_s3_publicacion_catalogo(ds):
     for i in range((hoy - fecha_inicial).days + 1):
         fecha_actual = fecha_inicial + timedelta(days=i)
         fecha_formateada = fecha_actual.strftime("%Y/%d/%m")
-        aux = f"{fecha_formateada}/1100publicacion_catalogo_periodico.csv"
+        aux = f"{fecha_formateada}/1200publicacion_catalogo_periodico.csv"
         lista.append(aux)
 
     print(lista)
@@ -184,7 +184,7 @@ with DAG(
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "ecommdata", "S3"],
+    tags=["DATA", "ecommdata", "S3","PATRICIO"],
 ) as dag:
 
     dag.doc_md = """
