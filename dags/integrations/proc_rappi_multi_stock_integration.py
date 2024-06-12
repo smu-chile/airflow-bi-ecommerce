@@ -22,7 +22,7 @@ def _get_rappi_active_stores():
     pg_connection.close()
     return results
 
-def _join_stock_and_promo_prices_from_s3(ds, ti):
+def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
     import json
     import pandas as pd
     from datetime import datetime
@@ -103,7 +103,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     pg_connection.close()
     return
 
-def _send_joined_data_to_api(ds):
+def _send_joined_data_to_api(ds,ts):
     import json
     import requests
     from datetime import datetime
