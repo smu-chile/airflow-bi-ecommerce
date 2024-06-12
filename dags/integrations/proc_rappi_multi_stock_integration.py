@@ -51,27 +51,27 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             continue
 
         peya_stock_query = f"""
-            select lspp.id_tienda as store_id
+            select rlm.id_tienda as store_id
                 , case 
-                    when (lspp.multiplicador_unidad > 1 and lspp.unidad_de_medida not IN ('KG', 'KGV')) then (lspp.material::int)::varchar || '_' || lspp.multiplicador_unidad
-                    else (lspp.material::int)::varchar 
+                    when (rlm.multiplicador_unidad > 1 and rlm.unidad_de_medida not IN ('KG', 'KGV')) then (rlm.material::int)::varchar || '_' || rlm.multiplicador_unidad
+                    else (rlm.material::int)::varchar 
                 end as id
                 , case 
-                    when lspp.unidad_de_medida IN ('KG', 'KGV') then lspp.stock_unitario::int
-                    else (lspp.stock_unitario/lspp.multiplicador_unidad)::int
+                    when rlm.unidad_de_medida IN ('KG', 'KGV') then rlm.stock_unitario::int
+                    else (rlm.stock_unitario/rlm.multiplicador_unidad)::int
                   end as stock
-                , lspp.nombre as "name"
-                , lspp.ean as ean 
-                , lspp.precio as price 
-                , least(lspp.precio_promocional, lspp.precio) as discount_price
-                , lspp.marca as trademark 
+                , rlm.nombre as "name"
+                , rlm.ean as ean 
+                , rlm.precio as price 
+                , least(rlm.precio_promocional, rlm.precio) as discount_price
+                , rlm.marca as trademark 
                 , case 
-                    when lspp.unidad_de_medida in ('KG', 'KGV') then 'WW'
+                    when rlm.unidad_de_medida in ('KG', 'KGV') then 'WW'
                     else 'U'
                 end as sale_type
-            from integraciones.lm_stock_precio_promo lspp
-            where lspp.id_tienda = '{store_id}'
-            and lspp.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
+            from integraciones.refactor_lss_millers rlm   
+            where rlm.id_tienda = '{store_id}'
+            and rlm.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
 				'000000000000653082', '000000000000653083','000000000000653084');
         ;
         """
