@@ -165,7 +165,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_rappi_stock_integration",
+    "proc_rappi_Multi_stock_integration",
     default_args=default_args,
     description="Cruce de stock, precios y precios promocionales simples para integracion Rappi",
     schedule_interval=None, 
