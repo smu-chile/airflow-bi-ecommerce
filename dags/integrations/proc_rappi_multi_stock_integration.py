@@ -71,8 +71,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
                 end as sale_type
             from integraciones.refactor_lss_millers rlm   
             where rlm.id_tienda = '{store_id}'
-            and rlm.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
-				'000000000000653082', '000000000000653083','000000000000653084');
         ;
         """
 
