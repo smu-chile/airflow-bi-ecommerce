@@ -109,8 +109,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
             LEFT JOIN integraciones.stock_seguridad_peya ssp ON ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida) AND lspp.id_tienda = ssp.id_tienda
             WHERE lspp.id_tienda = '{store_id}'
-            and lspp.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
-				'000000000000653082', '000000000000653083','000000000000653084')
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
@@ -214,8 +212,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
                 and lspp.precio_promocional  is not null
                 AND lspp.id_tienda = '{store_id}'
-                and lspp.material not in ('000000000000640492','000000000000640493' ,'000000000000640494','000000000000640496',
-				'000000000000653082', '000000000000653083','000000000000653084')
                 GROUP BY
                 lspp.ean,
                 lspp.nombre,
