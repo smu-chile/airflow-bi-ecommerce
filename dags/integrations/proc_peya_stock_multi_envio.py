@@ -388,7 +388,7 @@ with DAG(
     "proc_peya_stock_multi_envio",
     default_args=default_args,
     description="Cruce de stock, precios y precios promocionales simples para integracion Pedidos Ya",
-    schedule_interval=None, 
+    schedule_interval="0 12,15,18 * * *", 
     start_date=pendulum.datetime(2024, 5, 14, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

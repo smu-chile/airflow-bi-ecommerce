@@ -240,6 +240,10 @@ def prices_to_integrations(ds):
         df = query_to_df(query)
         print(f"informacion obtenida de la Query: {df.info()}")
 
+        if len(df.index) == 0:
+            print("\n 0 registros extraidos")
+            return "fallo_postgres_precios"
+        
         host = Variable.get("POSTGRESQL_HOST")
         database = Variable.get("POSTGRESQL_DB")
         username = Variable.get("POSTGRESQL_USER")
@@ -298,6 +302,10 @@ def promos_to_integrations(ds):
                     ;"""
         df = query_to_df(query)
         print(f"informacion obbtenida de la Query: {df.info()}")
+
+        if len(df.index) == 0:
+            print("\n 0 registros extraidos")
+            return "fallo_postgres_promos"
 
         host = Variable.get("POSTGRESQL_HOST")
         database = Variable.get("POSTGRESQL_DB")
@@ -766,7 +774,6 @@ def check_promos():
     return
 
 def check_prices():
-
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
     import io
@@ -877,7 +884,7 @@ with DAG(
     'etl_stock_prices_promos_last_millers',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos",
-    schedule_interval="0 12,15,18 * * *",
+    schedule_interval="35 12,16,20 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO","NICOLAS"],
@@ -973,8 +980,8 @@ with DAG(
         trigger_rule=TriggerRule.ONE_SUCCESS,
     )
     t15 = TriggerDagRunOperator(
-        task_id="trigger_peya_stock_multi_envio",
-        trigger_dag_id="proc_peya_stock_multi_envio",
+        task_id="trigger_rappi_stock_multi_envio",
+        trigger_dag_id="proc_rappi_Multi_stock_integration",
         wait_for_completion=False
     )
 
