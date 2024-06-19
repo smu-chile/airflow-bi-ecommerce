@@ -402,7 +402,7 @@ def stock_prices_promos_lss_to_s3(ti,ds,ts):
                         s2.ean_primario as "ean", 
                         s.material, 
                         split_part(s.ref_id, '-',2) as "unidad_de_medida",
-                        s2.multiplicador_unidad_medida as "multiplicador_unidad",
+                        s2.unidades_pack as "multiplicador_unidad",
                         s.descripcion as "nombre",
                         m.nombre as "marca",
                         s.stock_vtex as "stock_unitario"
