@@ -334,7 +334,8 @@ def _join_promo_prices_test_from_s3(ds, ti):
                 AND wp.nombre_promocion::text !~~ '%917%'::text
                 AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
                 and wp.nombre_promocion::text !~~ '% LOC%'::text
-                and wp.nombre_promocion::text !~~ '%LIQ%'::text;
+                and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                and wp.n_promocion != '5552392024';
                 """
     if numero_dia_semana == 3 :
             uber_promotions_query = f"""
