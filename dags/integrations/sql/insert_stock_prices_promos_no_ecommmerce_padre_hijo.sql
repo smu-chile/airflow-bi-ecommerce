@@ -76,6 +76,7 @@ left join (
 	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
 	and wp.nombre_promocion::text !~~ '% LOC%'::text
 	and wp.nombre_promocion::text !~~ '%LIQ%'::text
+	and wp.n_promocion = '5552392024'
     group by wp.ean , wp.material
 ) _t3
 on _t.material = _t3.material
