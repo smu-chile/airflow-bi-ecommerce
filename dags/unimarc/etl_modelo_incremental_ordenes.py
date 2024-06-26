@@ -165,10 +165,10 @@ def _incremental_load_orders_table(ti):
     df_cdf = pd.read_csv(custom_data_fields_object.get()["Body"])
 
     # Filter custom_data_fields_dataframe
-    df_cdf = df_cdf[df_cdf["field"] == "sourceApp"]
-    df_cdf = df_cdf[["order_id", "value"]]
+    df_cdf_sa = df_cdf[df_cdf["field"] == "sourceApp"]
+    df_cdf_sa = df_cdf_sa[["order_id", "value"]]
 
-    df = df.merge(df_cdf, left_on="janis_id", right_on="order_id", how="left")
+    df = df.merge(df_cdf_sa, left_on="janis_id", right_on="order_id", how="left")
     df["value"] = df["value"].fillna(0)
     df["value"] = np.where(df["value"] == "Android", 1, df["value"])
     df["value"] = np.where(df["value"] == "iOS", 1, df["value"])
@@ -177,6 +177,15 @@ def _incremental_load_orders_table(ti):
                   np.where((df["call_center_operator_id"].isna()) | (df["call_center_operator_id"] == 0), "sitio", "callcenter"))
     
     df = df.drop(columns=["order_id", "call_center_operator_id", "value"])
+
+    df_cdf_cl = df_cdf[df_cdf["field"] == "clientLevel"]
+    df_cdf_cl = df_cdf_cl[["order_id", "value"]]
+    df = df.merge(df_cdf_cl, left_on="janis_id", right_on="order_id", how="left")
+    df["value"] = df["value"].fillna("")
+    df["value"] = df["value"].astype("str")
+    df["nivel_cliente"] = df["value"]
+
+    df = df.drop(columns=["order_id", "value"])
 
     marketing_data_fields_file = ti.xcom_pull(key="return_value", task_ids=["order_marketing_data_field_incremental_load"])[0]
 
@@ -240,7 +249,8 @@ def _incremental_load_orders_table(ti):
         "documento_electronico",
         "id_picker",
         "janis_cart_id",
-        "utm_source"
+        "utm_source",
+        "nivel_cliente"
     ]
 
     df = df[["id"]+columns]
