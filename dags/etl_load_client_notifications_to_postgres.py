@@ -18,8 +18,7 @@ def mongo_to_postgres(ts):
     mongo_pass = Variable.get("MONGODB_ORQ_PASSWORD")
     mongo_cluster_name = Variable.get("MONGODB_ORQ_CLUSTER")
     mongo_db = Variable.get("MONGODB_ORQ_DATABASE_CN")
-
-    mongo_client = MongoClient("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
+    mongo_client = MongoClient(f"mongodb+srv://{mongo_user}:{mongo_pass}@{mongo_cluster_name}.reeld.mongodb.net/{mongo_db}?authMechanism=SCRAM-SHA-1")
     mongo_collection = mongo_client[mongo_db]["slack"]
 
     execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
