@@ -388,6 +388,7 @@ with DAG(
     description="Extracción y carga de tabla tickets desde Zendesk hasta Workspace.",
     schedule_interval="0 * * * *",
     start_date=pendulum.datetime(2023, 8, 1, tz="America/Santiago"),
+    max_active_runs = 1,
     catchup=False,
     tags=["Zendesk", "Unimarc", "analytics_and_growth", "MATIAS"],
 ) as dag:
