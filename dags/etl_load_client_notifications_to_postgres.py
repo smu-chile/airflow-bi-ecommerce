@@ -98,7 +98,7 @@ def mongo_to_postgres(ts):
         INSERT INTO ecommdata.notificaciones_clientes (id_orden, nombre_accion,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id_orden, nombre_accion)
-        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+        DO UPDATE SET """+columns_query+""" = """+excluded_query+""" 
     """
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
