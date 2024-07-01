@@ -13,32 +13,53 @@ from datetime import datetime, timedelta
 def fecha_promos_skus(ds):
     import pandas as pd
     ventas_skus_tienda_query = f"""select _t.fecha_inicio, _t.fecha_fin, STRING_AGG(QUOTE_LITERAL(_t.ref_id), ', ') AS ref_ids
-                                FROM (select concat(wp.material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end) as ref_id,
-                                    fecha_inicio_de_promocion as fecha_inicio,
-                                    fecha_fin_de_promocion as fecha_fin,
-                                    sum(fecha_fin_de_promocion-fecha_inicio_de_promocion) as dias
-                                    from ecommdata.workflow_promociones wp
-                                    where wp.fecha_fin_de_promocion <= '{ds}'::date
-                                    and wp.fecha_inicio_de_promocion >= '{ds}'::date-30
-                                    and concat(material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end) in (
-                                        select distinct concat (wp.material,'-',
-                                        case 
-                                            when wp.umv = 'ST' then 'UN'
-                                            else wp.umv
-                                        end) as ref_id
+                                    FROM (select concat(wp.material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end) as ref_id,
+                                        fecha_inicio_de_promocion as fecha_inicio,
+                                        fecha_fin_de_promocion as fecha_fin,
+                                        sum(fecha_fin_de_promocion-fecha_inicio_de_promocion) as dias
                                         from ecommdata.workflow_promociones wp
-                                        left join ecommdata.lista8 l 
-                                        on wp.material = l.material
-                                        where wp.fecha_inicio_de_promocion >= '{ds}'::date-30
-                                        and wp.fecha_fin_de_promocion <= '{ds}'::date 
-                                        and wp.id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
-                                        and wp.id_evento not in (551)
-                                        and l.material is not null)
-                                    and id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
-                                    and id_evento not in (551)
-                                    group by concat(wp.material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end) ,fecha_inicio_de_promocion,fecha_fin_de_promocion
-                                    order by concat(wp.material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end)) as _t
-                                GROUP BY _t.fecha_inicio, _t.fecha_fin;"""
+                                        where wp.fecha_fin_de_promocion <= '{ds}'::date
+                                        and wp.fecha_inicio_de_promocion >= '{ds}'::date-30
+                                        and concat(material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end) in (
+                                            select distinct concat (wp.material,'-',
+                                            case 
+                                                when wp.umv = 'ST' then 'UN'
+                                                else wp.umv
+                                            end) as ref_id
+                                            from ecommdata.workflow_promociones wp
+                                            left join ecommdata.lista8 l 
+                                            on wp.material = l.material
+                                            where wp.fecha_inicio_de_promocion >= '{ds}'::date-30
+                                            and wp.fecha_fin_de_promocion <= '{ds}'::date 
+                                            and wp.tipo_promocion IN (1,4)
+                                            and wp.registro_valido = True
+                                            and wp.organizacion_ventas = '1000'
+                                            and wp.canal_distribucion = '10'
+                                            and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                                            AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                                            AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                                            AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                                            AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                                            AND wp.nombre_promocion::text !~~ '%917%'::text
+                                            AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                                            and wp.nombre_promocion::text !~~ '% LOC%'::text
+                                            and wp.nombre_promocion::text !~~ '%LIQ%'::text)
+                                        and wp.tipo_promocion IN (1,4)
+                                        and wp.registro_valido = True
+                                        and wp.organizacion_ventas = '1000'
+                                        and wp.canal_distribucion = '10'
+                                        and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                                        AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                                        AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                                        AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                                        AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                                        AND wp.nombre_promocion::text !~~ '%917%'::text
+                                        AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                                        and wp.nombre_promocion::text !~~ '% LOC%'::text
+                                        and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                                        group by concat(wp.material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end) ,fecha_inicio_de_promocion,fecha_fin_de_promocion
+                                        order by concat(wp.material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end)) as _t
+                                    GROUP BY _t.fecha_inicio, _t.fecha_fin;"""
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
