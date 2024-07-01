@@ -67,7 +67,17 @@ left join (
 	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
 	and wp.nombre_promocion::text !~~ '% LOC%'::text
 	and wp.nombre_promocion::text !~~ '%LIQ%'::text
-	and wp.n_promocion != '5552392024'
+	and wp.n_promocion in  ()'5552392024','1120012024',
+'1120022024',
+'1120032024',
+'1120042024',
+'1120052024',
+'1120062024',
+'1120082024',
+'1120092024',
+'1120102024',
+'1120112024',
+'1120122024')
     group by wp.ean
 ) _t3
 on _t.ean = _t3.ean
