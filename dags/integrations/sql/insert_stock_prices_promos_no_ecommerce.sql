@@ -72,7 +72,7 @@ left join (
 	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
 	and wp.nombre_promocion::text !~~ '% LOC%'::text
 	and wp.nombre_promocion::text !~~ '%LIQ%'::text
-	and wp.n_promocion in  ()'5552392024','1120012024',
+	and wp.n_promocion  not in  ('5552392024','1120012024',
 '1120022024',
 '1120032024',
 '1120042024',
