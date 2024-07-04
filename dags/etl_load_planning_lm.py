@@ -45,6 +45,7 @@ def mongo_to_postgres(ts):
         for row in document["assignmentControl"]:
             new_document = {}
             new_document["_id"] = _id
+            new_document["sequence"] = row["sequence"] 
             new_document["createdAt"] = createdAt
             new_document["updatedAt"] = updatedAt
             new_document["driverName"] = driverName
@@ -57,7 +58,6 @@ def mongo_to_postgres(ts):
             except Exception as e:
                 new_document["driverMobileNumber"] = None
             new_document["documentOperator"] = documentOperator
-            new_document["sequence"] = row["sequence"]
             new_document["stopNumber"] = row["stopNumber"]
             new_document["priority"] = row["priority"]
             new_document["chargingGroup"] = row["chargingGroup"]
