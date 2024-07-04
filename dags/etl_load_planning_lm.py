@@ -35,7 +35,7 @@ def mongo_to_postgres(ts):
     new_documents = []
 
     for document in documents:
-        _id = str(document[_id])
+        _id = str(document["_id"])
         createdAt = document["createdAt"]
         updatedAt = document["updatedAt"]
         driverName = document["driver"]["name"]
