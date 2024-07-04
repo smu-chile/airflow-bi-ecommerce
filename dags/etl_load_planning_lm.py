@@ -160,7 +160,7 @@ def mongo_to_postgres(ts):
         INSERT INTO integraciones.lm_planning (id_viaje, id_orden,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id_viaje, id_orden)
-        DO UPDATE SET """+columns_query+""" = """+excluded_query+""" 
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""")
     """
     print(incremental_query)
     update_query = """
@@ -196,7 +196,7 @@ with DAG(
         default_args=default_args,
         description="Carga a postgres el planning de last millers desde mongoDB.",
         schedule_interval="0 3 * * *",
-        start_date=pendulum.datetime(2023, 7, 1, tz="America/Santiago"),
+        start_date=pendulum.datetime(2024, 7, 1, tz="America/Santiago"),
         max_active_runs = 1,
         tags=["mongo", "postgres", "MATIAS", "last_millers"],
     ) as dag:
