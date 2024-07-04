@@ -21,16 +21,6 @@ def mongo_to_postgres(ts):
     mongo_client = MongoClient(f"mongodb+srv://{mongo_user}:{mongo_pass}@{mongo_cluster_name}.reeld.mongodb.net/{mongo_db}?authMechanism=SCRAM-SHA-1")
     mongo_collection = mongo_client[mongo_db]["slack"]
 
-    execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
-    local_tz = pytz.timezone("America/Santiago")
-    date_from = local_tz.localize(execution_date).astimezone(pytz.utc)
-    date_to = date_from + timedelta(days=1)
-
-    print(date_from)
-    print(date_to)
-
-    x = mongo_collection.find({"actionDetail.dateCreated": {"$gte": date_from, "$lt": date_to}})
-
     x = mongo_collection.find()
     documents = list(x)
 
@@ -121,7 +111,7 @@ default_args = {
 with DAG(
         'etl_load_client_notifications_to_postgres',
         default_args=default_args,
-        description="Carga a postgres de notificación de clientes desde el orquestador mongoDB.",
+        description="Carga a postgres la notificación de clientes desde el orquestador mongoDB.",
         schedule_interval="0 3 * * *",
         start_date=pendulum.datetime(2023, 3, 19, tz="America/Santiago"),
         catchup=True,
@@ -129,7 +119,7 @@ with DAG(
         tags=["mongo", "postgres", "MATIAS"],
     ) as dag:
         dag.doc_md = """
-            Carga a postgres de notificación de clientes desde el orquestador mongoDB.
+            Carga a postgres la notificación de clientes desde el orquestador mongoDB.
         """ 
 
         t0 = PythonOperator(
