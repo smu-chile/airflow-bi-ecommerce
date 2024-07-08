@@ -178,7 +178,7 @@ with DAG(
     'etl_stock_prices_promos_last_millers_10',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos_m10",
-    schedule_interval="30 8 * * *",
+    schedule_interval="30 12 * * *",
     start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA","last_millers","M10","integraciones","stock","prices","promos","PATRICIO"],
