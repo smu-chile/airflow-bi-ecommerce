@@ -79,7 +79,8 @@ left join (
 '1120092024',
 '1120102024',
 '1120112024',
-'1120122024')
+'1120122024',
+'4000512024')
     group by wp.ean , wp.material
 ) _t3
 on _t.material = _t3.material
