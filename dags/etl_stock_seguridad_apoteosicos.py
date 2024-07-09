@@ -102,7 +102,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and vst.fecha <= '{fecha_fin}'::date
             and lpad(vst.material, 18, '0') in ('{list_material}')
             and t.status = 1
-            and lpad(vst.id_tienda, 4, '0') not in ('1917')
+            and lpad(vst.id_tienda, 4, '0') not in ('1917','0917')
         group by vst.id_tienda, vst.material
     """
     
@@ -135,7 +135,8 @@ def ventas_maximas(list_material,ds):
                             SELECT fd.id_tienda, fd.material, fd.venta_umv
                             FROM filtered_data fd
                             LEFT JOIN ecommdata.tiendas t ON t.id = lpad(fd.id_tienda,4,'0')
-                            WHERE t.status = 1;"""
+                            WHERE t.status = 1
+                            and fd.id_tienda not in ('1917','917');"""
     print(ventas_maximos_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
