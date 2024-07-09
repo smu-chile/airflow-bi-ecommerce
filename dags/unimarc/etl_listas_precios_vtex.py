@@ -6,24 +6,33 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 import pendulum
 
+def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken, sku_id):
+    r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
+    try:
+        responses.append({'json': r.json(), 'url': url, 'sku_id': sku_id})
+    except Exception as e:
+        exception_cases.append(url)
 
-def get_fixed_prices(ti):
+
+def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken, sku_ids):
+    for url, sku_id in zip(url_sublist, sku_ids):
+        get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken, sku_id)
+    return
+
+def get_fixed_prices(ti,ds):
     import pandas as pd
     import requests
     import json
+    import numpy as np
+    from threading import Thread
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     print("Getting vtex_ids of products in WP with Fixed Price")
-    query = """select distinct s.vtex_id
-        from ecommdata.workflow_promociones wp 
-        inner join ecommdata.skus s on s.ref_id = wp.material||'-'|| CASE WHEN wp.umv = 'ST' THEN 'UN' WHEN wp.umv = 'CS' THEN 'CJ' WHEN wp.umv = 'DIS' THEN 'DIS' END
-        where wp.tipo_promocion = 4
-        and wp.umv not in ('KG','KGV')
-        and wp.fecha_inicio_de_promocion  <= current_date + interval '1 days'
-        and wp.fecha_fin_de_promocion >= current_date  
-        AND s.vtex_id IS NOT NULL; """
+    query = f"""select distinct s.vtex_id
+        from ecommdata.skus s
+        where s.vtex_id IS NOT NULL;"""
     cursor.execute(query)
     results = cursor.fetchall()
     list_skus = [result[0] for result in results]
@@ -31,9 +40,71 @@ def get_fixed_prices(ti):
     pg_connection.close()
     print(f"Se obtuvieron {len(list_skus)} skus")
 
+    if(len(list_skus) == 0):
+        print("no hay SKUS activos en VTEX")
+        return
+
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
+
+    url_list = [f"https://api.vtex.com.br/{accountName}/pricing/prices/{i}/fixed" for i in list_skus]
+
+    session = requests.session()
+    thread_num = 40
+    task_num = len(url_list)//thread_num # division entera
+    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    session.mount('https://', adapter)
+    thread_tasks = []
+    count = 0
+    responses = []
+    exception_cases = []
+
+    for thr in range(thread_num):
+        new_task = Thread(target=bulk_get, args=[url_list[task_num * count:task_num * (count + 1)],
+                                                 responses, session, exception_cases, X_VTEX_API_AppKey,
+                                                 X_VTEX_API_AppToken, list_skus[task_num * count:task_num * (count + 1)]],
+                          daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+        count = count + 1
+    # tareas resagadas:
+    if task_num * thread_num != len(url_list):
+        new_task = Thread(
+            target=bulk_get,
+            args=[url_list[task_num * thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey,
+                  X_VTEX_API_AppToken, list_skus[task_num * thread_num:]],
+            daemon=True)
+        new_task.start()
+        thread_tasks.append(new_task)
+    for task in thread_tasks:
+        task.join()
+        thread_tasks = []
+    
+    final_responses = []
+
+    for response in responses:
+        try:
+            for item in response['json']:
+                record = {
+                    'vtex_id': response['sku_id'],
+                    'tradePolicyId': item['tradePolicyId'],
+                    'value': item['value'],
+                    'listPrice': item['listPrice'],
+                    'minQuantity': item['minQuantity'],
+                    'Date From': item['dateRange']['from'],
+                    'Date To': item['dateRange']['to']
+                    
+                }
+                final_responses.append(record)
+        except KeyError as e:
+            print(e)
+            print(response)
+            exception_cases.append(response['url'])
+    df = pd.DataFrame(final_responses)
+
+    aux_list = []
+
     headers = {
         'Accept': "application/json",
         'Content-Type': "application/json",
@@ -41,46 +112,36 @@ def get_fixed_prices(ti):
         "X-VTEX-API-AppToken":  X_VTEX_API_AppToken,
         "Connection": "keep-alive"
     }
-
-    df_final = pd.DataFrame()
-    for itemId in list_skus:
-        df = pd.DataFrame()
-        GET_FIXED_PRICES = f"https://api.vtex.com.br/{accountName}/pricing/prices/{str(itemId)}/fixed"
-        print("GET_FIXED_PRICES: ", GET_FIXED_PRICES)
-        r = requests.get(GET_FIXED_PRICES, headers=headers)
-        print(r.content)
-        if r.status_code == 404:
-            print("Error 404: Recurso no encontrado")
-            continue
-        elif r.status_code == 200:
-            r.raise_for_status()
-            data = r.json()
-            df = pd.DataFrame(data)
-            if not df.empty:
-                if 'dateRange' not in df.columns:
-                    continue
-                df = df.assign(vtex_id=itemId)
-                for index, row in df.iterrows():
-                    if pd.isna(row['dateRange']) or (row['dateRange'] == ''):
-                        df.at[index, 'Date From'] = 'NULL'
-                        df.at[index, 'Date To'] = 'NULL'
-                    else:
-                        df.at[index, 'Date From'] = row['dateRange']['from']
-                        df.at[index, 'Date To'] = row['dateRange']['to']
-                df = df.drop('dateRange', axis=1)
-            df = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value',
-                            'listPrice', 'minQuantity', 'Date From', 'Date To'])
-            df_final = pd.concat([df_final, df])
+    
+    for index, row in df.iterrows():
+        if (df.at[index, 'Date To'] < ds):
+            print(f"Promoción caducada {df.at[index, 'tradePolicyId']}")
+            price_table_id = df.at[index, 'tradePolicyId']
+            itemId = df.at[index, 'vtex_id']
+            url = f"https://api.vtex.com/{accountName}/pricing/prices/{str(itemId)}/fixed/{price_table_id}"
+            print(url)
+            if price_table_id not in aux_list:
+                aux_list.append(price_table_id)
+            df.drop(index, inplace=True)
+            response = requests.delete(url, headers =headers)
+            if response.status_code == 200:
+                print("DELETE request successful")
+            else:
+                print(f"DELETE request failed with status code: {response.status_code}")
         else:
-            print(f"No se obtuvo info del producto {itemId}")
+            print(f"Promoción activa {df.at[index, 'tradePolicyId']}")
+
+    print("Listas Vacias:")
+    print(aux_list)        
+
+    df_final = df.reindex(columns=['vtex_id', 'tradePolicyId', 'value', 'listPrice', 'minQuantity', 'Date From', 'Date To'])
 
     df_final = df_final.rename(columns={'vtex_id': 'SKU ID', 'tradePolicyId': 'Trade Policy',
                                         'value': 'Price', 'listPrice': 'List Price',
                                         'minQuantity': 'Min Quantity'})
-    df_final = df_final.astype(
-        {'SKU ID': 'int', 'Price': 'int64', 'Min Quantity': 'int64'})
-    return df_final.to_json(orient='records')
 
+    df_final = df_final.astype({'SKU ID': 'int', 'Price': 'int64', 'Min Quantity': 'int64'})
+    return df_final.to_json(orient='records')    
 
 def upload_fixed_prices(ti):
     import pandas as pd
