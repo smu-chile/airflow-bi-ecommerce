@@ -39,7 +39,7 @@ def stock(ds):
                             where fecha = '{ds}'::date
                             and surtido_ecommerce is true
                             and stock_infinito_janis is not true
-                            and id_tienda not in ('1917')
+                            and id_tienda not in ('1917','0917')
                             and t.status = 1
                             """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -122,7 +122,7 @@ def venta_tienda(ds):
                     on LPAD(v.id_tienda , 4, '0') = t.id
                     where v.fecha >= '{ds}'::date -70
                     and v.organizacion = 'Unimarc'
-                    and LPAD(v.id_tienda , 4, '0') not in ('1917')
+                    and LPAD(v.id_tienda , 4, '0') not in ('1917','0917')
                     """
     print(ventas_skus_tienda_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
