@@ -217,7 +217,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
                             '3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
                             '90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690') then lspp.precio_promocional
                     when lspp.ean in ('53363','53364','91406','91407','92315','93269','93280','96224','96438','96439',
-					'96440','96441','96442','96444','96445','96484','96643','98602','98604','98985') then lspp.precio_promocional
+					'96440','96441','96442','96444','96445','96484','96643','98602','98985','98604') then lspp.precio_promocional
                     ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
                 END AS discounted_price,
                 --s.multiplicador_unidad_medida,
