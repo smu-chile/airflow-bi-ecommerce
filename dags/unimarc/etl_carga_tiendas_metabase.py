@@ -17,7 +17,10 @@ def lista8():
                                     from ecommdata.ubicacion_mfc um 
                                     where mfc_is_item_side = 'REG') as ubi
                                     on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
-                        where ubi.ref_id is null"""
+                        where ubi.ref_id is null
+                        union
+                        select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
+                        from ecommdata.lista8 l;"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()

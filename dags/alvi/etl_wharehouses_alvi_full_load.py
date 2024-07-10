@@ -31,7 +31,8 @@ def _full_load_bodegas_table(ti):
             "nombre",
             "dock",
             "id_tienda",
-            "id_janis"
+            "id_janis",
+            "dock_activo"
     ]]   
 
     # # Ensure correct datatypes:
@@ -40,6 +41,7 @@ def _full_load_bodegas_table(ti):
     df["dock"] = df["dock"].astype("int", errors="ignore")
     df["id_tienda"] = df["id_tienda"].astype("int", errors="ignore")
     df["id_janis"] = df["id_janis"].astype("int", errors="ignore")
+    df["dock_activo"] = df["dock_activo"].astype("bool")
 
     df["id_tienda"] = df["id_tienda"].apply(lambda x: "{:04}".format(int(x)) if pd.notnull(x) else x) 
 
@@ -104,6 +106,10 @@ with DAG(
                     , wlwd.dock
                     , ws.ref_id as id_tienda 
                     , wlw.id as id_janis
+                    , CASE
+                        when wlds.status > 0 then true
+                        else false
+                    END as dock_activo
                     from wms_logistic_warehouses wlw 
                     left join wms_logistic_warehouse_docks wlwd 
                         on wlwd.warehouse = wlw.id 
@@ -112,7 +118,7 @@ with DAG(
                     left join ecommerce_accounts ea 
                         on ea.id = wlds.ecommerce_account
                     left join wms_stores ws
-                	    on ws.ecommerce_account_id = ea.id;
+                        on ws.ecommerce_account_id = ea.id;
             """,
             "query_name": "wms_logistic_warehouses",
         }

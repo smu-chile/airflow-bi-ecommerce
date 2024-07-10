@@ -53,15 +53,25 @@ def materiales_dentro_ventas(list_material,ds):
 
 def promociones(ds):
     import pandas as pd
-    promociones_query = """select distinct wp.material
-                    from ecommdata.workflow_promociones wp
-                    left join ecommdata.lista8 l 
-                    on wp.material = l.material
-                    where wp.fecha_inicio_de_promocion <= '"""+ds+"""'::date 
-                    and wp.fecha_fin_de_promocion >= '"""+ds+"""'::date 
-                    and wp.id_mecanica not in (12,22,25,26,27,36,50,67,72,84,99,37,51,53,59,77,82,93,96,123)
-                    and wp.id_evento not in (551)
-                    and l.material is not null"""
+    promociones_query = f"""select distinct
+                    wp.material
+                    from ecommdata.workflow_promociones wp 
+                    where wp.fecha_inicio_de_promocion <= '{ds}'::date
+                    and wp.fecha_fin_de_promocion >= '{ds}'::date
+                    and wp.tipo_promocion IN (1,4)
+                    and wp.registro_valido = True
+                    and wp.organizacion_ventas = '1000'
+                    and wp.canal_distribucion = '10'
+                    and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                    AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                    AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                    AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                    AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                    AND wp.nombre_promocion::text !~~ '%917%'::text
+                    AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                    and wp.nombre_promocion::text !~~ '% LOC%'::text
+                    and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                    group by wp.umv, wp.material"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -92,7 +102,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and vst.fecha <= '{fecha_fin}'::date
             and lpad(vst.material, 18, '0') in ('{list_material}')
             and t.status = 1
-            and lpad(vst.id_tienda, 4, '0') not in ('1917')
+            and lpad(vst.id_tienda, 4, '0') not in ('1917','0917')
         group by vst.id_tienda, vst.material
     """
     
@@ -125,7 +135,8 @@ def ventas_maximas(list_material,ds):
                             SELECT fd.id_tienda, fd.material, fd.venta_umv
                             FROM filtered_data fd
                             LEFT JOIN ecommdata.tiendas t ON t.id = lpad(fd.id_tienda,4,'0')
-                            WHERE t.status = 1;"""
+                            WHERE t.status = 1
+                            and fd.id_tienda not in ('1917','917');"""
     print(ventas_maximos_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -213,6 +224,15 @@ def ventas_maximos_apo_to_s3_am(ds):
     df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
 
     df_final_final["stock_seguridad"] = df_final_final["stock_seguridad"].apply(np.ceil)
+
+    condlist = [df_final_final["stock_seguridad"]>100,
+                df_final_final["stock_seguridad"]<=100
+    ]
+    choicelist = [100,df_final_final["stock_seguridad"]]
+
+    df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
+
+    df_final_final["stock_seguridad"] = df_final_final["stock_seguridad"]*0.5
 
     print(df_final_final)
   
@@ -369,6 +389,13 @@ def ventas_maximos_apo_to_s3_pm(ds):
                 df_final_final["prom_ventas"]<2,
                 df_final_final["prom_ventas"]>=2]
     choicelist = [df_final_final["venta_maxima"], 2,df_final_final["prom_ventas"]]
+
+    df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
+    
+    condlist = [df_final_final["stock_seguridad"]>100,
+                df_final_final["stock_seguridad"]<= 100
+    ]
+    choicelist = [100,df_final_final["stock_seguridad"]]
 
     df_final_final["stock_seguridad"] = np.select(condlist, choicelist)
 

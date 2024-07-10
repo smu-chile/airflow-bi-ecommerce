@@ -68,7 +68,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
-                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v_time}';
+                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -94,7 +94,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
                         inner join ecommdata.productos p on op.ref_id = p.ref_id
                         inner join ecommdata.categorias c on p.id_categoria = c.id
-                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v_time}' and c.n1 = 'Carnes';
+                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes' and c.n1 = 'Carnes';
                         """
         print(lpc_query)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -120,7 +120,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
                         inner join ecommdata.productos p on op.ref_id = p.ref_id
                         inner join ecommdata.categorias c on p.id_categoria = c.id
-                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v_time}' and c.n1 = 'Quesos y Fiambres';
+                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes' and c.n1 = 'Quesos y Fiambres';
                         """
         print(lpq_query)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -144,7 +144,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
-                        where oj.id_tienda_janis = 25 and d.inicio_ventana = '{v_time}';
+                        where oj.id_tienda_janis = 25 and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query_FULL)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -174,7 +174,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
-                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v2_time}';
+                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -200,7 +200,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
                         inner join ecommdata.productos p on op.ref_id = p.ref_id
                         inner join ecommdata.categorias c on p.id_categoria = c.id
-                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v2_time}' and c.n1 = 'Carnes';
+                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes' and c.n1 = 'Carnes';
                         """
         print(lpc_query)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -226,7 +226,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
                         inner join ecommdata.productos p on op.ref_id = p.ref_id
                         inner join ecommdata.categorias c on p.id_categoria = c.id
-                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana = '{v2_time}' and c.n1 = 'Quesos y Fiambres';
+                        where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes' and c.n1 = 'Quesos y Fiambres';
                         """
         print(lpq_query)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -250,7 +250,7 @@ def listado_productos_sala_mfc(ts, ds):
                         inner join ecommdata.despachos d on d.id_orden = oj.id
                         inner join analytics_and_growth.perfil_usuario pu on pu.id_cliente_janis = oj.id_cliente_janis
                         inner join analytics_and_growth.detalle_usuario du on du.user_profile_id = pu.user_profile_id
-                        where oj.id_tienda_janis = 25 and d.inicio_ventana = '{v2_time}';
+                        where oj.id_tienda_janis = 25 and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query_FULL)
         pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -270,7 +270,7 @@ def listado_productos_sala_mfc(ts, ds):
         results_q.append(None)
         results_FULL.append(None)
 
-    return [results,results_c, results_q, results_FULL]
+    return [results,results_c, results_q, results_FULL, v_time, v2_time]
 
 def send_to_slack(ts, ds):
     from slack_sdk import WebClient
@@ -278,10 +278,13 @@ def send_to_slack(ts, ds):
     import io
     import pandas as pd
 
-    df_list = listado_productos_sala_mfc(ts, ds)[0]
-    df_list_c = listado_productos_sala_mfc(ts, ds)[1]
-    df_list_q = listado_productos_sala_mfc(ts, ds)[2]
-    df_list_FULL = listado_productos_sala_mfc(ts, ds)[3]
+    results = listado_productos_sala_mfc(ts, ds)
+    df_list = results[0]
+    df_list_c = results[1]
+    df_list_q = results[2]
+    df_list_FULL = results[3]
+    v_time = results[4]
+    v2_time = results[5]
     
     if df_list[0] is not None:
         print("SENDING DF1")
@@ -297,7 +300,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos sala en mfc",
+            initial_comment = "Listado de productos sala en mfc " + v_time,
             filename = "listado_productos_sala_mfc.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
@@ -318,7 +321,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos sala carnes en mfc",
+            initial_comment = "Listado de productos sala carnes en mfc " + v_time,
             filename = "listado_productos_sala_mfc_c.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
@@ -339,7 +342,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos sala quesos y fiambres en mfc",
+            initial_comment = "Listado de productos sala quesos y fiambres en mfc " + v_time,
             filename = "listado_productos_sala_mfc_q.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
@@ -360,7 +363,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos BACKUP FULL",
+            initial_comment = "Listado de productos BACKUP FULL " + v_time,
             filename = "listado_productos_BACKUP_FULL_mfc.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
@@ -385,7 +388,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos sala en mfc",
+            initial_comment = "Listado de productos sala en mfc " + v2_time,
             filename = "listado_productos_sala_mfc.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
@@ -404,7 +407,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos sala carnes en mfc",
+            initial_comment = "Listado de productos sala carnes en mfc " + v2_time,
             filename = "listado_productos_sala_mfc_c.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
@@ -423,7 +426,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos sala quesos y fiambres en mfc",
+            initial_comment = "Listado de productos sala quesos y fiambres en mfc " + v2_time,
             filename = "listado_productos_sala_mfc_q.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
@@ -442,7 +445,7 @@ def send_to_slack(ts, ds):
         try:
             client.files_upload(
             channels = Variable.get("canal_slack_lps_mfc"),
-            initial_comment = "Listado de productos BACKUP FULL",
+            initial_comment = "Listado de productos BACKUP FULL " + v2_time,
             filename = "listado_productos_BACKUP_FULL_mfc.xlsx",
             content = buffer.getvalue())
         except SlackApiError as e:
