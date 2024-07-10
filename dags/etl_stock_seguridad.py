@@ -33,13 +33,14 @@ def stock(ds):
                     from(select pt.id_tienda, pt.ref_id 
                             from ecommdata.productos_tienda pt
                             left join ecommdata.tiendas t on t.id = pt.id_tienda 
-                            where pt.id_tienda <> '9212'
+                            where pt.id_tienda not in ('9212', '1917')
                             and t.status = 1
                             union
                             select distinct
                             "refId" as ref_id,
                             unnest(string_to_array(stores, ',')) AS id_tienda
-                            from ecommdata.carga_productos cp) as c;
+                            from ecommdata.carga_productos cp) as c
+                            where c.id_tienda not in ('9212', '1917');
                             """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     print(stock_tiendas_query)
@@ -48,7 +49,7 @@ def stock(ds):
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["id_tienda","ref_id","dia","semana"]
+    results.columns = ["ref_id","id_tienda","dia","semana"]
     results.info()
     cursor.close()
     pg_connection.close()
@@ -68,13 +69,14 @@ def matriz_ss():
     results.columns = ["id_tienda","peso"]
     cursor.close()
     pg_connection.close()
+    results.info()
     return results
 
 def venta_tienda(ds):
     import pandas as pd
     ventas_skus_tienda_query = f"""select LPAD(v.id_tienda , 4, '0') as id_tienda,
                     CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
-                    v.venta_umv,
+                    v.venta_umv as cantidad,
                     date_part('dow',v.fecha)::int as dia,
                     date_part('week',v.fecha)::int as semana
                     from ecommdata.venta_sku_tienda as v
@@ -198,18 +200,19 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
 
     ###############################################
-    #        filtrado por dia y promociones       #
+    #        filtrado por dia #y promociones      #
     ###############################################
+
     df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
-    df_stock_seguridad_aux=df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
+    df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
     df_stock_seguridad_aux.info()
 
     df_final = df_stock_seguridad_aux
     df_final.reset_index()
     df_final.info()
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
 
     #Agregar logica minimos exhibicion
     df_minimos = minimos_exhibicion()
@@ -220,11 +223,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
-    print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
-    print("Verificación de condiciones:")
-    print((df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]).head())
-    print((df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]).head())
-    
 
     condlist_1 = [
             df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
@@ -236,7 +234,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
                 ]
     
     df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
-    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -250,26 +247,34 @@ def stock_ventas_tiendas_to_s3_am(ds):
     
     df_matriz = matriz_ss()
 
-    df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final = df_final.merge(df_matriz, how='left', on="id_tienda")
+    df_final["peso"] = df_final["peso"].fillna(1)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
+
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
 
     ##############
     #cargar datos#
     ##############
+
     condlist = [df_final["nuevo_stock_seguridad"]>=2,
                 df_final["nuevo_stock_seguridad"]<2]
     choicelist = [df_final["nuevo_stock_seguridad"], 2]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    print(df_final.head())
 
     condlist = [df_final["nuevo_stock_seguridad"]>=100,
                 df_final["nuevo_stock_seguridad"]<100]
     choicelist = [100, df_final["nuevo_stock_seguridad"]]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+
+    df_final = df_final[df_final['id_tienda'] != '1917']
+    df_final = df_final[df_final['id_tienda'] != '9212']
+    print(df_final.head())
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
@@ -297,14 +302,15 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    df_stock = pd.DataFrame(stock(ds))
+    df_stock = stock(ds)
     print("se ha cargado stock\n")
-    df_venta_tienda = pd.DataFrame(venta_tienda(ds))
-    print("se ha cargado ventas\n")
-    df_stock.columns=["id_tienda","ref_id","dia","semana"]
-    df_venta_tienda.columns =["id_tienda","ref_id","cantidad","dia","semana"]
+    print(df_stock)
 
-    print("se ha terminado de extraer data \n")
+    df_venta_tienda = venta_tienda(ds)
+    print("se ha cargado ventas\n")
+    print(df_venta_tienda)
+    
+    print("\nse ha terminado de extraer data \n")
 
     #########################
     #transformacion de datos#
@@ -344,6 +350,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad_aux["nuevo_stock_seguridad"] = round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
+    
     ###############################################
     #        filtrado por dia y promociones       #
     ###############################################
@@ -371,10 +378,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
     print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
-    print("Verificación de condiciones:")
-    print((df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]).head())
-    print((df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]).head())
-    
 
     condlist_1 = [
             df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
@@ -403,6 +406,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print("\n")
     print(df_final)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    print("QA_test")
+    print(df_final)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
     df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
@@ -425,6 +430,10 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     choicelist = [100, df_final["nuevo_stock_seguridad"]]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final = df_final[df_final['id_tienda'] != '1917']
+    df_final = df_final[df_final['id_tienda'] != '9212']
+
+    print(df_final)
 
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
