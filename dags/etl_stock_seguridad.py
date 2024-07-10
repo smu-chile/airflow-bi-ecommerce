@@ -30,7 +30,7 @@ def _check_time(ts):
 def stock(ds):
     import pandas as pd
     stock_tiendas_query = f"""select distinct c.*, date_part('dow','{ds}'::date) as dia, date_part('week','{ds}'::date) as semana
-                    from(select pt.ref_id, pt.id_tienda,
+                    from(select pt.ref_id, pt.id_tienda
                             from ecommdata.productos_tienda pt
                             left join ecommdata.tiendas t on t.id = pt.id_tienda 
                             where pt.id_tienda not in ('9212', '1917')
