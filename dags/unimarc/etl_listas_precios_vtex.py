@@ -114,8 +114,8 @@ def get_fixed_prices(ti,ds):
     }
     
     for index, row in df.iterrows():
-        if (df.at[index, 'Date To'] < ds):
-            print(f"Promoción caducada {df.at[index, 'tradePolicyId']}")
+        if (df.at[index, 'Date To'] < ds) and df.at[index, 'tradePolicyId'] != '40':
+            print(f"Promoción caducada SKU: {df.at[index, 'vtex_id']} en {df.at[index, 'tradePolicyId']}")
             price_table_id = df.at[index, 'tradePolicyId']
             itemId = df.at[index, 'vtex_id']
             url = f"https://api.vtex.com/{accountName}/pricing/prices/{str(itemId)}/fixed/{price_table_id}"
@@ -128,8 +128,6 @@ def get_fixed_prices(ti,ds):
                 print("DELETE request successful")
             else:
                 print(f"DELETE request failed with status code: {response.status_code}")
-        else:
-            print(f"Promoción activa {df.at[index, 'tradePolicyId']}")
 
     print("Listas Vacias:")
     print(aux_list)        
