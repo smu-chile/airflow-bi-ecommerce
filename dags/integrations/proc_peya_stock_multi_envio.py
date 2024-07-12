@@ -220,13 +220,10 @@ def _join_stock_and_promo_prices_from_s3(ds, ti,ts):
 					'96440','96441','96442','96444','96445','96484','96643','98602','98985','98604') then lspp.precio_promocional
                     ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
                 END AS discounted_price,
-                --s.multiplicador_unidad_medida,
                 999 AS max_no_of_orders,
                 1 AS campaign_status
                 FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR
-                    (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
                 and lspp.precio_promocional  is not null
                 AND lspp.id_tienda = '{store_id}'
                 GROUP BY
