@@ -212,9 +212,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 1 AS campaign_status
                 FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                WHERE (lspp.unidad_de_medida IN ('KG', 'KGV') OR
-                    (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= 7))
-                and lspp.precio_promocional  is not null
+                where lspp.precio_promocional  is not null
                 AND lspp.id_tienda = '{store_id}'
                 GROUP BY
                 lspp.ean,
