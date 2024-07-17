@@ -63,11 +63,6 @@ def _incremental_load_order_status_changes(ti):
             "extra"
             ]]
 
-    temp_extra_jsons = df["extra"].apply(lambda x: get_json(x))
-
-    df["tienda_vieja"] = temp_extra_jsons.apply(lambda x: get_old_store_from_json(x))
-    df["tienda_nueva"] = temp_extra_jsons.apply(lambda x: get_new_store_from_json(x))
-
     # Rename columns to match workspace schema:
     columns_rename = {
         "order_id": "id_orden",
@@ -80,7 +75,23 @@ def _incremental_load_order_status_changes(ti):
 
     # Calculate extra columns:
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion_unixtime"], unit="s")
+    temp_extra_jsons = df["extra"].apply(lambda x: get_json(x))
 
+    df["tienda_vieja"] = temp_extra_jsons.apply(lambda x: get_old_store_from_json(x))
+    df["tienda_nueva"] = temp_extra_jsons.apply(lambda x: get_new_store_from_json(x))
+
+    df = df[[
+            "id",
+            "id_orden",
+            "estado_anterior",
+            "estado_nuevo",
+            "creado_por",
+            "fecha_creacion_unixtime",
+            "fecha_creacion",
+            "extra",
+            "tienda_vieja",
+            "tienda_nueva"
+            ]]
     df = df.astype({
         "id": "int",
         "id_orden": "int",
