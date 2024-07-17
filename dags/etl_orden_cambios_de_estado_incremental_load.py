@@ -9,10 +9,23 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+def get_old_store_from_json(x):
+    try:
+        return x["old_store"]
+    except Exception as e:
+        return None
+    
+def get_new_store_from_json(x):
+    try:
+        return x["new_store"]
+    except Exception as e:
+        return None
+
 def _incremental_load_order_status_changes(ti):
     import pandas as pd
     import numpy as np
     import sqlalchemy
+    import json
     
     order_status_changes_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
 
@@ -39,8 +52,14 @@ def _incremental_load_order_status_changes(ti):
             "old_status",
             "new_status",
             "user_created",
-            "date_created"
+            "date_created",
+            "extra"
             ]]
+
+    temp_extra_jsons = df["extra"].apply(json.loads)
+
+    df["tienda_vieja"] = temp_extra_jsons.apply(lambda x: get_old_store_from_json(x))
+    df["tienda_nueva"] = temp_extra_jsons.apply(lambda x: get_new_store_from_json(x))
 
     # Rename columns to match workspace schema:
     columns_rename = {
@@ -70,7 +89,10 @@ def _incremental_load_order_status_changes(ti):
         "estado_nuevo",
         "creado_por",
         "fecha_creacion_unixtime",
-        "fecha_creacion"
+        "fecha_creacion",
+        "extra",
+        "tienda_vieja",
+        "tienda_nueva"
     ]
 
     print("Number of records to be loaded: "+str(len(df.index)))
