@@ -9,6 +9,13 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+def get_json(x):
+    import json
+    try:
+       return json.loads(x)
+    except Exception as e:
+        return None
+
 def get_old_store_from_json(x):
     try:
         return x["old_store"]
@@ -56,7 +63,7 @@ def _incremental_load_order_status_changes(ti):
             "extra"
             ]]
 
-    temp_extra_jsons = df["extra"].apply(json.loads)
+    temp_extra_jsons = df["extra"].apply(lambda x: get_json(x))
 
     df["tienda_vieja"] = temp_extra_jsons.apply(lambda x: get_old_store_from_json(x))
     df["tienda_nueva"] = temp_extra_jsons.apply(lambda x: get_new_store_from_json(x))
