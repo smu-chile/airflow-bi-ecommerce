@@ -18,6 +18,8 @@ select ta.id_janis
 		, max(case when b.nombre is null then null else ta.dock end) as dock
 		, max(b.nombre) as nombre_dock
 		, max(b.id_tienda) as id_tienda
+		, tu.id_compañia_logistica
+		, tu.nombre_compañia_logistica
 from staging.transportadoras_alvi ta
 left join ecommdata_alvi.bodegas b 
 on ta.dock = b.dock 
