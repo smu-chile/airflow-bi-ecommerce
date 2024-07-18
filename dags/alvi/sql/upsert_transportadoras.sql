@@ -39,8 +39,8 @@ group by ta.id_janis
 		, ta.descripcion 
 		, ta.integration_lock 
 		, ta.fecha_modificacion_unixtime
-		, tu.id_compañia_logistica
-		, tu.nombre_compañia_logistica
+		, ta.id_compañia_logistica
+		, ta.nombre_compañia_logistica
 on conflict (id) do update 
 set nombre = EXCLUDED.nombre 
 	, tipo = EXCLUDED.tipo 
