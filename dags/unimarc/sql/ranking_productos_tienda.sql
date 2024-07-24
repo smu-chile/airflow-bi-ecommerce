@@ -23,7 +23,7 @@ FROM (
             ecommdata.ventas_ecommerce_datawarehouse ved
             LEFT JOIN ecommdata.skus s ON s.ref_id = ved.ref_id_sku
         WHERE
-            fecha_facturacion >= '{ds}'::date - 30
+            fecha_facturacion >= '{ds}'::date - 90
             AND ved.ref_id_sku <> '000000000000630792-UN'
             and ved.canal_venta = 'E-COMMERCE'
         GROUP BY
