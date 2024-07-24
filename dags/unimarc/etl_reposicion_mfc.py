@@ -304,7 +304,7 @@ with DAG(
         postgres_conn_id = "postgresql_conn",
         sql = """BEGIN;
             UPDATE ecommdata.maestra_reposicion_mfc
-            SET contador = contador - 1;
+            SET contador = contador - 0.5;
             UPDATE ecommdata.maestra_reposicion_mfc
             SET contador = lead_time
             WHERE contador < 0;
