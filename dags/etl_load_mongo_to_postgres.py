@@ -39,6 +39,35 @@ def mongo_to_postgres():
             "Store": doc["Store"],
             "MeasurementUnit": doc["MeasurementUnit"],
             "MFCIsItemInside": doc["MFCIsItemInside"],
+            "Length": doc["Length"],
+            "Height": doc["Height"],
+            "Width": doc["Width"],
+            "LengthUnit": doc["LengthUnit"],
+            "GrossWeight": doc["GrossWeight"],
+            "GrossMeasurementUnit": doc["GrossMeasurementUnit"],
+            "ConversionToBaseMeasurementUnit": doc["ConversionToBaseMeasurementUnit"],
+            "TemperatureZone": doc["TemperatureZone"],
+            "UsefulLife": doc["UsefulLife"],
+            "CaseMeasurementUnit": doc["CaseMeasurementUnit"],
+            "CaseQtyMeasurementUnit": doc["CaseQtyMeasurementUnit"],
+            "MFCIsCrushable": doc["MFCIsCrushable"],
+            "MFCIsHazardous": doc["MFCIsHazardous"],
+            "MFCIsBulk": doc["MFCIsBulk"],
+            "MFCIsHeavy": doc["MFCIsHeavy"],
+            "MFCIsRaw": doc["MFCIsRaw"],
+            "MFCIsChemical": doc["MFCIsChemical"],
+            "MFCIsSpecificChilled": doc["MFCIsSpecificChilled"],
+            "MFCIsGlassPackaged": doc["MFCIsGlassPackaged"],
+            "MFCIsVertical": doc["MFCIsVertical"],
+            "MFCIsStackable": doc["MFCIsEgg"],
+            "MFCIsEgg": doc["MFCIsStackable"],
+            "StoreRegularVendorDescription": doc["StoreRegularVendorDescription"],
+            "StoreSourceOfSupply": doc["StoreSourceOfSupply"],
+            "MFCIsSafety": doc["MFCIsSafety"],
+            "MinRemainingShelfLife": doc["MinRemainingShelfLife"],
+            "SlottingEligible": doc["SlottingEligible"],
+            "MFCStopBuy": doc["MFCStopBuy"],
+            "MFCStopFulfill": doc["MFCStopFulfill"],
             "createdAt": doc["createdAt"],
             "updatedAt": doc["updatedAt"]
         }
@@ -47,7 +76,16 @@ def mongo_to_postgres():
     df = pd.DataFrame(data)
     print(df)
     print("se va a renombras las columnas ")
-    df.columns = ["_id","sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
+    df.columns = ["_id", "sap_code", "ean_code", "store", "measurement_unit",
+    "mfc_is_item_inside", "length", "height", "width", "length_unit",
+    "gross_weight", "gross_measurement_unit", "conversion_to_base_measurement_unit",
+    "temperature_zone", "useful_life", "case_measurement_unit", "case_qty_measurement_unit",
+    "mfc_is_crushable", "mfc_is_hazardous", "mfc_is_bulk", "mfc_is_heavy",
+    "mfc_is_raw", "mfc_is_chemical", "mfc_is_specific_chilled", "mfc_is_glass_packaged",
+    "mfc_is_vertical", "mfc_is_stackable", "mfc_is_egg", "store_regular_vendor_description",
+    "store_source_of_supply", "mfc_is_safety", "min_remaining_shelf_life",
+    "slotting_eligible", "mfc_stop_buy", "mfc_stop_fulfill", "created_date", "update_date"]
+
     print("se han renombrado las columnas ")
     df['created_date'] = df['created_date'].apply(lambda x: x.strftime('%Y-%m-%d'))
     df['update_date'] = df['update_date'].apply(lambda x: x.strftime('%Y-%m-%d'))
@@ -61,8 +99,29 @@ def mongo_to_postgres():
     df["measurement_unit"] = df["measurement_unit"].astype("str", errors="ignore")
     df["mfc_is_item_side"] = df["mfc_is_item_side"].astype("str", errors="ignore")
 
+    bool_columns = [
+    "mfc_is_crushable", "mfc_is_hazardous", "mfc_is_bulk", "mfc_is_heavy",
+    "mfc_is_raw", "mfc_is_specific_chilled", "mfc_is_glass_packaged",
+    "mfc_is_vertical", "mfc_is_stackable", "mfc_is_egg", "slotting_eligible",
+    "mfc_stop_buy", "mfc_stop_fulfill"]
 
-    columns = ["sap_code","ean_code","store","measurement_unit","mfc_is_item_side","created_date","update_date"]
+    for col in bool_columns:
+        df[col] = df[col].astype("bool", errors="ignore")
+
+    df["length"] = df["length"].astype("float", errors="ignore")
+    df["height"] = df["height"].astype("float", errors="ignore")
+    df["width"] = df["width"].astype("float", errors="ignore")
+    df["gross_weight"] = df["gross_weight"].astype("float", errors="ignore")
+
+    columns = ["sap_code", "ean_code", "store", "measurement_unit",
+    "mfc_is_item_inside", "length", "height", "width", "length_unit",
+    "gross_weight", "gross_measurement_unit", "conversion_to_base_measurement_unit",
+    "temperature_zone", "useful_life", "case_measurement_unit", "case_qty_measurement_unit",
+    "mfc_is_crushable", "mfc_is_hazardous", "mfc_is_bulk", "mfc_is_heavy",
+    "mfc_is_raw", "mfc_is_chemical", "mfc_is_specific_chilled", "mfc_is_glass_packaged",
+    "mfc_is_vertical", "mfc_is_stackable", "mfc_is_egg", "store_regular_vendor_description",
+    "store_source_of_supply", "mfc_is_safety", "min_remaining_shelf_life",
+    "slotting_eligible", "mfc_stop_buy", "mfc_stop_fulfill", "created_date", "update_date"]
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
