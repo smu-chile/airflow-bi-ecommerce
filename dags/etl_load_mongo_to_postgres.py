@@ -77,7 +77,7 @@ def mongo_to_postgres():
     print(df)
     print("se va a renombras las columnas ")
     df.columns = ["_id", "sap_code", "ean_code", "store", "measurement_unit",
-    "mfc_is_item_inside", "length", "height", "width", "length_unit",
+    "mfc_is_item_side", "length", "height", "width", "length_unit",
     "gross_weight", "gross_measurement_unit", "conversion_to_base_measurement_unit",
     "temperature_zone", "useful_life", "case_measurement_unit", "case_qty_measurement_unit",
     "mfc_is_crushable", "mfc_is_hazardous", "mfc_is_bulk", "mfc_is_heavy",
@@ -114,7 +114,7 @@ def mongo_to_postgres():
     df["gross_weight"] = df["gross_weight"].astype("float", errors="ignore")
 
     columns = ["sap_code", "ean_code", "store", "measurement_unit",
-    "mfc_is_item_inside", "length", "height", "width", "length_unit",
+    "mfc_is_item_side", "length", "height", "width", "length_unit",
     "gross_weight", "gross_measurement_unit", "conversion_to_base_measurement_unit",
     "temperature_zone", "useful_life", "case_measurement_unit", "case_qty_measurement_unit",
     "mfc_is_crushable", "mfc_is_hazardous", "mfc_is_bulk", "mfc_is_heavy",
