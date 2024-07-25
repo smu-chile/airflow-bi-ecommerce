@@ -111,6 +111,7 @@ def mongo_to_postgres():
     df["length"] = df["length"].astype("float", errors="ignore")
     df["height"] = df["height"].astype("float", errors="ignore")
     df["width"] = df["width"].astype("float", errors="ignore")
+    df["gross_weight"] = df["gross_weight"].astype("float", errors="ignore")
 
     columns = ["sap_code", "ean_code", "store", "measurement_unit",
     "mfc_is_item_inside", "length", "height", "width", "length_unit",
