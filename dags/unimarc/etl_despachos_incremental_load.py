@@ -263,7 +263,7 @@ with DAG(
     description="Extracción y carga de tabla despachos desde Janis Replica Unimarc hasta Workspace.",
     schedule_interval="*/30 * * * *",
     start_date=datetime(2022, 2, 1),
-    catchup=False,
+    catchup=True,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "despachos", "unimarc", "cumplimiento_despacho", "MATIAS"],
 ) as dag:
