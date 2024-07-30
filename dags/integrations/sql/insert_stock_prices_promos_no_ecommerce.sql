@@ -64,6 +64,8 @@ left join (
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
 	and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+	and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+	AND wp.nombre_promocion::text !~~ '%ZONA%'::text
 	AND wp.nombre_promocion::text !~~ '%MFC%'::text
     AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
     AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
@@ -72,7 +74,7 @@ left join (
 	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
 	and wp.nombre_promocion::text !~~ '% LOC%'::text
 	and wp.nombre_promocion::text !~~ '%LIQ%'::text
-	and wp.n_promocion  not in  ('5552392024','1120012024',
+	and wp.n_promocion  not in  ('5640502024','5552392024','1120012024',
 '1120022024',
 '1120032024',
 '1120042024',

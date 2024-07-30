@@ -83,7 +83,8 @@ def reposicion():
                 on _t.material = msr.material
                 left join ecommdata.categorias c 
                 on p.id_categoria = c.id
-                where msr.solicitado >0;
+                where msr.solicitado >0
+                and msr.reponer is true;
                     """
     print(ventas_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -275,7 +276,7 @@ with DAG(
     'etl_reposicion_mfc',
     default_args=default_args,
     description="consulta de datos de Stock MFC, maestra reposicion desde postgres para logica de reposicion.",
-    schedule_interval="0 19 * * *",
+    schedule_interval="0 7,19 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -303,7 +304,7 @@ with DAG(
         postgres_conn_id = "postgresql_conn",
         sql = """BEGIN;
             UPDATE ecommdata.maestra_reposicion_mfc
-            SET contador = contador - 1;
+            SET contador = contador - 0.5;
             UPDATE ecommdata.maestra_reposicion_mfc
             SET contador = lead_time
             WHERE contador < 0;

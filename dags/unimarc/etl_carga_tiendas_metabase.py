@@ -279,7 +279,7 @@ def load_tables_to_s3(ts,ds):
     print(f"\nSkus unicos: {len(valores_unicos_skus)}")
 
     df_excluidos = df_producto_tienda_janis.merge(excluidos_x_tiendas_tiendas, on=["ref_id"], how='inner')
-    df_excluidos = df_excluidos[df_excluidos["id_tienda_x"]!= '9212']
+    df_excluidos = df_excluidos[df_excluidos["id_tienda_x"]!= '0486']
     df_excluidos = df_excluidos[df_excluidos['id_tienda_x'].isin(series_active_stores)]
     df_excluidos = df_excluidos[~df_excluidos['ref_id'].isin(lista_skus_activos)]
     df_excluidos = df_excluidos.drop_duplicates(subset="ref_id")
@@ -300,7 +300,7 @@ def load_tables_to_s3(ts,ds):
     df_desactivados_productos.columns = ["refId"]
     df_desactivados_productos = pd.concat([df_desactivados_productos, df_excluidos], axis=0)
     df_desactivados_productos = df_desactivados_productos.drop_duplicates(subset=['refId']).reset_index(drop=True)
-    df_desactivados_productos["stores"] = "9212"
+    df_desactivados_productos["stores"] = "0486"
     df_desactivados_productos["publish"] = 1
     df_desactivados_productos["updatePending"] = 1
     df_desactivados_productos["visible"] = 0

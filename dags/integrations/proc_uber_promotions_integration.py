@@ -326,7 +326,8 @@ def _join_promo_prices_test_from_s3(ds, ti):
                 and wp.registro_valido = true
                 and wp.organizacion_ventas = '1000'
                 and wp.canal_distribucion = '10'
-                and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123,124)
+	            AND wp.nombre_promocion::text !~~ '%ZONA%'::text
                 AND wp.nombre_promocion::text !~~ '%MFC%'::text
                 AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
                 AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
@@ -384,7 +385,8 @@ def _join_promo_prices_test_from_s3(ds, ti):
                 and wp.registro_valido = true
                 and wp.organizacion_ventas = '1000'
                 and wp.canal_distribucion = '10'
-                and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123,124)
+                and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123,124)
+                AND wp.nombre_promocion::text !~~ '%ZONA%'::text
                 AND wp.nombre_promocion::text !~~ '%MFC%'::text
                 AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
                 AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
