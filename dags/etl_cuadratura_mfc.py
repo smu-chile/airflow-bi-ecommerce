@@ -120,7 +120,7 @@ def l8_0917(ds):
 
 def ubicaciones_mfc(ds):
     import pandas as pd
-    ubi_mfc_query = """select * from ecommdata.ubicacion_mfc"""
+    ubi_mfc_query = """select "_id",sap_code,ean_code,store,measurement_unit,mfc_is_item_side,created_date,update_date from ecommdata.ubicacion_mfc"""
     print(ubi_mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
