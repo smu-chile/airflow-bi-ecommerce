@@ -20,6 +20,9 @@ def lista8():
                         where ubi.ref_id is null
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
+                        from ecommdata.lista8 l
+                        union 
+                        select distinct concat(l.material,'-',l.umv) as ref_id, '0486' as id_tienda
                         from ecommdata.lista8 l;"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
