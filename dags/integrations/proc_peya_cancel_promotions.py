@@ -195,8 +195,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 lspp.ean AS sku,
                 'Promociones' AS campaign_name,
                 'PedidosYa' AS reason,
-                current_timestamp AS start_date,
-                current_timestamp AS end_date,
+                concat(current_date ,' 10:00:00-03:00') AS start_date,
+                concat(current_date + 1,' 11:00:00-03:00') AS end_date,
                 CASE
     				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
                     when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0.25)
