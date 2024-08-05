@@ -58,8 +58,8 @@ def _send_stock_999_to_janis(ds):
         payload=[]
         for r in chunk:
             material = str(r[0]).zfill(18)
-            id_tienda = "0486"
-            warehouse = "0486"
+            id_tienda = "0054"
+            warehouse = "0054"
             row = {"IdSku": material, "Quantity": 999, "Store": id_tienda, "Warehouse": warehouse}
             print(row)
             payload.append(row)
@@ -76,13 +76,13 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_tienda_ciudad_los_valles',
+    'etl_stock_tienda_los_andes',
     default_args=default_args,
-    description="Se agrega stock a tienda de prueba Ciudad Los Valles para emular ordenes en Janis Picking",
+    description="Se agrega stock a tienda de prueba Los Andes para emular ordenes en Janis Picking",
     schedule_interval="30 * * * *",
     start_date=pendulum.datetime(2024, 7, 3, tz="America/Santiago"),
     catchup=False,
-    tags=["Janis", "ecommdata", "catalogo", "Ciudad Los Valles", "stock", "SERGIO"],
+    tags=["Janis", "ecommdata", "catalogo", "Los Andes", "stock", "SERGIO"],
 ) as dag:
 
     dag.doc_md = """
