@@ -66,6 +66,8 @@ def _incremental_load_orders_table(ti):
             "cart_id"
             ]]
 
+    df = df[df["store"] != 38]
+
     # Rename columns to match workspace schema:
     columns_rename = {
         "seq_id": "id",
@@ -306,6 +308,7 @@ def _get_new_orders_from_s3(ti):
     orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
 
     df = pd.read_csv(orders_object.get()["Body"])
+    df = df[df["store"] != 38]
     print(f"Number of records found: {len(df.index)}")
 
     return df
