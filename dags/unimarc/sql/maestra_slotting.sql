@@ -1,51 +1,54 @@
 BEGIN TRANSACTION;
 truncate table ecommdata.maestra_informacion_slotting_mfc;
-INSERT INTO ecommdata.maestra_informacion_slotting_mfc  (
-    ref_id,
-    descripcion,
-    mfc_is_item_side,
-    ranking,
-    tipo_abastecimiento,
-    temperature_zone,
-    mfc_is_hazardous,
-    mfc_is_heavy,
-    gross_weight,
-    mfc_is_safety,
-    mfc_is_egg,
-    useful_life,
-	min_remaining_shelf_life,
-	case_measurement_unit,
-	conversion_to_base_measurement_unit,
-	case_qty_measurement_unit,
-    volumen_c3,
-    es_conveyable,
-    es_voluminoso,
-    es_pesable,
-    peso_gramos,
-    restriccion_logistica,
-    comanda,
-    is_promo,
-    domingo,
-    lunes,
-    martes,
-    miercoles,
-    jueves,
-    viernes,
-    sabado,
-    venta_promedio,
-    cantidad_dias,
-    "1/1",
-    "1/2",
-    "1/4",
-    "1/8",
-    totes_teoricos,
-    "Cant_productos",
-    ubicaciones,
-    "Totes",
-    stock_manual,
-    stock_osr,
-    stock_mfc,
-    inventario_objetivo)
+INSERT INTO ecommdata.maestra_informacion_slotting_mfc (
+    ref_id, 
+    descripcion, 
+    mfc_is_item_side, 
+    ranking, 
+    tipo_abastecimiento, 
+    temperature_zone, 
+    mfc_is_hazardous, 
+    mfc_is_heavy, 
+    gross_weight, 
+    mfc_is_safety, 
+    mfc_is_egg, 
+    useful_life, 
+    min_remaining_shelf_life, 
+    case_measurement_unit, 
+    conversion_to_base_measurement_unit, 
+    case_qty_measurement_unit, 
+    volumen_c3, 
+    es_conveyable, 
+    es_voluminoso, 
+    es_pesable, 
+    peso_gramos, 
+    restriccion_logistica, 
+    comanda, 
+    is_promo, 
+    criterio_merma, 
+    domingo, 
+    lunes, 
+    martes, 
+    miercoles, 
+    jueves, 
+    viernes, 
+    sabado, 
+    venta_promedio, 
+    cantidad_dias, 
+    "1/1", 
+    "1/2", 
+    "1/4", 
+    "1/8", 
+    totes_teoricos, 
+    "Cant_productos", 
+    ubicaciones, 
+    "Totes", 
+    stock_manual, 
+    stock_osr, 
+    stock_mfc, 
+    inventario_objetivo, 
+    inventario_objetivo_transporte
+)
 with venta_por_dia as (
 	SELECT 
 	    ref_id,
@@ -65,7 +68,7 @@ with venta_por_dia as (
 	        id_tienda,
 	        DATE_PART('dow', fecha_facturacion) AS dia_de_la_semana,
 	        SUM(venta_umv) AS venta_dia
-	    FROM ecommdata.venta_ecommrce_mfc_90d
+	    FROM ecommdata.venta_regular_mfc vrm 
 	    WHERE apo IS NOT TRUE  
 	      AND porcenta_descuento < 0.3
 	    GROUP BY ref_id, id_tienda, fecha_facturacion
@@ -97,8 +100,8 @@ mfc as (SELECT
 promo as (select distinct concat(material,'-', replace(umv,'ST','UN')) as ref_id
 	from ecommdata.workflow_promociones wp 
 	WHERE (wp.id_mecanica <> ALL (ARRAY[124,36, 67, 72, 99, 84, 37, 51, 93, 53, 96, 77, 59]))
-	AND wp.fecha_inicio_de_promocion <= '{{ds}}'::date--cambiar a la fecha que se desee ver sumandole o restandole dias a la fecha actual
-	AND wp.fecha_fin_de_promocion >= '{{ds}}'::date
+	AND wp.fecha_inicio_de_promocion <= '{{ds}}'::date--'{{ds}}'::date--cambiar a la fecha que se desee ver sumandole o restandole dias a la fecha actual
+	AND wp.fecha_fin_de_promocion >= '{{ds}}'::date--'{{ds}}'::date
 	and wp.tipo_promocion <> 3
 	and wp.promo_event_mechanism = 'APO'
 	and wp.descripcion_evento_promocional not in ('UNI,CL CATALOGO','UNI CATALOGO')
@@ -121,7 +124,7 @@ SELECT DISTINCT fecha_carga, "TOM ID" AS ref_id, "Quantity On-Hand" AS stock,
         ELSE NULL
     END AS ubi
 FROM ecommdata.inventario_manual_mfc imm 
-WHERE fecha_carga = '{{ds}}'::date
+WHERE fecha_carga = '{{ds}}'::date--'{{ds}}'::date
 )
 select
 	u.ref_id,
@@ -164,9 +167,14 @@ case
 	when p.ref_id is not null then true  --es promo?
 	else false
 end is_promo,
-v.domingo,v.lunes,v.martes,v.miercoles,v.jueves,v.viernes,v.sabado,v.venta_promedio,v.cantidad_dias,
+case 
+	when um.useful_life * 0.7 * ROUND(CAST((v.domingo+v.lunes+v.martes+v.miercoles+v.jueves+v.viernes+v.sabado)/7 AS numeric), 2) >= um.case_qty_measurement_unit::int * 0.9 then True
+    else False
+end as criterio_merma,
+v.domingo,v.lunes,v.martes,v.miercoles,v.jueves,v.viernes,v.sabado,ROUND(CAST((v.domingo+v.lunes+v.martes+v.miercoles+v.jueves+v.viernes+v.sabado)/7 AS numeric), 2) as venta_promedio,v.cantidad_dias,
 mfc."1/1",mfc."1/2",mfc."1/4",mfc."1/8",mfc."totes_teoricos",mfc."Cant_productos",mfc."ubicaciones",mfc."Totes",
-io.stock_manual,io.stock_osr,io.stock_manual+io.stock_osr as stock_mfc, v.venta_promedio * 7 as inventario_objetivo
+io.stock_manual,io.stock_osr,io.stock_manual+io.stock_osr as stock_mfc, ROUND(CAST(v.domingo+v.lunes+v.martes+v.miercoles+v.jueves+v.viernes+v.sabado AS numeric), 2) as inventario_objetivo,
+CEIL(ROUND(CAST(v.domingo+v.lunes+v.martes+v.miercoles+v.jueves+v.viernes+v.sabado AS numeric), 2) / um.case_qty_measurement_unit::int) * um.case_qty_measurement_unit::int as inventario_objetivo_transporte
 from ecommdata.lista8 l 
 left join ecommdata.ubicacion_mfc um on l.material = um.sap_code and l.umv = um.measurement_unit 
 left join ecommdata.ranking_productos_tienda rpt on l.id_tienda = rpt.id_tienda and rpt.ref_id_sku = concat(l.material,'-',l.umv)
