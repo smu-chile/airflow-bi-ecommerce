@@ -21,6 +21,12 @@ def lista8():
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
                         from ecommdata.lista8 l
+                        union
+                        select distinct pc.ref_id, '0053' as id_tienda
+                        from ecommdata.publicacion_catalogo pc
+                        where pc.mfc is true
+                        and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
+                        and pc.stock_janis > 0
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034');"""
