@@ -10,10 +10,11 @@ from utils.netezza_utils import load_custom_query_to_s3
 from datetime import datetime, timedelta
 import pendulum
 
+
 def materiales_lista8():
     import pandas as pd
-    stock_carnes_padre_hijo = """select distinct material
-                    from ecommdata.lista8 l;"""
+    stock_carnes_padre_hijo = """select distinct split_part(ref_id , '-', 1) AS material
+                            from ecommdata.productos_tienda pt ;"""
     print(stock_carnes_padre_hijo)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -97,15 +98,13 @@ def master_sku_to_s3(ds,ti):
         return
     df_supp.info()
 
-    #optimizable, revisar con mas tiempo!
-    #df_lista8 = materiales_lista8()
-    #df_lista8.info()
+    df_lista8 = materiales_lista8()
+    df_lista8.info()
 
-    #df_aux = pd.merge(df_lista8, df_supp, left_on='material', right_on='SKU_PRODUCT', how = 'left').drop('SKU_PRODUCT', axis=1)
+    df_aux = pd.merge(df_lista8, df_supp, left_on='material', right_on='SKU_PRODUCT', how = 'left').drop('SKU_PRODUCT', axis=1)
 
-    df_supp.rename(columns={'SKU_PRODUCT': 'material'}, inplace=True)
 
-    df_final = df_supp
+    df_final = df_aux
     df_final.info()
 
     buffer = io.StringIO()
@@ -188,16 +187,11 @@ def master_sku_to_postgresq(ti):
 
     df.info()
 
-    df = df[df['sku_key'].apply(lambda x: str(x).isdigit())]
-
-    df.info()
-
     df['proveedor_retail'] = pd.to_numeric(df['proveedor_retail'], errors='coerce').astype('Int64')
     df['nuestro_100'] = pd.to_numeric(df['nuestro_100'], errors='coerce').astype('Int64')
     df['marca_propia'] = df['marca_propia'].fillna(False)
     df['marca_propia'] = df['marca_propia'].astype(int)
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
-    df['sku_key'] = df['sku_key'].apply(lambda x: str(int(x)))
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
