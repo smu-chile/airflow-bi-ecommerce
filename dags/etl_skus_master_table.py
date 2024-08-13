@@ -97,12 +97,15 @@ def master_sku_to_s3(ds,ti):
         return
     df_supp.info()
 
-    df_lista8 = materiales_lista8()
-    df_lista8.info()
+    #optimizable, revisar con mas tiempo!
+    #df_lista8 = materiales_lista8()
+    #df_lista8.info()
 
-    df_aux = pd.merge(df_lista8, df_supp, left_on='material', right_on='SKU_PRODUCT', how = 'left').drop('SKU_PRODUCT', axis=1)
+    #df_aux = pd.merge(df_lista8, df_supp, left_on='material', right_on='SKU_PRODUCT', how = 'left').drop('SKU_PRODUCT', axis=1)
 
-    df_final = df_aux
+    df_supp.rename(columns={'SKU_PRODUCT': 'material'}, inplace=True)
+
+    df_final = df_supp
     df_final.info()
 
     buffer = io.StringIO()
@@ -184,11 +187,17 @@ def master_sku_to_postgresq(ti):
                 'marca_propia']
 
     df.info()
+
+    df = df[df['sku_key'].apply(lambda x: str(x).isdigit())]
+
+    df.info()
+
     df['proveedor_retail'] = pd.to_numeric(df['proveedor_retail'], errors='coerce').astype('Int64')
     df['nuestro_100'] = pd.to_numeric(df['nuestro_100'], errors='coerce').astype('Int64')
     df['marca_propia'] = df['marca_propia'].fillna(False)
     df['marca_propia'] = df['marca_propia'].astype(int)
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['sku_key'] = df['sku_key'].apply(lambda x: str(int(x)))
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -223,7 +232,7 @@ with DAG(
     'etl_skus_master_table',
     default_args=default_args,
     description="cargar maestra skus",
-    schedule_interval= "0 9 * * *",
+    schedule_interval= "0 5 * * 1",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "maestra_skus", "proveedores", "PATRICIO"],
@@ -247,7 +256,7 @@ with DAG(
                 S.SUPPLIER_TYPE, S.SUPPLIER_RETAIL, S.NUESTRO_100, H.MARCA_PROPIA
                 FROM DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY AS H
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SUPPLIER AS S on H.PROVEEDOR_PPAL_KEY = S.SUPPLIER_KEY
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_ENVASE AS E on E.CODIGO = H.ENVASE 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_ENVASE AS E on E.CODIGO = H.ENVASE
             """,
             "query_name": "HIERARCHYxSUPPLIER_query"
         },
