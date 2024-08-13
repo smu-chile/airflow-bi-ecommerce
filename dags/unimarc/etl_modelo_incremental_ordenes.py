@@ -313,6 +313,25 @@ def _get_new_orders_from_s3(ti):
 
     return df
 
+def _get_new_orders_from_s3_38(ti):
+    import pandas as pd
+
+    orders_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+orders_file)
+    if not s3_hook.check_for_key(orders_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % orders_file)
+
+    orders_object = s3_hook.get_key(orders_file, bucket_name=s3_bucket)
+
+    df = pd.read_csv(orders_object.get()["Body"])
+    df = df[df["store"] == 38]
+    print(f"Number of records found: {len(df.index)}")
+
+    return df
+
 def _get_order_items_from_janis(ts, ti):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ti)
@@ -330,6 +349,22 @@ def _get_order_items_from_janis(ts, ti):
     s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_items")
     return s3_object_name
 
+def _get_order_items_from_janis_38(ts, ti):
+    # Search based on wms_orders.id
+    df = _get_new_orders_from_s3_38(ti)
+    order_ids = df["id"].tolist()
+    if len(order_ids) == 0:
+        s3_object_name = "empty"
+        return s3_object_name
+    query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
+    query = f"""
+        SELECT *
+        FROM janis_jackie.wms_order_items AS woi
+        WHERE woi.order_id IN {query_order_ids} 
+    """
+    print(query)
+    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_items")
+    return s3_object_name
 
 def _order_items_table_incremental_load(ti):
     import numpy as np
@@ -873,7 +908,7 @@ def _order_items_38_table_incremental_load(ti):
     df_orders = df_orders[["id", "seq_id"]]
     df_orders = df_orders.rename(columns={"id": "original_id"})
 
-    order_items_file = ti.xcom_pull(key="return_value", task_ids=["get_order_items_from_janis"])[0]
+    order_items_file = ti.xcom_pull(key="return_value", task_ids=["get_order_items_from_janis_38"])[0]
 
     if ti.xcom_pull(key="return_value", task_ids=['get_order_items_from_janis'])[0] == "empty":
         return
@@ -1101,6 +1136,11 @@ with DAG(
         python_callable = _get_order_items_from_janis
     )
 
+    t6a = PythonOperator(
+        task_id = "get_order_items_from_janis_38",
+        python_callable = _get_order_items_from_janis_38
+    )
+
     t7 = PythonOperator(
         task_id = "orden_productos_incremental_load",
         python_callable = _order_items_table_incremental_load
@@ -1125,4 +1165,4 @@ with DAG(
     t2 >> t2a
     # Orden productos
     t1 >> t6 >> t7
-    t7 >> t7a
+    t7 >> t6a >> t7a
