@@ -11,7 +11,7 @@ from utils.netezza_utils import load_custom_query_to_s3
 from datetime import datetime, timedelta
 import pendulum
 
-def _load_to_postgres(ti):
+def _load_to_postgres(ti,ds):
     import pandas as pd
     import numpy as np
     import sqlalchemy
@@ -82,7 +82,7 @@ def _load_to_postgres(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        conn.execute("TRUNCATE TABLE ecommdata.costos_ventas_sku_tienda;")
+        conn.execute(f"delete from ecommdata.costos_ventas_sku_tienda where fecha = '{ds}'::date;")
         df.to_sql(name="costos_ventas_sku_tienda",
                     con=conn,         
                     schema="ecommdata",         
@@ -108,7 +108,7 @@ with DAG(
     description="Extracción de ventas y costos por sku, tienda y canal de ventas",
     schedule_interval="15 7 * * *",
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
-    catchup=False,#True,
+    catchup=True,
     max_active_runs = 1,
     tags=["DW", "P&L", "unimarc", "PATRICIO"],
 ) as dag:
@@ -142,10 +142,10 @@ with DAG(
             case when VENTA_UMB=0 THEN 0
             ELSE ROUND(COSTO_NETO/ VENTA_UMB,0) END) AS COSTO_UNITARIO
             FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE
-            WHERE DATE_VALUE  between '20240501' AND '{{ds}}'::DATE
+            WHERE DATE_VALUE  = '{{ds}}'::DATE
             GROUP BY 1,2,3) as CST USING (DATE_KEY, STORE_KEY, SKU_KEY)
             WHERE
-            a.FECHA between '20240501' AND '{{ds}}'::DATE
+            a.FECHA = '{{ds}}'::DATE
             AND CANAL_VENTA = 'E-COMMERCE'
             GROUP BY
             1,2,3,4,5
