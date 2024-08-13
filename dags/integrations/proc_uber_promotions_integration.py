@@ -132,7 +132,7 @@ def _join_promo_prices_from_s3(ds, ti):
 
     uber_promotions_query = None
 
-    if numero_dia_semana == 0 :
+    if numero_dia_semana == 1 :
             uber_promotions_query = f"""
                 SELECT DISTINCT 
                     lspp.material AS Sku,
