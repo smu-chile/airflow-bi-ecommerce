@@ -31,6 +31,14 @@ def _load_to_postgres(ti,ds):
         "FECHA": "str",
         "CANAL_VENTA": "str",
         "SKU_KEY": "str",
+        "SKU_PRODUCT": "str",
+        "UMV": "str",
+        "SKU_NM": "str",
+        "GRUPO_DSC": "str",
+        "CAT_DSC": "str",
+        "LIN_DESC": "str",
+        "SEC_DSC": "str",
+        "NEG_DSC": "str",
         "NOMBRE_LOCAL": "str",
         "CENTRO_LOCAL": "str",
         "VENTA": "str",
@@ -50,6 +58,14 @@ def _load_to_postgres(ti,ds):
         "FECHA": "fecha",
         "CANAL_VENTA": "canal_venta",
         "SKU_KEY": "sku_key",
+        "SKU_PRODUCT": "material",
+        "UMV": "umv",
+        "SKU_NM": "descripcion",
+        "GRUPO_DSC":"grupo",
+        "CAT_DSC":"categoria",
+        "LIN_DESC":"linea",
+        "SEC_DSC":"seccion",
+        "NEG_DSC":"negocio",
         "NOMBRE_LOCAL": "nombre_local",
         "CENTRO_LOCAL": "id_tienda",
         "VENTA": "venta",
@@ -122,33 +138,44 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """SELECT
-            FECHA as Fecha,
-            CANAL_VENTA,
-            DPH.SKU_KEY,
-            b.STORE as Nombre_Local,
-            b.STORE_ID as Centro_Local,
-            sum(a.VENTA_NETA ) as Venta,
-            sum(( DP.CONT_CONV_UMB / DP.DENOM_UMB::BIGINT ) * (VENTA_UMV)) as Venta_UMB,
-            sum(COSTO_UNITARIO*( DP.CONT_CONV_UMB / DP.DENOM_UMB::BIGINT ) * (VENTA_UMV)) as Costo_Neto,
-            COUNT(DISTINCT MARKET_BASKET_KEY) AS Q_APROX_TRX
-            from DWC_SMU.SMU.VW_FACT_VENTA_E_COMMERCE as a
+                FECHA as Fecha,
+                CANAL_VENTA,
+                DPH.SKU_KEY,
+                DPH.sku_product,
+                CASE
+                    WHEN POSITION('ST' IN H.UMB) > 0 THEN
+                        SUBSTRING(H.UMB FROM 1 FOR POSITION('ST' IN H.UMB) - 1) || 'UN' ||
+                        SUBSTRING(H.UMB FROM POSITION('ST' IN H.UMB) + 2)
+                    ELSE
+                        H.UMB
+                END AS UMV,
+                H.SKU_NM,
+                H.GRUPO_DSC, H.CAT_DSC,
+                H.LIN_DESC, H.SEC_DSC, H.NEG_DSC,
+                b.STORE as Nombre_Local,
+                b.STORE_ID as Centro_Local,
+                sum(a.VENTA_NETA ) as Venta,
+                sum(( DP.CONT_CONV_UMB / DP.DENOM_UMB::BIGINT ) * (VENTA_UMV)) as Venta_UMB,
+                sum(COSTO_UNITARIO*( DP.CONT_CONV_UMB / DP.DENOM_UMB::BIGINT ) * (VENTA_UMV)) as Costo_Neto,
+                COUNT(DISTINCT MARKET_BASKET_KEY) AS Q_APROX_TRX
+                from DWC_SMU.SMU.VW_FACT_VENTA_E_COMMERCE as a
                 join DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY as b USING (STORE_KEY)
                 join DWC_SMU.SMU.VW_DIM_PRODUCT_HIERARCHY as DPH USING (PRODUCT_KEY)
                 join DWC_SMU.SMU.VW_DIM_PRODUCT as DP USING (PRODUCT_KEY,SKU_KEY)
-                --left join DWC_SMU.SMU.VW_FACT_PRESUPUESTO_VENTAS as c USING (STORE_KEY,DATE_KEY)
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY AS H USING (SKU_KEY)
                 left join (SELECT 
-            DATE_KEY, STORE_KEY, SKU_KEY, 
-            AVG(
-            case when VENTA_UMB=0 THEN 0
-            ELSE ROUND(COSTO_NETO/ VENTA_UMB,0) END) AS COSTO_UNITARIO
-            FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE
-            WHERE DATE_VALUE  = '{{ds}}'::DATE
-            GROUP BY 1,2,3) as CST USING (DATE_KEY, STORE_KEY, SKU_KEY)
-            WHERE
-            a.FECHA = '{{ds}}'::DATE
-            AND CANAL_VENTA = 'E-COMMERCE'
-            GROUP BY
-            1,2,3,4,5
+                    DATE_KEY, STORE_KEY, SKU_KEY, 
+                    AVG(
+                    case when VENTA_UMB=0 THEN 0
+                    ELSE ROUND(COSTO_NETO/ VENTA_UMB,0) END) AS COSTO_UNITARIO
+                    FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE
+                    WHERE DATE_VALUE = '{{ds}}'::DATE
+                    GROUP BY 1,2,3) as CST USING (DATE_KEY, STORE_KEY, SKU_KEY)
+                WHERE
+                a.FECHA = '{{ds}}'::DATE
+                AND CANAL_VENTA = 'E-COMMERCE'
+                GROUP BY
+                1,2,3,4,5,6,7,8,9,10,11,12,13
             """,
             "query_name": "costos_y_ventas_dw"
         },
