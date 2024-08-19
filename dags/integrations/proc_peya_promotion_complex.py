@@ -198,8 +198,7 @@ def _join_promo_prices_from_s3(ds, ti):
         #                   Promociones Complejas Nx$ o BUY X and Buy X get 1 item from it for a Y% discount               # 
         ####################################################################################################################
         peya_promotion_nxs_query = f"""
-             SELECT DISTINCT 
-				'all' as vendors,
+             SELECT DISTINCT
                 NULL AS barcode,
                 lspp.ean AS sku,
                 'Promociones Unimarc' AS campaign_name,
