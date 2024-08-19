@@ -98,7 +98,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 'Promociones Unimarc' as campaign_name,
                 'Promociones Complejas' as reason,
                 concat(current_date ,' 10:00:00-03:00') AS start_date,
-                concat(current_date ,' 10:00:00-03:00') AS start_date,
+                concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
                 1 as campaign_status,
                 'same_item_bundle' as promotion_type,
                 'free_item' as promotion_sub_type,
@@ -113,6 +113,7 @@ def _join_promo_prices_from_s3(ds, ti):
             AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
             AND lspp.id_tienda = '0053'
             AND wp.tipo_promocion IN (2, 7)
+            and Wp.cantidad_n = '3'
             AND wp.registro_valido = TRUE
             AND wp.organizacion_ventas = '1000'
             AND wp.canal_distribucion = '10'
@@ -198,12 +199,13 @@ def _join_promo_prices_from_s3(ds, ti):
         ####################################################################################################################
         peya_promotion_nxs_query = f"""
              SELECT DISTINCT 
+				'all' as vendors,
                 NULL AS barcode,
                 lspp.ean AS sku,
                 'Promociones Unimarc' AS campaign_name,
                 'Promociones Complejas' AS reason,
                 concat(current_date ,' 10:00:00-03:00') AS start_date,
-                concat(current_date ,' 10:00:00-03:00') AS start_date,
+                concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
                 1 AS campaign_status,
                 'same_item_bundle' AS promotion_type,
                 'free_item' AS promotion_sub_type,
@@ -224,6 +226,7 @@ def _join_promo_prices_from_s3(ds, ti):
             AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
             AND wp.tipo_promocion IN (2, 7)
             AND lspp.id_tienda = '0053'
+            and Wp.cantidad_n = '3'
             AND wp.registro_valido = TRUE
             AND wp.organizacion_ventas = '1000'
             AND wp.canal_distribucion = '10'
@@ -238,7 +241,7 @@ def _join_promo_prices_from_s3(ds, ti):
             AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
             AND lspp.ean IS NOT NULL
             AND WP.desc_promocion = 'COMBINACION NX$'
-            AND lspp.material in ('000000000000345768' ,'000000000000753782','000000000000990546')
+            --AND lspp.material in ('000000000000345768' ,'000000000000753782','000000000000990546')
             AND wp.n_promocion NOT IN (
                 '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', 
                 '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
