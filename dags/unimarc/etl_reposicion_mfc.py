@@ -15,7 +15,7 @@ def venta_mfc_semana():
     ventas_query = """WITH stock_takeoff AS (
             select tom_id, quantity_on_hand
             from ecommdata.stock_mfc_takeoff smt2
-            where fecha = (select max(fecha) from ecommdata.stock_mfc_takeoff smt3)
+            where fecha = (select max(fecha) from ecommdata.stock_mfc_takeoff smt3 where fecha >= current_date)
             ),
             multiplicador as (
             select distinct ref_id, multiplicador_unidad_medida 
@@ -160,9 +160,18 @@ def reposicion_to_s3(ds):
     df["stock_objetivo"] = df["doh_objetivo"] * df["venta_hoy"]
     print(df.head())
     df["solicitado"] = df["stock_objetivo"] + df["venta_futura"] - df["stock_takeoff"]
+
+    #ajustar por limites de max y min
     df["solicitado"] = np.select(
         [df["solicitado"] > df["maximo"], df["solicitado"] < df["minimo"]],
         [df["maximo"], df["minimo"]],
+        default=df["solicitado"]
+    )
+
+    #en caso que sol == max, restar 
+    df["solicitado"] = np.select(
+        [df["solicitado"] == df["maximo"], df["solicitado"] + df["stock_takeoff"] >= df["maximo"]],
+        [df["maximo"]-df["stock_takeoff"], df["maximo"]-df["stock_takeoff"]],
         default=df["solicitado"]
     )
     print()
