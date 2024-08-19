@@ -247,7 +247,8 @@ def picking_order_janis(ds):
     materiales = df['material'].unique().tolist()
     materiales_str = ",".join([f"'{material}'" for material in materiales])
 
-    ordenes_query = f"WITH base_query AS (
+    ordenes_query = """
+                WITH base_query AS (
                     SELECT 
                         s.ref_id,
                         s.nombre_sku,
@@ -284,7 +285,7 @@ def picking_order_janis(ds):
                     (min_id - group_rank + 1) AS id_orden
                 FROM 
                     grouped_skus;
-                "
+                """
     print(ordenes_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
