@@ -253,18 +253,26 @@ def reposicion_to_postgres(ti):
     return
 
 def picking_order_janis(ds):
+    import requests
     import io
     import pandas as pd
+
+    JANIS_ORDER_URL = "https://janis.in/api/oms/order"
+
+    headers = {
+        "janis-api-key": Variable.get("JANIS_API_KEY"),
+        "janis-api-secret": Variable.get("JANIS_API_SECRET"),
+        "janis-client": Variable.get("JANIS_CLIENT"),
+        "Connection": "keep-alive"
+    }
 
     df = reposicion()
     df['material'] = df['material'].astype(str) + '-UN'
 
-    JANIS_ORDER_URL = "https://janis.in/api/oms/order"
-
     materiales = df['material'].unique().tolist()
     materiales_str = ",".join([f"'{material}'" for material in materiales])
 
-    ordenes_query = """
+    ordenes_query = f"""
                 WITH base_query AS (
                     SELECT 
                         s.ref_id,
@@ -279,7 +287,9 @@ def picking_order_janis(ds):
                         ecommdata.categorias c ON p.id_categoria = c.id
                     LEFT JOIN 
                         ecommdata.imagenes_sku is2 ON is2.ref_id = s.ref_id
-                    WHERE 
+                    WHERE
+                        is2.imagen ilike '%UN-01%'
+                    AND 
                         s.ref_id IN ({materiales_str}) -- dynamically populated
                 ),
                 lowest_id AS (
@@ -288,7 +298,7 @@ def picking_order_janis(ds):
                 grouped_skus AS (
                     SELECT 
                         bq.*,
-                        DENSE_RANK() OVER (ORDER BY bq.n2) AS group_rank, -- Rank groups by n2
+                        DENSE_RANK() OVER (ORDER BY bq.categoria) AS group_rank,
                         li.min_id
                     FROM 
                         base_query bq, 
@@ -297,7 +307,7 @@ def picking_order_janis(ds):
                 SELECT 
                     ref_id,
                     nombre_sku,
-                    n2,
+                    categoria,
                     link_imagen,
                     (min_id - group_rank + 1) AS id_orden
                 FROM 
@@ -365,7 +375,7 @@ def picking_order_janis(ds):
                 "neighborhood": "Maipú",
                 "complement": None,
                 "reference": None,
-                "receiver": "MFC Los Trapenses",
+                "receiver": "Sergio Gil",
                 "lat": "70.741198",
                 "lng": "-33.4745884"
             },
@@ -389,7 +399,7 @@ def picking_order_janis(ds):
                     "neighborhood": "Estacion Central",
                     "postalCode": "77539",
                     "complement": "",
-                    "receiver": "MFC Los Trapenses",
+                    "receiver": "Sergio Gil",
                     "shippingDate": ds
                 }
             ],
@@ -412,9 +422,17 @@ def picking_order_janis(ds):
             "totalShipping": 0,
             "customData": []
         }
+        print(order_form)
         order_forms.append(order_form)
 
-    print(order_forms)
+    for order_form in order_forms:
+        response = requests.post(JANIS_ORDER_URL, json=order_form, headers=headers)
+        if response.status_code == 200:
+            print(f"Order {order_form['seqId']} created successfully.")
+        else:
+            print(f"Failed to create order {order_form['seqId']} with status code {response.status_code}.")
+            print(f"Error Message: {response.text}")
+
     return
 
 def reposicion_to_slack():
