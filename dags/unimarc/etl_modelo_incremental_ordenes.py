@@ -363,7 +363,7 @@ def _get_order_items_from_janis_38(ts, ti):
         WHERE woi.order_id IN {query_order_ids} 
     """
     print(query)
-    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_items")
+    s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_items_38")
     return s3_object_name
 
 def _order_items_table_incremental_load(ti):
@@ -918,7 +918,8 @@ def _order_items_38_table_incremental_load(ti):
 
     print("Searching file: "+order_items_file)
     if not s3_hook.check_for_key(order_items_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % order_items_file)
+        print("Key %s does not exist." % order_items_file)
+        return
 
     order_items_object = s3_hook.get_key(order_items_file, bucket_name=s3_bucket)
 
