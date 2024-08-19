@@ -177,6 +177,14 @@ def reposicion_to_s3(ds):
     print()
     df['multiplicador_unidad_medida'] = df['multiplicador_unidad_medida'].astype(float)
     df["solicitado"] = np.ceil(df["solicitado"] / df["multiplicador_unidad_medida"]) * df["multiplicador_unidad_medida"]
+
+    condlist = [
+        df["reponer"] == False,
+        (df["reponer"] == True) & (df["solicitado"] > 0),
+        (df["reponer"] == True) & (df["solicitado"] <= 0)
+    ]
+    choicelist = [False, True, False]
+    df["reponer"] = np.select(condlist, choicelist)
     # Mantenemos solo los registros donde 'reponer' es True o 1 ?
     #df = df[df["reponer"] == 1]
     #df = df[df['solicitado'] > 0]
