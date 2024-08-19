@@ -290,7 +290,7 @@ def picking_order_janis(ds):
                     WHERE
                         is2.imagen ilike '%UN-01%'
                     AND 
-                        s.ref_id IN ({materiales_str}) -- dynamically populated
+                        s.ref_id IN ({materiales_str})
                 ),
                 lowest_id AS (
                     SELECT MIN(id) - 1 AS min_id FROM ecommdata.ordenes_janis_38
