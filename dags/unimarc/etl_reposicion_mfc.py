@@ -8,6 +8,7 @@ from airflow.operators.postgres_operator import PostgresOperator
 from airflow.operators.python import PythonOperator
 
 from datetime import datetime, timedelta
+import json
 import pendulum
 
 def venta_mfc_semana():
@@ -234,6 +235,169 @@ def reposicion_to_postgres(ti):
 
     return
 
+def picking_order_janis(ds):
+    import io
+    import pandas as pd
+
+    df = reposicion()
+    df['material'] = df['material'].astype(str) + '-UN'
+
+    JANIS_ORDER_URL = "https://janis.in/api/oms/order"
+
+    materiales = df['material'].unique().tolist()
+    materiales_str = ",".join([f"'{material}'" for material in materiales])
+
+    ordenes_query = f"WITH base_query AS (
+                    SELECT 
+                        s.ref_id,
+                        s.nombre_sku,
+                        c.n2 as categoria,
+                        CONCAT('https://unimarc.vteximg.com.br', is2.imagen) AS link_imagen
+                    FROM 
+                        ecommdata.skus s
+                    LEFT JOIN 
+                        ecommdata.productos p ON s.ref_id = p.ref_id
+                    LEFT JOIN 
+                        ecommdata.categorias c ON p.id_categoria = c.id
+                    LEFT JOIN 
+                        ecommdata.imagenes_sku is2 ON is2.ref_id = s.ref_id
+                    WHERE 
+                        s.ref_id IN ({materiales_str}) -- dynamically populated
+                ),
+                lowest_id AS (
+                    SELECT MIN(id) - 1 AS min_id FROM ecommdata.ordenes_janis_38
+                ),
+                grouped_skus AS (
+                    SELECT 
+                        bq.*,
+                        DENSE_RANK() OVER (ORDER BY bq.n2) AS group_rank, -- Rank groups by n2
+                        li.min_id
+                    FROM 
+                        base_query bq, 
+                        lowest_id li
+                )
+                SELECT 
+                    ref_id,
+                    nombre_sku,
+                    n2,
+                    link_imagen,
+                    (min_id - group_rank + 1) AS id_orden
+                FROM 
+                    grouped_skus;
+                "
+    print(ordenes_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(ordenes_query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    df_skus = pd.DataFrame(results, columns=column_names)
+    cursor.close()
+    pg_connection.close()
+
+    df_joined = pd.merge(df_skus, df[['material', 'solicitado']], left_on='ref_id', right_on='material', how='left')
+    df_joined.drop('material', axis=1, inplace=True)
+
+    order_forms = []
+    grouped = df_joined.groupby('id_orden')
+    
+    for id_orden, group in grouped:
+        items = []
+        item_quantity = 0
+        product_quantity = 0
+        
+        for numero_sku, row in enumerate(group.itertuples(), start=0):
+            item = {
+                "itemIndex": numero_sku,
+                "skuRefId": row.ref_id,
+                "skuName": row.nombre_sku,
+                "quantity": row.solicitado,
+                "price": 1,
+                "commercialCondition": 1,
+                "imageUrl": row.link_imagen
+            }
+            items.append(item)
+            item_quantity += row.solicitado
+            product_quantity += 1
+
+        order_form = {
+            "ecommercePlatformId": "2",
+            "salesChannel": "39",
+            "storeRefId": "0054",
+            "seqId": id_orden,
+            "ecomId": id_orden,
+            "customer": {
+                "docType": "rutCHL",
+                "doc": "150766362",
+                "email": "sgil@smu.cl",
+                "firstname": "Sergio",
+                "lastname": "Gil",
+                "phone": "948857331"
+            },
+            "customerAddress": {
+                "ecomId": "NotAvailableNotAvailable",
+                "city": "Santiago",
+                "country": "CHL",
+                "number": "5100",
+                "postalCode": "null",
+                "state": "REGIÓN METROPOLITANA",
+                "street": "Av. Los Pajaritos",
+                "streetType": "route",
+                "neighborhood": "Maipú",
+                "complement": None,
+                "reference": None,
+                "receiver": "MFC Los Trapenses",
+                "lat": "70.741198",
+                "lng": "-33.4745884"
+            },
+            "items": items,
+            "payments": [
+                {
+                    "transactionId": id_orden, 
+                    "paymentId": id_orden,
+                    "paymentSystemRefId": "916",
+                    "value": 1,
+                    "referenceValue": 1
+                }
+            ],
+            "shippings": [
+                {
+                    "country": "CL",
+                    "city": "Santiago",
+                    "state": "Estacion Central",
+                    "street": "Coronel Godoy",
+                    "number": "0128",
+                    "neighborhood": "Estacion Central",
+                    "postalCode": "77539",
+                    "complement": "",
+                    "receiver": "MFC Los Trapenses",
+                    "shippingDate": ds
+                }
+            ],
+            "logistics": [
+                {
+                    "carrierRefId": "0054",
+                    "warehouseRefId": "0054",
+                    "itemIndex": 0,
+                    "logisticPrice": 0,
+                    "logisticListPrice": 0,
+                    "logisticSellingPrice": 0,
+                    "shippingEstimateDate": ds
+                }
+            ],
+            "itemsQty": item_quantity,
+            "productQty": product_quantity,
+            "trackingNumber": "",
+            "total": 1,
+            "totalItems": product_quantity,
+            "totalShipping": 0,
+            "customData": []
+        }
+        order_forms.append(order_form)
+
+    print(order_forms)
+    return
 
 def reposicion_to_slack():
     from slack_sdk import WebClient
@@ -296,10 +460,14 @@ with DAG(
         python_callable = reposicion_to_postgres
     )
     t2 = PythonOperator(
+        task_id = "picking_order_janis",
+        python_callable = picking_order_janis
+    )
+    t3 = PythonOperator(
         task_id = "reposicion_to_slack",
         python_callable = reposicion_to_slack
     )
-    t3 = PostgresOperator(
+    t4 = PostgresOperator(
         task_id = "update_contador",
         postgres_conn_id = "postgresql_conn",
         sql = """BEGIN;
@@ -310,4 +478,4 @@ with DAG(
             WHERE contador < 0;
             COMMIT;"""
     )
-    t0 >> t1 >> t2 >> t3
+    t0 >> t1 >> t2 >> t3 >> t4
