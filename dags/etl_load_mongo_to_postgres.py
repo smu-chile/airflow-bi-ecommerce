@@ -26,7 +26,6 @@ def mongo_to_postgres():
     mongo_collection = mongo_client[mongo_db]["im_products"]
     documents = mongo_collection.find()
 
-    print("mongodb+srv://"+mongo_user+":"+mongo_pass+"@"+mongo_cluster_name+".reeld.mongodb.net/"+mongo_db+"?authMechanism=SCRAM-SHA-1")
     print("se ha conectado a mongodb")
     
     data = []

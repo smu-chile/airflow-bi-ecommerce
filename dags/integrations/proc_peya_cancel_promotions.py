@@ -79,13 +79,13 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
     for store_id in peya_store_ids.keys():
         print(f"PEYA id: {peya_store_ids[store_id]}")
-        join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
+        join_file_name = f"integraciones/last_millers/stock/Cancel/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
         
         peya_stock_query = f"""
-        SELECT	
+         SELECT  
             NULL AS barcode,
             lspp.ean AS sku,
             CASE
@@ -111,7 +111,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
             LEFT JOIN integraciones.stock_seguridad_peya ssp ON ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida) AND lspp.id_tienda = ssp.id_tienda
             WHERE lspp.id_tienda = '{store_id}'
-            and lspp.id_tienda != '0053'
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
@@ -132,7 +131,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         #df["SKU"] = df["SKU"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        prev_join_file_name = f"integraciones/last_millers/stock/Cancel/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
         if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
             print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
@@ -162,7 +161,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"File load on S3: {join_file_name}")
         
         if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/stock/Cancel/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -174,7 +173,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             print(f"File load on S3: {join_file_name}")
             
         if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/stock/Cancel/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -185,7 +184,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     encrypt=False)
             print(f"File load on S3: {join_file_name}")
         #Aqui va la nueva logica
-        join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
+        join_file_name = f"integraciones/last_millers/promotions/Cancel/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -210,12 +209,12 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 				END AS discounted_price,
                 --s.multiplicador_unidad_medida,
                 999 AS max_no_of_orders,
-                1 AS campaign_status
+                0 AS campaign_status
                 FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                 where lspp.precio_promocional  is not null
                 AND lspp.id_tienda = '{store_id}'
-                and lspp.id_tienda != '0053'
+               --and lspp.ean in ('29403') --Aqui se agregan todos los ean de los productos a eliminar promocion
                 GROUP BY
                 lspp.ean,
                 lspp.nombre,
@@ -243,7 +242,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         #df["SKU"] = df["SKU"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        prev_join_file_name = f"integraciones/last_millers/promotions/Cancel/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
             
         print(f"Total number of records: {len(df.index)}.")
@@ -260,7 +259,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         print(f"File load on S3: {join_file_name}")
         
         if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/Cancel/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -272,7 +271,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             print(f"File load on S3: {join_file_name}")
             
         if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/Cancel/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -284,7 +283,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             print(f"File load on S3: {join_file_name}")
         #en el for agregar en la parte que comienzo a sacar la nueva query por tienda y lo guarda en nuestro s3
         #
-        #guardarla en promociones out peya 
+        #guardarla en promociones Cancel peya 
     
     cursor.close()
     pg_connection.close()
@@ -301,9 +300,9 @@ def _send_joined_data_to_stfp(ds):
     ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
+    prefix = f"integraciones/last_millers/stock/Cancel/peya/{exec_date}/"
      #Crear un prefix para promo
-    prefix2 = f"integraciones/last_millers/promotions/out/peya/{exec_date}/"
+    prefix2 = f"integraciones/last_millers/promotions/Cancel/peya/{exec_date}/"
     
    
     
@@ -365,15 +364,15 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_peya_stock_integration",
+    "proc_peya_cancel_promotions",
     default_args=default_args,
-    description="Cruce de stock, precios y precios promocionales simples para integracion Pedidos Ya",
+    description="Cruce de stock, precios y precios promocionales simples para cancelacion de pe promociones Pedidos Ya",
     schedule_interval=None, 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS"],
+    tags=["OPS", "last_millers", "dw", "Cancel", "precios", "NICOLAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -387,7 +386,6 @@ with DAG(
     del producto, **PRECIO** es el menor valor entre precio modal y precio promocional y **STOCK** es un valor binario, donde 0 se asigna a aquellos
     productos con stock menor a 7 unidades, y 1 a aquellos productos con 7 o más unidades. \n
     * Finalmente, se itera sobre los archivos generados, dejando cada uno de estos en el servidor SFTP de Pedidos Ya.
-    Este DAG depende del DAG: [ **proc_stock_last_millers** ].
     """ 
 
     t0 = PythonOperator(

@@ -6,7 +6,10 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 import pendulum
-
+    ######################################################################################################################
+    #                               Carga de las tiendas de pediddos Ya                                                  #
+    ######################################################################################################################
+    
 def _get_peya_active_stores():
     peya_stores_query = """
         SELECT id, id_peya
@@ -52,7 +55,11 @@ def _get_peya_market_active_stores():
     pg_connection.close()
     return results
 
-def _join_stock_and_promo_prices_from_s3(ds, ti):
+    #################################################################################################################
+    #                                   Carga de promociones Complejas NxM                                          #
+    #################################################################################################################
+
+def _join_promo_prices_from_s3(ds, ti):
     import io
     import pandas as pd
 
@@ -84,39 +91,61 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
         
-        peya_stock_query = f"""
-        SELECT	
-            NULL AS barcode,
-            lspp.ean AS sku,
-            CASE
-                WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio)
-                when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio) * 0.25)
-                   when lspp.ean in ('2152','28361','1121','2596602000008','97696','1448','7583','1261',
-                   '1276','51004','3252','94169','94171','1295','1410','1480','1570','2502499000007','28359',
-                   '1627','90707','1691','2713','4102','2145','2504','23243','2707','1690','1740','2245','1699','1333',
-                   '3252','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004','3252',
-                   '94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627','90707','
-                   1691','1699','2713','4102','2145','2504','23243','2707','1690','1740') then lspp.precio
-                   when lspp.ean in ('53363','53364','91406','91407','92315','93269','93280','96224','96438','96439',
-					'96440','96441','96442','96444','96445','96484','96643','98602','98604','98985') then lspp.precio
-                ELSE ROUND((lspp.precio) * s.multiplicador_unidad_medida)
-            END AS price,
-            CASE
-                WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= COALESCE(ssp.stock_seguridad, 2)) THEN 1
-                WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= COALESCE(ssp.stock_seguridad, 2)) THEN 1
-                ELSE 0
-            END AS active
-            FROM integraciones.lm_stock_precio_promo lspp
-            INNER JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
-            INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-            LEFT JOIN integraciones.stock_seguridad_peya ssp ON ssp.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida) AND lspp.id_tienda = ssp.id_tienda
-            WHERE lspp.id_tienda = '{store_id}'
-            and lspp.id_tienda != '0053'
+        peya_promotion_nxm_query = f"""
+            select distinct 
+                null as barcode,
+                lspp.ean as sku,
+                'Promociones Unimarc' as campaign_name,
+                'Promociones Complejas' as reason,
+                concat(current_date ,' 10:00:00-03:00') AS start_date,
+                concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
+                1 as campaign_status,
+                'same_item_bundle' as promotion_type,
+                'free_item' as promotion_sub_type,
+                null as discount_usage_limit,
+                case
+	                when WP.desc_promocion = 'COMBINACION NXM' then Concat('B',Wp.cantidad_n - 1,'G',cantidad_n - cantidad_m)
+                end as bundle_details,
+                null as bundle_discount
+            from integraciones.lm_stock_precio_promo lspp 
+            left join ecommdata.workflow_promociones wp on concat(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = concat(lspp.material, '-', lspp.unidad_de_medida) 
+            where  wp.fecha_inicio_de_promocion <= CURRENT_DATE 
+            AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
+            AND lspp.id_tienda = '0053'
+            AND wp.tipo_promocion IN (2, 7)
+            and Wp.cantidad_n = '3'
+            AND wp.registro_valido = TRUE
+            AND wp.organizacion_ventas = '1000'
+            AND wp.canal_distribucion = '10'
+            AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+            AND wp.nombre_promocion::text !~~ '%MFC%'::text
+            AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+            AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+            AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+            AND wp.nombre_promocion::text !~~ '%917%'::text
+            AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+            AND wp.nombre_promocion::text !~~ '% LOC%'::text
+            AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+            AND lspp.ean IS NOT null
+            and WP.desc_promocion = 'COMBINACION NXM'
+   	        and wp.n_promocion  not in  ('5552392024',
+            '1120012024',
+	        '1120022024',
+	        '1120032024',
+	        '1120042024',
+	        '1120052024',
+	        '1120062024',
+	        '1120082024',
+	        '1120092024',
+	        '1120102024',
+	        '1120112024',
+	        '1120122024',
+	        '4000512024')
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
 
-        cursor.execute(peya_stock_query)
+        cursor.execute(peya_promotion_nxm_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
         print(columns)
@@ -132,7 +161,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         #df["SKU"] = df["SKU"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/stock/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
         if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
             print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
@@ -160,75 +189,66 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     replace=True,
                     encrypt=False)
         print(f"File load on S3: {join_file_name}")
-        
-        if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
-            if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-                print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-                continue
-            s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-            print(f"File load on S3: {join_file_name}")
-            
-        if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
-            if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-                print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-                continue
-            s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-            print(f"File load on S3: {join_file_name}")
         #Aqui va la nueva logica
-        join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
+        join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/{peya_store_ids[store_id]}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
-        
-        peya_stock_query = f"""
+        ####################################################################################################################
+        #                   Promociones Complejas Nx$ o BUY X and Buy X get 1 item from it for a Y% discount               # 
+        ####################################################################################################################
+        peya_promotion_nxs_query = f"""
              SELECT DISTINCT
-                null AS barcode,
+                NULL AS barcode,
                 lspp.ean AS sku,
-                'Promociones' AS campaign_name,
-                'PedidosYa' AS reason,
+                'Promociones Unimarc' AS campaign_name,
+                'Promociones Complejas' AS reason,
                 concat(current_date ,' 10:00:00-03:00') AS start_date,
-                concat(current_date + 1,' 11:00:00-03:00') AS end_date,
+                concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
+                1 AS campaign_status,
+                'same_item_bundle' AS promotion_type,
+                'free_item' AS promotion_sub_type,
+                NULL AS discount_usage_limit,
                 CASE
-    				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
-                    when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0.25)
-                     when lspp.ean in ('2152','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004',
-							'3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
-							'90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690') then lspp.precio_promocional
-    				when lspp.ean in ('53363','53364','91406','91407','92315','93269','93280','96224','96438','96439',
-					'96440','96441','96442','96444','96445','96484','96643','98602','98604','98985') then lspp.precio_promocional 
-                    ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
-				END AS discounted_price,
-                --s.multiplicador_unidad_medida,
-                999 AS max_no_of_orders,
-                1 AS campaign_status
-                FROM integraciones.lm_stock_precio_promo lspp
-                INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                where lspp.precio_promocional  is not null
-                AND lspp.id_tienda = '{store_id}'
-                and lspp.id_tienda != '0053'
-                GROUP BY
-                lspp.ean,
-                lspp.nombre,
-                lspp.precio_promocional ,
-                s.multiplicador_unidad_medida,
-                lspp.unidad_de_medida,
+                    WHEN WP.desc_promocion = 'COMBINACION NX$' THEN CONCAT('B', Wp.cantidad_n, 'G', 1)
+                END AS bundle_details,
                 CASE
-                    WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(LEAST(lspp.precio, lspp.precio_promocional))
-                    ELSE ROUND(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida)
-                end;
+                    WHEN wp.precio_modal IS NOT NULL AND wp.cantidad_n > 0 THEN
+                    FLOOR(((wp.precio_modal * wp.cantidad_n - (wp.precio_total_promocional - wp.precio_modal))/ wp.precio_modal )*100)-100
+                ELSE 
+                NULL
+                END AS bundle_discount
+            FROM integraciones.lm_stock_precio_promo lspp 
+            LEFT JOIN ecommdata.workflow_promociones wp 
+                ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
+            WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
+            AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
+            AND wp.tipo_promocion IN (2, 7)
+            AND lspp.id_tienda = '0053'
+            and Wp.cantidad_n = '3'
+            AND wp.registro_valido = TRUE
+            AND wp.organizacion_ventas = '1000'
+            AND wp.canal_distribucion = '10'
+            AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+            AND wp.nombre_promocion::text NOT LIKE '%MFC%'
+            AND wp.nombre_promocion::text NOT LIKE '%BANCO%'
+            AND wp.nombre_promocion::text NOT LIKE '%UNIPAY%'
+            AND wp.nombre_promocion::text NOT LIKE '%TERCERA%'
+            AND wp.nombre_promocion::text NOT LIKE '%917%'
+            AND wp.nombre_promocion::text NOT LIKE '%ESTADO%'
+            AND wp.nombre_promocion::text NOT LIKE '% LOC%'
+            AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
+            AND lspp.ean IS NOT NULL
+            AND WP.desc_promocion = 'COMBINACION NX$'
+            --AND lspp.material in ('000000000000345768' ,'000000000000753782','000000000000990546')
+            AND wp.n_promocion NOT IN (
+                '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', 
+                '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
+                '1120112024', '1120122024', '4000512024'
+            );
         """
         #AND lspp.id_tienda = '0755'
-        cursor.execute(peya_stock_query)
+        cursor.execute(peya_promotion_nxs_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
 
@@ -243,7 +263,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         #df["SKU"] = df["SKU"].astype("int64")
         
         prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
             
         print(f"Total number of records: {len(df.index)}.")
@@ -258,38 +278,13 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     replace=True,
                     encrypt=False)
         print(f"File load on S3: {join_file_name}")
-        
-        if peya_botilleria_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_botilleria_store_ids[store_id]}.csv"
-            if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-                print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-                continue
-            s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-            print(f"File load on S3: {join_file_name}")
-            
-        if peya_market_store_ids.get(store_id, False):
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/{exec_date}/{peya_market_store_ids[store_id]}.csv"
-            if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-                print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-                continue
-            s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-            print(f"File load on S3: {join_file_name}")
-        #en el for agregar en la parte que comienzo a sacar la nueva query por tienda y lo guarda en nuestro s3
-        #
-        #guardarla en promociones out peya 
     
     cursor.close()
     pg_connection.close()
     return
-#a
+    ##################################################################################
+    #               Envio de promociones Complejas a Pedidos Ya                      #
+    ##################################################################################
 
 def _send_joined_data_to_stfp(ds):
     import os
@@ -301,9 +296,10 @@ def _send_joined_data_to_stfp(ds):
     ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/peya/{exec_date}/"
-     #Crear un prefix para promo
-    prefix2 = f"integraciones/last_millers/promotions/out/peya/{exec_date}/"
+     #Prefix para NXM
+    prefix = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/"
+     #Prefix para promociones NxS
+    prefix2 = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/"
     
    
     
@@ -330,7 +326,7 @@ def _send_joined_data_to_stfp(ds):
                                 port=ftp_port, 
                                 password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
-            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/catalog/SMUCatalog_{output_stock_file}"
+            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXM_{output_stock_file}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
@@ -350,7 +346,7 @@ def _send_joined_data_to_stfp(ds):
                                 port=ftp_port, 
                                 password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
-            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMU_{output_promo_file}"
+            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXS_{output_promo_file}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
@@ -365,7 +361,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_peya_stock_integration",
+    "proc_peya_promotion_complex",
     default_args=default_args,
     description="Cruce de stock, precios y precios promocionales simples para integracion Pedidos Ya",
     schedule_interval=None, 
@@ -379,15 +375,7 @@ with DAG(
     dag.doc_md = """
     Cruce de stock, precios y precios promocionales simples para integración con Last Millers: **Pedidos Ya**. \n
     * Se obtiene listado de tiendas activas para la integración PEYA (`registros con id_peya NOT NULL de la tabla integraciones.tiendas_last_millers`). \n
-    * A partir de esta lista, se obtiene listado de archivos CSV de stock + precio para cada una de las tiendas activas en **PEYA**. \n
-    * Desde **S3** se extrae archivo CSV de precios modales. \n
-    * Para cada tienda activa, se cruzan los archivos de stock + precio promo y el de precios modales, se les da formato correspondiente para luego
-    ser almacenados en **S3**. 
-    * En este caso, el formato de integración de los archivos es CSV con las columnas [****, **PRECIO**, **STOCK**], donde **** corresponde al ean interno
-    del producto, **PRECIO** es el menor valor entre precio modal y precio promocional y **STOCK** es un valor binario, donde 0 se asigna a aquellos
-    productos con stock menor a 7 unidades, y 1 a aquellos productos con 7 o más unidades. \n
-    * Finalmente, se itera sobre los archivos generados, dejando cada uno de estos en el servidor SFTP de Pedidos Ya.
-    Este DAG depende del DAG: [ **proc_stock_last_millers** ].
+    * A partir de esta lista, se obtiene listado de archivos CSV de Promos tanto NXM o NXS + precio para cada una de las tiendas activas en **PEYA**. \n
     """ 
 
     t0 = PythonOperator(
@@ -405,8 +393,8 @@ with DAG(
     )
 
     t3 = PythonOperator(
-        task_id = "join_stock_and_promo_prices_from_s3",
-        python_callable = _join_stock_and_promo_prices_from_s3
+        task_id = "join_promo_prices_from_s3",
+        python_callable = _join_promo_prices_from_s3
     )
 
     t4 = PythonOperator(

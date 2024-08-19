@@ -132,7 +132,7 @@ def _join_promo_prices_from_s3(ds, ti):
 
     uber_promotions_query = None
 
-    if numero_dia_semana == 0 :
+    if numero_dia_semana == 1 :
             uber_promotions_query = f"""
                 SELECT DISTINCT 
                     lspp.material AS Sku,
@@ -394,7 +394,20 @@ def _join_promo_prices_test_from_s3(ds, ti):
                 AND wp.nombre_promocion::text !~~ '%917%'::text
                 AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
                 and wp.nombre_promocion::text !~~ '% LOC%'::text
-                and wp.nombre_promocion::text !~~ '%LIQ%'::text;
+                and wp.nombre_promocion::text !~~ '%LIQ%'::text
+                and wp.n_promocion not in  ('5552392024','1120012024',
+'1120022024',
+'1120032024',
+'1120042024',
+'1120052024',
+'1120062024',
+'1120082024',
+'1120092024',   
+'1120102024',
+'1120112024',
+'1120122024',
+'4000512024'
+);
                 """
     if uber_promotions_query is not None:
         cursor.execute(uber_promotions_query)
@@ -456,15 +469,15 @@ def _send_joined_data_to_sftp(ds):
     #Datos de los envios
 
     exec_date = ds.replace("-", "/")
-    prefix_Promotions = f"integraciones/last_millers/promotions/out/uber/{exec_date}/"
-    prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/"
-    prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/"
-    prefix_test = f"integraciones/last_millers/promotions/out/uber/Test_{exec_date}/"
+    prefix_Promotions = f"integraciones/last_millers/promotions/out/uber/{exec_date}/" #Prefix para promociones simples
+    prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/" #Prefis para el catologo enviado a uber
+    prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/" #Prefix para actualizacion de stock
+    prefix_test = f"integraciones/last_millers/promotions/out/uber/Test_{exec_date}/"  #Prefix para promociones complejas
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    #Envio de promociones solo los dias lunes y jueves 
+    #Envio de promociones simples solo los dias lunes y jueves 
 
     if numero_dia_semana == 0 or numero_dia_semana == 3 :
         s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Promotions)
@@ -492,10 +505,10 @@ def _send_joined_data_to_sftp(ds):
 
             if numero_dia_semana == 0 :
                 fecha_limite = exec_date + timedelta(days=3)
-                remotePath = f"/prod/Archivo_promociones_{output_promotions_file}"
+                remotePath = f"/test/delta/Test_Archivo_promociones_{output_promotions_file}"
             if numero_dia_semana == 3 :
                  fecha_limite = exec_date + timedelta(days=4)
-                 remotePath = f"/prod/Archivo_promociones_{output_promotions_file}"
+                 remotePath = f"/test/delta/Test_Archivo_promociones_{output_promotions_file}"
             with sftp.open(remotePath, 'w') as f:
                  f.write(promotions_object_body.to_csv(index=False, sep=';'))
         
@@ -529,10 +542,10 @@ def _send_joined_data_to_sftp(ds):
 
             if numero_dia_semana == 0 :
                 fecha_limite = exec_date + timedelta(days=3)
-                remotePath = f"/test/delta/Test_Archivo_promociones_{output_promotions_file}"
+                remotePath = f"/prod/Archivo_promociones_{output_promotions_file}"
             if numero_dia_semana == 3 :
                  fecha_limite = exec_date + timedelta(days=4)
-                 remotePath = f"/test/delta/Test_Archivo_promociones_{output_promotions_file}"
+                 remotePath = f"/prod/Archivo_promociones_{output_promotions_file}"
             with sftp.open(remotePath, 'w') as f:
                  f.write(promotions_object_body.to_csv(index=False, sep=';'))
         
