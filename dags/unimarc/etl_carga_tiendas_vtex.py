@@ -57,33 +57,44 @@ def carga_tiendas_to_s3(ds):
                     and p.ref_id is not null
                     and s.ref_id is not null
                     and pe.material is null
-                    union
-                    select pc.ref_id, pc.id_tienda, t.canal_venta_vtex , p.vtex_id 
-                    from ecommdata.publicacion_catalogo pc
-                    left join ecommdata.productos p on p.ref_id = pc.ref_id
-                    left join ecommdata.tiendas t on t.id = pc.id_tienda 
-                    where pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo pc2 where fecha_hora >= current_date)
-                    and pc.id_tienda = '1917'
-                    and pc.mfc is true
-                    and pc.stock_janis > 0"""
+                    limit 100000
+                    --union
+                    --select pc.ref_id, pc.id_tienda, t.canal_venta_vtex , p.vtex_id 
+                    --from ecommdata.publicacion_catalogo pc
+                    --left join ecommdata.productos p on p.ref_id = pc.ref_id
+                    --left join ecommdata.tiendas t on t.id = pc.id_tienda 
+                    --where pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo pc2 where fecha_hora >= current_date)
+                    --and pc.id_tienda = '1917'
+                    --and pc.mfc is true
+                    --and pc.stock_janis > 0"""
     
     df = query_to_df(query_tiendas_producto)
     
     lista_ref_ids = df['vtex_id'].unique()
+    print(f"cantidad de skus unicos: {len(lista_ref_ids)}")
+
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+    account_name = Variable.get("VTEX_ACCOUNT_NAME") 
+    env = Variable.get("VTEX_ENV")
+
+    lista_api = []
 
     for aux in lista_ref_ids:
-        X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-        X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
-        account_name = Variable.get("VTEX_ACCOUNT_NAME") 
-        env = Variable.get("VTEX_ENV")
 
         header = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken}
         url = f"https://{account_name}.{env}.com.br/api/catalog/pvt/product/{str(int(aux))}/salespolicy"
         data = get_api_data(url, header)
+
         print(data)
         
+        if data:
+            lista_api.extend(data)
+   
+    df_api = pd.DataFrame(lista_api)
+        
     buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    df_api.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
     filename = f"carga_tiendas_vtex/{exec_date}/carga_tiendas_{date_aux}.csv"
@@ -94,7 +105,6 @@ def carga_tiendas_to_s3(ds):
                 bucket_name=s3_bucket,
                 replace=True,
                 encrypt=False)
-
 
     print("se logro transformar los dataframes a archivos .csv")
     print(f"File load on S3: {prefix}")
