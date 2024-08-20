@@ -90,115 +90,124 @@ def _join_promo_prices_from_s3(ds, ti):
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
-        
-        peya_promotion_nxm_query = f"""
-            select distinct 
-                null as barcode,
-                lspp.ean as sku,
-                'Promociones Unimarc' as campaign_name,
-                'Promociones Complejas' as reason,
-                concat(current_date ,' 10:00:00-03:00') AS start_date,
-                concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
-                1 as campaign_status,
-                'same_item_bundle' as promotion_type,
-                'free_item' as promotion_sub_type,
-                null as discount_usage_limit,
-                case
-	                when WP.desc_promocion = 'COMBINACION NXM' then Concat('B',Wp.cantidad_n - 1,'G',cantidad_n - cantidad_m)
-                end as bundle_details,
-                null as bundle_discount
-            from integraciones.lm_stock_precio_promo lspp 
-            left join ecommdata.workflow_promociones wp on concat(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = concat(lspp.material, '-', lspp.unidad_de_medida) 
-            where  wp.fecha_inicio_de_promocion <= CURRENT_DATE 
-            AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
-            AND lspp.id_tienda = '0053'
-            AND wp.tipo_promocion IN (2, 7)
-            and Wp.cantidad_n = '3'
-            AND wp.registro_valido = TRUE
-            AND wp.organizacion_ventas = '1000'
-            AND wp.canal_distribucion = '10'
-            AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
-            AND wp.nombre_promocion::text !~~ '%MFC%'::text
-            AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-            AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-            AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-            AND wp.nombre_promocion::text !~~ '%917%'::text
-            AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-            AND wp.nombre_promocion::text !~~ '% LOC%'::text
-            AND wp.nombre_promocion::text !~~ '%LIQ%'::text
-            AND lspp.ean IS NOT null
-            and WP.desc_promocion = 'COMBINACION NXM'
-   	        and wp.n_promocion  not in  ('5552392024',
-            '1120012024',
-	        '1120022024',
-	        '1120032024',
-	        '1120042024',
-	        '1120052024',
-	        '1120062024',
-	        '1120082024',
-	        '1120092024',
-	        '1120102024',
-	        '1120112024',
-	        '1120122024',
-	        '4000512024')
-        """
-         #AND lspp.id_tienda = '0755' 
-        #AND lspp.id_tienda = '{store_id}'
+        for n in range(2, 11):  # Iterar desde 2 hasta 10
+            peya_promotion_nxm_query = f"""
+                select distinct 
+                    'all' as vendors,
+                    null as barcode,
+                    lspp.ean as sku,
+                    'Promociones Unimarc' as campaign_name,
+                    'Promociones Complejas' as reason,
+                    concat(current_date ,' 10:00:00-03:00') AS start_date,
+                    concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
+                    1 as campaign_status,
+                    'same_item_bundle' as promotion_type,
+                    'free_item' as promotion_sub_type,
+                    null as discount_usage_limit,
+                    case
+                        when WP.desc_promocion = 'COMBINACION NXM' then Concat('B',Wp.cantidad_n - 1,'G',cantidad_n - cantidad_m)
+                    end as bundle_details,
+                    null as bundle_discount
+                from integraciones.lm_stock_precio_promo lspp 
+                left join ecommdata.workflow_promociones wp on concat(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = concat(lspp.material, '-', lspp.unidad_de_medida) 
+                where  wp.fecha_inicio_de_promocion <= CURRENT_DATE 
+                AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
+                AND lspp.id_tienda = '0053'
+                AND wp.tipo_promocion IN (2, 7)
+                and Wp.cantidad_n = '{n}'
+                AND wp.registro_valido = TRUE
+                AND wp.organizacion_ventas = '1000'
+                AND wp.canal_distribucion = '10'
+                AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+                AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                AND wp.nombre_promocion::text !~~ '%917%'::text
+                AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                AND wp.nombre_promocion::text !~~ '% LOC%'::text
+                AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                AND lspp.ean IS NOT null
+                and WP.desc_promocion = 'COMBINACION NXM'
+                and wp.n_promocion  not in  ('5552392024',
+                '1120012024',
+                '1120022024',
+                '1120032024',
+                '1120042024',
+                '1120052024',
+                '1120062024',
+                '1120082024',
+                '1120092024',
+                '1120102024',
+                '1120112024',
+                '1120122024',
+                '4000512024')
+            """
+            #AND lspp.id_tienda = '0755' 
+            #AND lspp.id_tienda = '{store_id}'
 
-        cursor.execute(peya_promotion_nxm_query)
-        results = cursor.fetchall()
-        columns = [i[0] for i in cursor.description]
-        print(columns)
-        
-        if len(results) == 0:
-            print(f"No records found for Store Id: {store_id}")
-            continue
-
-        df = pd.DataFrame(results, columns=columns)
-        print(f"Number of records found on stock: {len(df.index)}")
-
-        df.columns = map(str.upper, df.columns)
-        #df["SKU"] = df["SKU"].astype("int64")
-        
-        prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
-        print(f"Checking for previous executions on {prev_join_file_name}.")
-        if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
-            print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
-
-            prev_stock_file = s3_hook.get_key(prev_join_file_name, bucket_name=s3_bucket)
-            df_prev = pd.read_csv(prev_stock_file.get()["Body"])
-
-            df_prev = df_prev[~df_prev["SKU"].isin(df["SKU"])]
-            df_prev = df_prev[df_prev["SKU"]==1]
-            df_prev["SKU"] = 0
-
-            print(f"Adding {len(df_prev.index)} missing products as inactive: STOCK = 0.")
-
-            df = pd.concat([df, df_prev])
+            cursor.execute(peya_promotion_nxm_query)
+            results = cursor.fetchall()
+            columns = [i[0] for i in cursor.description]
+            print(columns)
             
-        print(f"Total number of records: {len(df.index)}.")
+            if len(results) == 0:
+                print(f"No records found for Store Id: {store_id}")
+                continue
 
-        buffer = io.StringIO()
-        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-        buffer.seek(0)
+            df = pd.DataFrame(results, columns=columns)
+            print(f"Number of records found on stock: {len(df.index)}")
 
-        s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-        print(f"File load on S3: {join_file_name}")
-        #Aqui va la nueva logica
-        join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/{peya_store_ids[store_id]}.csv"
-        if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-            print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
+            df.columns = map(str.upper, df.columns)
+            #df["SKU"] = df["SKU"].astype("int64")
+            
+            prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
+            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            print(f"Checking for previous executions on {prev_join_file_name}.")
+            if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
+                print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
+
+                prev_stock_file = s3_hook.get_key(prev_join_file_name, bucket_name=s3_bucket)
+                df_prev = pd.read_csv(prev_stock_file.get()["Body"])
+
+                df_prev = df_prev[~df_prev["SKU"].isin(df["SKU"])]
+                df_prev = df_prev[df_prev["SKU"]==1]
+                df_prev["SKU"] = 0
+
+                print(f"Adding {len(df_prev.index)} missing products as inactive: STOCK = 0.")
+
+                df = pd.concat([df, df_prev])
+                
+            print(f"Total number of records: {len(df.index)}.")
+
+            buffer = io.StringIO()
+            df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+            buffer.seek(0)
+
+            s3_hook.load_string(buffer.getvalue(),
+                        key=join_file_name,
+                        bucket_name=s3_bucket,
+                        replace=True,
+                        encrypt=False)
+            print(f"File load on S3: {join_file_name}")
+            #Aqui va la nueva logica
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
+                print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
         ####################################################################################################################
         #                   Promociones Complejas Nx$ o BUY X and Buy X get 1 item from it for a Y% discount               # 
         ####################################################################################################################
-        peya_promotion_nxs_query = f"""
-             SELECT DISTINCT
+        for store_id in peya_store_ids.keys():
+        print(f"PEYA id: {peya_store_ids[store_id]}")
+        join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_store_ids[store_id]}.csv"
+        if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
+            print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
+            continue
+        for n in range(2, 11):  # Iterar desde 2 hasta 10
+            peya_promotion_nxs_query = f"""
+                SELECT DISTINCT
+                'all' as vendors,
                 NULL AS barcode,
                 lspp.ean AS sku,
                 'Promociones Unimarc' AS campaign_name,
@@ -207,7 +216,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
                 1 AS campaign_status,
                 'same_item_bundle' AS promotion_type,
-                'free_item' AS promotion_sub_type,
+                'percentage_value_off' AS promotion_sub_type,
                 NULL AS discount_usage_limit,
                 CASE
                     WHEN WP.desc_promocion = 'COMBINACION NX$' THEN CONCAT('B', Wp.cantidad_n, 'G', 1)
@@ -216,7 +225,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     WHEN wp.precio_modal IS NOT NULL AND wp.cantidad_n > 0 THEN
                     FLOOR(((wp.precio_modal * wp.cantidad_n - (wp.precio_total_promocional - wp.precio_modal))/ wp.precio_modal )*100)-100
                 ELSE 
-                NULL
+                    NULL
                 END AS bundle_discount
             FROM integraciones.lm_stock_precio_promo lspp 
             LEFT JOIN ecommdata.workflow_promociones wp 
@@ -225,7 +234,7 @@ def _join_promo_prices_from_s3(ds, ti):
             AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
             AND wp.tipo_promocion IN (2, 7)
             AND lspp.id_tienda = '0053'
-            and Wp.cantidad_n = '3'
+            AND Wp.cantidad_n = '{n}'  -- Número de la iteración actual
             AND wp.registro_valido = TRUE
             AND wp.organizacion_ventas = '1000'
             AND wp.canal_distribucion = '10'
@@ -242,43 +251,43 @@ def _join_promo_prices_from_s3(ds, ti):
             AND WP.desc_promocion = 'COMBINACION NX$'
             --AND lspp.material in ('000000000000345768' ,'000000000000753782','000000000000990546')
             AND wp.n_promocion NOT IN (
-                '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', 
-                '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
-                '1120112024', '1120122024', '4000512024'
+            '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', 
+            '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
+            '1120112024', '1120122024', '4000512024'
             );
         """
-        #AND lspp.id_tienda = '0755'
+    
+        # Ejecutar la consulta
         cursor.execute(peya_promotion_nxs_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
 
         if len(results) == 0:
-            print(f"No records found for Store Id: {store_id}")
+            print(f"No records found for Store Id: {store_id} with cantidad_n = {n}")
             continue
-
+        ##No me esta tomando esta parte
         df = pd.DataFrame(results, columns=columns)
-        print(f"Number of records found on stock: {len(df.index)}")
+        print(f"Number of records found on stock for cantidad_n = {n}: {len(df.index)}")
 
         df.columns = map(str.upper, df.columns)
-        #df["SKU"] = df["SKU"].astype("int64")
-        
-        prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
-        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+
+        prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
+        prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/{peya_store_ids[store_id]}_{n}.csv"
         print(f"Checking for previous executions on {prev_join_file_name}.")
-            
-        print(f"Total number of records: {len(df.index)}.")
+
+        print(f"Total number of records for cantidad_n = {n}: {len(df.index)}.")
 
         buffer = io.StringIO()
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
 
         s3_hook.load_string(buffer.getvalue(),
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
-        print(f"File load on S3: {join_file_name}")
-    
+                        key=join_file_name,
+                        bucket_name=s3_bucket,
+                        replace=True,
+                        encrypt=False)
+        print(f"File load on S3 for cantidad_n = {n}: {join_file_name}")
+
     cursor.close()
     pg_connection.close()
     return
@@ -311,7 +320,7 @@ def _send_joined_data_to_stfp(ds):
     
 
     print(f"Number of files found: {len(s3_file_list)}")
-
+    
     for stock_file in s3_file_list:
         print(stock_file)
 
