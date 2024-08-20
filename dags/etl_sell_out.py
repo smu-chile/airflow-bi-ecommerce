@@ -245,13 +245,5 @@ with DAG(
         python_callable = sell_out_to_postgresql,
     )
 
-    t2 = PostgresOperator(
-        task_id = "delete_old_sell_out",
-        postgres_conn_id = "postgresql_conn",
-        sql = """DELETE
-            FROM catalogo.sell_out
-            WHERE fecha_creacion_vtex = '{{ds}}'::date - interval '90 days' """
-    )
 
-
-    t0 >> t1 >> t2
+    t0 >> t1
