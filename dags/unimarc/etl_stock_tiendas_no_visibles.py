@@ -58,11 +58,13 @@ def _send_stock_999_to_janis(ds):
         payload=[]
         for r in chunk:
             material = str(r[0]).zfill(18)
-            id_tienda = "0053"
-            warehouse = "0053"
-            row = {"IdSku": material, "Quantity": 999, "Store": id_tienda, "Warehouse": warehouse}
-            print(row)
-            payload.append(row)
+            stores = ['0053', '0054', '0398']
+            for store in stores:
+                id_tienda = store
+                warehouse = store
+                row = {"IdSku": material, "Quantity": 999, "Store": id_tienda, "Warehouse": warehouse}
+                print(row)
+                payload.append(row)
         payload = json.dumps(payload)
         response = requests.request("POST", url, headers=headers, data=payload)
         print(response.text)
@@ -76,13 +78,13 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_tienda_san_felipe',
+    'etl_stock_tiendas_no_visibles',
     default_args=default_args,
-    description="Se agrega stock a tienda de prueba San Felipe para facilitar pruebas",
+    description="Se agrega stock a tiendas no visibles para procesos operacionales y pruebas",
     schedule_interval="30 * * * *",
     start_date=pendulum.datetime(2024, 7, 3, tz="America/Santiago"),
     catchup=False,
-    tags=["Janis", "ecommdata", "catalogo", "San Felipe", "stock"],
+    tags=["Janis", "ecommdata", "catalogo", "San Felipe","Los Andes","Constitucion", "stock"],
 ) as dag:
 
     dag.doc_md = """
