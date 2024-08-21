@@ -13,8 +13,8 @@ import pendulum
 
 def materiales_lista8():
     import pandas as pd
-    stock_carnes_padre_hijo = """select distinct split_part(ref_id , '-', 1) AS material
-                            from ecommdata.productos_tienda pt ;"""
+    stock_carnes_padre_hijo = """select distinct material 
+                            from ecommdata.productos p ;"""
     print(stock_carnes_padre_hijo)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -102,7 +102,6 @@ def master_sku_to_s3(ds,ti):
     df_lista8.info()
 
     df_aux = pd.merge(df_lista8, df_supp, left_on='material', right_on='SKU_PRODUCT', how = 'left').drop('SKU_PRODUCT', axis=1)
-
 
     df_final = df_aux
     df_final.info()
