@@ -101,6 +101,9 @@ def master_sku_to_s3(ds,ti):
     df_lista8 = materiales_lista8()
     df_lista8.info()
 
+    df_lista8['material'] = df_lista8['material'].apply(lambda x: str(int(x)).zfill(18) if pd.notnull(x) and str(x).isdigit() else None)
+    df_supp['SKU_PRODUCT'] = df_supp['SKU_PRODUCT'].apply(lambda x: str(int(x)).zfill(18) if pd.notnull(x) and str(x).isdigit() else None)
+
     df_aux = pd.merge(df_lista8, df_supp, left_on='material', right_on='SKU_PRODUCT', how = 'left').drop('SKU_PRODUCT', axis=1)
 
     df_final = df_aux
@@ -186,11 +189,19 @@ def master_sku_to_postgresq(ti):
 
     df.info()
 
+    df = df.dropna(subset=['material'])
+
+    df.info()
+
     df['proveedor_retail'] = pd.to_numeric(df['proveedor_retail'], errors='coerce').astype('Int64')
     df['nuestro_100'] = pd.to_numeric(df['nuestro_100'], errors='coerce').astype('Int64')
     df['marca_propia'] = df['marca_propia'].fillna(False)
     df['marca_propia'] = df['marca_propia'].astype(int)
-    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['material'] = df['material'].apply(lambda x: str(int(x)).zfill(18))
+
+    df = df.dropna(subset=['sku_key'], how='all')
+
+    df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
