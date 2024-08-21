@@ -295,33 +295,33 @@ def _join_promo_prices_from_s3(ds, ti):
         #               Envio de promociones Complejas a Pedidos Ya                      #
         ##################################################################################
 
-    def _send_joined_data_to_stfp(ds):
-        import os
-        import pysftp
+def _send_joined_data_to_stfp(ds):
+    import os
+    import pysftp
 
-        ftp_host = Variable.get("NEW_PEYA_SFTP_HOST")
-        ftp_port = 22
-        ftp_user = Variable.get("NEW_PEYA_SFTP_USER")
-        ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
+    ftp_host = Variable.get("NEW_PEYA_SFTP_HOST")
+    ftp_port = 22
+    ftp_user = Variable.get("NEW_PEYA_SFTP_USER")
+    ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
-        exec_date = ds.replace("-", "/")
-        #Prefix para NXM
-        prefix = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/"
-        #Prefix para promociones NxS
-        prefix2 = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/"
+    exec_date = ds.replace("-", "/")
+    #Prefix para NXM
+    prefix = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/"
+    #Prefix para promociones NxS
+    prefix2 = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/"
         
     
         
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
-        s3_file_list2 = s3_hook.list_keys(s3_bucket, prefix=prefix2)
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
+    s3_file_list2 = s3_hook.list_keys(s3_bucket, prefix=prefix2)
         
 
-        print(f"Number of files found: {len(s3_file_list)}")
+    print(f"Number of files found: {len(s3_file_list)}")
         
-        for stock_file in s3_file_list:
+    for stock_file in s3_file_list:
             print(stock_file)
 
             stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
@@ -340,8 +340,8 @@ def _join_promo_prices_from_s3(ds, ti):
             
             print("File loaded.")
 
-        #Crear for para promo
-        for promo_file in s3_file_list2:
+    #Crear for para promo
+    for promo_file in s3_file_list2:
             print(promo_file)
 
             stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
