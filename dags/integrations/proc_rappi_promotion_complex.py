@@ -42,7 +42,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     for store_id in rappi_store_ids:
         print(f"Store id: {store_id}")
         
-        join_file_name = f"integraciones/last_millers/stock/out/rappi/{exec_date}/{store_id}.json"
+        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/{store_id}.json"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -142,7 +142,7 @@ def _send_joined_data_to_api(ds):
     import requests
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/rappi/{exec_date}/"
+    prefix = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
