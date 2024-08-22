@@ -46,9 +46,10 @@ def _join_promo_prices_from_s3(ds, ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     for n in range(2, 11):  # Iterar desde 2 hasta 10
+        print(f"Iterracion numero:{n} ")
         for store_id in peya_store_ids.keys():
             print(f"PEYA id: {peya_store_ids[store_id]}")
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
 
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
@@ -57,7 +58,7 @@ def _join_promo_prices_from_s3(ds, ti):
             peya_promotion_nxm_query = f"""
                     select distinct 
                         null as barcode,
-                        lspp.ean as sku,
+                        lspp.ean as SKU,
                         'Promociones Unimarc' as campaign_name,
                         'Promociones Complejas' as reason,
                         concat(current_date ,' 10:00:00-03:00') AS start_date,
@@ -104,6 +105,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     '1120112024',
                     '1120122024',
                     '4000512024')
+                    AND lspp.id_tienda = '{store_id}'
                 """
                 #AND lspp.id_tienda = '0755' 
                 #AND lspp.id_tienda = '{store_id}'
@@ -163,7 +165,7 @@ def _join_promo_prices_from_s3(ds, ti):
     for n in range(2, 11):  # Iterar desde 2 hasta 10    
         for store_id in peya_store_ids.keys():
             print(f"PEYA id: {peya_store_ids[store_id]}")
-            join_file_name = f"integraciones/last_millers/stock/out/peya/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -171,7 +173,7 @@ def _join_promo_prices_from_s3(ds, ti):
             peya_promotion_nxs_query = f"""
                     SELECT DISTINCT
                     NULL AS barcode,
-                    lspp.ean AS sku,
+                    lspp.ean AS SKU,
                     'Promociones Unimarc' AS campaign_name,
                     'Promociones Complejas' AS reason,
                     concat(current_date ,' 10:00:00-03:00') AS start_date,
@@ -217,6 +219,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
                 '1120112024', '1120122024', '4000512024'
                 );
+                AND lspp.id_tienda = '{store_id}'
             """
         
             # Ejecutar la consulta
@@ -250,9 +253,9 @@ def _join_promo_prices_from_s3(ds, ti):
                             encrypt=False)
             print(f"File load on S3 for cantidad_n = {n}: {join_file_name}")
 
-        cursor.close()
-        pg_connection.close()
-        return
+    cursor.close()
+    pg_connection.close()
+    return
         ##################################################################################
         #               Envio de promociones Complejas a Pedidos Ya                      #
         ##################################################################################
