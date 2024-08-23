@@ -105,7 +105,6 @@ def _join_promo_prices_from_s3(ds, ti):
                     '1120112024',
                     '1120122024',
                     '4000512024')
-                    AND lspp.id_tienda = '{store_id}'
                 """
                 #AND lspp.id_tienda = '0755' 
                 #AND lspp.id_tienda = '{store_id}'
@@ -219,7 +218,6 @@ def _join_promo_prices_from_s3(ds, ti):
                 '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
                 '1120112024', '1120122024', '4000512024'
                 );
-                AND lspp.id_tienda = '{store_id}'
             """
         
             # Ejecutar la consulta
