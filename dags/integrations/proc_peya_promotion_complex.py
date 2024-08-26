@@ -49,7 +49,7 @@ def _join_promo_prices_from_s3(ds, ti):
         print(f"Iterracion numero:{n} ")
         for store_id in peya_store_ids.keys():
             print(f"PEYA id: {peya_store_ids[store_id]}")
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/ComplexNXM_{n}.csv"
 
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
@@ -57,6 +57,7 @@ def _join_promo_prices_from_s3(ds, ti):
             
             peya_promotion_nxm_query = f"""
                     select distinct 
+                        'all' as vendors,
                         null as barcode,
                         lspp.ean as SKU,
                         'Promociones Unimarc' as campaign_name,
@@ -123,7 +124,7 @@ def _join_promo_prices_from_s3(ds, ti):
             df.columns = map(str.upper, df.columns)
 
             prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
-            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/ComplexNXM_{n}.csv"
             print(f"Checking for previous executions on {prev_join_file_name}.")
 
             print(f"Total number of records for cantidad_n_NXM = {n}: {len(df.index)}.")
@@ -145,13 +146,14 @@ def _join_promo_prices_from_s3(ds, ti):
     for n in range(2, 11):  # Iterar desde 2 hasta 10    
         for store_id in peya_store_ids.keys():
             print(f"PEYA id: {peya_store_ids[store_id]}")
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/ComplexNXS_{n}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
 
             peya_promotion_nxs_query = f"""
                     SELECT DISTINCT
+                    'all' as vendors,
                     NULL AS barcode,
                     lspp.ean AS SKU,
                     'Promociones Unimarc' AS campaign_name,
@@ -216,7 +218,7 @@ def _join_promo_prices_from_s3(ds, ti):
             df.columns = map(str.upper, df.columns)
 
             prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
-            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/ComplexNXS_{n}.csv"
             print(f"Checking for previous executions on {prev_join_file_name}.")
 
             print(f"Total number of records for cantidad_n = {n}: {len(df.index)}.")
@@ -244,6 +246,7 @@ def _join_promo_prices_from_s3(ds, ti):
 
             peya_promotion_query = f"""
                     SELECT DISTINCT
+                    'all' as vendors,
                     NULL AS barcode,
                     lspp.ean AS SKU,
                     'Promociones Unimarc' AS campaign_name,
@@ -359,8 +362,10 @@ def _send_joined_data_to_stfp(ds):
         
 
     print(f"Number of files found: {len(s3_file_list)}")
+    print(f"Number of files found: {len(s3_file_list2)}")
+    print(f"Number of files found: {len(s3_file_list3)}")
         
-    for stock_file in s3_file_list:
+    for index,stock_file in enumerate(s3_file_list, start=1):
             print(stock_file)
 
             stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
@@ -374,14 +379,14 @@ def _send_joined_data_to_stfp(ds):
                                     port=ftp_port, 
                                     password=ftp_rsa_key) as sftp:
                 localFile = stock_object_body
-                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXM_{output_stock_file}"
+                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXM{index}"
                 sftp.putfo(localFile, remotePath)
             
             print("File loaded.")
 
     #Crear for para promo
 
-    for promo_file in s3_file_list2:
+    for index, promo_file in enumerate(s3_file_list2, start=1):
             print(promo_file)
 
             stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
@@ -391,11 +396,12 @@ def _send_joined_data_to_stfp(ds):
             print(f"File to load to SFTP Server: {output_promo_file}")
 
             with pysftp.Connection(host=ftp_host, 
-                                    username=ftp_user, 
-                                    port=ftp_port, 
-                                    password=ftp_rsa_key) as sftp:
+                           username=ftp_user, 
+                           port=ftp_port, 
+                           password=ftp_rsa_key) as sftp:
                 localFile = stock_object_body
-                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXS_{output_promo_file}"
+        # Añadimos el índice para que el nombre sea único
+                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXS{index}"
                 sftp.putfo(localFile, remotePath)
             
             print("File loaded.")
