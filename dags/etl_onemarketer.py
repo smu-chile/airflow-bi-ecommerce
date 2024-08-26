@@ -151,7 +151,7 @@ with DAG(
     schedule_interval= "0,30 * * * *",
     start_date=pendulum.datetime(2024, 9, 26, tz="America/Santiago"),
     catchup=True,
-    tags=["DATA", "postgres", "MFC", "s3", "stock", "takeoff", "MATIAS"],
+    tags=["onemarketer", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """
