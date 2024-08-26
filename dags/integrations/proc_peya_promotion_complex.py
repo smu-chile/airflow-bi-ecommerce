@@ -49,7 +49,7 @@ def _join_promo_prices_from_s3(ds, ti):
         print(f"Iterracion numero:{n} ")
         for store_id in peya_store_ids.keys():
             print(f"PEYA id: {peya_store_ids[store_id]}")
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/ComplexNXM_{n}.csv"
 
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
@@ -57,6 +57,7 @@ def _join_promo_prices_from_s3(ds, ti):
             
             peya_promotion_nxm_query = f"""
                     select distinct 
+                        'all' as vendors,
                         null as barcode,
                         lspp.ean as SKU,
                         'Promociones Unimarc' as campaign_name,
@@ -123,7 +124,7 @@ def _join_promo_prices_from_s3(ds, ti):
             df.columns = map(str.upper, df.columns)
 
             prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
-            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/ComplexNXM_{n}.csv"
             print(f"Checking for previous executions on {prev_join_file_name}.")
 
             print(f"Total number of records for cantidad_n_NXM = {n}: {len(df.index)}.")
@@ -145,13 +146,14 @@ def _join_promo_prices_from_s3(ds, ti):
     for n in range(2, 11):  # Iterar desde 2 hasta 10    
         for store_id in peya_store_ids.keys():
             print(f"PEYA id: {peya_store_ids[store_id]}")
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/ComplexNXS_{n}.csv"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
 
             peya_promotion_nxs_query = f"""
                     SELECT DISTINCT
+                    'all' as vendors,
                     NULL AS barcode,
                     lspp.ean AS SKU,
                     'Promociones Unimarc' AS campaign_name,
@@ -216,7 +218,7 @@ def _join_promo_prices_from_s3(ds, ti):
             df.columns = map(str.upper, df.columns)
 
             prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
-            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/{peya_store_ids[store_id]}_{n}.csv"
+            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/ComplexNXS_{n}.csv"
             print(f"Checking for previous executions on {prev_join_file_name}.")
 
             print(f"Total number of records for cantidad_n = {n}: {len(df.index)}.")
@@ -244,52 +246,40 @@ def _join_promo_prices_from_s3(ds, ti):
 
             peya_promotion_query = f"""
                     SELECT DISTINCT
-                    NULL AS barcode,
-                    lspp.ean AS SKU,
-                    'Promociones Unimarc' AS campaign_name,
-                    'Promociones Complejas' AS reason,
+                    'all' as vendors,
+                    null AS barcode,
+                    lspp.ean AS sku,
+                    'Promociones' AS campaign_name,
+                    'PedidosYa' AS reason,
                     concat(current_date ,' 10:00:00-03:00') AS start_date,
-                    concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
-                    1 AS campaign_status,
-                    'same_item_bundle' AS promotion_type,
-                    'percentage_value_off' AS promotion_sub_type,
-                    NULL AS discount_usage_limit,
+                    concat(current_date + 1,' 11:00:00-03:00') AS end_date,
                     CASE
-                        WHEN WP.desc_promocion = 'COMBINACION NX$' THEN CONCAT('B', Wp.cantidad_n, 'G', 1)
-                    END AS bundle_details,
-                    CASE
-                        WHEN wp.precio_modal IS NOT NULL AND wp.cantidad_n > 0 THEN
-                        FLOOR(((wp.precio_modal * wp.cantidad_n - (wp.precio_total_promocional - wp.precio_modal))/ wp.precio_modal )*100)-100
-                    ELSE 
-                        NULL
-                    END AS bundle_discount
-                FROM integraciones.lm_stock_precio_promo lspp 
-                LEFT JOIN ecommdata.workflow_promociones wp 
-                    ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
-                WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
-                AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
-                AND wp.tipo_promocion IN (2, 7)
-                AND lspp.id_tienda = '0053'
-                AND wp.registro_valido = TRUE
-                AND wp.organizacion_ventas = '1000'
-                AND wp.canal_distribucion = '10'
-                AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
-                AND wp.nombre_promocion::text NOT LIKE '%MFC%'
-                AND wp.nombre_promocion::text NOT LIKE '%BANCO%'
-                AND wp.nombre_promocion::text NOT LIKE '%UNIPAY%'
-                AND wp.nombre_promocion::text NOT LIKE '%TERCERA%'
-                AND wp.nombre_promocion::text NOT LIKE '%917%'
-                AND wp.nombre_promocion::text NOT LIKE '%ESTADO%'
-                AND wp.nombre_promocion::text NOT LIKE '% LOC%'
-                AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
-                AND lspp.ean IS NOT NULL
-                AND WP.desc_promocion = 'COMBINACION NX$'
-                --AND lspp.material in ('000000000000345768' ,'000000000000753782','000000000000990546')
-                AND wp.n_promocion NOT IN (
-                '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', 
-                '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
-                '1120112024', '1120122024', '4000512024'
-                );
+    				    WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
+                        when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0.25)
+                        when lspp.ean in ('2152','2245','28361','1121','2596602000008','97696','1448','7583','1261','1276','51004',
+							'3252','94169','94171','1295','2595852000004','1410','1480','1570','2502499000007','28359','1627',
+							'90707','1691','1699','2713','4102','2145','2504','1261','23243','2707','1690') then lspp.precio_promocional
+    				    when lspp.ean in ('53363','53364','91406','91407','92315','93269','93280','96224','96438','96439',
+					        '96440','96441','96442','96444','96445','96484','96643','98602','98604','98985') then lspp.precio_promocional 
+                        ELSE ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida))
+				    END AS discounted_price,
+                    --s.multiplicador_unidad_medida,
+                    999 AS max_no_of_orders,
+                    1 AS campaign_status
+                FROM integraciones.lm_stock_precio_promo lspp
+                INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
+                where lspp.precio_promocional  is not null
+                AND lspp.id_tienda = '{store_id}'
+                GROUP BY
+                lspp.ean,
+                lspp.nombre,
+                lspp.precio_promocional ,
+                s.multiplicador_unidad_medida,
+                lspp.unidad_de_medida,
+                CASE
+                    WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(LEAST(lspp.precio, lspp.precio_promocional))
+                    ELSE ROUND(LEAST(lspp.precio, lspp.precio_promocional) * s.multiplicador_unidad_medida)
+                end;
             """
         
             # Ejecutar la consulta
@@ -359,8 +349,10 @@ def _send_joined_data_to_stfp(ds):
         
 
     print(f"Number of files found: {len(s3_file_list)}")
+    print(f"Number of files found: {len(s3_file_list2)}")
+    print(f"Number of files found: {len(s3_file_list3)}")
         
-    for stock_file in s3_file_list:
+    for index,stock_file in enumerate(s3_file_list, start=1):
             print(stock_file)
 
             stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
@@ -374,14 +366,14 @@ def _send_joined_data_to_stfp(ds):
                                     port=ftp_port, 
                                     password=ftp_rsa_key) as sftp:
                 localFile = stock_object_body
-                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXM_{output_stock_file}"
+                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXM{index}"
                 sftp.putfo(localFile, remotePath)
             
             print("File loaded.")
 
     #Crear for para promo
 
-    for promo_file in s3_file_list2:
+    for index, promo_file in enumerate(s3_file_list2, start=1):
             print(promo_file)
 
             stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
@@ -391,11 +383,12 @@ def _send_joined_data_to_stfp(ds):
             print(f"File to load to SFTP Server: {output_promo_file}")
 
             with pysftp.Connection(host=ftp_host, 
-                                    username=ftp_user, 
-                                    port=ftp_port, 
-                                    password=ftp_rsa_key) as sftp:
+                           username=ftp_user, 
+                           port=ftp_port, 
+                           password=ftp_rsa_key) as sftp:
                 localFile = stock_object_body
-                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXS_{output_promo_file}"
+        # Añadimos el índice para que el nombre sea único
+                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromoNXS{index}"
                 sftp.putfo(localFile, remotePath)
             
             print("File loaded.")
