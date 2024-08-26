@@ -112,52 +112,33 @@ def _join_promo_prices_from_s3(ds, ti):
             cursor.execute(peya_promotion_nxm_query)
             results = cursor.fetchall()
             columns = [i[0] for i in cursor.description]
-            print(columns)
                 
             if len(results) == 0:
-                print(f"No records found for Store Id: {store_id}")
+                print(f"No records found for Store Id: {store_id} with cantidad_n = {n}")
                 continue
-
+            ##No me esta tomando esta parte
             df = pd.DataFrame(results, columns=columns)
-            print(f"Number of records found on stock: {len(df.index)}")
+            print(f"Number of records found on stock for cantidad_n = {n}: {len(df.index)}")
 
             df.columns = map(str.upper, df.columns)
-            #df["SKU"] = df["SKU"].astype("int64")
-                
-            prev_exec_date = macros.ds_add(ds, -1).replace("-","/")
+
+            prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
             prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{prev_exec_date}/{peya_store_ids[store_id]}_{n}.csv"
             print(f"Checking for previous executions on {prev_join_file_name}.")
-            if s3_hook.check_for_key(prev_join_file_name, bucket_name=s3_bucket):
-                print(f"Looking for missing products from previous execution on file {prev_join_file_name}.")
 
-                prev_stock_file = s3_hook.get_key(prev_join_file_name, bucket_name=s3_bucket)
-                df_prev = pd.read_csv(prev_stock_file.get()["Body"])
+            print(f"Total number of records for cantidad_n_NXM = {n}: {len(df.index)}.")
 
-                df_prev = df_prev[~df_prev["SKU"].isin(df["SKU"])]
-                df_prev = df_prev[df_prev["SKU"]==1]
-                df_prev["SKU"] = 0
+            buffer = io.StringIO()
+            df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+            buffer.seek(0)
 
-                print(f"Adding {len(df_prev.index)} missing products as inactive: STOCK = 0.")
-
-                df = pd.concat([df, df_prev])
-                    
-                print(f"Total number of records: {len(df.index)}.")
-
-                buffer = io.StringIO()
-                df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-                buffer.seek(0)
-
-                s3_hook.load_string(buffer.getvalue(),
+            s3_hook.load_string(buffer.getvalue(),
                             key=join_file_name,
                             bucket_name=s3_bucket,
                             replace=True,
                             encrypt=False)
-                print(f"File load on S3: {join_file_name}")
-                #Aqui va la nueva logica
-                join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/{peya_store_ids[store_id]}_{n}.csv"
-                if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-                    print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-                continue
+            print(f"File load on S3 for cantidad_n = {n}: {join_file_name}")
+            continue
         ####################################################################################################################
         #                   Promociones Complejas Nx$ o BUY X and Buy X get 1 item from it for a Y% discount               # 
         ####################################################################################################################
@@ -226,7 +207,7 @@ def _join_promo_prices_from_s3(ds, ti):
             columns = [i[0] for i in cursor.description]
 
             if len(results) == 0:
-                print(f"No records found for Store Id: {store_id} with cantidad_n = {n}")
+                print(f"No records found for Store Id: {store_id} with cantidad_n_NXS = {n}")
                 continue
             ##No me esta tomando esta parte
             df = pd.DataFrame(results, columns=columns)
@@ -250,6 +231,98 @@ def _join_promo_prices_from_s3(ds, ti):
                             replace=True,
                             encrypt=False)
             print(f"File load on S3 for cantidad_n = {n}: {join_file_name}")
+            continue
+        #################################################################################
+        #                       Promociones simples                                     #
+        #################################################################################  
+    for store_id in peya_store_ids.keys():
+            print(f"PEYA id: {peya_store_ids[store_id]}")
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/Test/{exec_date}/{peya_store_ids[store_id]}.csv"            
+            if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
+                print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
+                continue
+
+            peya_promotion_query = f"""
+                    SELECT DISTINCT
+                    NULL AS barcode,
+                    lspp.ean AS SKU,
+                    'Promociones Unimarc' AS campaign_name,
+                    'Promociones Complejas' AS reason,
+                    concat(current_date ,' 10:00:00-03:00') AS start_date,
+                    concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
+                    1 AS campaign_status,
+                    'same_item_bundle' AS promotion_type,
+                    'percentage_value_off' AS promotion_sub_type,
+                    NULL AS discount_usage_limit,
+                    CASE
+                        WHEN WP.desc_promocion = 'COMBINACION NX$' THEN CONCAT('B', Wp.cantidad_n, 'G', 1)
+                    END AS bundle_details,
+                    CASE
+                        WHEN wp.precio_modal IS NOT NULL AND wp.cantidad_n > 0 THEN
+                        FLOOR(((wp.precio_modal * wp.cantidad_n - (wp.precio_total_promocional - wp.precio_modal))/ wp.precio_modal )*100)-100
+                    ELSE 
+                        NULL
+                    END AS bundle_discount
+                FROM integraciones.lm_stock_precio_promo lspp 
+                LEFT JOIN ecommdata.workflow_promociones wp 
+                    ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
+                WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
+                AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
+                AND wp.tipo_promocion IN (2, 7)
+                AND lspp.id_tienda = '0053'
+                AND wp.registro_valido = TRUE
+                AND wp.organizacion_ventas = '1000'
+                AND wp.canal_distribucion = '10'
+                AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+                AND wp.nombre_promocion::text NOT LIKE '%MFC%'
+                AND wp.nombre_promocion::text NOT LIKE '%BANCO%'
+                AND wp.nombre_promocion::text NOT LIKE '%UNIPAY%'
+                AND wp.nombre_promocion::text NOT LIKE '%TERCERA%'
+                AND wp.nombre_promocion::text NOT LIKE '%917%'
+                AND wp.nombre_promocion::text NOT LIKE '%ESTADO%'
+                AND wp.nombre_promocion::text NOT LIKE '% LOC%'
+                AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
+                AND lspp.ean IS NOT NULL
+                AND WP.desc_promocion = 'COMBINACION NX$'
+                --AND lspp.material in ('000000000000345768' ,'000000000000753782','000000000000990546')
+                AND wp.n_promocion NOT IN (
+                '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', 
+                '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
+                '1120112024', '1120122024', '4000512024'
+                );
+            """
+        
+            # Ejecutar la consulta
+            cursor.execute(peya_promotion_query)
+            results = cursor.fetchall()
+            columns = [i[0] for i in cursor.description]
+
+            if len(results) == 0:
+                print(f"No records found for Store Id: {store_id}")
+                continue
+            ##No me esta tomando esta parte
+            df = pd.DataFrame(results, columns=columns)
+            print(f"Number of records found on stock for cantidad = {len(df.index)}")
+
+            df.columns = map(str.upper, df.columns)
+
+            prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
+            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/Test/{prev_exec_date}/{peya_store_ids[store_id]}.csv"
+            print(f"Checking for previous executions on {prev_join_file_name}.")
+
+            print(f"Total number of records for cantidad_n = {n}: {len(df.index)}.")
+
+            buffer = io.StringIO()
+            df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+            buffer.seek(0)
+
+            s3_hook.load_string(buffer.getvalue(),
+                            key=join_file_name,
+                            bucket_name=s3_bucket,
+                            replace=True,
+                            encrypt=False)
+            print(f"File load on S3 for cantidad ={join_file_name}")
+            continue  
 
     cursor.close()
     pg_connection.close()
@@ -272,6 +345,8 @@ def _send_joined_data_to_stfp(ds):
     prefix = f"integraciones/last_millers/promotions/out/peya/Complex/NXM/{exec_date}/"
     #Prefix para promociones NxS
     prefix2 = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/"
+    #Prefix para test 
+    prefix3 = f"integraciones/last_millers/promotions/out/peya/Complex/Test/{exec_date}"
         
     
         
@@ -280,6 +355,7 @@ def _send_joined_data_to_stfp(ds):
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
     s3_file_list2 = s3_hook.list_keys(s3_bucket, prefix=prefix2)
+    s3_file_list3 = s3_hook.list_keys(s3_bucket, prefix=prefix3)
         
 
     print(f"Number of files found: {len(s3_file_list)}")
@@ -304,6 +380,7 @@ def _send_joined_data_to_stfp(ds):
             print("File loaded.")
 
     #Crear for para promo
+
     for promo_file in s3_file_list2:
             print(promo_file)
 
@@ -323,6 +400,27 @@ def _send_joined_data_to_stfp(ds):
             
             print("File loaded.")
 
+     #aqui manda la promocion simple para todos
+
+    for promo_file in s3_file_list3:
+            print(promo_file)
+
+            stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
+            stock_object_body = stock_object.get()["Body"]
+
+            output_promo_file = promo_file.split("/")[-1]
+            print(f"File to load to SFTP Server: {output_promo_file}")
+
+            with pysftp.Connection(host=ftp_host, 
+                                    username=ftp_user, 
+                                    port=ftp_port, 
+                                    password=ftp_rsa_key) as sftp:
+                localFile = stock_object_body
+                remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromotionall"
+                sftp.putfo(localFile, remotePath)
+            
+            print("File loaded.")
+    
     return
 
 default_args = {
