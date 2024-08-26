@@ -149,7 +149,7 @@ with DAG(
     default_args=default_args,
     description="utiliza la API de onemarketer para extraer el historial de conversaciones",
     schedule_interval= "0,30 * * * *",
-    start_date=pendulum.datetime(2024, 9, 26, tz="America/Santiago"),
+    start_date=pendulum.datetime(2024, 8, 26, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
     tags=["onemarketer", "MATIAS"],
