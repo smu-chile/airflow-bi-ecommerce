@@ -19,7 +19,7 @@ def _api_onemarketer(ts):
     exec_date_b = exec_date - timedelta(minutes=30)
     exec_date_e = exec_date + timedelta(minutes=30)
     exec_date_rf_b = exec_date_b.strftime("%Y-%m-%d %H:%M")
-    exec_date_rf_e = exec_date_e.strftime("%Y/%m/%d %H:%M")
+    exec_date_rf_e = exec_date_e.strftime("%Y-%m-%d %H:%M")
     print(exec_date_rf_b)
     print(exec_date_rf_e)
 
