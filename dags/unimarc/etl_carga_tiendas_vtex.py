@@ -12,7 +12,7 @@ import pendulum
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -54,26 +54,10 @@ def carga_tiendas_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    query_tiendas_producto = f"""select distinct concat(l.material,'-', l.umv) as ref_id, l.id_tienda, t.canal_venta_vtex , p.vtex_id 
-                    from ecommdata.lista8 l 
-                    left join ecommdata.productos p on p.ref_id = concat(l.material,'-', l.umv)
-                    left join ecommdata.skus s on s.ref_id = concat(l.material,'-', l.umv)
-                    left join ecommdata.tiendas t on t.id = l.id_tienda 
-                    left join catalogo.productos_excluidos pe on l.material = pe.material and l.umv = pe.umv 
-                    where t.status = 1
-                    and p.ref_id is not null
-                    and s.ref_id is not null
-                    and pe.material is null
-                    limit 1000
-                    --union
-                    --select pc.ref_id, pc.id_tienda, t.canal_venta_vtex , p.vtex_id 
-                    --from ecommdata.publicacion_catalogo pc
-                    --left join ecommdata.productos p on p.ref_id = pc.ref_id
-                    --left join ecommdata.tiendas t on t.id = pc.id_tienda 
-                    --where pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo pc2 where fecha_hora >= current_date)
-                    --and pc.id_tienda = '1917'
-                    --and pc.mfc is true
-                    --and pc.stock_janis > 0"""
+    query_tiendas_producto = f"""select distinct concat(l.material,'-',l.umv) as ref_id, p.vtex_id
+            from ecommdata.lista8 l 
+            left join ecommdata.productos p on p.ref_id = concat(l.material,'-',l.umv)
+            where p.vtex_id is not null"""
     
     df = query_to_df(query_tiendas_producto)
     
@@ -82,7 +66,6 @@ def carga_tiendas_to_s3(ds):
 
     account_name = Variable.get("VTEX_ACCOUNT_NAME") 
     env = Variable.get("VTEX_ENV")
-
     
     url_list = []
     for sku in lista_ref_ids:
@@ -90,7 +73,7 @@ def carga_tiendas_to_s3(ds):
         url_list.append(url)
 
     session = requests.session()
-    thread_num = 2#40
+    thread_num = 40
     task_num = len(url_list)//thread_num # division entera
     adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
     session.mount('https://', adapter)
@@ -122,14 +105,15 @@ def carga_tiendas_to_s3(ds):
     for response in responses:
             response_aux = response['json']
             try:
-                aux = (response_aux['ProductId'],response_aux['StoreId'])
-                final_responses.append(aux)
+                for item in response_aux:
+                    aux = (item['ProductId'], item['StoreId'])
+                    final_responses.append(aux)
             except KeyError as e:
-                    print(e)
-                    print(response)
-                    exception_cases.append(response['url'])
+                print(e)
+                print(response)
+                exception_cases.append(response['url'])
     
-    df_tiendas_productos = pd.DataFrame(final_responses)
+    df_tiendas_productos = pd.DataFrame(final_responses, columns=["ProductId", "StoreId"])
     print(df_tiendas_productos.head(30))
         
     buffer = io.StringIO()
@@ -149,6 +133,70 @@ def carga_tiendas_to_s3(ds):
     print(f"File load on S3: {prefix}")
 
     return filename
+
+def carga_tiendas_vtex_to_postgresql(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["carga_tiendas_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    df.columns = ["vtex_id","canal_venta_vtex"]
+    df.info()
+
+    query_tiendas = """select id as id_tienda, nombre_tienda, canal_venta_vtex
+            from ecommdata.tiendas t
+            where canal_venta_vtex is not null"""   
+    df_tiendas = query_to_df(query_tiendas)
+
+    query_productos = """select ref_id, vtex_id , nombre 
+            from ecommdata.productos p 
+            where vtex_id is not null
+            and ref_id is not null"""
+    df_productos = query_to_df(query_productos)
+
+    df_final = pd.merge(df, df_tiendas, how="left" ,on = ["canal_venta_vtex"])
+    df_final = pd.merge(df_final, df_productos,how="left" ,on = ["vtex_id"])
+
+    df_final = df_final[["id_tienda","ref_id","vtex_id","canal_venta_vtex"]]
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        df_final.to_sql(name="producto_tiendas_vtex",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -177,5 +225,9 @@ with DAG(
         task_id = 'carga_tiendas_to_s3',
         python_callable=carga_tiendas_to_s3,
     )
+    t1 = PythonOperator(
+        task_id = "carga_tiendas_vtex_to_postgresql",
+        python_callable = carga_tiendas_vtex_to_postgresql,
+    )
 
-    t0
+    t0 >> t1
