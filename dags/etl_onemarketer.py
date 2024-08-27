@@ -45,9 +45,11 @@ def _api_onemarketer(ts):
 
     try:
         result = requests.get(url, params=parameters, headers=aux_h)
+        return result
     except Exception as e:
         print(f"Ocurrió un error: {e}")
-    return
+        return None
+    
 
 def _from_api_to_postgres(ts):
     from io import StringIO
