@@ -92,7 +92,7 @@ def _from_api_to_postgres(ts):
         conn.execute(f"""
                 delete
                 from ecommdata.onemarketer_operador
-                where fecha_inicio + hora_inicio between '{exec_date_b}' and '{exec_date_e}'))
+                where fecha_inicio + hora_inicio between '{exec_date_b}' and '{exec_date_e}'
                      """)
         df_operador.to_sql(name="onemarketer_operador",
                     con=conn,         
@@ -106,7 +106,7 @@ def _from_api_to_postgres(ts):
         conn.execute(f"""
                 delete
                 from ecommdata.onemarketer_robot
-                where fecha_inicio + hora_inicio between '{exec_date_b}' and '{exec_date_e}'))
+                where fecha_inicio + hora_inicio between '{exec_date_b}' and '{exec_date_e}'
                      """)
         df_robot.to_sql(name="onemarketer_robot",
                     con=conn,         
