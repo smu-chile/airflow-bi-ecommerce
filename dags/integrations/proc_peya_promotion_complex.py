@@ -153,7 +153,7 @@ def _join_promo_prices_from_s3(ds, ti):
 
             peya_promotion_nxs_query = f"""
                     SELECT DISTINCT
-                    'all' as vendors
+                    'all' as vendors,
                     NULL AS barcode,
                     lspp.ean AS SKU,
                     'Promociones Unimarc' AS campaign_name,
