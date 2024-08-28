@@ -16,8 +16,11 @@ def _api_onemarketer(ts):
     import json
 
     exec_date = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
-    exec_date_b = exec_date - timedelta(minutes=30)
-    exec_date_e = exec_date + timedelta(minutes=30)
+    exec_datetime_utc = pendulum.timezone("utc").convert(exec_date)
+    local_tz = pendulum.timezone("America/Santiago")
+    exec_datetime_local = local_tz.convert(exec_datetime_utc)
+    exec_date_b = exec_datetime_local - timedelta(minutes=30)
+    exec_date_e = exec_datetime_local + timedelta(minutes=30)
     exec_date_rf_b = exec_date_b.strftime("%Y-%m-%d %H:%M")
     exec_date_rf_e = exec_date_e.strftime("%Y-%m-%d %H:%M")
     print(exec_date_rf_b)
@@ -83,8 +86,11 @@ def _from_api_to_postgres(ts):
     engine = sqlalchemy.create_engine(conn_url)
 
     exec_date = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
-    exec_date_b = exec_date - timedelta(minutes=30)
-    exec_date_e = exec_date + timedelta(minutes=30)
+    exec_datetime_utc = pendulum.timezone("utc").convert(exec_date)
+    local_tz = pendulum.timezone("America/Santiago")
+    exec_datetime_local = local_tz.convert(exec_datetime_utc)
+    exec_date_b = exec_datetime_local - timedelta(minutes=30)
+    exec_date_e = exec_datetime_local + timedelta(minutes=30)
     exec_date_b = exec_date_b.strftime("%Y-%m-%dT%H:%M")
     exec_date_e = exec_date_e.strftime("%Y-%m-%dT%H:%M")
 
@@ -117,7 +123,7 @@ def _from_api_to_postgres(ts):
                     method='multi')
     
     print("robot DONE")
-    with engine.begin() as conn:
+    with engine.begin() as conn:    
         conn.execute(f"""
                 delete
                 from ecommdata.onemarketer_encuesta oe
