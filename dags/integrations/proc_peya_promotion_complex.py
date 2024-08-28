@@ -145,7 +145,7 @@ def _join_promo_prices_from_s3(ds, ti):
     for n in range(2, 11):  # Iterar desde 2 hasta 10    
         for store_id in peya_store_ids.keys():
             print(f"PEYA id: {peya_store_ids[store_id]}")
-            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/ComplexNXS_{n}.csv"
+            join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{exec_date}/"
             if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
                 print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
                 continue
@@ -215,22 +215,34 @@ def _join_promo_prices_from_s3(ds, ti):
 
             df.columns = map(str.upper, df.columns)
 
-            prev_exec_date = macros.ds_add(ds, -1).replace("-", "/")
-            prev_join_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/NXS/{prev_exec_date}/ComplexNXS_{n}.csv"
-            print(f"Checking for previous executions on {prev_join_file_name}.")
+            df_list = []
+            bundle_discount_list = []
 
-            print(f"Total number of records for cantidad_n = {n}: {len(df.index)}.")
+            for i in df["BUNDLE_DISCOUNT"].to_list():
+                 df_i = df[df["BUNDLE_DISCOUNT"] == i]
+                 df_list.append(df_i)
+                 bundle_discount_list.append(i)
 
-            buffer = io.StringIO()
-            df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-            buffer.seek(0)
+            for i in range(0, len(df_list)):
+                
+                specific_join_file_name = f"{join_file_name}NXSdiscount{bundle_discount_list[i]}.csv"
+            
+                print(f"Saving file: {specific_join_file_name} with {len(df_list[i])} records.")
 
-            s3_hook.load_string(buffer.getvalue(),
-                            key=join_file_name,
-                            bucket_name=s3_bucket,
-                            replace=True,
-                            encrypt=False)
-            print(f"File load on S3 for cantidad_n = {n}: {join_file_name}")
+                buffer = io.StringIO()
+                df_list[i].to_csv(buffer, header=True, index=False, encoding="utf-8")
+                buffer.seek(0)
+
+                s3_hook.load_string(buffer.getvalue(),
+                                key=specific_join_file_name,
+                                bucket_name=s3_bucket,
+                                replace=True,
+                                encrypt=False)
+
+
+            
+
+            print(f"Finished processing for cantidad_n = {n}.")
             continue
         #################################################################################
         #                       Promociones simples                                     #
