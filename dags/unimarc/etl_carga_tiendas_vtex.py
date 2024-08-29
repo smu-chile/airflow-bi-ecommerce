@@ -12,7 +12,7 @@ import pendulum
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_prod")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -25,15 +25,30 @@ def query_to_df(query):
     return results
 
 def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
-    r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
-    try:
-        responses.append({'json':r.json(), 'url':url})
-    except Exception as e:
-        print(e)
-        print(url)
-        print(r)
-        print(r.status_code)
-        exception_cases.append(url)
+    import time
+    import requests
+
+    max_retries = 3
+    retry_count = 0
+
+    while retry_count < max_retries:
+        try:
+            r = session.get(url, headers={"X-VTEX-API-AppKey": X_VTEX_API_AppKey, "X-VTEX-API-AppToken": X_VTEX_API_AppToken})
+            r.raise_for_status() 
+            responses.append({'json': r.json(), 'url': url})
+
+        except requests.exceptions.HTTPError as e:
+            if r.status_code == 429: 
+                retry_count += 1
+                print(f"Error 429: Demasiadas solicitudes. Reintentando en 10 segundos ({retry_count}/{max_retries})")
+                time.sleep(10) 
+            else:
+                print(f"HTTPError: {e}")
+                exception_cases.append(url)
+
+        except Exception as e:
+            print(f"Ocurrió un error: {e}")
+            exception_cases.append(url)
 
 def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
     for url in url_sublist:
@@ -73,7 +88,7 @@ def carga_tiendas_to_s3(ds):
         url_list.append(url)
 
     session = requests.session()
-    thread_num = 40
+    thread_num = 2#40
     task_num = len(url_list)//thread_num # division entera
     adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
     session.mount('https://', adapter)
@@ -114,7 +129,9 @@ def carga_tiendas_to_s3(ds):
                 exception_cases.append(response['url'])
     
     df_tiendas_productos = pd.DataFrame(final_responses, columns=["ProductId", "StoreId"])
-    print(df_tiendas_productos.head(30))
+    df_tiendas_productos.info()
+
+    print(f"Cantidad de productos que fallaron por API: {len(exception_cases)}")
         
     buffer = io.StringIO()
     df_tiendas_productos.to_csv(buffer, header=True, index=False, encoding="utf-8")
