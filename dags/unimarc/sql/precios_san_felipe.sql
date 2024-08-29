@@ -1,6 +1,5 @@
 WITH RankedPrices AS (
     SELECT 
-        '0053' AS store,
         CONCAT(l.material, '-', l.umv) AS skuRefid,
         1 AS skuMinQuantity,
         p.precio AS price,
@@ -37,7 +36,43 @@ INSERT INTO ecommdata.precios_san_felipe (
 )
 SELECT
     '' as id,
-    store,
+    '0053' AS store,
+    skuRefid,
+    skuMinQuantity,
+    price,
+    listPrice,
+    validFrom,
+    validTo,
+    "locked",
+    updatePending,
+    active
+FROM 
+    RankedPrices
+WHERE 
+    rn = 1
+    AND price = precio_l8
+UNION ALL
+SELECT
+    '' as id,
+    '0054' AS store,
+    skuRefid,
+    skuMinQuantity,
+    price,
+    listPrice,
+    validFrom,
+    validTo,
+    "locked",
+    updatePending,
+    active
+FROM 
+    RankedPrices
+WHERE 
+    rn = 1
+    AND price = precio_l8
+UNION ALL
+SELECT
+    '' as id,
+    '0398' AS store,
     skuRefid,
     skuMinQuantity,
     price,
