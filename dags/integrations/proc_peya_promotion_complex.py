@@ -60,7 +60,7 @@ def _join_promo_prices_from_s3(ds, ti):
                         'all' as vendors,
                         null as barcode,
                         lspp.ean as SKU,
-                        'Promociones Unimarc' as campaign_name,
+                        'Promociones Unimarc {n}' as campaign_name,
                         'Promociones Complejas' as reason,
                         concat(current_date ,' 10:00:00-03:00') AS start_date,
                         concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
@@ -156,7 +156,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     'all' as vendors,
                     NULL AS barcode,
                     lspp.ean AS SKU,
-                    'Promociones Unimarc' AS campaign_name,
+                    'Promociones UnimarcNXS{i}' AS campaign_name,
                     'Promociones Complejas' AS reason,
                     concat(current_date ,' 10:00:00-03:00') AS start_date,
                     concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
@@ -228,6 +228,8 @@ def _join_promo_prices_from_s3(ds, ti):
             for i in range(0, len(df_list)):
                 
                 specific_join_file_name = f"{join_file_name}NXSdiscount{bundle_discount_list[i]}.csv"
+
+                df_list[i]["CAMPAIGN_NAME"] = f"Promociones UnimarcNXS{i}"
             
                 print(f"Saving file: {specific_join_file_name} with {len(df_list[i])} records.")
 
@@ -240,10 +242,7 @@ def _join_promo_prices_from_s3(ds, ti):
                                 bucket_name=s3_bucket,
                                 replace=True,
                                 encrypt=False)
-
-
-            
-
+                
             print(f"Finished processing for cantidad_n = {n}.")
             continue
         #################################################################################
