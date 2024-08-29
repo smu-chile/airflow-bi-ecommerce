@@ -63,7 +63,7 @@ def _join_promo_prices_from_s3(ds, ti):
                         'Promociones Unimarc {n}' as campaign_name,
                         'Promociones Complejas' as reason,
                         concat(current_date ,' 10:00:00-03:00') AS start_date,
-                        concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
+                        concat(current_date + 1 ,' 09:50:00-03:00') AS end_date,
                         1 as campaign_status,
                         'same_item_bundle' as promotion_type,
                         'free_item' as promotion_sub_type,
@@ -156,10 +156,10 @@ def _join_promo_prices_from_s3(ds, ti):
                     'all' as vendors,
                     NULL AS barcode,
                     lspp.ean AS SKU,
-                    'Promociones UnimarcNXS{i}' AS campaign_name,
+                    'Promociones UnimarcNXS{n}' AS campaign_name,
                     'Promociones Complejas' AS reason,
                     concat(current_date ,' 10:00:00-03:00') AS start_date,
-                    concat(current_date + 1 ,' 10:00:00-03:00') AS end_date,
+                    concat(current_date + 1 ,' 09:50:00-03:00') AS end_date,
                     1 AS campaign_status,
                     'same_item_bundle' AS promotion_type,
                     'percentage_value_off' AS promotion_sub_type,
@@ -229,7 +229,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 
                 specific_join_file_name = f"{join_file_name}NXSdiscount{bundle_discount_list[i]}.csv"
 
-                df_list[i]["CAMPAIGN_NAME"] = f"Promociones UnimarcNXS{i}"
+                df_list[i]["CAMPAIGN_NAME"] = f"Promociones UnimarcNXS{n}{i}"
             
                 print(f"Saving file: {specific_join_file_name} with {len(df_list[i])} records.")
 
@@ -263,7 +263,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     'Promociones' AS campaign_name,
                     'PedidosYa' AS reason,
                     concat(current_date ,' 10:00:00-03:00') AS start_date,
-                    concat(current_date + 1,' 11:00:00-03:00') AS end_date,
+                    concat(current_date + 1,' 09:50:00-03:00') AS end_date,
                     CASE
     				    WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
                         when lspp.unidad_de_medida in ('KG','KGV') and s.multiplicador_unidad_medida = '0.1' then ROUND((lspp.precio_promocional) * 0.25)
