@@ -9,7 +9,7 @@ WITH RankedPrices AS (
         TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS') AS validFrom,
         TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS') AS validTo,
         0 AS "locked",
-        0 AS updatePending,
+        1 AS updatePending,
         1 AS active,
         ROW_NUMBER() OVER (PARTITION BY l.material, l.umv ORDER BY l.precio_regular DESC) AS rn
     FROM 
