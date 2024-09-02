@@ -75,19 +75,26 @@ def load_last_zippedi_session(ds):
     columns = ['tienda'] + [col for col in df.columns if col != 'tienda']
     df = df[columns]
 
+    df = df[[
+            "tienda",
+            "material",
+            "ean",
+            "nombre_sku",
+            "pasillo",
+            "bahia"
+            ]]
+
     column_types = {
+        "tienda": "string",
         "material": "string",
         "ean": "string", 
         "nombre_sku": "string",
         "pasillo": "string", 
-        "bahia": "string",
-        "tienda": "string"
+        "bahia": "string"
     }
     df = df.astype(column_types, errors="ignore")
     
     columns = [
-        "tienda",
-        "material",
         "ean",
         "nombre_sku",
         "pasillo",
@@ -95,7 +102,8 @@ def load_last_zippedi_session(ds):
     ]
 
     columns_query = ",".join(columns)
-    values_query = ",".join(["%s" for column in columns])
+    values_query = "%s,%s,"+",".join(["%s" for column in columns])
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
     
@@ -113,10 +121,10 @@ def load_last_zippedi_session(ds):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.localizacion_zippedi ("""+columns_query+""") 
+        INSERT INTO ecommdata.localizacion_zippedi (tienda, material,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (tienda,material)
-        DO NOTHING; 
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+"""); 
     """
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
