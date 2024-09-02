@@ -59,7 +59,7 @@ def load_last_zippedi_session(ds):
             print(f"No new sessions found for {store}.")
     
     df = pd.DataFrame(store_labels)
-    
+
     df = df.rename(columns={
         "item": "material",
         "description": "nombre_sku",
@@ -95,7 +95,7 @@ def load_last_zippedi_session(ds):
     ]
 
     columns_query = ",".join(columns)
-    values_query = "%s,"+",".join(["%s" for column in columns])
+    values_query = ",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
     
