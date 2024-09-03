@@ -197,6 +197,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.nombre_promocion::text NOT LIKE '% LOC%'
                 AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
                 AND lspp.ean IS NOT NULL
+                AND (FLOOR(((wp.precio_modal * wp.cantidad_n - (wp.precio_total_promocional - wp.precio_modal)) / wp.precio_modal) * 100) - 100) < 100
                 AND WP.desc_promocion = 'COMBINACION NX$'
                 --AND lspp.material in ('000000000000345768' ,'000000000000753782','000000000000990546')
                 AND wp.n_promocion NOT IN (
