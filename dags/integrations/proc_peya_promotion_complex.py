@@ -14,7 +14,8 @@ def _get_peya_active_stores():
     peya_stores_query = """
         SELECT id, id_peya
         FROM integraciones.tiendas_last_millers
-        WHERE id_peya = '512089';
+        WHERE id_peya = '
+        ';
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -79,6 +80,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     AND lspp.id_tienda = '0053'
                     AND wp.tipo_promocion IN (2, 7)
                     and Wp.cantidad_n = '{n}'
+                    and lspp.precio_promocional is null
                     AND wp.registro_valido = TRUE
                     AND wp.organizacion_ventas = '1000'
                     AND wp.canal_distribucion = '10'
@@ -105,7 +107,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     '1120102024',
                     '1120112024',
                     '1120122024',
-                    '4000512024')
+                    '4000512024','5552792024','5552852024')
                 """
                 #AND lspp.id_tienda = '0755' 
                 #AND lspp.id_tienda = '{store_id}'
@@ -181,6 +183,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.tipo_promocion IN (2, 7)
                 AND lspp.id_tienda = '0053'
                 AND Wp.cantidad_n = '{n}'  -- Número de la iteración actual
+                and lspp.precio_promocional is null
                 AND wp.registro_valido = TRUE
                 AND wp.organizacion_ventas = '1000'
                 AND wp.canal_distribucion = '10'
@@ -199,7 +202,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.n_promocion NOT IN (
                 '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', 
                 '1120052024', '1120062024', '1120082024', '1120092024', '1120102024', 
-                '1120112024', '1120122024', '4000512024'
+                '1120112024', '1120122024', '4000512024','5552792024','5552852024'
                 );
             """
         
