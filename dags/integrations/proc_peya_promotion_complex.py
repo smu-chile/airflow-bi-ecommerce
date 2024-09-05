@@ -14,8 +14,7 @@ def _get_peya_active_stores():
     peya_stores_query = """
         SELECT id, id_peya
         FROM integraciones.tiendas_last_millers
-        WHERE id_peya = '
-        ';
+        WHERE id_peya = '512089';
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
