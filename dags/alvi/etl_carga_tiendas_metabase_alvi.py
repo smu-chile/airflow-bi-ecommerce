@@ -12,7 +12,15 @@ import pendulum
 def lista8():
     import pandas as pd
     promociones_query = """select concat(material,'-',umv) as ref_id, id_tienda, fecha
-                    from ecommdata_alvi.lista8"""
+                    from ecommdata_alvi.lista8
+                    union
+                    select ref_id, '3092' as id_tienda, current_date as fecha
+                    from ecommdata_alvi.productos p 
+                    where ref_id in ('000000000000999998-UN',
+                    '000000000000999997-UN',
+                    '000000000000999996-UN',
+                    '000000000000999995-UN',
+                    '000000000000999999-UN')"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
