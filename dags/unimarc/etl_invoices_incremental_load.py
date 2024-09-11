@@ -64,7 +64,7 @@ def _incremental_load_invoices_table(ti):
         "status": "estado",
         "user_created": "creacion_usuario",
         "user_modified": "modificacion_usuario",
-        "date_created": "fecha_creada",
+        "date_created": "fecha_creacion",
         "date_modified": "fecha_modificada"
     }
     df = df.rename(columns=columns_rename)
@@ -95,7 +95,7 @@ def _incremental_load_invoices_table(ti):
         "estado": "bool",
         "creacion_usuario": "bool",
         "modificacion_usuario": "bool",
-        "fecha_creada": "string",
+        "fecha_creacion": "string",
         "fecha_modificada": "string"
     }, errors="ignore")
 
@@ -112,7 +112,7 @@ def _incremental_load_invoices_table(ti):
         "estado",
         "creacion_usuario",
         "modificacion_usuario",
-        "fecha_creada",
+        "fecha_creacion",
         "fecha_modificada",
         "fecha_modificacion_unixtime"
     ]
@@ -130,7 +130,7 @@ def _incremental_load_invoices_table(ti):
         "estado",
         "creacion_usuario",
         "modificacion_usuario",
-        "fecha_creada",
+        "fecha_creacion",
         "fecha_modificada",
         "fecha_modificacion_unixtime"]]
     columns_query = ",".join(columns)
