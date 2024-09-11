@@ -65,7 +65,7 @@ def _incremental_load_invoices_table(ti):
         "user_created": "creacion_usuario",
         "user_modified": "modificacion_usuario",
         "date_created": "fecha_creacion",
-        "date_modified": "fecha_modificada"
+        "date_modified": "fecha_modificacion"
     }
     df = df.rename(columns=columns_rename)
 
@@ -96,7 +96,7 @@ def _incremental_load_invoices_table(ti):
         "creacion_usuario": "bool",
         "modificacion_usuario": "bool",
         "fecha_creacion": "string",
-        "fecha_modificada": "string"
+        "fecha_modificacion": "string"
     }, errors="ignore")
 
     columns = [
@@ -113,7 +113,7 @@ def _incremental_load_invoices_table(ti):
         "creacion_usuario",
         "modificacion_usuario",
         "fecha_creacion",
-        "fecha_modificada",
+        "fecha_modificacion",
         "fecha_modificacion_unixtime"
     ]
 
@@ -131,7 +131,7 @@ def _incremental_load_invoices_table(ti):
         "creacion_usuario",
         "modificacion_usuario",
         "fecha_creacion",
-        "fecha_modificada",
+        "fecha_modificacion",
         "fecha_modificacion_unixtime"]]
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
