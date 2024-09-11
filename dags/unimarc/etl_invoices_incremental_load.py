@@ -74,9 +74,9 @@ def _incremental_load_invoices_table(ti):
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["fecha_modificacion_unixtime"] = df["fecha_modificacion"]
     df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-    df["type"] = df["type"].astype("str")
-    df.loc[df["value"]=="1.0", "type"] = "factura"
-    df.loc[df["value"]=="1.0", "type"] = "boleta"
+    df["tipo"] = df["tipo"].astype("str")
+    df.loc[df["tipo"]=="1.0", "tipo"] = "factura"
+    df.loc[df["tipo"]=="1.0", "tipo"] = "boleta"
 
 
     # Cast numeric values to int
