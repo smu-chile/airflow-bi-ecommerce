@@ -113,7 +113,8 @@ def _incremental_load_invoices_table(ti):
         "creacion_usuario",
         "modificacion_usuario",
         "fecha_creada",
-        "fecha_modificada"
+        "fecha_modificada",
+        "fecha_modificacion_unixtime"
     ]
 
     df = df[["id",
@@ -130,7 +131,8 @@ def _incremental_load_invoices_table(ti):
         "creacion_usuario",
         "modificacion_usuario",
         "fecha_creada",
-        "fecha_modificada"]]
+        "fecha_modificada",
+        "fecha_modificacion_unixtime"]]
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
