@@ -79,6 +79,25 @@ def _load_to_postgres(ti,ds):
     print(f"Number of records extracted: {len(df.index)}")
     df.info()
 
+    df = df[["fecha",
+        "canal_venta",
+        "sku_key",
+        "material",
+        "umv",
+        "descripcion",
+        "grupo",
+        "categoria",
+        "linea",
+        "seccion",
+        "negocio",
+        "nombre_local",
+        "id_tienda",
+        "venta",
+        "venta_umb",
+        "costo_neto",
+        "numero_aprox_trx"]]
+
+
     df['venta'] = df['venta'].astype(int)
     df['numero_aprox_trx'] = df['numero_aprox_trx'].astype(int)
 
@@ -88,26 +107,58 @@ def _load_to_postgres(ti,ds):
     df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True)
 
     df['id_tienda'] = df['id_tienda'].str.zfill(4)
-
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
     
-    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
-    engine = sqlalchemy.create_engine(conn_url)
+    columns = [
+        "canal_venta",
+        "material",
+        "umv",
+        "descripcion",
+        "grupo",
+        "categoria",
+        "linea",
+        "seccion",
+        "negocio",
+        "nombre_local",
+        "venta",
+        "venta_umb",
+        "costo_neto",
+        "numero_aprox_trx"
+    ]
 
-    with engine.begin() as conn:
-        conn.execute(f"delete from ecommdata.costos_ventas_sku_tienda where fecha = '{ds}'::date;")
-        df.to_sql(name="costos_ventas_sku_tienda",
-                    con=conn,         
-                    schema="ecommdata",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
-
-    print("Data saved to PostgreSQL.")
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,%s,%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.costos_ventas_sku_tienda (fecha,sku_key,id_tienda,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (fecha,sku_key,id_tienda)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres")
 
     return
 
@@ -169,10 +220,10 @@ with DAG(
                     case when VENTA_UMB=0 THEN 0
                     ELSE ROUND(COSTO_NETO/ VENTA_UMB,0) END) AS COSTO_UNITARIO
                     FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE
-                    WHERE DATE_VALUE = '{{ds}}'::DATE
+                    WHERE DATE_VALUE = '{{ds}}'::DATE - INTERVAL '7 days'
                     GROUP BY 1,2,3) as CST USING (DATE_KEY, STORE_KEY, SKU_KEY)
                 WHERE
-                a.FECHA = '{{ds}}'::DATE
+                a.FECHA = '{{ds}}'::DATE - INTERVAL '7 days'
                 AND CANAL_VENTA = 'E-COMMERCE'
                 GROUP BY
                 1,2,3,4,5,6,7,8,9,10,11,12,13
