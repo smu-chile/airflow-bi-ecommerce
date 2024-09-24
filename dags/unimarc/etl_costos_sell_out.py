@@ -80,8 +80,9 @@ def _load_to_postgres(ti,ds):
     df.info()
 
     df = df[["fecha",
-        "canal_venta",
         "sku_key",
+        "id_tienda",
+        "canal_venta",
         "material",
         "umv",
         "descripcion",
@@ -91,7 +92,6 @@ def _load_to_postgres(ti,ds):
         "seccion",
         "negocio",
         "nombre_local",
-        "id_tienda",
         "venta",
         "venta_umb",
         "costo_neto",
@@ -103,8 +103,6 @@ def _load_to_postgres(ti,ds):
 
     df['venta_umb'] = df['venta_umb'].astype(float)
     df['costo_neto'] = df['costo_neto'].astype(float)
-
-    df['fecha'] = pd.to_datetime(df['fecha'], dayfirst=True)
 
     df['id_tienda'] = df['id_tienda'].str.zfill(4)
     
@@ -175,7 +173,7 @@ with DAG(
     description="Extracción de ventas y costos por sku, tienda y canal de ventas",
     schedule_interval="15 7 * * *",
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
-    catchup=True,
+    catchup=False,
     max_active_runs = 1,
     tags=["DW", "P&L", "unimarc", "PATRICIO"],
 ) as dag:
@@ -233,7 +231,6 @@ with DAG(
         retries = 2,
         retry_delay = timedelta(minutes=1),
         execution_timeout = timedelta(minutes=60),
-        pool = "backfill_pool"
     )
 
     t1= PythonOperator(
