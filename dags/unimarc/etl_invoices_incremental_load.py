@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import load_custom_query_to_s3
+from utils.janis_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
@@ -158,9 +158,6 @@ def _incremental_load_invoices_table(ti):
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""")
     """
-    aux_query = """
-
-    """
     print(incremental_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -208,29 +205,11 @@ with DAG(
 
     t1 = PythonOperator(
         task_id = "incremental_unixtime_load_table_to_s3",
-        python_callable = load_custom_query_to_s3,
+        python_callable = incremental_unixtime_load_table_s3,
         op_kwargs = {
-            "query": """
-                select  i.id
-                , o.seq_id as order_id
-                , i.`number`
-                , i.amount
-                , i.date_invoiced
-                , i.url
-                , i.invoice_key
-                , i.tracking_number
-                , i.tracking_url
-                , i.`type`
-                , i.invoice_extra_info
-                , i.status
-                , i.user_created
-                , i.user_modified
-                , i.date_created
-                , i.date_modified 
-                from janis_jackie.invoices i
-                join janis_jackie.wms_orders o on o.id = i.order_id
-            """,
-            "query_name": "invoices",
+            "table_name": "invoices", 
+            "xcom_updated_date_task_id": "get_max_updated_at_date", 
+            "updated_column": "date_modified"
         }
     )
 
