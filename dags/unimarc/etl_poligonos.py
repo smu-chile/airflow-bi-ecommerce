@@ -16,6 +16,7 @@ def transportadoras():
     import pandas as pd
     import requests
     import http.client
+    import logging
 
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
@@ -31,29 +32,46 @@ def transportadoras():
         'X-VTEX-API-AppToken': X_VTEX_API_AppToken
         }
 
-    conn.request("get", "/api/logistics/pvt/shipping-policies?page=1&perPage=200", headers=headers)
-
+    conn.request("GET", "/api/logistics/pvt/shipping-policies?page=1&perPage=200", headers=headers)
     res = conn.getresponse()
+    
     data = res.read()
+    
+    # Loguear la respuesta antes de procesarla
+    logging.info(f"API Response Status: {res.status}")
 
-    response_data = json.loads(data)
+    if res.status != 200:
+        raise Exception(f"API request failed with status {res.status}: {res.reason}")
+
+    if not data:
+        raise Exception("API response is empty")
+
+    try:
+        response_data = json.loads(data)
+    except json.JSONDecodeError as e:
+        raise Exception(f"Failed to decode JSON: {str(e)}")
+
+    if "items" not in response_data:
+        raise Exception("No 'items' key found in the response data")
 
     items = response_data["items"]
-    parsed_data = [{"id": item["id"],
-                    "name": item["name"],
-                    "shippingMethod": item["shippingMethod"],
-                    "isActive": item["isActive"],
-                    "deliveryChannel": item["deliveryChannel"] } for item in items]
+    parsed_data = [{"id": item.get("id"),
+                    "name": item.get("name"),
+                    "shippingMethod": item.get("shippingMethod"),
+                    "isActive": item.get("isActive"),
+                    "deliveryChannel": item.get("deliveryChannel")} for item in items]
 
     df = pd.DataFrame(parsed_data)
     
     return df
+
 
 def poligonos(transportadora):
     import json
     import pandas as pd
     import requests
     import http.client
+    import logging
 
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
@@ -69,11 +87,26 @@ def poligonos(transportadora):
         'X-VTEX-API-AppToken': X_VTEX_API_AppToken
         }
 
-    conn.request("get", f"/api/logistics/pvt/configuration/freights/{transportadora}/00000000/values", headers=headers)
+    conn.request("GET", f"/api/logistics/pvt/configuration/freights/{transportadora}/00000000/values", headers=headers)
     res = conn.getresponse()
     data = res.read()
 
+    # Loguear la respuesta antes de procesarla
+    logging.info(f"API Response Status: {res.status}")
+    logging.info(f"API Response Data: {data.decode('utf-8')}")
+
+    if res.status != 200:
+        raise Exception(f"API request failed with status {res.status}: {res.reason}")
+
+    if not data:
+        raise Exception("API response is empty")
+
     response_data = json.loads(data)
+
+    if "error" in response_data:
+        error_message = response_data["error"].get("message", "Unknown error")
+        logging.warning(f"Skipping transportadora {transportadora} due to error: {error_message}")
+        return pd.DataFrame()  # Devolver un DataFrame vacío si hay un error
     
     items = response_data
     parsed_data = [{"id":transportadora, 
@@ -105,7 +138,7 @@ def coordenadas_poligono(poligono):
             'X-VTEX-API-AppToken': X_VTEX_API_AppToken
             }
         poligono = urllib.parse.quote(poligono, safe='')
-        conn.request("get", f"/api/logistics/pvt/configuration/geoshape/{poligono}", headers=headers)
+        conn.request("GET", f"/api/logistics/pvt/configuration/geoshape/{poligono}", headers=headers)
         res = conn.getresponse()
         if res.status == 200:
             data = res.read()
@@ -141,6 +174,7 @@ def poligonos_to_s3(ds):
 
     df = transportadoras()
     lista_id_transportadoras = df["id"].tolist()
+    print(lista_id_transportadoras)
     df_poligonos = pd.DataFrame()
     for transportadora in lista_id_transportadoras:
         df_aux = poligonos(transportadora)
@@ -148,11 +182,15 @@ def poligonos_to_s3(ds):
         
     df_final = df.merge(df_poligonos,how = 'left', on = "id")
 
+    print(df_final)
+
     lista_poligonos_activos = df_final["polygon"].tolist()
     df_coordenadas = pd.DataFrame()
     for poligono in lista_poligonos_activos:
         df_aux = coordenadas_poligono(poligono)
         df_coordenadas = pd.concat([df_coordenadas, df_aux], axis=0)
+
+    print(df_coordenadas)
 
     df_coordenadas["poligono"] = df_coordenadas['poligono'].apply(lambda x: x.replace("%20", " "))
     df_coordenadas["poligono"] = df_coordenadas['poligono'].apply(lambda x: x.replace("%C3%B1", "ñ"))
