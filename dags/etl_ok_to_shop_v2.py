@@ -24,7 +24,7 @@ def get_nutritional_data(url, exception_cases, retries=3, backoff_factor=0.3):
     for attempt in range(retries):
         try:
             response = requests.get(url, headers=headers, timeout=10)  # Timeout para evitar colgaduras
-            
+
             if response.status_code == 200:
                 data = response.json()
                 
@@ -61,7 +61,6 @@ def get_nutritional_data(url, exception_cases, retries=3, backoff_factor=0.3):
                     # Si "No declara" está en la descripción, asigna 0; de lo contrario, asigna 1
                     suitabilities_dict[suit["code"]] = 1 if "No declara" in suit["description"].lower() else 0
 
-
                 # Extracción de stamps
                 stamps_dict = {stamp["code"]: 1 for stamp in data.get("stamps", [])}
 
@@ -77,17 +76,22 @@ def get_nutritional_data(url, exception_cases, retries=3, backoff_factor=0.3):
                     **suitabilities_dict,
                     **stamps_dict
                 }
+            elif response.status_code == 404:
+                print(f"404 Not Found for URL: {url}, waiting for 10 seconds")
+                time.sleep(10)  # Timeout de 10 segundos en caso de 404
+                exception_cases.append(url)
+                return None
             else:
                 print(f"Error: Received status code {response.status_code} for URL: {url}")
-                exception_cases.append(url)
+                #exception_cases.append(url)
                 return None
             
         except requests.exceptions.Timeout:
             print(f"Timeout occurred for URL: {url}")
-            exception_cases.append(url)
+            #exception_cases.append(url)
         except requests.exceptions.RequestException as e:
             print(f"Request exception occurred for URL: {url}: {e}")
-            exception_cases.append(url)
+            #exception_cases.append(url)
         
         # Exponential backoff for retries
         time.sleep(backoff_factor * (2 ** attempt))
@@ -148,7 +152,7 @@ def ok_to_shop_api_to_s3(ds):
         ]
 
     session = requests.session()
-    thread_num = 5#40
+    thread_num = 4#40
     task_num = len(url_list)//thread_num # division entera
     adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
     session.mount('https://', adapter)
