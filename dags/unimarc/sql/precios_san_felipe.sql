@@ -2,10 +2,9 @@ WITH RankedPrices AS (
     SELECT 
         CONCAT(l.material, '-', l.umv) AS skuRefid,
         1 AS skuMinQuantity,
-        p.precio AS price,
-        l.precio_regular AS precio_l8,
+        l.precio_regular AS price,
         t.nombre_tienda_janis,
-        p.precio_lista AS listPrice,
+        l.precio_regular AS listPrice,
         TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS') AS validFrom,
         TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS') AS validTo,
         0 AS "locked",
@@ -50,7 +49,6 @@ FROM
     RankedPrices
 WHERE 
     rn = 1
-    AND price = precio_l8
 UNION ALL
 SELECT
     '' as id,
@@ -68,7 +66,6 @@ FROM
     RankedPrices
 WHERE 
     rn = 1
-    AND price = precio_l8
 UNION ALL
 SELECT
     '' as id,
@@ -86,4 +83,3 @@ FROM
     RankedPrices
 WHERE 
     rn = 1
-    AND price = precio_l8;
