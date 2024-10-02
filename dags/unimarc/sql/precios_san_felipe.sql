@@ -5,8 +5,14 @@ WITH RankedPrices AS (
         l.precio_regular AS price,
         t.nombre_tienda_janis,
         l.precio_regular AS listPrice,
-        TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS') AS validFrom,
-        TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS') AS validTo,
+        case
+        	when p.valido_desde is not null then TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS')
+        	else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+        end as validFrom,
+        case
+        	when p.valido_hasta is not null then TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS')
+        	else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+        end as validTo,
         0 AS "locked",
         1 AS updatePending,
         1 AS active,
