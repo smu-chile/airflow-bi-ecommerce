@@ -218,10 +218,10 @@ with DAG(
                     case when VENTA_UMB=0 THEN 0
                     ELSE ROUND(COSTO_NETO/ VENTA_UMB,0) END) AS COSTO_UNITARIO
                     FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE
-                    WHERE DATE_VALUE > '{{ds}}'::DATE - INTERVAL '7 days'
+                    WHERE DATE_VALUE > '{{ds}}'::DATE
                     GROUP BY 1,2,3) as CST USING (DATE_KEY, STORE_KEY, SKU_KEY)
                 WHERE
-                a.FECHA > '{{ds}}'::DATE - INTERVAL '7 days'
+                a.FECHA > '{{ds}}'::DATE
                 AND CANAL_VENTA = 'E-COMMERCE'
                 GROUP BY
                 1,2,3,4,5,6,7,8,9,10,11,12,13
