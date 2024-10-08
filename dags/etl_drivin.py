@@ -224,6 +224,73 @@ def get_api_vehiculos(url, exception_cases):
 
     return lista
 
+def get_api_direcciones(url,exception_cases):
+    import requests
+
+    api_key = Variable.get("API_KEY_DRIVIN")
+    headers = {
+        'X-API-Key': api_key
+    }
+    all_data = []
+    page = 1
+
+    while True:
+        try:
+            paginated_url = f"{url}?page={str(page)}"
+            response = requests.get(paginated_url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+
+            # Verifica si 'response' contiene datos y si es una lista
+            response_data = data.get('response', [])
+            if not response_data:
+                # Si no hay más datos en 'response', sal del bucle
+                print(f"No more data found on page {page}.")
+                break
+
+            # Procesa los datos de la respuesta
+            all_data.extend([
+                (
+                    item.get('code'),
+                    item.get('name'),
+                    item.get('client'),
+                    item.get('address_type'),
+                    item.get('address1'),
+                    item.get('address2'),
+                    item.get('city'),
+                    item.get('state'),
+                    item.get('country'),
+                    item.get('zip_code'),
+                    item.get('phone'),
+                    item.get('email'),
+                    item.get('lat'),
+                    item.get('lng'),
+                    item.get('georeferenced'),
+                    item.get('service_time'),
+                    item.get('time_window_start'),
+                    item.get('time_window_end'),
+                    item.get('dispatch_date')
+                )
+                for item in response_data
+            ])
+
+            page += 1
+
+        except requests.exceptions.HTTPError as http_err:
+            print(f"HTTP error occurred for {paginated_url}: {http_err}")
+            exception_cases.append(paginated_url)
+            break
+        except requests.exceptions.RequestException as req_err:
+            print(f"Request error occurred for {paginated_url}: {req_err}")
+            exception_cases.append(paginated_url)
+            break
+        except Exception as err:
+            print(f"An error occurred for {paginated_url}: {err}")
+            exception_cases.append(paginated_url)
+            break
+
+    return all_data
+
 def drivin_escenarios_to_s3(ts,ds):
     import pandas as pd
     import requests
@@ -682,6 +749,172 @@ def drivin_vehiculos_to_postgres(ti,ts):
     print("Data loaded to Postgres: ecommdata.drivin_vehiculos")
     return
 
+def drivin_direcciones_to_s3(ds,ts):
+    import pandas as pd
+    import requests
+    import io
+    from io import StringIO
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ts.replace("-", "_")
+    prefix = f"forecast_and_planning/drivin/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    url = f"https://external.driv.in/api/external/v2/addresses"
+
+    exception_cases = []
+
+    lista_vehiculos = get_api_direcciones(url,exception_cases)
+
+    columns = [ 'code',
+                'name',
+                'client',
+                'address_type',
+                'address1',
+                'address2',
+                'city',
+                'state',
+                'country',
+                'zip_code',
+                'phone',
+                'email',
+                'lat',
+                'lng',
+                'georeferenced',
+                'service_time',
+                'time_window_start',
+                'time_window_end',
+                'dispatch_date'
+               ]
+
+    df = pd.DataFrame(lista_vehiculos,columns=columns)
+
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    filename = f"forecast_and_planning/drivin/{exec_date}/direcciones/direcciones_{date_aux}.csv"
+
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+
+    print("se logro transformar los dataframes a archivos .csv")
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+def drivin_direcciones_to_postgres(ti,ts):
+    import pandas as pd
+    import sqlalchemy
+    import numpy as np
+    
+    filename = ti.xcom_pull(key="return_value", task_ids=["drivin_direcciones_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    hook_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(hook_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    df = df.dropna(subset=['client', 'address1'])
+
+    df = df[['client',
+            'address1',
+            'code',
+            'name',
+            'address_type',
+            'address2',
+            'city',
+            'state',
+            'country',
+            'zip_code',
+            'phone',
+            'email',
+            'lat',
+            'lng',
+            'georeferenced',
+            'service_time',
+            'time_window_start',
+            'time_window_end',
+            'dispatch_date']]
+
+    df["fecha_hora"] = ts
+
+    columns = ['code',
+                'name',
+                'address_type',
+                'address2',
+                'city',
+                'state',
+                'country',
+                'zip_code',
+                'phone',
+                'email',
+                'lat',
+                'lng',
+                'georeferenced',
+                'service_time',
+                'time_window_start',
+                'time_window_end',
+                'dispatch_date',
+               'fecha_hora'
+               ]
+    
+    print(df.head(20))
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.drivin_direcciones (client,address1,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (client,address1)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres: ecommdata.drivin_direcciones")
+    return
+
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -730,5 +963,13 @@ with DAG(
         task_id = "drivin_vehiculos_to_postgres",
         python_callable = drivin_vehiculos_to_postgres,
     )
+    t6 = PythonOperator(
+        task_id = 'drivin_direcciones_to_s3',
+        python_callable = drivin_direcciones_to_s3,
+    )
+    t7 = PythonOperator(
+        task_id = "drivin_direcciones_to_postgres",
+        python_callable = drivin_direcciones_to_postgres,
+    )
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7
