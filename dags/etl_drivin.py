@@ -359,6 +359,11 @@ def drivin_rutas_escenario_to_postgres(ti, ts):
     df["fecha_hora"] = datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S%z")
     df["position"] = df["position"].astype(int)
     df["order_idx"] = df["order_idx"].astype(int)
+
+    # Bajada de Pablo eliminar en caso esté mal el codigo
+    df["order_code"] = pd.to_numeric(df["order_code"], errors='coerce')
+    df = df.dropna(subset=["order_code"])
+
     df["order_code"] = df["order_code"].astype(int)
 
     print(df.head(60))
