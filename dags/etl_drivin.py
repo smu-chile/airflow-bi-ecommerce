@@ -150,6 +150,80 @@ def get_api_ruta_escenario(url_list, exception_cases):
 
     return lista_final
 
+def get_api_vehiculos(url, exception_cases):
+    import requests
+    import pandas as pd
+
+    api_key = Variable.get("API_KEY_DRIVIN")
+    headers = {
+        'X-API-Key': api_key
+    }
+
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+
+        data = response.json()
+        if not isinstance(data.get('response', []), list):
+            print(f"Formato inesperado en la respuesta de la API: {data}")
+            exception_cases.append(url)
+            return []
+
+        lista = [
+            (
+                item.get('id'),
+                item.get('code', ''),
+                item.get('description', ''),
+                item.get('detail', ''),
+                item.get('model', ''),
+                item.get('year', ''),
+                item.get('peoneta_id', ''),
+                item.get('assistant_2_id', ''),
+                item.get('assistant_3_id', ''),
+                item.get('device_number', ''),
+                item.get('priority', ''),
+                item.get('custom_1', ''),
+                item.get('custom_2', ''),
+                item.get('kinesis_redirect', ''),
+                item.get('is_active', False),
+                item.get('capacity_1', 0),
+                item.get('capacity_2', 0),
+                item.get('capacity_3', 0),
+                item.get('capacity_4', 0),
+                pd.to_datetime(item.get('shift_start')).strftime('%Y-%m-%d %H:%M:%S') if item.get('shift_start') else None,
+                pd.to_datetime(item.get('shift_end')).strftime('%Y-%m-%d %H:%M:%S') if item.get('shift_end') else None,
+                item.get('reload_time', 0),
+                item.get('speed_factor', 1),
+                item.get('days', []),
+                item.get('driver', {}).get('email', ''),
+                item.get('driver', {}).get('first_name', ''),
+                item.get('driver', {}).get('last_name', ''),
+                item.get('driver', {}).get('phone', ''),
+                item.get('driver', {}).get('dni', ''),
+                item.get('tags', []),
+                item.get('cost_allocation_tags', []),
+                item.get('device_type', ''),
+                item.get('vehicle_tpye', ''),
+                item.get('fleets', [])
+            )
+            for item in data['response']
+        ]
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred for {url}: {http_err}")
+        exception_cases.append(url)
+        lista = []
+    except requests.exceptions.RequestException as req_err:
+        print(f"Request error occurred for {url}: {req_err}")
+        exception_cases.append(url)
+        lista = []
+    except Exception as err:
+        print(f"An error occurred for {url}: {err}")
+        exception_cases.append(url)
+        lista = []
+
+    return lista
+
 def drivin_escenarios_to_s3(ts,ds):
     import pandas as pd
     import requests
@@ -436,6 +510,177 @@ def drivin_rutas_escenario_to_postgres(ti, ts):
 
     return
 
+def drivin_vehiculos_to_s3(ds,ts):
+    import pandas as pd
+    import requests
+    import io
+    from io import StringIO
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ts.replace("-", "_")
+    prefix = f"forecast_and_planning/drivin/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    url = f"https://external.driv.in/api/external/v2/vehicles"
+
+    exception_cases = []
+
+    lista_vehiculos = get_api_vehiculos(url,exception_cases)
+
+    columns = ["id",
+               "patente",
+               "description",
+               "detail",
+               "model",
+               "year",
+               "peoneta_id",
+               "assistant_2_id",
+               "assistant_3_id",
+               "device_number",
+               "priority",
+               "custom_1",
+               "custom_2",
+               "kinesis_redirect",
+               "is_active",
+               "capacity_1",
+               "capacity_2",
+               "capacity_3",
+               "capacity_4",
+               "shift_start",
+               "shift_end",
+               "reload_time",
+               "speed_factor",
+               "days",
+               "email",
+               "first_name",
+               "last_name",
+               "phone",
+               "dni",
+               "tags",
+               "cost_allocation_tags",
+               "device_type",
+               "vehicle_tpye",
+               "fleets"
+               ]
+
+    df = pd.DataFrame(lista_vehiculos,columns=columns)
+
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    filename = f"forecast_and_planning/drivin/{exec_date}/vehiculos/vehiculos_{date_aux}.csv"
+
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+
+    print("se logro transformar los dataframes a archivos .csv")
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+def drivin_vehiculos_to_postgres(ti,ts):
+    import pandas as pd
+    import sqlalchemy
+    import numpy as np
+    
+    filename = ti.xcom_pull(key="return_value", task_ids=["drivin_vehiculos_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    hook_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(hook_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+
+    df["fecha_hora"] = ts
+
+    columns = ["patente",
+               "description",
+               "detail",
+               "model",
+               "year",
+               "peoneta_id",
+               "assistant_2_id",
+               "assistant_3_id",
+               "device_number",
+               "priority",
+               "custom_1",
+               "custom_2",
+               "kinesis_redirect",
+               "is_active",
+               "capacity_1",
+               "capacity_2",
+               "capacity_3",
+               "capacity_4",
+               "shift_start",
+               "shift_end",
+               "reload_time",
+               "speed_factor",
+               "days",
+               "email",
+               "first_name",
+               "last_name",
+               "phone",
+               "dni",
+               "tags",
+               "cost_allocation_tags",
+               "device_type",
+               "vehicle_tpye",
+               "fleets",
+               "fecha_hora"
+               ]
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join(["EXCLUDED."+column for column in columns])
+    values_query = "%s,"+",".join(["%s" for column in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+    # Change data types to native python types
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+    print(f"Number of records to load: {str(len(fixed_records))}")
+    incremental_query = """
+        INSERT INTO ecommdata.drivin_vehiculos (id,"""+columns_query+""") 
+        VALUES ("""+values_query+""")
+        ON CONFLICT (id)
+        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
+    """
+    print(incremental_query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres: ecommdata.drivin_vehiculos")
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -450,7 +695,7 @@ with DAG(
     description="carga y actualiza data de API driv.in, Rutas, Escenarios, Vehiculos y Ordenes",
     schedule_interval="0 * * * *",
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
-    catchup=True,
+    catchup=False,#True,
     max_active_runs=1,
     tags=["DATA", "S3", "Postgres", "Driv.in", "Capacity", "PATRICIO"],
 ) as dag:
@@ -463,7 +708,7 @@ with DAG(
 
     t0 = PythonOperator(
         task_id = 'drivin_escenarios_to_s3',
-        python_callable=drivin_escenarios_to_s3,
+        python_callable = drivin_escenarios_to_s3,
     )
     t1 = PythonOperator(
         task_id = "drivin_escenarios_to_postgres",
@@ -471,11 +716,19 @@ with DAG(
     )
     t2 = PythonOperator(
         task_id = 'drivin_rutas_escenario_to_s3',
-        python_callable=drivin_rutas_escenario_to_s3,
+        python_callable = drivin_rutas_escenario_to_s3,
     )
     t3 = PythonOperator(
         task_id = "drivin_rutas_escenario_to_postgres",
         python_callable = drivin_rutas_escenario_to_postgres,
     )
+    t4 = PythonOperator(
+        task_id = 'drivin_vehiculos_to_s3',
+        python_callable = drivin_vehiculos_to_s3,
+    )
+    t5 = PythonOperator(
+        task_id = "drivin_vehiculos_to_postgres",
+        python_callable = drivin_vehiculos_to_postgres,
+    )
 
-    t0 >> t1 >> t2 >> t3
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5
