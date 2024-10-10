@@ -77,7 +77,7 @@ def _incremental_load_customer_addresses_table(ti):
         "complement",
         "reference",
         "receiver",
-        "status"
+        "status",
         "user_created",
         "date_created",
         "user_modified",
