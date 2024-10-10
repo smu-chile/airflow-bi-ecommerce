@@ -9,22 +9,22 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
-def _incremental_load_customers_table(ti):
+def _incremental_load_customer_addresses_table(ti):
     import numpy as np
     import pandas as pd
     
-    customers_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
+    customer_addresses_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+ customers_file)
-    if not s3_hook.check_for_key(customers_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % customers_file)
+    print("Searching file: "+ customer_addresses_file)
+    if not s3_hook.check_for_key(customer_addresses_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % customer_addresses_file)
 
-    customers_object = s3_hook.get_key(customers_file, bucket_name=s3_bucket)
+    customer_addresses_object = s3_hook.get_key(customer_addresses_file, bucket_name=s3_bucket)
 
-    df = pd.read_csv(customers_object.get()["Body"])
+    df = pd.read_csv(customer_addresses_object.get()["Body"])
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -33,75 +33,55 @@ def _incremental_load_customers_table(ti):
 
     df = df.astype({
         "id" : "int",
-        "vtex_id" : "string",
-        "user_id" : "string",
+        "customer" : "int",
         "erp_id" : "string",
-        "customer_manager" : "int",
-        "doc_type" : "string",
-        "doc" : "string",
-        "email" : "string",
-        "message_address" : "string",
-        "alternative_email" : "string",
-        "firstname" : "string",
-        "lastname" : "string",
-        "normalize_fullname" : "string",
-        "mothers_lastname" : "string",
-        "birthdate" : "int",
-        "phone" :  "string",
-        "phone_alt" : "string",
-        "phone_alt2" : "string",
-        "gender" : "int",
-        "company_code" : "string",
-        "company_name" : "string",
-        "employee_id" : "string",
-        "membership_number" : "string",
-        "points_card" : "string",
-        "normalize_status" : "int",
+        "vtex_id" : "string",
+        "address_name" : "string",
+        "type" : "int",
+        "postal_code" : "string",
+        "country" : "string",
+        "city" : "string",
+        "state" : "string",
+        "street_type" : "int",
+        "street" : "string",
+        "number" : "string",
+        "lat" : "float",
+        "lng" :  "float",
+        "neighborhood" : "string",
+        "complement" : "string",
+        "reference" : "string",
+        "receiver" : "string",
         "status" : "int",
-        "flags_client" : "int",
-        "notify" : "int",
-        "ecom_id_update_pending" : "int",
         "user_created" : "int",
         "date_created" : "int",
         "user_modified" : "int",
         "date_modified" : "int",
-        "is_new" : "int"
     }, errors="ignore")
 
     columns = [
-        "vtex_id",
-        "user_id",
+        "id",
+        "customer",
         "erp_id",
-        "customer_manager",
-        "doc_type",
-        "doc",
-        "email",
-        "message_address",
-        "alternative_email",
-        "firstname",
-        "lastname",
-        "normalize_fullname",
-        "mothers_lastname",
-        "birthdate",
-        "phone",
-        "phone_alt",
-        "phone_alt2",
-        "gender",
-        "company_code",
-        "company_name",
-        "employee_id",
-        "membership_number",
-        "points_card",
-        "normalize_status",
-        "status",
-        "flags_client",
-        "notify",
-        "ecom_id_update_pending",
+        "vtex_id",
+        "address_name",
+        "type",
+        "postal_code",
+        "country",
+        "city",
+        "state",
+        "street_type",
+        "street",
+        "number",
+        "lat",
+        "lng",
+        "neighborhood",
+        "complement",
+        "reference",
+        "receiver",
+        "status"
         "user_created",
         "date_created",
         "user_modified",
-        "date_modified",
-        "is_new"
     ]
 
     columns_query = ",".join(columns)
@@ -124,7 +104,7 @@ def _incremental_load_customers_table(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.customers (id,"""+columns_query+""") 
+        INSERT INTO ecommdata.customer_addresses (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
@@ -149,13 +129,13 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_customers_incremental_load',
+    'etl_customer_addresses_incremental_load',
     default_args=default_args,
-    description="Extracción y carga de tabla customers desde Janis Replica hasta Workspace.",
+    description="Extracción y carga de tabla customer_addresses desde Janis Replica hasta Workspace.",
     schedule_interval="30 * * * *",
     start_date=datetime(2022, 7, 1),
     catchup=False,
-    tags=["DATA", "Janis", "ecommdata", "customers", "unimarc", "MATIAS"],
+    tags=["DATA", "Janis", "ecommdata", "customer_addresses", "unimarc", "MATIAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -167,7 +147,7 @@ with DAG(
         python_callable = get_max_updated_at_value,
         op_kwargs = {
             "schema": "ecommdata",
-            "table_name": "customers", 
+            "table_name": "customer_addresses", 
             "updated_at_field": "date_modified",
             "is_unixtime": True
         }
@@ -177,15 +157,15 @@ with DAG(
         task_id = "incremental_unixtime_load_table_to_s3",
         python_callable = incremental_unixtime_load_table_s3,
         op_kwargs = {
-            "table_name": "customers", 
+            "table_name": "customer_addresses", 
             "xcom_updated_date_task_id": "get_max_updated_at_date", 
             "updated_column": "date_modified"
         }
     )
 
     t2 = PythonOperator(
-        task_id = "incremental_load_customers_table",
-        python_callable = _incremental_load_customers_table
+        task_id = "incremental_load_customer_addresses_table",
+        python_callable = _incremental_load_customer_addresses_table
     )
 
     t0 >> t1 >> t2
