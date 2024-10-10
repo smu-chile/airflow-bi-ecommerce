@@ -59,7 +59,6 @@ def _incremental_load_customer_addresses_table(ti):
     }, errors="ignore")
 
     columns = [
-        "id",
         "customer",
         "erp_id",
         "vtex_id",
