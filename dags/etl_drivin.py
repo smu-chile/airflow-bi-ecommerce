@@ -791,8 +791,26 @@ def drivin_direcciones_to_s3(ds,ts):
 
     df = pd.DataFrame(lista_vehiculos,columns=columns)
 
+    df['code'] = df['code'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['name'] = df['name'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['client'] = df['client'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['address_type'] = df['address_type'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['address1'] = df['address1'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['address2'] = df['address2'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['city'] = df['city'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['state'] = df['state'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['country'] = df['country'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['zip_code'] = df['zip_code'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['phone'] = df['phone'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+    df['email'] = df['email'].apply(lambda x: x[:100] if isinstance(x, str) and len(x) > 100 else x)
+
+    df['lat'] = df['lat'].astype(float)
+    df['lng'] = df['lng'].astype(float)
+
+
+
     buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8", float_format='%.7f')
     buffer.seek(0)
 
     filename = f"forecast_and_planning/drivin/{exec_date}/direcciones/direcciones_{date_aux}.csv"
@@ -928,14 +946,14 @@ with DAG(
     description="carga y actualiza data de API driv.in, Rutas, Escenarios, Vehiculos y Ordenes",
     schedule_interval="0 * * * *",
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
-    catchup=False,#True,
+    catchup=True,
     max_active_runs=1,
     tags=["DATA", "S3", "Postgres", "Driv.in", "Capacity", "PATRICIO"],
 ) as dag:
     
 
     dag.doc_md = """
-    arga y actualiza data de API driv.in, Rutas, Escenarios, Vehiculos y Ordene\n
+    Carga y actualiza data de API driv.in, Rutas, Escenarios, Vehiculos, Ordene y direcciones\n
     guardar en S3 y Upsert en postgres.
     """ 
 
