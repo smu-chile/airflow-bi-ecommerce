@@ -81,6 +81,7 @@ def _incremental_load_customer_addresses_table(ti):
         "user_created",
         "date_created",
         "user_modified",
+        "date_modified"
     ]
 
     columns_query = ",".join(columns)
