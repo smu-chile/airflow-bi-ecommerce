@@ -103,7 +103,7 @@ def _incremental_load_customer_addresses_table(ti):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ecommdata.customer_addresses (id,"""+columns_query+""") 
+        INSERT INTO ecommdata_alvi.customer_addresses (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (id)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""");
