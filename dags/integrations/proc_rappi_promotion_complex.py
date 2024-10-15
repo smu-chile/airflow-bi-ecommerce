@@ -137,9 +137,15 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     pg_connection.close()
     return
 
-def _send_joined_data_to_api(ds):
-    import json
-    import requests
+
+def _send_joined_data_to_stfp(ds):
+    import os
+    import pysftp
+
+    ftp_host = Variable.get("SFTP_RAPPI_HOST")
+    ftp_port = 22
+    ftp_user = Variable.get("SFTP_RAPPI_USER")
+    ftp_rsa_key = Variable.get("SFTP_RAPPI_PASSWORD")
 
     exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/"
@@ -151,40 +157,25 @@ def _send_joined_data_to_api(ds):
 
     print(f"Number of files found: {len(s3_file_list)}")
 
-    responses_prefix = f"rappi/api/stock/post/full/responses/{exec_date}/"
+    for promo_file in s3_file_list:
+        print(promo_file)
 
-    for stock_file in s3_file_list:
-        print(stock_file)
+        stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
+        stock_object_body = stock_object.get()["Body"]
 
-        json_body_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
-        json_body_string = json_body_object.get()["Body"].read()
-        json_body = json.loads(json_body_string)
-        payload = {
-            "records": json_body
-        }
+        output_promo_file = promo_file.split("/")[-1]
+        print(f"File to load to SFTP Server: {output_promo_file}")
 
-        print(f"Number of records found: {len(payload['records'])}")
-        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
-
-        headres = {
-            "api_key": Variable.get("RAPPI_API_KEY"),
-            "Content-Type": "application/json"
-        }
-        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
-        print(response.status_code)
-        try:
-            response_json = response.json()
-            response_string = json.dumps(response_json)
-            s3_hook.load_string(response_string,
-                  key=responses_prefix+stock_file.split("/")[-1],
-                  bucket_name=s3_bucket,
-                  replace=True,
-                  encrypt=False)
-            print("Response body saved to S3.")
-        except Exception as e:
-            print(e)
-            print("Error on response.")
-            break
+        with pysftp.Connection(host=ftp_host,
+                               username=ftp_user,
+                               port=ftp_port,
+                               password=ftp_rsa_key) as sftp:
+            localFile = stock_object_body
+            remotePath = f"/sftp-allies/sftppruebas_co"
+            sftp.putfo(localFile, remotePath)
+        
+        print("File loaded.")
+    
     return
 
 default_args = {
@@ -223,8 +214,8 @@ with DAG(
     )
 
     t2 = PythonOperator(
-        task_id = "send_joined_data_to_api",
-        python_callable = _send_joined_data_to_api
+        task_id = "_send_joined_data_to_stfp",
+        python_callable = _send_joined_data_to_stfp
     )
 
     t0 >> t1 >> t2
