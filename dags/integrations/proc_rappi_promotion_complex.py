@@ -157,13 +157,14 @@ def _send_joined_data_to_stfp(ds):
 
     print(f"Number of files found: {len(s3_file_list)}")
 
-    for index,stock_file in enumerate(s3_file_list, start=1):
-        print(stock_file)
-        stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
+    for promo_file in s3_file_list:
+        print(promo_file)
+
+        stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
         stock_object_body = stock_object.get()["Body"]
 
-        output_stock_file = stock_file.split("/")[-1]
-        print(f"File to load to SFTP Server: {output_stock_file}")
+        output_promo_file = promo_file.split("/")[-1]
+        print(f"File to load to SFTP Server: {output_promo_file}")
 
         with pysftp.Connection(host=ftp_host,
                                username=ftp_user,
