@@ -43,7 +43,7 @@ def _load_to_postgres(ti,ds):
         "venta_total_neta",
         "desfase_sellout"
     ]]
-
+    df_margen["fecha"] = pd.to_datetime(df_margen["fecha"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
     df_margen['descuento_colaborador'] = df_margen['descuento_colaborador'].astype(int)
     df_margen['descuento_referido'] = df_margen['descuento_referido'].astype(int)
@@ -93,7 +93,7 @@ def _load_to_postgres(ti,ds):
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
     incremental_query = """
-        INSERT INTO ventas_unimarc.costos_ventas_sku_tienda (fecha,"""+columns_query+""") 
+        INSERT INTO ventas_unimarc.perdidas_margen (fecha,"""+columns_query+""") 
         VALUES ("""+values_query+""")
         ON CONFLICT (fecha)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
@@ -125,7 +125,6 @@ with DAG(
     schedule_interval="0 4 * * *",
     start_date=pendulum.datetime(2023, 6, 6, tz="America/Santiago"),
     catchup=False,
-    max_active_runs=1,
     tags=["JANIS", "ordenes", "margen", "promocion", "SERGIO"],
 ) as dag:
 
