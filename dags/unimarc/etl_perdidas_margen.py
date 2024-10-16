@@ -76,8 +76,8 @@ def _load_to_postgres(ti,ds):
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
-    records = list(df.to_records(index=False))
+    df_margen = df_margen.fillna("NULL")
+    records = list(df_margen.to_records(index=False))
     
     # Change data types to native python types
     fixed_records = []
