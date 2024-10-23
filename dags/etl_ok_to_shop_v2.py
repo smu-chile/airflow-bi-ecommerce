@@ -30,7 +30,7 @@ def api_ok_to_shop(ds,last_time):
         "stringEncapsulator": "\"",
         "encapsulatorEscapeChar": "\"",
         "decimalSeparator": ",",
-        "titles": "\"product_id\";\"product_ean\";\"timestamp_in\";\"date_in\";\"last_update\";\"date_last_update\";\"brand_name\";\"description\";\"flavor\";\"size_value\";\"drained_size_value\";\"size_unit\";\"ingredients\";\"allergens\";\"traces\";\"portion_text\";\"portion_value\";\"portion_unit\";\"num_portions\";\"basic_unit\";\"energy_value\";\"energy_unit\";\"protein_value\";\"protein_unit\";\"fat_total_value\";\"fat_total_unit\";\"fat_sat_value\";\"fat_sat_unit\";\"fat_mono_value\";\"fat_mono_unit\";\"fat_poli_value\";\"fat_poli_unit\";\"fat_trans_value\";\"fat_trans_unit\";\"fat_cholesterol_value\";\"fat_cholesterol_unit\";\"carb_value\";\"carb_unit\";\"sugars_value\";\"sugars_unit\";\"fiber_value\";\"fiber_unit\";\"sodium_value\";\"sodium_unit\";\"minsal_cl_high_sugar\";\"minsal_cl_high_saturated_fat\";\"minsal_cl_high_sodium\";\"minsal_cl_high_calories\";\"aplv_suitable\";\"gluten_free\";\"lactose_free\";\"vegan\";\"vegetarian\";\"diabetes_suitable\";\"soy_free\";\"egg_free\";\"fish_free\";\"seafood_free\";\"peanut_free\";\"nuts_free\";\"walnuts_free\";\"sulphite_free\";\"wheat_free\";\"alcohol_by_volume\";\"alcohol_proof\"",
+        "titles": "\"product_id\";\"product_ean\";\"timestamp_in\";\"date_in\";\"last_update\";\"date_last_update\";\"brand_name\";\"description\";\"flavor\";\"size_value\";\"drained_size_value\";\"size_unit\";\"ingredients\";\"allergens\";\"traces\";\"portion_text\";\"portion_value\";\"portion_unit\";\"num_portions\";\"basic_unit\";\"energy_value\";\"energy_unit\";\"protein_value\";\"protein_unit\";\"fat_total_value\";\"fat_total_unit\";\"fat_sat_value\";\"fat_sat_unit\";\"fat_mono_value\";\"fat_mono_unit\";\"fat_poli_value\";\"fat_poli_unit\";\"fat_trans_value\";\"fat_trans_unit\";\"fat_cholesterol_value\";\"fat_cholesterol_unit\";\"carb_value\";\"carb_unit\";\"sugars_value\";\"sugars_unit\";\"fiber_value\";\"fiber_unit\";\"sodium_value\";\"sodium_unit\";\"minsal_cl_high_sugar\";\"minsal_cl_high_saturated_fat\";\"minsal_cl_high_sodium\";\"minsal_cl_high_calories\";\"aplv_suitable\";\"gluten_free\";\"lactose_free\";\"kosher\";\"vegan\";\"vegetarian\";\"diabetes_suitable\";\"soy_free\";\"egg_free\";\"fish_free\";\"seafood_free\";\"peanut_free\";\"nuts_free\";\"walnuts_free\";\"sulphite_free\";\"wheat_free\";\"alcohol_by_volume\";\"alcohol_proof\"",
         "fields": [
             "id",
             "';'",
@@ -134,6 +134,8 @@ def api_ok_to_shop(ds,last_time):
             "';'",
             "byCertificateV1:lactoseFree",
             "';'",
+            "byCertificateV1:kosher",
+            "';'",
             "byCertificateV1:vegan",
             "';'",
             "byCertificateV1:vegetarian",
@@ -162,7 +164,7 @@ def api_ok_to_shop(ds,last_time):
             "';'",
             "alcoholProof"
         ],
-        "since": 0#exec_date_unix
+        "since": exec_date_unix
     }
 
     # Hacer la solicitud a la API
@@ -277,7 +279,7 @@ def ok_to_shop_api_to_postgres(ti):
     "fat_cholesterol_value", "fat_cholesterol_unit", "carb_value", "carb_unit", "sugars_value", 
     "sugars_unit", "fiber_value", "fiber_unit", "sodium_value", "sodium_unit", 
     "minsal_cl_high_sugar", "minsal_cl_high_saturated_fat", "minsal_cl_high_sodium", 
-    "minsal_cl_high_calories", "aplv_suitable", "gluten_free", "lactose_free", "vegan", 
+    "minsal_cl_high_calories", "aplv_suitable", "gluten_free", "lactose_free", "kosher","vegan", 
     "vegetarian", "diabetes_suitable", "soy_free", "egg_free", "fish_free", "seafood_free", 
     "peanut_free", "nuts_free", "walnuts_free", "sulphite_free", "wheat_free", 
     "alcohol_by_volume", "alcohol_proof"
@@ -288,6 +290,8 @@ def ok_to_shop_api_to_postgres(ti):
     values_query = "%s,"+",".join(["%s" for column in columns])
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
+
+    df.info()
     
     # Change data types to native python types
     fixed_records = []
