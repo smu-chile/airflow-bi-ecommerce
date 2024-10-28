@@ -156,16 +156,25 @@ def _incremental_load_orders_table(ti):
     df_cdf = pd.read_csv(custom_data_fields_object.get()["Body"])
 
     # Filter custom_data_fields_dataframe
-    df_cdf = df_cdf[df_cdf["field"] == "sourceApp"]
-    df_cdf = df_cdf[["order_id", "value"]]
+    df_cdf_sa = df_cdf[df_cdf["field"] == "sourceApp"]
+    df_cdf_sa = df_cdf_sa[["order_id", "value"]]
 
-    df = df.merge(df_cdf, left_on="janis_id", right_on="order_id", how="left")
+    df = df.merge(df_cdf_sa, left_on="janis_id", right_on="order_id", how="left")
     df["value"] = df["value"].fillna(0)
     df["value"] = df["value"].astype("int")
     df["canal_venta"] = np.where(df["value"] == 1, "app",
                   np.where((df["call_center_operator_id"].isna()) | (df["call_center_operator_id"] == 0), "sitio", "callcenter"))
     
     df = df.drop(columns=["order_id", "call_center_operator_id", "value"])
+
+    df_cdf_wb = df_cdf[df_cdf["field"] == "wantBags"]
+    df_cdf_wb = df_cdf_wb[["order_id", "value"]]
+
+    df = df.merge(df_cdf_wb, left_on="janis_id", right_on="order_id", how="left")
+    df["value"] = df["value"].fillna("no")
+    df["requiere_bolsas"] = np.where(df["value"] == "si", True, False)
+    
+    df = df.drop(columns=["order_id", "value"])
 
     columns = [
         "janis_id",
@@ -209,7 +218,8 @@ def _incremental_load_orders_table(ti):
         "rut_picker",
         "empresa_picker",
         "fecha_modificacion_unixtime",
-        "documento_electronico"
+        "documento_electronico",
+        "requiere_bolsas"
     ]
 
     df = df[["id"]+columns]
