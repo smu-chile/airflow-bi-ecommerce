@@ -778,6 +778,15 @@ def _incremental_load_orders_38_table(ti):
 
     df = df.drop(columns=["order_id", "value"])
 
+    df_cdf_wb = df_cdf[df_cdf["field"] == "wantBags"]
+    df_cdf_wb = df_cdf_wb[["order_id", "value"]]
+
+    df = df.merge(df_cdf_wb, left_on="janis_id", right_on="order_id", how="left")
+    df["value"] = df["value"].fillna("no")
+    df["requiere_bolsas"] = np.where(df["value"] == "si", True, False)
+    
+    df = df.drop(columns=["order_id", "value"])
+
     marketing_data_fields_file = ti.xcom_pull(key="return_value", task_ids=["order_marketing_data_field_incremental_load"])[0]
 
     print("Searching file: "+marketing_data_fields_file)
@@ -841,7 +850,8 @@ def _incremental_load_orders_38_table(ti):
         "id_picker",
         "janis_cart_id",
         "utm_source",
-        "nivel_cliente"
+        "nivel_cliente",
+        "requiere_bolsas"
     ]
 
     df = df[["id"]+columns]
