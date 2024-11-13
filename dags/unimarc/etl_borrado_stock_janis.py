@@ -10,6 +10,21 @@ from datetime import datetime, timedelta
 
 import pendulum
 
+def query_to_df(query):
+    import pandas as pd
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
+    cursor.close()
+    pg_connection.close()
+    return results
+
 def _stopper_lista8(ts):
 
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
@@ -195,8 +210,6 @@ def _send_stock_0_to_janis(ts):
     "Connection" : "keep-alive"
     }
 
-    
-
     for s3_file in s3_file_list:
         if (int(s3_file[-8:-4]) < 100) and (s3_file[-13:-9] != '1917'):
             payload=[]
@@ -212,6 +225,96 @@ def _send_stock_0_to_janis(ts):
             print(f"[L = {s3_file[-8:-4]} - S = {s3_file[-13:-9]}] response from file {s3_file}:")
             print(response.text)
 
+def send_stock_3_to_coyhaique_janis(ds):
+    import requests
+    import pandas as pd
+    import json
+    import io
+    from io import StringIO
+
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"carga_stock/coyhaique/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    query_442 = f"""with venta_442 as (
+                select id_tienda , material, sum(venta_umv) as venta
+                from ecommdata.venta_sku_tienda vst
+                where fecha = current_date-1
+                and id_tienda = '442'
+                and venta_umv > 0
+                group by id_tienda , material
+            ), found_rate as (
+                select distinct material , id_tienda
+                from ecommdata.frogmi_alerta_found_rate fafr 
+                where id_tienda = '0442'
+                and fecha_inicio::date = current_date-1)
+            select distinct s.material, s.id_tienda 
+            from ecommdata.publicacion_catalogo as s
+            left join ecommdata.localizacion_zippedi lz on lz.tienda = s.id_tienda and lz.material = s.material 
+            left join venta_442 as v on lpad(v.material,18,'0') = s.material and lpad(v.id_tienda,4,'0') = s.id_tienda 
+            left join found_rate as f on lpad(f.material,18,'0') = s.material and f.id_tienda = s.id_tienda 
+            where s.id_tienda = '0442'
+            and s.fecha_hora::date = '{ds}'::date
+            and s.surtido_ecommerce is true 
+            and s.stock_janis is null
+            and lz.pasillo is not null"""
+    
+    df = query_to_df(query_442)
+
+    base_url = Variable.get("JANIS_API_URL")
+
+    url = f"{base_url}stock"
+
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
+    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
+
+    headers = {
+    "janis-api-key" : JANIS_API_KEY,
+    "janis-api-secret" : JANIS_API_SECRET,
+    "janis-client" : JANIS_CLIENT,
+    "Connection" : "keep-alive"
+    }
+
+    payload=[]
+    for i in df.index:
+        material = str(int(df.material[i])).zfill(18)
+        id_tienda = str(int(df['id_tienda'][i])).zfill(4)
+        stock_seguridad = 0
+        row = {"IdSku": material,
+                "Quantity": 3,
+                "Store": id_tienda,
+                "MinStockDiff": True,
+                "MinStock": stock_seguridad,
+                "Type": 2}
+        payload.append(row)    
+        if i % 499 == 0:
+            payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+            response = requests.post(url, headers=headers, data=payload_json)
+            print(response.text)
+            payload = []
+    payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+    response = requests.post(url, headers=headers, data=payload_json)
+    print(response.text)
+
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"carga_stock/coyhaique/{exec_date}/carga_stock_coyhaique_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    
+    print(f"File load on S3: {prefix}")
+
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -265,5 +368,9 @@ with DAG(
         python_callable = _send_stock_0_to_janis
     )
 
+    t4 = PythonOperator(
+        task_id = "send_stock_3_to_coyhaique_janis",
+        python_callable = send_stock_3_to_coyhaique_janis
+    )
 
-    t0 >> t1 >> t1_y >> t2 >> t3
+    t0 >> t1 >> t1_y >> t2 >> t3 >> t4
