@@ -51,9 +51,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
         peya_stock_query = f"""
             SELECT DISTINCT  
-                CAST(s.ou_id AS VARCHAR) AS store_id,
-                TO_CHAR(WP.fecha_inicio_de_promocion, 'YYYY/MM/DD') AS start_date,
-                TO_CHAR(WP.fecha_fin_de_promocion, 'YYYY/MM/DD') AS end_date,
+                (s.ou_id::int) AS store_id,
+                WP.fecha_inicio_de_promocion AS start_date,
+                WP.fecha_fin_de_promocion AS end_date,
                 CASE
                     WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN 
                         CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), ',Pague ', CAST(cantidad_m AS VARCHAR))
@@ -67,7 +67,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                         CONCAT('T', CAST(FLOOR(((lspp.precio - (wp.precio_total_promocional / wp.cantidad_n)) / lspp.precio) * 100) AS VARCHAR), '_U', CAST(wp.cantidad_n AS VARCHAR))
                 END AS type_format,
                 wp.descripcion_material AS name,
-                CAST((wp.material::int) AS VARCHAR) AS id
+                (wp.material::int) AS id
             FROM 
                 ecommdata.workflow_promociones wp 
             LEFT JOIN 
