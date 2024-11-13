@@ -21,9 +21,11 @@ def _get_rappi_active_stores():
     cursor.close()
     pg_connection.close()
     return results
-
+#################################################################################################################
+# #                                   Carga de promociones Complejas                                            #
+#################################################################################################################
 def _join_stock_and_promo_prices_from_s3(ds, ti):
-    import json
+    import io
     import pandas as pd
 
     rappi_stores = ti.xcom_pull(key="return_value", task_ids=["get_rappi_active_stores"])[0]
@@ -49,9 +51,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
         peya_stock_query = f"""
             SELECT DISTINCT  
-                CAST(s.ou_id AS VARCHAR) AS store_id,
-                TO_CHAR(WP.fecha_inicio_de_promocion, 'YYYY/MM/DD') AS start_date,
-                TO_CHAR(WP.fecha_fin_de_promocion, 'YYYY/MM/DD') AS end_date,
+                (s.ou_id::int) AS store_id,
+                WP.fecha_inicio_de_promocion AS start_date,
+                WP.fecha_fin_de_promocion AS end_date,
                 CASE
                     WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN 
                         CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), ',Pague ', CAST(cantidad_m AS VARCHAR))
@@ -65,7 +67,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                         CONCAT('T', CAST(FLOOR(((lspp.precio - (wp.precio_total_promocional / wp.cantidad_n)) / lspp.precio) * 100) AS VARCHAR), '_U', CAST(wp.cantidad_n AS VARCHAR))
                 END AS type_format,
                 wp.descripcion_material AS name,
-                CAST((wp.material::int) AS VARCHAR) AS id
+                (wp.material::int) AS id
             FROM 
                 ecommdata.workflow_promociones wp 
             LEFT JOIN 
@@ -124,14 +126,16 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         df.columns = map(str.lower, df.columns)
         df["is_available"] = True
 
-        dict_body = df.to_dict(orient="records")
-        json_body = json.dumps(dict_body)
+        buffer = io.StringIO()
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
 
-        s3_hook.load_string(json_body,
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
+        s3_hook.load_string(buffer.getvalue(),
+                            key=join_file_name,
+                            bucket_name=s3_bucket,
+                            replace=True,
+                            encrypt=False)
+        
 
     cursor.close()
     pg_connection.close()
