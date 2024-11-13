@@ -175,7 +175,7 @@ def _send_joined_data_to_stfp(ds):
                                port=ftp_port,
                                password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
-            remotePath = f"/sftp-allies/sftppruebas_co"
+            remotePath = f"/sftp-allies/sftppruebas_co/store_id-{output_promo_file}_COMBO_UNIMARC_{exec_date}"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
