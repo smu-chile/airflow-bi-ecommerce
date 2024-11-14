@@ -158,7 +158,8 @@ with DAG(
     description="Extracción y calculo de tabla recorrido_orden para ALVI.",
     schedule_interval="30 8 * * *",
     start_date=pendulum.datetime(2023, 7, 26, tz="America/Santiago"),
-    catchup=False,
+    catchup=True,
+    max_active_runs = 1,
     tags=["DATA", "ecommdata", "recorrido_orden","km", "ALVI", "SERGIO"],
 ) as dag:
 
