@@ -44,7 +44,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     for store_id in rappi_store_ids:
         print(f"Store id: {store_id}")
         
-        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/{store_id}.csv"
+        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/store_id-{store_id}_COMBO_UNIMA_{exec_date}.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -66,7 +66,10 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN 
                         CONCAT('T', CAST(FLOOR(((lspp.precio - (wp.precio_total_promocional / wp.cantidad_n)) / lspp.precio) * 100) AS VARCHAR), '_U', CAST(wp.cantidad_n AS VARCHAR))
                 END AS type_format,
-                wp.descripcion_material AS name,
+                case
+                	when wp.descripcion_material like '%,%' then REPLACE(wp.descripcion_material, ',', '')
+                	else wp.descripcion_material
+                end AS name,
                 (wp.material::int) AS id
             FROM 
                 ecommdata.workflow_promociones wp 
@@ -122,9 +125,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
         df = pd.DataFrame(results, columns=columns)
         print(f"Number of records found on stock: {len(df.index)}")
-
-        df.columns = map(str.lower, df.columns)
-        df["is_available"] = True
 
         buffer = io.StringIO()
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
