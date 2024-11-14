@@ -9,6 +9,66 @@ from datetime import datetime
 
 import pendulum
 
+def getLoggedSessions(property_id,canal,formato,ds):
+    import pandas as pd
+    from google.analytics.data_v1beta import BetaAnalyticsDataClient
+    from google.analytics.data_v1beta.types import Dimension, Metric, OrderBy,RunReportRequest,Dimension,Metric,DateRange,FilterExpression,Filter,FilterExpressionList
+    from google.analytics.data_v1beta.types import OrderBy
+    from google.oauth2 import service_account
+    credential_dict = {
+    "type": "service_account",
+    "project_id": Variable.get("SESSIONS_GD_PROJECT_ID"),
+    "private_key_id": Variable.get("SESSIONS_GD_PRIVATE_KEY_ID"),
+    "private_key": Variable.get("SESSIONS_GD_PRIVATE_KEY"),
+    "client_email": Variable.get("SESSIONS_GD_CLIENT_EMAIL"),
+    "client_id": Variable.get("SESSIONS_GD_CLIENT_ID"),
+    "auth_uri": Variable.get("SESSIONS_GD_AUTH_URI"),
+    "token_uri": Variable.get("SESSIONS_GD_TOKEN_URI"),
+    "auth_provider_x509_cert_url": Variable.get("SESSIONS_GD_AUTH_PROVIDER"),
+    "client_x509_cert_url": Variable.get("SESSIONS_GD_CERT_URL")
+    }
+    
+    c_var = service_account.Credentials.from_service_account_info(credential_dict)
+    client = BetaAnalyticsDataClient(credentials=c_var)
+    filter_expression_list = FilterExpressionList()
+    filter_expression_1 = FilterExpression(
+        filter=Filter(
+        field_name="signedInWithUserId",
+        string_filter=Filter.StringFilter(value="yes"),
+        ))
+    '''
+    filter_expression_2 = FilterExpression(
+        filter=Filter(
+        field_name="eventName",
+        string_filter=Filter.StringFilter(value="select_promotion"),
+        ))
+    '''
+    filter_expression_list.expressions.append(filter_expression_1)
+    #filter_expression_list.expressions.append(filter_expression_2)
+
+    request = RunReportRequest(
+        property=f"properties/{property_id}",
+        dimensions=[Dimension(name="date")],
+        metrics=[Metric(name="sessions")],
+        date_ranges=[DateRange(start_date=macros.ds_add(ds, -7), end_date=ds)],
+        dimension_filter=FilterExpression(
+            and_group=filter_expression_list
+        ),
+        order_bys=[OrderBy(dimension=OrderBy.DimensionOrderBy(dimension_name="date"),desc=False)]
+    )
+    response = client.run_report(request)
+
+    data = []
+    for row in response.rows:
+        fecha_obj = datetime.strptime(row.dimension_values[0].value, '%Y%m%d')
+        fecha_formateada = fecha_obj.strftime('%Y-%m-%d')
+        data.append([fecha_formateada,row.metric_values[0].value])
+
+    # Crear un DataFrame de pandas con los datos
+    formato = 'unimarc' if property_id in ["290739730","256987911"] else 'alvi'
+    df = pd.DataFrame(data, columns=['fecha',f'sesiones_logueadas_{canal}_{formato}'])
+    return df
+
 def getDataFromProperty(property_id, ds):
     import pandas as pd
     from google.analytics.data_v1beta import BetaAnalyticsDataClient
@@ -60,10 +120,18 @@ def _sessions_to_s3(ds):
     df_uni_web = getDataFromProperty("290739730", ds)
     df_alvi_app= getDataFromProperty("309369468", ds)
     df_alvi_web= getDataFromProperty("307311889", ds)
+    df_sesiones_logueadas_web_unimarc = getLoggedSessions("290739730","web","unimarc",ds)
+    df_sesiones_logueadas_app_unimarc = getLoggedSessions("256987911","app","unimarc",ds)
+    df_sesiones_logueadas_web_alvi= getLoggedSessions("307311889","web","alvi",ds)
+    df_sesiones_logueadas_app_alvi = getLoggedSessions("309369468","app","alvi",ds)
 
     df_merged = pd.merge(df_uni_app, df_uni_web, on='fecha', how='outer')
     df_merged = pd.merge(df_merged, df_alvi_app, on='fecha', how='outer')
     df_merged = pd.merge(df_merged, df_alvi_web, on='fecha', how='outer')
+    df_merged = pd.merge(df_merged, df_sesiones_logueadas_web_unimarc, on='fecha', how='outer')
+    df_merged = pd.merge(df_merged, df_sesiones_logueadas_app_unimarc, on='fecha', how='outer')
+    df_merged = pd.merge(df_merged, df_sesiones_logueadas_web_alvi, on='fecha', how='outer')
+    df_merged = pd.merge(df_merged, df_sesiones_logueadas_app_alvi, on='fecha', how='outer')
 
     # Renombrar las columnas para mayor claridad
     df_merged.rename(columns={
@@ -136,7 +204,11 @@ def _load_sessions_table(ti):
         "usuarios_app_unimarc",
         "usuarios_web_unimarc",
         "usuarios_app_alvi",
-        "usuarios_web_alvi"
+        "usuarios_web_alvi",
+        "sesiones_logueadas_app_unimarc",
+        "sesiones_logueadas_web_unimarc",
+        "sesiones_logueadas_app_alvi",
+        "sesiones_logueadas_web_alvi"
     ]
 
     df = df[columns]
@@ -153,7 +225,11 @@ def _load_sessions_table(ti):
         "usuarios_app_unimarc",
         "usuarios_web_unimarc",
         "usuarios_app_alvi",
-        "usuarios_web_alvi"
+        "usuarios_web_alvi",
+        "sesiones_logueadas_app_unimarc",
+        "sesiones_logueadas_web_unimarc",
+        "sesiones_logueadas_app_alvi",
+        "sesiones_logueadas_web_alvi"
     ]
 
     column_types = {
@@ -169,7 +245,11 @@ def _load_sessions_table(ti):
         "usuarios_app_unimarc":"int",
         "usuarios_web_unimarc":"int",
         "usuarios_app_alvi":"int",
-        "usuarios_web_alvi":"int"
+        "usuarios_web_alvi":"int",
+        "sesiones_logueadas_app_unimarc":"int",
+        "sesiones_logueadas_web_unimarc":"int",
+        "sesiones_logueadas_app_alvi":"int",
+        "sesiones_logueadas_web_alvi":"int"
     }
 
     df = df.astype(column_types, errors="ignore")
