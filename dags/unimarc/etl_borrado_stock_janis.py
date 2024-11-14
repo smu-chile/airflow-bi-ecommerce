@@ -242,7 +242,7 @@ def send_stock_3_to_coyhaique_janis(ds):
     query_442 = f"""with venta_442 as (
                 select id_tienda , material, sum(venta_umv) as venta
                 from ecommdata.venta_sku_tienda vst
-                where fecha = current_date-1
+                where fecha = '{ds}'::date-1
                 and id_tienda = '442'
                 and venta_umv > 0
                 group by id_tienda , material
@@ -250,7 +250,7 @@ def send_stock_3_to_coyhaique_janis(ds):
                 select distinct material , id_tienda
                 from ecommdata.frogmi_alerta_found_rate fafr 
                 where id_tienda = '0442'
-                and fecha_inicio::date = current_date-1)
+                and fecha_inicio::date = '{ds}'::date-1)
             select distinct s.material, s.id_tienda 
             from ecommdata.publicacion_catalogo as s
             left join ecommdata.localizacion_zippedi lz on lz.tienda = s.id_tienda and lz.material = s.material 
@@ -285,7 +285,7 @@ def send_stock_3_to_coyhaique_janis(ds):
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = 0
         row = {"IdSku": material,
-                "Quantity": 3,
+                "Quantity": 8,
                 "Store": id_tienda,
                 "MinStockDiff": True,
                 "MinStock": stock_seguridad,
