@@ -44,7 +44,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     for store_id in rappi_store_ids:
         print(f"Store id: {store_id}")
         
-        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/store_id-{store_id}_COMBO_UNIMA_{exec_date}.csv"
+        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/store_id_{store_id}_COMBO_UNIMA.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
@@ -56,7 +56,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 WP.fecha_fin_de_promocion AS end_date,
                 CASE
                     WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN 
-                        CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), ',Pague ', CAST(cantidad_m AS VARCHAR))
+                        CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), 'Pague ', CAST(cantidad_m AS VARCHAR))
                     WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN 
                         CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), 'x por ', CAST(ROUND(wp.precio_total_promocional, 0) AS VARCHAR))
                 END AS description,
@@ -175,7 +175,7 @@ def _send_joined_data_to_stfp(ds):
                                port=ftp_port,
                                password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
-            remotePath = f"/sftp-allies/sftppruebas_co/store_id-{output_promo_file}_COMBO_UNIMARC_{exec_date}"
+            remotePath = f"/sftp-allies/sftppruebas_co/store_id-{output_promo_file}_COMBO_UNIMARC"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
