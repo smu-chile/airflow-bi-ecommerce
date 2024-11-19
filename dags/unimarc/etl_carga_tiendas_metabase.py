@@ -14,9 +14,9 @@ def lista8():
     promociones_query = """select concat(l.material,'-',l.umv) as ref_id, l.id_tienda
                         from ecommdata.lista8 l
                         left join (select concat(sap_code,'-',measurement_unit) as ref_id, store as id_tienda 
-                                from ecommdata.ubicacion_mfc um 
-                                where mfc_is_item_side = 'REG') as ubi
-                                on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
+                            from ecommdata.ubicacion_mfc um 
+                            where mfc_is_item_side = 'REG') as ubi
+                            on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
                         where ubi.ref_id is null
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
@@ -37,11 +37,8 @@ def lista8():
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
                         union
-                        (SELECT '000000000000669484-UN' AS ref_id, '0917' AS id_tienda
-                        UNION ALL
-                        SELECT '000000000000669485-UN', '0917'
-                        LIMIT 2
-                        );
+                        select *
+                        from ecommdata.lista8_extra le 
                         """
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
