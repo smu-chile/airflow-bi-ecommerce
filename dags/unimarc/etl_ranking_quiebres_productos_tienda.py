@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 import pendulum
 
-def load_ranking_quiqebres_productos_tienda_to_postgres(ds):
+def load_ranking_quiebres_productos_tienda_to_postgres(ds):
     import pandas as pd
     import numpy as np
     import io
@@ -45,7 +45,7 @@ def load_ranking_quiqebres_productos_tienda_to_postgres(ds):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        df_ranking_productos_tienda.to_sql(name="ranking_productos_tienda",
+        df_ranking_productos_tienda.to_sql(name="ranking_quiebres_productos_tienda",
                     con=conn,         
                     schema="ecommdata",         
                     if_exists='append',         
@@ -87,8 +87,8 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "load_ranking_quiqebres_productos_tienda_to_postgres",
-        python_callable = load_ranking_quiqebres_productos_tienda_to_postgres,
+        task_id = "load_ranking_quiebres_productos_tienda_to_postgres",
+        python_callable = load_ranking_quiebres_productos_tienda_to_postgres,
     )
 
     t0 >> t1
