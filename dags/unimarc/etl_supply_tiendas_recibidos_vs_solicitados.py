@@ -132,7 +132,7 @@ with DAG(
         retries = 2,
         retry_delay = timedelta(minutes=1),
         execution_timeout = timedelta(minutes=60),
-        pool = "default_pool"#"backfill_pool"
+        pool = "backfill_pool"
     )
 
     t1= PythonOperator(
