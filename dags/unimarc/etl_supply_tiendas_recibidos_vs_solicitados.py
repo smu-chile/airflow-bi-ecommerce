@@ -16,28 +16,17 @@ def _load_to_postgres(ti):
     import sqlalchemy
     from sqlalchemy import text
 
-    costos_dw_file = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
+    filename = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+ costos_dw_file)
-    if not s3_hook.check_for_key(costos_dw_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % costos_dw_file)
+    print("Searching file: "+ filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
 
-    costos_dw_object = s3_hook.get_key(costos_dw_file, bucket_name=s3_bucket)
+    supply_stock = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    column_types = {
-        "SKU_PRODUCT": "str",
-        "SKU_NM": "str",
-        "FECHA": "str",
-        "FORMATO": "str",
-        "ID_TIENDA": "str",
-        "CANAL_DE_VENTA": "str",
-        "VENTA_NETA": "str",
-        "COSTO_NETO_CALCULADO": "str"
-    }
-
-    df = pd.read_csv(costos_dw_object.get()["Body"], dtype=column_types)
+    df = pd.read_csv(supply_stock.get()["Body"])
     print(f"Number of records found: {len(df.index)}")
 
     if len(df.index) == 0:
@@ -48,6 +37,7 @@ def _load_to_postgres(ti):
     df.columns = ['material','id_tienda','ultimo_recibido','cant_pedida','cant_recibida']
     df = df.dropna(subset=['material'])
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -56,7 +46,6 @@ def _load_to_postgres(ti):
     
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
-    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
 
     with engine.begin() as conn:
         conn.execute("TRUNCATE ecommdata.supply_stock_recibido")
@@ -86,8 +75,8 @@ with DAG(
     default_args=default_args,
     description="Extracción de costos por sku de dw",
     schedule_interval="0 12 * * *",
-    start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
-    catchup=True,
+    start_date=pendulum.datetime(2024, 11, 26, tz="America/Santiago"),
+    catchup=False,
     max_active_runs = 1,
     tags=["DATA", "DW", "S3", "supply", "PATRICIO"],
 ) as dag:
@@ -119,7 +108,7 @@ with DAG(
                 INNER JOIN (
                     select SPL_RQS_DOC,SKU_KEY,max(DATE_VALUE)DATE_VALUE
                     from DWC_SMU.SMU.VW_FACT_COMPRAS_ESPERADO
-                    where cast(DATE_VALUE as date) >= '{{ds}}'::DATE -7
+                    where cast(DATE_VALUE as date) >= '{{ds}}'::DATE-6
                     AND SKU_KEY NOT IN (4719571)
                     group by SPL_RQS_DOC,SKU_KEY
                     )Z 
@@ -128,7 +117,7 @@ with DAG(
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY E ON J.SKU_KEY=E.SKU_KEY --DIM_SKU_HIERARCHY
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT I ON J.OU_PROV_KEY=I.OU_KEY --DIM_ORGANIZATION_UNIT
                 where D.OU_ID = '0442'
-                AND Z.DATE_VALUE <= '{{ds}}'::DATE
+                AND Z.DATE_VALUE <= '{{ds}}'::DATE+1
                 group by J.SPL_RQS_DOC,
                 CAST(SKU_PRODUCT AS NUMERIC(18,0)),
                 j.fecha_pedido,
@@ -150,3 +139,5 @@ with DAG(
         task_id = "load_to_postgres",
         python_callable = _load_to_postgres
     )
+
+t0 >> t1
