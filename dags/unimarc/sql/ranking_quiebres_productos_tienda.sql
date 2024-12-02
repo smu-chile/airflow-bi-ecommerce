@@ -14,7 +14,7 @@ WITH BreakData AS (
         oj.fecha_facturacion IS NOT NULL
         AND op.unidades_solicitadas > op.unidades_pickeadas
         AND t.status = 1
-        AND oj.fecha_picking::date >= '{{ds}}'::date - 30
+        AND oj.fecha_picking::date >= '{{ds}}'::date - 15
     GROUP BY 
         op.ref_id, t.id
 ),
