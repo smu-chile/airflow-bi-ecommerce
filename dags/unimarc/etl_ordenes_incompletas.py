@@ -291,6 +291,39 @@ def _save_table_oi(ts, ti, ds):
             'readyForHandlingDate',
             'deliveryDates']]
 
+    columns_rename = {
+            'orderId':'id_orden',
+            'creationDate':'fecha_creacion',
+            'clientName':'nombre_cliente',
+            'totalValue':'valor_total',
+            'paymentNames':'nombres_pagos',
+            'status':'estado',
+            'statusDescription':'descripcion_estado',
+            'marketPlaceOrderId':'id_orden_marketplace',
+            'sequence':'sequence',
+            'salesChannel':'canal_de_ventas',
+            'affiliateId':'id_afiliado',
+            'origin':'origen',
+            'workflowInErrorState':'workflow_en_estado_error',
+            'workflowInRetry':'workflow_en_reintento',
+            'lastMessageUnread':'ultimo_mensaje_no_leido',
+            'ShippingEstimatedDate':'estimacion_fecha_shipping',
+            'ShippingEstimatedDateMax':'estimacion_fecha_shipping_max',
+            'ShippingEstimatedDateMin':'estimacion_fecha_shipping_min',
+            'orderIsComplete':'orden_completa',
+            'authorizedDate':'fecha_autorizacion',
+            'callCenterOperatorName':'nombre_operador_callcenter',
+            'totalItems':'items_totales',
+            'lastChange':'fecha_modificacion',
+            'isAllDelivered':'todo_entregado',
+            'isAnyDelivered':'parcialmente_entregado',
+            'giftCardProviders':'proveedor_giftcard',
+            'orderFormId':'id_forma_orden',
+            'paymentApprovedDate':'fecha_aprobacion_pago',
+            'readyForHandlingDate':'fecha_ready_for_handling',
+            'deliveryDates':'fechas_entrega'
+    }
+    df = df.rename(columns=columns_rename)
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
