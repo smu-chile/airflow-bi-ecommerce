@@ -18,8 +18,8 @@ def _load_json_to_s3(ts, ds):
     from io import StringIO
     import boto3
 
-    sds = macros.ds_add(ds, -2)
-    fds = macros.ds_add(ds, -1)
+    sds = ds
+    fds = macros.ds_add(ds, 1)
 
     accountName = Variable.get("VTEX_ACCOUNT_NAME")
     env = Variable.get("VTEX_ENV")
@@ -46,6 +46,8 @@ def _load_json_to_s3(ts, ds):
             "per_page" : "100",
             "page" : str(page),
         }
+
+        print(parameters)
 
         
 
@@ -117,11 +119,11 @@ def _load_json_to_s3(ts, ds):
                                  paymentApprovedDate,
                                  readyForHandlingDate,
                                  deliveryDates])
-            page += 1
-            print("p_total "+str(res['paging']['pages']))
-            print('checking '+str(page)+'>'+str(res['paging']['pages']))
-            if page > res['paging']['pages']:
-                page_cond = False
+        page += 1
+        print("p_total "+str(res['paging']['pages']))
+        print('checking '+str(page)+'>'+str(res['paging']['pages']))
+        if page > res['paging']['pages']:
+            page_cond = False
     df = pd.DataFrame(lista_lineas, columns = ['orderId',
                                  'creationDate',
                                  'clientName',
