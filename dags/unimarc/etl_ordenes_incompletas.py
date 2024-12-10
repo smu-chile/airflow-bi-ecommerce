@@ -55,7 +55,7 @@ def _load_json_to_s3(ts, ds):
         print(response.text)
 
         for linea in res['list']:
-            print("pagina "+page)
+            print("pagina "+str(page))
             orderId = linea['orderId']
             creationDate = linea['creationDate']
             clientName = linea['clientName']
