@@ -52,8 +52,10 @@ def _load_json_to_s3(ts, ds):
         response = requests.request("GET", url, headers=headers, params=parameters)
 
         res = json.loads(response.text)
+        print(response.text)
 
         for linea in res['list']:
+            print("pagina "+page)
             orderId = linea['orderId']
             creationDate = linea['creationDate']
             clientName = linea['clientName']
@@ -116,6 +118,7 @@ def _load_json_to_s3(ts, ds):
                                  readyForHandlingDate,
                                  deliveryDates])
             page += 1
+            print("p_total "+res['paging']['total'])
             if page > res['paging']['total']:
                 page_cond = False
     df = pd.DataFrame(lista_lineas, columns = ['orderId',
