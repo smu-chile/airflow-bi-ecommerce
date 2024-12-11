@@ -214,18 +214,19 @@ def _join_stock_from_s3(ds, ti):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
     uber_catalog_query = f"""
-        SELECT 
+       SELECT 
             CAST(CAST(lspp.material AS DECIMAL) AS VARCHAR) AS "SKU",
             lspp.ean::varchar AS "EAN",
             lspp.id_tienda AS "BRANCH",
             lspp.unidad_de_medida AS "UM VTA",
             lspp.multiplicador_unidad  AS "UXV",
-        case 
-            when lspp.unidad_de_medida != 'KG' then (lspp.stock_unitario * lspp.multiplicador_unidad)::numeric(13,0)
-            when lspp.unidad_de_medida = 'KG' then (lspp.stock_unitario * lspp.multiplicador_unidad)::numeric(13,3)
-        end AS "STOCK X UMV",
-        lspp.precio AS "PRICE"
+       		CASE 
+        		WHEN lspp.unidad_de_medida != 'KG' THEN GREATEST(((lspp.stock_unitario * lspp.multiplicador_unidad) - ssu.stock_seguridad)::numeric(13,0), 0)
+        		WHEN lspp.unidad_de_medida = 'KG' THEN GREATEST(((lspp.stock_unitario * lspp.multiplicador_unidad) - ssu.stock_seguridad)::numeric(13,3), 0)
+   		 	END AS "STOCK X UMV",
+        	lspp.precio AS "PRICE"
         FROM integraciones.lm_stock_precio_promo lspp
+        left join integraciones.stock_seguridad_uber ssu on ssu.ref_id = (lspp.material || '-' || lspp.unidad_de_medida);
         """
     cursor.execute(uber_catalog_query)
     results = cursor.fetchall()
