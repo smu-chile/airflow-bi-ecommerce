@@ -10,10 +10,11 @@ from utils.netezza_utils import load_custom_query_to_s3
 from datetime import datetime, timedelta
 import pendulum
 
+
 def materiales_lista8():
     import pandas as pd
-    stock_carnes_padre_hijo = """select distinct material
-                    from ecommdata.lista8 l;"""
+    stock_carnes_padre_hijo = """select distinct material 
+                            from ecommdata.productos p ;"""
     print(stock_carnes_padre_hijo)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -100,6 +101,9 @@ def master_sku_to_s3(ds,ti):
     df_lista8 = materiales_lista8()
     df_lista8.info()
 
+    df_lista8['material'] = df_lista8['material'].apply(lambda x: str(int(x)).zfill(18) if pd.notnull(x) and str(x).isdigit() else None)
+    df_supp['SKU_PRODUCT'] = df_supp['SKU_PRODUCT'].apply(lambda x: str(int(x)).zfill(18) if pd.notnull(x) and str(x).isdigit() else None)
+
     df_aux = pd.merge(df_lista8, df_supp, left_on='material', right_on='SKU_PRODUCT', how = 'left').drop('SKU_PRODUCT', axis=1)
 
     df_final = df_aux
@@ -184,11 +188,20 @@ def master_sku_to_postgresq(ti):
                 'marca_propia']
 
     df.info()
+
+    df = df.dropna(subset=['material'])
+
+    df.info()
+
     df['proveedor_retail'] = pd.to_numeric(df['proveedor_retail'], errors='coerce').astype('Int64')
     df['nuestro_100'] = pd.to_numeric(df['nuestro_100'], errors='coerce').astype('Int64')
     df['marca_propia'] = df['marca_propia'].fillna(False)
     df['marca_propia'] = df['marca_propia'].astype(int)
-    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
+    df['material'] = df['material'].apply(lambda x: str(int(x)).zfill(18))
+
+    df = df.dropna(subset=['sku_key'], how='all')
+
+    df.info()
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -223,7 +236,7 @@ with DAG(
     'etl_skus_master_table',
     default_args=default_args,
     description="cargar maestra skus",
-    schedule_interval= "0 9 * * *",
+    schedule_interval= "0 5 * * 1",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "maestra_skus", "proveedores", "PATRICIO"],
@@ -247,7 +260,7 @@ with DAG(
                 S.SUPPLIER_TYPE, S.SUPPLIER_RETAIL, S.NUESTRO_100, H.MARCA_PROPIA
                 FROM DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY AS H
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SUPPLIER AS S on H.PROVEEDOR_PPAL_KEY = S.SUPPLIER_KEY
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_ENVASE AS E on E.CODIGO = H.ENVASE 
+                LEFT JOIN DWC_SMU.SMU.VW_DIM_ENVASE AS E on E.CODIGO = H.ENVASE
             """,
             "query_name": "HIERARCHYxSUPPLIER_query"
         },
