@@ -199,6 +199,15 @@ def _incremental_load_orders_table(ti):
     
     df = df.drop(columns=["order_id", "value"])
 
+    df_cdf_gct = df_cdf[df_cdf["field"] == "giftcardType"]
+    df_cdf_gct = df_cdf_gct[["order_id", "value"]]
+
+    df = df.merge(df_cdf_gct, left_on="janis_id", right_on="order_id", how="left")
+    df["value"] = df["value"].fillna('NA')
+    df["tipo_giftcard"] = df["value"]
+    
+    df = df.drop(columns=["order_id", "value"])
+
     marketing_data_fields_file = ti.xcom_pull(key="return_value", task_ids=["order_marketing_data_field_incremental_load"])[0]
 
     print("Searching file: "+marketing_data_fields_file)
@@ -263,7 +272,8 @@ def _incremental_load_orders_table(ti):
         "janis_cart_id",
         "utm_source",
         "nivel_cliente",
-        "requiere_bolsas"
+        "requiere_bolsas",
+        "tipo_giftcard"
     ]
 
     df = df[["id"]+columns]
@@ -801,7 +811,7 @@ def _incremental_load_orders_38_table(ti):
     df_cdf_gct = df_cdf_gct[["order_id", "value"]]
 
     df = df.merge(df_cdf_gct, left_on="janis_id", right_on="order_id", how="left")
-    df["value"] = df["value"].fillna(None)
+    df["value"] = df["value"].fillna('NA')
     df["tipo_giftcard"] = df["value"]
     
     df = df.drop(columns=["order_id", "value"])
