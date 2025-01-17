@@ -6,6 +6,8 @@ def get_tickets_updated_last_4_hours(desde, hasta, nombre_formato, numero_pagina
             return 1500000283081
         elif a == 'alvi':
             return 1500003492021
+        elif a == 'salute':
+            return 28946849342359
         else:
             return ''
 
