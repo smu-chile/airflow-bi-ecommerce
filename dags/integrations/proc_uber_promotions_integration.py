@@ -421,17 +421,14 @@ SELECT ean,
 FROM promociones_filtradas
 WHERE rn = 1;
                 """
-    if uber_promotions_query is not None:
+    if uber_promotions_query:
         cursor.execute(uber_promotions_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
-    
+        if not results:  # Verifica si los resultados están vacíos
+         print(f"No records found. Skipping...")
     else:
-         results = []
-
-    if len(results) == 0:
-        print(f"No records found. Skipping...")
-        return
+        print(f"No query provided. Skipping...")
     
 
     df = pd.DataFrame(results, columns=columns)
