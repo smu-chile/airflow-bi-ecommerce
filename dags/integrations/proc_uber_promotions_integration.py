@@ -421,16 +421,14 @@ SELECT ean,
 FROM promociones_filtradas
 WHERE rn = 1;
                 """
-    if uber_promotions_query:
-        cursor.execute(uber_promotions_query)
-        results = cursor.fetchall()
-        columns = [i[0] for i in cursor.description]
-        if not results:  # Verifica si los resultados están vacíos
-         print(f"No records found. Skipping...")
-    else:
-        print(f"No query provided. Skipping...")
-    
+    cursor.execute(uber_promotions_query)  # Ejecuta la consulta directamente
+    results = cursor.fetchall()  # Obtiene los resultados
+    columns = [i[0] for i in cursor.description]  # Extrae los nombres de las columnas
 
+    if not results:  # Verifica si los resultados están vacíos
+        print(f"No records found. Skipping...")
+        return
+    
     df = pd.DataFrame(results, columns=columns)
     print(f"Number of records found on stock: {len(df.index)}")
         
