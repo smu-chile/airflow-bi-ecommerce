@@ -295,135 +295,140 @@ def _join_promo_prices_test_from_s3(ds, ti):
 
     if numero_dia_semana == 0 :
             uber_promotions_query = f"""
-                select distinct 
-	                p.ean as ean,
-	                s.ou_id as id_de_tienda,
-	                wp.material AS Sku,
-	                wp.precio_modal as price,
-	                case
-		                when wp.umv = 'ST' then 'UN'
-		                else wp.umv
-	                end as unidad_de_medida_venta,
-	                case
-		                when wp.desc_promocion in ('PRECIO FIJO' , '% DE DESCUENTO') then 'descuento'
-	    	            else 'pack'
-	                end as tipo_de_promoción,
-	                case
-		                when wp.desc_promocion in ('COMBINACION NXM') then concat(wp.cantidad_n,'x',cantidad_m)
-		                when wp.desc_promocion in ('COMBINACION NX$') then concat(wp.cantidad_n,'x')
-		                else 'null'
-	                end as combinacion,
-	                wp.precio_promocional  as precio_venta_individual,
-	                wp.precio_total_promocional  as precio_venta_total,
-	                current_date AS fecha_inicio_venta ,
-                    current_date + 3 AS fecha_final_venta
-                FROM ecommdata.workflow_promociones wp 
-                left join integraciones.stock s on s.sku_product = wp.material 
-                left join integraciones.tiendas_last_millers tlm on tlm.id = s.ou_id 
-                left join integraciones.productos p on s.sku_key = p.sku_key and p.ean = wp.ean
-                where wp.fecha_inicio_de_promocion <= current_date
-                and wp.fecha_fin_de_promocion >= current_date
-                and tlm.id_uber is not null
-                and wp.tipo_promocion IN (1,2,4,7)
-                and wp.registro_valido = true
-                and wp.organizacion_ventas = '1000'
-                and wp.canal_distribucion = '10'
-                and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123,124)
-	            AND wp.nombre_promocion::text !~~ '%ZONA%'::text
-                AND wp.nombre_promocion::text !~~ '%MFC%'::text
-                AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-                AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-                AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-                AND wp.nombre_promocion::text !~~ '%917%'::text
-                AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-                and wp.nombre_promocion::text !~~ '% LOC%'::text
-                and wp.nombre_promocion::text !~~ '%LIQ%'::text
-                and wp.n_promocion not in  ('5552392024','1120012024',
-'1120022024',
-'1120032024',
-'1120042024',
-'1120052024',
-'1120062024',
-'1120082024',
-'1120092024',   
-'1120102024',
-'1120112024',
-'1120122024',
-'4000512024'
-);
+               WITH promociones_filtradas AS (
+    SELECT DISTINCT 
+        p.ean AS ean,
+        tlm.id AS id_de_tienda,
+        wp.material AS sku,
+        wp.precio_modal AS price,
+        CASE
+            WHEN wp.umv = 'ST' THEN 'UN'
+            ELSE wp.umv
+        END AS unidad_de_medida_venta,
+        CASE
+            WHEN wp.desc_promocion IN ('PRECIO FIJO', '% DE DESCUENTO') THEN 'descuento'
+            ELSE 'pack'
+        END AS tipo_de_promoción,
+        CASE
+            WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN CONCAT(wp.cantidad_n, 'x', wp.cantidad_m)
+            WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN CONCAT(wp.cantidad_n, 'x')
+            ELSE 'null'
+        END AS combinacion,
+        wp.precio_promocional AS precio_venta_individual,
+        wp.precio_total_promocional AS precio_venta_total,
+        CURRENT_DATE + 1 AS fecha_inicio_venta,
+        wp.fecha_fin_de_promocion AS fecha_final_venta,
+        ROW_NUMBER() OVER (PARTITION BY wp.material, tlm.id ORDER BY wp.precio_promocional ASC) AS rn
+    FROM ecommdata.workflow_promociones wp
+    LEFT JOIN integraciones.stock s ON s.sku_product = wp.material
+    LEFT JOIN integraciones.tiendas_last_millers tlm ON tlm.id_uber IS NOT NULL
+    LEFT JOIN integraciones.productos p ON s.sku_key = p.sku_key AND p.ean = wp.ean
+    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE + 1 
+      AND wp.fecha_fin_de_promocion >= CURRENT_DATE
+      AND wp.tipo_promocion IN (1, 2, 4, 7)
+      AND wp.registro_valido = TRUE
+      AND wp.organizacion_ventas = '1000'
+      AND wp.canal_distribucion = '10'
+      AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+      AND wp.nombre_promocion::TEXT !~~ '%ZONA%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%MFC%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%BANCO%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%UNIPAY%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%TERCERA%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%917%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%ESTADO%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '% LOC%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%LIQ%'::text
+      AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
+                                 '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
+                                 '4000512024')
+)
+SELECT ean,
+       id_de_tienda,
+       sku,
+       price,
+       unidad_de_medida_venta,
+       tipo_de_promoción,
+       combinacion,
+       precio_venta_individual,
+       precio_venta_total,
+       fecha_inicio_venta,
+       fecha_final_venta
+FROM promociones_filtradas
+WHERE rn = 1;
                 """
     if numero_dia_semana == 3 :
             uber_promotions_query = f"""
-                 select distinct 
-	                p.ean as ean,
-	                s.ou_id as id_de_tienda,
-	                wp.material AS Sku,
-	                wp.precio_modal as price,
-	                case
-		                when wp.umv = 'ST' then 'UN'
-		                else wp.umv
-	                end as unidad_de_medida_venta,
-	                case
-		                when wp.desc_promocion in ('PRECIO FIJO' , '% DE DESCUENTO') then 'descuento'
-	    	            else 'pack'
-	                end as tipo_de_promoción,
-	                case
-		                when wp.desc_promocion in ('COMBINACION NXM') then concat(wp.cantidad_n,'x',cantidad_m)
-		                when wp.desc_promocion in ('COMBINACION NX$') then concat(wp.cantidad_n,'x')
-		                else 'null'
-	                end as combinacion,
-	                wp.precio_promocional  as precio_venta_individual,
-	                wp.precio_total_promocional  as precio_venta_total,
-	                current_date AS fecha_inicio_venta ,
-                    current_date + 4 AS fecha_final_venta
-                FROM ecommdata.workflow_promociones wp 
-                left join integraciones.stock s on s.sku_product = wp.material 
-                left join integraciones.tiendas_last_millers tlm on tlm.id = s.ou_id 
-                left join integraciones.productos p on s.sku_key = p.sku_key and p.ean = wp.ean
-                where wp.fecha_inicio_de_promocion <= current_date
-                and wp.fecha_fin_de_promocion >= current_date
-                and tlm.id_uber is not null
-                and wp.tipo_promocion IN (1,2,4,7)
-                and wp.registro_valido = true
-                and wp.organizacion_ventas = '1000'
-                and wp.canal_distribucion = '10'
-                and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123,124)
-                AND wp.nombre_promocion::text !~~ '%ZONA%'::text
-                AND wp.nombre_promocion::text !~~ '%MFC%'::text
-                AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-                AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-                AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-                AND wp.nombre_promocion::text !~~ '%917%'::text
-                AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-                and wp.nombre_promocion::text !~~ '% LOC%'::text
-                and wp.nombre_promocion::text !~~ '%LIQ%'::text
-                and wp.n_promocion not in  ('5552392024','1120012024',
-'1120022024',
-'1120032024',
-'1120042024',
-'1120052024',
-'1120062024',
-'1120082024',
-'1120092024',   
-'1120102024',
-'1120112024',
-'1120122024',
-'4000512024'
-);
+               WITH promociones_filtradas AS (
+    SELECT DISTINCT 
+        p.ean AS ean,
+        tlm.id AS id_de_tienda,
+        wp.material AS sku,
+        wp.precio_modal AS price,
+        CASE
+            WHEN wp.umv = 'ST' THEN 'UN'
+            ELSE wp.umv
+        END AS unidad_de_medida_venta,
+        CASE
+            WHEN wp.desc_promocion IN ('PRECIO FIJO', '% DE DESCUENTO') THEN 'descuento'
+            ELSE 'pack'
+        END AS tipo_de_promoción,
+        CASE
+            WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN CONCAT(wp.cantidad_n, 'x', wp.cantidad_m)
+            WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN CONCAT(wp.cantidad_n, 'x')
+            ELSE 'null'
+        END AS combinacion,
+        wp.precio_promocional AS precio_venta_individual,
+        wp.precio_total_promocional AS precio_venta_total,
+        CURRENT_DATE + 1 AS fecha_inicio_venta,
+        wp.fecha_fin_de_promocion AS fecha_final_venta,
+        ROW_NUMBER() OVER (PARTITION BY wp.material, tlm.id ORDER BY wp.precio_promocional ASC) AS rn
+    FROM ecommdata.workflow_promociones wp
+    LEFT JOIN integraciones.stock s ON s.sku_product = wp.material
+    LEFT JOIN integraciones.tiendas_last_millers tlm ON tlm.id_uber IS NOT NULL
+    LEFT JOIN integraciones.productos p ON s.sku_key = p.sku_key AND p.ean = wp.ean
+    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE + 1 
+      AND wp.fecha_fin_de_promocion >= CURRENT_DATE
+      AND wp.tipo_promocion IN (1, 2, 4, 7)
+      AND wp.registro_valido = TRUE
+      AND wp.organizacion_ventas = '1000'
+      AND wp.canal_distribucion = '10'
+      AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+      AND wp.nombre_promocion::TEXT !~~ '%ZONA%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%MFC%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%BANCO%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%UNIPAY%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%TERCERA%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%917%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%ESTADO%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '% LOC%'::TEXT
+      AND wp.nombre_promocion::TEXT !~~ '%LIQ%'::text
+      AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
+                                 '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
+                                 '4000512024')
+)
+SELECT ean,
+       id_de_tienda,
+       sku,
+       price,
+       unidad_de_medida_venta,
+       tipo_de_promoción,
+       combinacion,
+       precio_venta_individual,
+       precio_venta_total,
+       fecha_inicio_venta,
+       fecha_final_venta
+FROM promociones_filtradas
+WHERE rn = 1;
                 """
-    if uber_promotions_query is not None:
-        cursor.execute(uber_promotions_query)
-        results = cursor.fetchall()
-        columns = [i[0] for i in cursor.description]
-    
-    else:
-         results = []
+    cursor.execute(uber_promotions_query)  # Ejecuta la consulta directamente
+    results = cursor.fetchall()  # Obtiene los resultados
+    columns = [i[0] for i in cursor.description]  # Extrae los nombres de las columnas
 
-    if len(results) == 0:
+    if not results:  # Verifica si los resultados están vacíos
         print(f"No records found. Skipping...")
         return
     
-
     df = pd.DataFrame(results, columns=columns)
     print(f"Number of records found on stock: {len(df.index)}")
         
@@ -610,7 +615,7 @@ def _send_joined_data_to_sftp(ds):
         with sftp.open(remotePath, 'w') as f:
                 f.write(stock_object_body.to_csv(index=False, sep=';'))
     
-    print("File loaded.")
+    print("Todo Cargadito")
         
     return
 
