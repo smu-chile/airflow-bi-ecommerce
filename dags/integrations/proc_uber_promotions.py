@@ -104,10 +104,9 @@ WHERE rn = 1;
         columns = [i[0] for i in cursor.description]
         if not results:  # Verifica si los resultados están vacíos
          print(f"No records found. Skipping...")
-        return
     else:
         print(f"No query provided. Skipping...")
-    return
+    
     
 
     df = pd.DataFrame(results, columns=columns)
