@@ -37,7 +37,6 @@ def _join_promo_prices_test_from_s3(ds, ti):
 
     uber_promotions_query = f""" 
     WITH promociones_filtradas AS (
-    SELECT DISTINCT 
         p.ean AS ean,
         tlm.id AS id_de_tienda,
         wp.material AS sku,
@@ -57,14 +56,14 @@ def _join_promo_prices_test_from_s3(ds, ti):
         END AS combinacion,
         wp.precio_promocional AS precio_venta_individual,
         wp.precio_total_promocional AS precio_venta_total,
-        CURRENT_DATE + 1 AS fecha_inicio_venta,
+        CURRENT_DATE AS fecha_inicio_venta,
         wp.fecha_fin_de_promocion AS fecha_final_venta,
         ROW_NUMBER() OVER (PARTITION BY wp.material, tlm.id ORDER BY wp.precio_promocional ASC) AS rn
     FROM ecommdata.workflow_promociones wp
     LEFT JOIN integraciones.stock s ON s.sku_product = wp.material
     LEFT JOIN integraciones.tiendas_last_millers tlm ON tlm.id_uber IS NOT NULL
     LEFT JOIN integraciones.productos p ON s.sku_key = p.sku_key AND p.ean = wp.ean
-    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE + 1 
+    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
       AND wp.fecha_fin_de_promocion >= CURRENT_DATE
       AND wp.tipo_promocion IN (1, 2, 4, 7)
       AND wp.registro_valido = TRUE
@@ -206,7 +205,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS"],
+    tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS","UBER"],
 ) as dag:
 
     dag.doc_md = """
