@@ -100,96 +100,6 @@ def _join_Catalog_from_s3(ds, ti):
     return
 
    #####################################################################################################
-   #                                 QUERY PROMOCIONES                                                 #
-   #####################################################################################################
-
-def _join_promo_prices_from_s3(ds, ti):
-    import json
-    import pandas as pd
-    import io
-    # Obtener la fecha actual
-    fecha_actual = datetime.strptime(ds, "%Y-%m-%d")
-    # Obtener el día de la semana como un número
-    numero_dia_semana = fecha_actual.weekday()
-
-    exec_date = ds.replace("-", "/")
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-    
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-
-
-        # Obtén la fecha de ejecución en formato YYYYMMDD
-    exec_date_formatted = datetime.now().strftime("%Y%m%d")
-
-    join_file_name = f"integraciones/last_millers/promotions/out/uber/{exec_date}/{exec_date_formatted}.csv"
-    if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-        print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-        
-
-    uber_promotions_query = None
-
-    if numero_dia_semana == 1 :
-            uber_promotions_query = f"""
-                SELECT DISTINCT 
-                    lspp.material AS Sku,
-                    lspp.unidad_de_medida as unidad_de_medida_venta, 
-                    lspp.id_tienda AS id_de_tienda,
-                    current_date AS fecha_inicio_venta ,
-                    current_date + 3 AS fecha_final_venta,
-                    'Descuento' AS tipo_de_promoción,
-                    LEAST(lspp.precio_promocional, lspp.precio) AS precio_venta
-                FROM integraciones.lm_stock_precio_promo lspp;
-                """
-    if numero_dia_semana == 3 :
-            uber_promotions_query = f"""
-                SELECT DISTINCT 
-                    lspp.material AS Sku,
-                    lspp.unidad_de_medida as unidad_de_medida_venta, 
-                    lspp.id_tienda AS id_de_tienda,
-                    current_date AS fecha_inicio_venta ,
-                    current_date + 4 AS fecha_final_venta,
-                    'Descuento' AS tipo_de_promoción,
-                    LEAST(lspp.precio_promocional, lspp.precio) AS precio_venta
-                FROM integraciones.lm_stock_precio_promo lspp;
-                """
-    if uber_promotions_query is not None:
-        cursor.execute(uber_promotions_query)
-        results = cursor.fetchall()
-        columns = [i[0] for i in cursor.description]
-    
-    else:
-         results = []
-
-    if len(results) == 0:
-        print(f"No records found. Skipping...")
-        return
-    
-
-    df = pd.DataFrame(results, columns=columns)
-    print(f"Number of records found on stock: {len(df.index)}")
-        
-    df['precio_venta'] = df['precio_venta'].apply(lambda x: int(x) if pd.notnull(x) else x)
-
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
-
-    
-    
-    s3_hook.load_string(buffer.getvalue(),
-                key=join_file_name,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-    print(f"File load on S3: {join_file_name}")
-    
-    return
-
-   #####################################################################################################
    #                                 QUERY Stock diario                                                #
    #####################################################################################################
 def _join_stock_from_s3(ds, ti):
@@ -259,199 +169,10 @@ def _join_stock_from_s3(ds, ti):
     cursor.close()
     pg_connection.close()
     return
-
-
-   #####################################################################################################
-   #                                 QUERY Promociones complejas                                       #
-   #####################################################################################################
-def _join_promo_prices_test_from_s3(ds, ti):
-    import json
-    import pandas as pd
-    import io
-    # Obtener la fecha actual
-    fecha_actual = datetime.strptime(ds, "%Y-%m-%d")
-    # Obtener el día de la semana como un número
-    numero_dia_semana = fecha_actual.weekday()
-
-    exec_date = ds.replace("-", "/")
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-    
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-
-
-        # Obtén la fecha de ejecución en formato YYYYMMDD
-    exec_date_formatted = datetime.now().strftime("%Y%m%d")
-
-    join_file_name = f"integraciones/last_millers/promotions/out/uber/Test_{exec_date}/{exec_date_formatted}.csv"
-    if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-        print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-        
-
-    uber_promotions_query = None
-
-    if numero_dia_semana == 0 :
-            uber_promotions_query = f"""
-               WITH promociones_filtradas AS (
-    SELECT DISTINCT 
-        p.ean AS ean,
-        tlm.id AS id_de_tienda,
-        wp.material AS sku,
-        wp.precio_modal AS price,
-        CASE
-            WHEN wp.umv = 'ST' THEN 'UN'
-            ELSE wp.umv
-        END AS unidad_de_medida_venta,
-        CASE
-            WHEN wp.desc_promocion IN ('PRECIO FIJO', '% DE DESCUENTO') THEN 'descuento'
-            ELSE 'pack'
-        END AS tipo_de_promoción,
-        CASE
-            WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN CONCAT(wp.cantidad_n, 'x', wp.cantidad_m)
-            WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN CONCAT(wp.cantidad_n, 'x')
-            ELSE 'null'
-        END AS combinacion,
-        wp.precio_promocional AS precio_venta_individual,
-        wp.precio_total_promocional AS precio_venta_total,
-        CURRENT_DATE + 1 AS fecha_inicio_venta,
-        wp.fecha_fin_de_promocion AS fecha_final_venta,
-        ROW_NUMBER() OVER (PARTITION BY wp.material, tlm.id ORDER BY wp.precio_promocional ASC) AS rn
-    FROM ecommdata.workflow_promociones wp
-    LEFT JOIN integraciones.stock s ON s.sku_product = wp.material
-    LEFT JOIN integraciones.tiendas_last_millers tlm ON tlm.id_uber IS NOT NULL
-    LEFT JOIN integraciones.productos p ON s.sku_key = p.sku_key AND p.ean = wp.ean
-    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE + 1 
-      AND wp.fecha_fin_de_promocion >= CURRENT_DATE
-      AND wp.tipo_promocion IN (1, 2, 4, 7)
-      AND wp.registro_valido = TRUE
-      AND wp.organizacion_ventas = '1000'
-      AND wp.canal_distribucion = '10'
-      AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
-      AND wp.nombre_promocion::TEXT !~~ '%ZONA%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%MFC%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%BANCO%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%UNIPAY%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%TERCERA%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%917%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%ESTADO%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '% LOC%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%LIQ%'::text
-      AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
-                                 '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
-                                 '4000512024')
-)
-SELECT ean,
-       id_de_tienda,
-       sku,
-       price,
-       unidad_de_medida_venta,
-       tipo_de_promoción,
-       combinacion,
-       precio_venta_individual,
-       precio_venta_total,
-       fecha_inicio_venta,
-       fecha_final_venta
-FROM promociones_filtradas
-WHERE rn = 1;
-                """
-    if numero_dia_semana == 3 :
-            uber_promotions_query = f"""
-               WITH promociones_filtradas AS (
-    SELECT DISTINCT 
-        p.ean AS ean,
-        tlm.id AS id_de_tienda,
-        wp.material AS sku,
-        wp.precio_modal AS price,
-        CASE
-            WHEN wp.umv = 'ST' THEN 'UN'
-            ELSE wp.umv
-        END AS unidad_de_medida_venta,
-        CASE
-            WHEN wp.desc_promocion IN ('PRECIO FIJO', '% DE DESCUENTO') THEN 'descuento'
-            ELSE 'pack'
-        END AS tipo_de_promoción,
-        CASE
-            WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN CONCAT(wp.cantidad_n, 'x', wp.cantidad_m)
-            WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN CONCAT(wp.cantidad_n, 'x')
-            ELSE 'null'
-        END AS combinacion,
-        wp.precio_promocional AS precio_venta_individual,
-        wp.precio_total_promocional AS precio_venta_total,
-        CURRENT_DATE + 1 AS fecha_inicio_venta,
-        wp.fecha_fin_de_promocion AS fecha_final_venta,
-        ROW_NUMBER() OVER (PARTITION BY wp.material, tlm.id ORDER BY wp.precio_promocional ASC) AS rn
-    FROM ecommdata.workflow_promociones wp
-    LEFT JOIN integraciones.stock s ON s.sku_product = wp.material
-    LEFT JOIN integraciones.tiendas_last_millers tlm ON tlm.id_uber IS NOT NULL
-    LEFT JOIN integraciones.productos p ON s.sku_key = p.sku_key AND p.ean = wp.ean
-    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE + 1 
-      AND wp.fecha_fin_de_promocion >= CURRENT_DATE
-      AND wp.tipo_promocion IN (1, 2, 4, 7)
-      AND wp.registro_valido = TRUE
-      AND wp.organizacion_ventas = '1000'
-      AND wp.canal_distribucion = '10'
-      AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
-      AND wp.nombre_promocion::TEXT !~~ '%ZONA%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%MFC%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%BANCO%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%UNIPAY%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%TERCERA%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%917%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%ESTADO%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '% LOC%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%LIQ%'::text
-      AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
-                                 '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
-                                 '4000512024')
-)
-SELECT ean,
-       id_de_tienda,
-       sku,
-       price,
-       unidad_de_medida_venta,
-       tipo_de_promoción,
-       combinacion,
-       precio_venta_individual,
-       precio_venta_total,
-       fecha_inicio_venta,
-       fecha_final_venta
-FROM promociones_filtradas
-WHERE rn = 1;
-                """
-    cursor.execute(uber_promotions_query)  # Ejecuta la consulta directamente
-    results = cursor.fetchall()  # Obtiene los resultados
-    columns = [i[0] for i in cursor.description]  # Extrae los nombres de las columnas
-
-    if not results:  # Verifica si los resultados están vacíos
-        print(f"No records found. Skipping...")
-        return
-    
-    df = pd.DataFrame(results, columns=columns)
-    print(f"Number of records found on stock: {len(df.index)}")
-        
-    df['precio_venta_individual'] = df['precio_venta_individual'].apply(lambda x: int(x) if pd.notnull(x) else x)
-
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
-
-    
-    
-    s3_hook.load_string(buffer.getvalue(),
-                key=join_file_name,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-    print(f"File load on S3: {join_file_name}")
-    
-    return
-
-   #####################################################################################################
-   #                          ENVIO DE LOS ARCHIVOS AL SFTP UBER                                       #
-   #####################################################################################################
+   
+#####################################################################################################
+#                          ENVIO DE LOS ARCHIVOS AL SFTP UBER                                       #
+#####################################################################################################
 
 def _send_joined_data_to_sftp(ds):
     import os
@@ -476,87 +197,11 @@ def _send_joined_data_to_sftp(ds):
     #Datos de los envios
 
     exec_date = ds.replace("-", "/")
-    prefix_Promotions = f"integraciones/last_millers/promotions/out/uber/{exec_date}/" #Prefix para promociones simples
     prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/" #Prefis para el catologo enviado a uber
     prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/" #Prefix para actualizacion de stock
-    prefix_test = f"integraciones/last_millers/promotions/out/uber/Test_{exec_date}/"  #Prefix para promociones complejas
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    #Envio de promociones simples solo los dias lunes y jueves 
-
-    if numero_dia_semana == 0 or numero_dia_semana == 3 :
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Promotions)
-
-        print(f"Number of files found: {len(s3_file_list)}")
-    
-        for promotions_file in s3_file_list:
-            print(promotions_file)
-
-            promotions_object = s3_hook.get_key(promotions_file, bucket_name=s3_bucket)
-            promotions_object_body = pd.read_csv(promotions_object.get()["Body"])
-
-            output_promotions_file = promotions_file.split("/")[-1]
-            print(output_promotions_file)
-            print(f"File to load to SFTP Server: {output_promotions_file}")
-
-            key_buffer = io.StringIO(ftp_rsa_key)
-            p_key = paramiko.RSAKey.from_private_key(key_buffer)
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
-            sftp = ssh.open_sftp()
-
-            exec_date = datetime.strptime(ds, "%Y-%m-%d")
-
-            if numero_dia_semana == 0 :
-                fecha_limite = exec_date + timedelta(days=3)
-                remotePath = f"/test/delta/Test_Archivo_promociones_{output_promotions_file}"
-            if numero_dia_semana == 3 :
-                 fecha_limite = exec_date + timedelta(days=4)
-                 remotePath = f"/test/delta/Test_Archivo_promociones_{output_promotions_file}"
-            with sftp.open(remotePath, 'w') as f:
-                 f.write(promotions_object_body.to_csv(index=False, sep=';'))
-        
-            ssh.close()
-    
-  #Envio de promociones solo los dias lunes y jueves - Promos compljeas
-  
-    if numero_dia_semana == 0 or numero_dia_semana == 3 :
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_test)
-
-        print(f"Number of files found: {len(s3_file_list)}")
-    
-        for promotions_file_test in s3_file_list:
-            print(promotions_file_test)
-
-            promotions_object = s3_hook.get_key(promotions_file_test, bucket_name=s3_bucket)
-            promotions_object_body = pd.read_csv(promotions_object.get()["Body"])
-
-            output_promotions_file = promotions_file_test.split("/")[-1]
-            print(output_promotions_file)
-            print(f"File to load to SFTP Server: {output_promotions_file}")
-
-            key_buffer = io.StringIO(ftp_rsa_key)
-            p_key = paramiko.RSAKey.from_private_key(key_buffer)
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
-            sftp = ssh.open_sftp()
-
-            exec_date = datetime.strptime(ds, "%Y-%m-%d")
-
-            if numero_dia_semana == 0 :
-                fecha_limite = exec_date + timedelta(days=3)
-                remotePath = f"/prod/Archivo_promociones_{output_promotions_file}"
-            if numero_dia_semana == 3 :
-                 fecha_limite = exec_date + timedelta(days=4)
-                 remotePath = f"/prod/Archivo_promociones_{output_promotions_file}"
-            with sftp.open(remotePath, 'w') as f:
-                 f.write(promotions_object_body.to_csv(index=False, sep=';'))
-        
-            ssh.close()
 
     #Envio de productos 
     if numero_dia_semana == 0:
@@ -636,16 +281,13 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS"],
+    tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS","UBER"],
 ) as dag:
 
     dag.doc_md = """
-    Cruce de precios y precios promocionales simples para integración con Last Millers: **Uber**. \n
-    * Se obtiene listado de tiendas activas para la integración UBER (`registros con id_uber NOT NULL de la tabla integraciones.tiendas_last_millers`). \n
-    * A partir de esta lista, se obtiene listado de archivos CSV de precio para cada una de las tiendas activas en **UBER**. \n
-    * Desde **S3** se extrae archivo CSV de precios modales. \n
-    * Para cada tienda activa, se cruzan los archivos de precio promo y el de precios modales, se les da formato correspondiente para luego
-    ser almacenados en **S3**. 
+    Cruce de datos de catalogo y promociones simples para lastmiller Uber.
+    Se enviara el dia lunes el envio del catalogo actualizado hasta la fecha y diariamente se hara entrega del
+    stock de uber en el archivo de stock tiendas Uber.
     * Finalmente, se itera sobre los archivos generados, dejando cada uno de estos en el servidor SFTP de Uber.
     Este DAG depende del DAG: [ **proc_stock_last_millers** ].
     """ 
@@ -656,26 +298,14 @@ with DAG(
     )
 
     t1 = PythonOperator(
-        task_id = "join_promo_prices_from_s3",
-        python_callable = _join_promo_prices_from_s3
-    )
-
-    t2 = PythonOperator(
         task_id = "join_stock_prices_from_s3",
         python_callable = _join_stock_from_s3
     )
 
-    t3 = PythonOperator(
-        task_id = "join_stock_prices_test_from_s3",
-        python_callable = _join_promo_prices_test_from_s3
-    )
-
-    t4 = PythonOperator(
+    t2 = PythonOperator(
         task_id = "send_joined_data",
         python_callable = _send_joined_data_to_sftp
     )
 
     t0 >> t1
     t1 >> t2
-    t2 >> t3
-    t3 >> t4
