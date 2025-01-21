@@ -445,7 +445,7 @@ def _order_items_table_incremental_load(ti):
 
     df = df.merge(df_orders, how="inner", left_on="order_id", right_on="original_id").drop(columns=["order_id", "original_id"])
 
-    # # Ensure correct datatypes:
+    # # Ensure Correct datatypes:
     df["item_index"] = df["item_index"].astype("int", errors="ignore")
     df["substitute_of"] = df["substitute_of"].astype("int", errors="ignore")
     df["picker"] = df["picker"].astype("int", errors="ignore")
