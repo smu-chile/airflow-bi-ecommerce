@@ -25,7 +25,8 @@ def _check_time(ts):
     elif (time_str == "05:30"):
         return "stock_ventas_tiendas_to_s3_am"
     else:
-        return "stock_ventas_tiendas_to_s3_pm"
+        return "task_skip"
+    #    return "stock_ventas_tiendas_to_s3_pm"
 
 def stock(ds):
     import pandas as pd
@@ -290,7 +291,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     print(f"File load on S3: {prefix}")
 
     return filename
-
+"""
 def stock_ventas_tiendas_to_s3_pm(ds):
     import pandas as pd
     import numpy as np
@@ -521,6 +522,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     print(response.text)
 
     return
+"""
 
 def carga_stock_seguridad_janis_am(ds,ti):
     import requests
@@ -643,6 +645,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
 
     return
 
+"""
 def stock_ventas_tiendas_to_postgresql_pm(ti):
     import numpy as np
     import pandas as pd
@@ -691,7 +694,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
     print("Data saved to PostgreSQL.")
 
     return
-
+"""
 
 default_args = {
     "owner": "ecommerce_data",
@@ -729,33 +732,33 @@ with DAG(
         python_callable = stock_ventas_tiendas_to_s3_am,
     )
 
-    t1_pm = PythonOperator(
-        task_id = "stock_ventas_tiendas_to_s3_pm",
-        python_callable = stock_ventas_tiendas_to_s3_pm,
-    )
+    #t1_pm = PythonOperator(
+    #    task_id = "stock_ventas_tiendas_to_s3_pm",
+    #    python_callable = stock_ventas_tiendas_to_s3_pm,
+    #)
 
     t2_am = PythonOperator(
         task_id = "stock_ventas_tiendas_to_postgresql_am",
         python_callable = stock_ventas_tiendas_to_postgresql_am,
     )
 
-    t2_pm = PythonOperator(
-        task_id = "stock_ventas_tiendas_to_postgresql_pm",
-        python_callable = stock_ventas_tiendas_to_postgresql_pm,
-    )
+    #t2_pm = PythonOperator(
+    #    task_id = "stock_ventas_tiendas_to_postgresql_pm",
+    #    python_callable = stock_ventas_tiendas_to_postgresql_pm,
+    #)
 
     t3_am = PythonOperator(
         task_id = "carga_stock_seguridad_janis_am",
         python_callable = carga_stock_seguridad_janis_am
     )
 
-    t3_pm = PythonOperator(
-        task_id = "carga_stock_seguridad_janis_pm",
-        python_callable = carga_stock_seguridad_janis_pm
-    )
+    #t3_pm = PythonOperator(
+    #    task_id = "carga_stock_seguridad_janis_pm",
+    #    python_callable = carga_stock_seguridad_janis_pm
+    #)
 
     t0 >> t1_am >> t2_am >> t3_am
-    t0 >> t1_pm >> t2_pm >> t3_pm
+    #t0 >> t1_pm >> t2_pm >> t3_pm
     t0 >> t_dummy
 
 
