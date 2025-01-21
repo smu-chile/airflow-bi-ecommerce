@@ -1,10 +1,12 @@
 WITH RankedPrices AS (
     SELECT 
+        p.id as id,
         CONCAT(l.material, '-', l.umv) AS skuRefid,
         1 AS skuMinQuantity,
         l.precio_regular AS price,
         t.nombre_tienda_janis,
         l.precio_regular AS listPrice,
+        10 as costPrice,
         case
         	when p.valido_desde is not null then TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS')
         	else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
@@ -33,6 +35,7 @@ INSERT INTO ecommdata.precios_san_felipe (
     skuMinQuantity,
     price,
     listPrice,
+    costPrice,
     validFrom,
     validTo,
     "locked",
@@ -40,12 +43,13 @@ INSERT INTO ecommdata.precios_san_felipe (
     active
 )
 SELECT
-    '' as id,
+    id,
     '0053' AS store,
     skuRefid,
     skuMinQuantity,
     price,
     listPrice,
+    10 as costPrice,
     validFrom,
     validTo,
     "locked",
@@ -57,12 +61,13 @@ WHERE
     rn = 1
 UNION ALL
 SELECT
-    '' as id,
+    id,
     '0054' AS store,
     skuRefid,
     skuMinQuantity,
     price,
     listPrice,
+    10 as costPrice,
     validFrom,
     validTo,
     "locked",
@@ -74,12 +79,13 @@ WHERE
     rn = 1
 UNION ALL
 SELECT
-    '' as id,
+    id,
     '0398' AS store,
     skuRefid,
     skuMinQuantity,
     price,
     listPrice,
+    10 as costPrice,
     validFrom,
     validTo,
     "locked",
