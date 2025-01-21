@@ -222,7 +222,7 @@ def _incremental_load_orders_table(ti):
 
     df = df.merge(df_mdf, left_on="janis_id", right_on="order_id", how="left")
     df["utm_source"] = df["utm_source"].fillna("NULL")
-    df["utm_medium"] = df["utm_source"].fillna("NULL")
+    df["utm_medium"] = df["utm_medium"].fillna("NULL")
     
     df = df.drop(columns=["order_id"])
 
