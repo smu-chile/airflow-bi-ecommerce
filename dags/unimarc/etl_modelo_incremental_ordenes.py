@@ -218,10 +218,11 @@ def _incremental_load_orders_table(ti):
     df_mdf = pd.read_csv(marketing_data_fields_object.get()["Body"])
 
     # Filter marketing_data_fields_dataframe
-    df_mdf = df_mdf[["order_id", "utm_source"]]
+    df_mdf = df_mdf[["order_id", "utm_source", "utm_medium"]]
 
     df = df.merge(df_mdf, left_on="janis_id", right_on="order_id", how="left")
     df["utm_source"] = df["utm_source"].fillna("NULL")
+    df["utm_medium"] = df["utm_source"].fillna("NULL")
     
     df = df.drop(columns=["order_id"])
 
@@ -273,7 +274,8 @@ def _incremental_load_orders_table(ti):
         "utm_source",
         "nivel_cliente",
         "requiere_bolsas",
-        "tipo_giftcard"
+        "tipo_giftcard",
+        "utm_medium"
     ]
 
     df = df[["id"]+columns]
