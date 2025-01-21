@@ -37,6 +37,7 @@ def _join_promo_prices_test_from_s3(ds, ti):
 
     uber_promotions_query = f""" 
     WITH promociones_filtradas AS (
+    SELECT DISTINCT 
         p.ean AS ean,
         tlm.id AS id_de_tienda,
         wp.material AS sku,
