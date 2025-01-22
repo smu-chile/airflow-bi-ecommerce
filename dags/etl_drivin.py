@@ -965,8 +965,7 @@ def get_api_users(exception_cases):
                     item.get('last_name'),
                     item.get('role_name'),
                     item.get('organization'),
-                    item.get('employer_name'),
-                    item.get('profile')
+                    item.get('employer_name')
                 )
                 for item in data['response']
             ]
