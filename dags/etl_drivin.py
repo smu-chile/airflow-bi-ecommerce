@@ -423,7 +423,7 @@ def drivin_rutas_escenario_to_s3(ds,ts):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     query_escenario_token = f"""select "token"
-                        from ecommdata._escenarios
+                        from ecommdata.drivin_escenarios
                         where deploy_date = '{ds}'::date """
 
     df = query_to_df(query_escenario_token)
