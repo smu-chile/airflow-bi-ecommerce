@@ -1145,7 +1145,7 @@ with DAG(
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
-    tags=["DATA", "S3", "Postgres", "Driv.in", "Capacity", "PATRICIO"],
+    tags=["DATA", "S3", "Postgres", "Driv.in", "Capacity", "PATRICIO" , "NICOLAS"],
 ) as dag:
     
 
