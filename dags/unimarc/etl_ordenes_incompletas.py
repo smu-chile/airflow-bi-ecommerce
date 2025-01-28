@@ -91,6 +91,10 @@ def _load_json_to_s3(ts, ds):
 
             order_url = f'{url}/{orderId}'
             order_response = requests.request("GET", order_url, headers=headers)
+            print("------------")
+            print(order_url)
+            print("------------")
+            print(order_response.text)
             order_res = json.loads(order_response.text)
 
             utm_source = order_res['marketingData']['utmSource']
