@@ -291,7 +291,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     print(f"File load on S3: {prefix}")
 
     return filename
-"""
+
 def stock_ventas_tiendas_to_s3_pm(ds):
     import pandas as pd
     import numpy as np
@@ -338,6 +338,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
     df_stock_seguridad.info()
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
 
     condlist = [df_stock_seguridad["cantidad"]>=2,
                 df_stock_seguridad["cantidad"]<2]
@@ -366,7 +367,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final.reset_index()
     df_final.info()
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
     #Agregar logica minimos exhibicion
@@ -407,6 +409,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print("\n")
     print(df_final)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final["peso"] = df_final["peso"].fillna(1) ##
     print("QA_test")
     print(df_final)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
@@ -522,7 +525,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     print(response.text)
 
     return
-"""
+
 
 def carga_stock_seguridad_janis_am(ds,ti):
     import requests
@@ -645,7 +648,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
 
     return
 
-"""
+
 def stock_ventas_tiendas_to_postgresql_pm(ti):
     import numpy as np
     import pandas as pd
@@ -694,7 +697,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
     print("Data saved to PostgreSQL.")
 
     return
-"""
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -732,33 +735,33 @@ with DAG(
         python_callable = stock_ventas_tiendas_to_s3_am,
     )
 
-    #t1_pm = PythonOperator(
-    #    task_id = "stock_ventas_tiendas_to_s3_pm",
-    #    python_callable = stock_ventas_tiendas_to_s3_pm,
-    #)
+    t1_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_s3_pm",
+        python_callable = stock_ventas_tiendas_to_s3_pm,
+    )
 
     t2_am = PythonOperator(
         task_id = "stock_ventas_tiendas_to_postgresql_am",
         python_callable = stock_ventas_tiendas_to_postgresql_am,
     )
 
-    #t2_pm = PythonOperator(
-    #    task_id = "stock_ventas_tiendas_to_postgresql_pm",
-    #    python_callable = stock_ventas_tiendas_to_postgresql_pm,
-    #)
+    t2_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_pm",
+        python_callable = stock_ventas_tiendas_to_postgresql_pm,
+    )
 
     t3_am = PythonOperator(
         task_id = "carga_stock_seguridad_janis_am",
         python_callable = carga_stock_seguridad_janis_am
     )
 
-    #t3_pm = PythonOperator(
-    #    task_id = "carga_stock_seguridad_janis_pm",
-    #    python_callable = carga_stock_seguridad_janis_pm
-    #)
+    t3_pm = PythonOperator(
+        task_id = "carga_stock_seguridad_janis_pm",
+        python_callable = carga_stock_seguridad_janis_pm
+    )
 
     t0 >> t1_am >> t2_am >> t3_am
-    #t0 >> t1_pm >> t2_pm >> t3_pm
+    t0 >> t1_pm >> t2_pm >> t3_pm
     t0 >> t_dummy
 
 
