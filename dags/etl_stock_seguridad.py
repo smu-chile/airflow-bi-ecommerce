@@ -25,8 +25,7 @@ def _check_time(ts):
     elif (time_str == "05:30"):
         return "stock_ventas_tiendas_to_s3_am"
     else:
-        return "task_skip"
-    #    return "stock_ventas_tiendas_to_s3_pm"
+        return "stock_ventas_tiendas_to_s3_pm"
 
 def stock(ds):
     import pandas as pd
