@@ -97,9 +97,12 @@ def _load_json_to_s3(ts, ds):
             print(order_response.text)
             order_res = json.loads(order_response.text)
 
-            utm_source = order_res['marketingData']['utmSource']
-            utm_medium = order_res['marketingData']['utmMedium']
-
+            try:
+                utm_source = order_res['marketingData']['utmSource']
+                utm_medium = order_res['marketingData']['utmMedium']
+            except:
+                utm_source = None
+                utm_medium = None
 
             lista_lineas.append([orderId,
                                  creationDate,
