@@ -218,4 +218,4 @@ with DAG(
         python_callable = _incremental_load_skus_table
     )
 
-    t0 >> t1 >> t2
+    t0 >> t0a >> t1 >> t2
