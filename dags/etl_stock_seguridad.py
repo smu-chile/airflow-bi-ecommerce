@@ -113,7 +113,7 @@ def minimos_exhibicion():
                 and l.id_tienda  is not null
                 and l.umv  is not null
                 and t.id is not null
-                and meio.minimo_exhibicion > 2"""
+                and meio.minimo_exhibicion > 1"""
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -184,9 +184,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
     print(df_stock_seguridad["cantidad"])
 
     #Condicion para que si la venta fue menor a dos setear stock seguridad igual a 2
-    condlist = [df_stock_seguridad["cantidad"]>=2,
-                df_stock_seguridad["cantidad"]<2]
-    choicelist = [df_stock_seguridad["cantidad"], 2]
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
@@ -220,7 +220,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
 
@@ -258,9 +258,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #cargar datos#
     ##############
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=2,
-                df_final["nuevo_stock_seguridad"]<2]
-    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
@@ -339,9 +339,9 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad.info()
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
 
-    condlist = [df_stock_seguridad["cantidad"]>=2,
-                df_stock_seguridad["cantidad"]<2]
-    choicelist = [df_stock_seguridad["cantidad"], 2]
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
@@ -376,7 +376,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
     print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
@@ -421,9 +421,9 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #cargar datos#
     ##############
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=2,
-                df_final["nuevo_stock_seguridad"]<2]
-    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
