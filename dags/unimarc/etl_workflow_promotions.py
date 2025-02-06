@@ -240,7 +240,7 @@ with DAG(
         task_id = "netezza_vw_workflow_incremental_load", 
         python_callable = netezza_full_table_load_to_s3,
         op_kwargs = {
-            "table_name": "DWC_SMU.SMU.VW_WORKFLOW",
+            "table_name": "DWC_SMU.SMU.VW_FACT_WORKFLOW",
             "where": """ ORGANIZACION_VENTAS = '1000'
                         AND REGISTRO_VALIDO = 'X'
                         AND CANAL_DISTRIBUCION in ('10','70')
