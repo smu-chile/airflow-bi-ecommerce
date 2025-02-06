@@ -12,14 +12,8 @@ SELECT
     	when p_pajaritos.costo is not null then p_pajaritos.costo 
     	else 10
     end as costPrice,
-    case
-        when p.valido_desde is not null then TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS')
-        else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
-    end as validFrom,
-    case
-        when p.valido_hasta is not null then TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS')
-        else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
-    end as validTo,
+    p.valido_desde as validFrom,
+    p.valido_hasta as validTo,
     0 as locked,
     1 as updatepending,
     1 as active
