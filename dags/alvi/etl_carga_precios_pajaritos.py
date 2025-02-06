@@ -30,7 +30,7 @@ with DAG(
         task_id = "truncate_table",
         postgres_conn_id="postgresql_conn",
         sql="""
-        truncate ecommdata.precios_pajaritos
+        truncate ecommdata_alvi.precios_pajaritos
         """,
     )
 
