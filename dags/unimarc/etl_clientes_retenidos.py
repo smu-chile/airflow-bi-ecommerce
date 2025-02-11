@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow import macros
 
@@ -65,20 +66,51 @@ def get_clientes_retenidos():
         database=database
     )
     cursor = conn.cursor()
-    cursor.execute("""  select
-                pu.user_profile_id ,
-                mpupi.rut ,
-                mpupi.estado ,
-                mpupi.tipo_membresia ,
-                mpupi.fecha_inicio ,
-                mpupi.fecha_fin ,
-                pu.recencia 
-                from power_bi.membresias_por_user_profile_id mpupi 
-                left join ecommdata.calendario c on mpupi.fecha_inicio <= c.fecha and mpupi.fecha_fin >= fecha+7
-                left join analytics_and_growth.perfil_usuario pu on pu.user_profile_id = mpupi.user_profile_id 
-                where c.fecha = current_date
-                and estado in ('confirmada', 'renovada') --solo membresias NO de prueba
-                and recencia >= 40;""")
+    cursor.execute("""  SELECT
+                pu.user_profile_id,
+                mpupi.rut,
+                mpupi.estado,
+                mpupi.tipo_membresia,
+                mpupi.fecha_inicio,
+                mpupi.fecha_fin,
+                pu.recencia,
+                du.email
+                FROM
+                power_bi.membresias_por_user_profile_id mpupi
+                LEFT JOIN
+                ecommdata.calendario c 
+                ON mpupi.fecha_inicio <= c.fecha 
+                AND mpupi.fecha_fin >= c.fecha + 7
+                LEFT JOIN
+                analytics_and_growth.perfil_usuario pu 
+                ON pu.user_profile_id = mpupi.user_profile_id
+                left join 
+                analytics_and_growth.detalle_usuario du 
+                on du.user_profile_id = pu.user_profile_id 
+                WHERE
+                c.fecha = CURRENT_DATE
+                AND mpupi.estado IN ('confirmada', 'renovada') -- solo membresías NO de prueba
+                AND pu.recencia >= 40
+                AND mpupi.rut not IN (
+                '160091169', '20121243K', '86194627', '91526778', '211622695', 
+                '206662638', '196720677', '216742362', '196365605', '210314148', 
+                '196838775', '206646306', '210202641', '196068147', '196882960', 
+                '211816015', '210695176', '206816619', '196395717', '213540904', 
+                '208246291', '190913597', '216251199', '20990523K', '200717376', 
+                '203436610', '201655501', '207319988', '215347647', '151635415', 
+                '217860911', '196377271', '19637728k', '217093813', '20164447K', 
+                '194380763', '201100305', '206650982', '194014694', '215081524', 
+                '206657820', '196379487', '208071734', '192022258', '176986301', 
+                '156786616', '281459643', '157909967', '169357706', '188894571', 
+                '256821796', '165480678', '182940224', '26194935', '269511036', 
+                '22426421', '27002792k', '177412031', '275078220', '157487302', 
+                '182996939', '177252409', '182955647', '130679684', '268674705', 
+                '194380097', 'LM972263', '156361283', '190873901', '184672103', 
+                '257513661', '174335761', '262226816', '185519155', '157191306', 
+                '170824792', '163654970', '130278159', '134582987', '205576592', 
+                '160172045', '159294153', '58638722', '278222004', '242166388', 
+                '134662212', '228990191', '159695298', '179606399', '277467194', 
+                '176989793');""")
     
     # Crear DataFrame con los resultados de la consulta
     df_clientes = pd.DataFrame(cursor.fetchall(), columns=[desc[0] for desc in cursor.description])
@@ -161,6 +193,8 @@ def tagear_clientes_retenidos(ds, ti):
     xCluster_value = "retenidos"
     updated_users = []
 
+    print(f"Procesando {len(df_clientes_retenidos)} clientes retenidos.")
+
     for index, row in df_clientes_retenidos.iterrows():
         user_profile_id = row["user_profile_id"]
         if actualizar_xCluster(user_profile_id, xCluster_value):
@@ -190,6 +224,41 @@ def tagear_clientes_retenidos(ds, ti):
         print("No se actualizó ningún xCluster.")
     print("Proceso finalizado.")
     return filename
+
+
+# Función para cargar los datos a la tabla ecommdata.clientes_retenidos
+def cargar_datos_a_tabla(ds, ti):
+    import psycopg2
+    import pandas as pd
+    # Establecer conexión a la base de datos y ejecutar la consulta
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn = psycopg2.connect(
+        host=host,
+        user=username,
+        password=password,
+        database=database
+    )
+    cursor = conn.cursor()
+
+    # Obtener los datos de los clientes retenidos
+    df_clientes_retenidos = get_clientes_retenidos()
+
+    # Insertar los datos en la tabla
+    for index, row in df_clientes_retenidos.iterrows():
+        cursor.execute("""
+            INSERT INTO ecommdata.clientes_retenidos (user_profile_id, rut, estado, tipo_membresia, fecha_inicio, fecha_fin, recencia, email)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (row["user_profile_id"], row["rut"], row["estado"], row["tipo_membresia"], row["fecha_inicio"], row["fecha_fin"], row["recencia"], row["email"]))
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    print("Datos cargados en la tabla ecommdata.clientes_retenidos.")
 
 # Definir el DAG
 default_args = {
@@ -221,5 +290,18 @@ with DAG(
         python_callable=tagear_clientes_retenidos
     )
 
+    t2 = PostgresOperator(
+        task_id = "truncate_table",
+        postgres_conn_id="postgresql_conn",
+        sql="""
+        TRUNCATE TABLE ecommdata.clientes_retenidos;
+        """,
+    )
+
+    t3 = PythonOperator(
+        task_id = "cargar_datos_a_tabla",
+        python_callable=cargar_datos_a_tabla
+    )
+
 # Definir las dependencias
-t0 >> t1
+t0 >> t1 >> t2 >> t3
