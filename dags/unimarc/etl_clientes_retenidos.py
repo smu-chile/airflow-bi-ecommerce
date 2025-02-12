@@ -16,11 +16,17 @@ def limpiar_clientes(ti, ds):
     import io
     from io import StringIO
     
-    exec_date = macros.ds_add(ds, -7)
-    date_aux = macros.ds_add(ds, -7)
-
+    #exec_date = macros.ds_add(ds, -7)
+    #date_aux = macros.ds_add(ds, -7)
+    exec_date = ds
+    date_aux = ds
     exec_date = exec_date.replace("-", "/")
     date_aux = date_aux.replace("-", "_")
+
+
+    print(f"DS: {ds}")
+    print(f"Exec date: {exec_date}")
+    print(f"Date aux: {date_aux}")
 
     print("Ejecutando limpieza de xCluster para la fecha: ", date_aux)
 
@@ -192,6 +198,13 @@ def tagear_clientes_retenidos(ds, ti):
     df_clientes_retenidos = get_clientes_retenidos()
     xCluster_value = "retenidos"
     updated_users = []
+    exec_date = macros.ds_add(ds, 7)
+    date_aux = macros.ds_add(ds, 7)
+    exec_date = exec_date.replace("-", "/")
+    date_aux = date_aux.replace("-", "_")
+    print(f"DS: {ds}")
+    print(f"Exec date: {exec_date}")
+    print(f"Date aux: {date_aux}")
 
     print(f"Procesando {len(df_clientes_retenidos)} clientes retenidos.")
 
@@ -201,8 +214,6 @@ def tagear_clientes_retenidos(ds, ti):
             updated_users.append(row)
     
     if updated_users:
-        exec_date = ds.replace("-", "/")
-        date_aux = ds.replace("-", "_")
         # Crear un DataFrame con los usuarios actualizados
         df_updated = pd.DataFrame(updated_users)
         # Guardar el DataFrame en un archivo CSV
@@ -220,10 +231,10 @@ def tagear_clientes_retenidos(ds, ti):
                     replace=True,
                     encrypt=False)
         print(f"Archivo '{filename}' subido a S3 en el bucket '{bucket_name}'.")
+        return filename
     else:
         print("No se actualizó ningún xCluster.")
-    print("Proceso finalizado.")
-    return filename
+        return
 
 
 # Función para cargar los datos a la tabla ecommdata.clientes_retenidos
