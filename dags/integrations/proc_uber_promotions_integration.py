@@ -44,27 +44,68 @@ def _join_Catalog_from_s3(ds, ti):
     if numero_dia_semana == 0 :
 
         uber_catalog_query = f"""
-                select distinct  
-                    p.material as SKU,
-                    se.umv as Unidad_de_unidad_venta,
-                    se.ean as "código de barras",
-                    p.nombre as descripcion,
-                    m.nombre as Marca,
-                    concat('https://unimarc.vteximg.com.br', is2.imagen) as main_image_url,
-                    c.n2 as Category_level_1,
-                    c.n3 as Category_level_2
-                from ecommdata.productos p
-                left join ecommdata.sku_ean se on se.ref_id = p.ref_id 
-                left join ecommdata.marcas m on m.id  = p.id_marca 
-                LEFT JOIN ecommdata.imagenes_sku is2 ON is2.ref_id = p.ref_id
-                LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id
-                LEFT JOIN ecommdata.lista8 l ON l.material = p.material
-                WHERE is2.orden = '1'
-                and is2.ref_id = p.ref_id
-                AND l.material IS NOT NULL
-                AND c.n2 IS NOT NULL
-                AND c.n3 IS NOT NULL;
-                """
+                SELECT DISTINCT  
+                    p.material AS SKU,
+                    se.umv AS Unidad_de_unidad_venta,
+                    se.ean AS "código de barras",
+                    p.nombre AS descripcion,
+                    m.nombre AS Marca,
+                    CONCAT('https://unimarc.vteximg.com.br', is2.imagen) AS main_image_url,
+                    c.n2 AS Category_level_1,
+                    c.n3 AS Category_level_2
+                FROM ecommdata.productos p
+                LEFT JOIN ecommdata.sku_ean se ON se.ref_id = p.ref_id 
+                LEFT JOIN ecommdata.marcas m ON m.id  = p.id_marca 
+                LEFT JOIN ecommdata.imagenes_sku is2 
+                    ON is2.ref_id = p.ref_id 
+                AND (
+                (is2.orden = '2' AND p.ref_id IN (
+                    '000000000000008644-UN', '000000000000210537-UN', '000000000000641934-UN', 
+                    '000000000000342883-UN', '000000000000668375-UN', '000000000000759755-UN', 
+                    '000000000000053692-UN', '000000000000624684-DIS', '000000000000662074-UN', 
+                    '000000000000547168-UN', '000000000000665740-UN', '000000000000053693-UN', 
+                    '000000000000667826-UN', '000000000000955615-UN', '000000000000624685-DIS', 
+                    '000000000000180052-UN', '000000000000180044-UN', '000000000000603859-UN', 
+                    '000000000000655188-UN', '000000000000668149-UN', '000000000000008894-DIS', 
+                    '000000000000008892-DIS', '000000000000604951-DIS', '000000000000653818-UN', 
+                    '000000000000140980-UN', '000000000000140979-UN', '000000000000200942-UN', 
+                    '000000000000639546-UN', '000000000000200942-DIS', '000000000000566684-UN', 
+                    '000000000000566684-DIS', '000000000000626636-DIS', '000000000000604209-UN', 
+                    '000000000000160531-UN', '000000000000653819-UN', '000000000000501297-DIS', 
+                    '000000000000009130-UN', '000000000000870753-UN', '000000000000570212-DIS', 
+                    '000000000000570212-UN', '000000000000578616-DIS', '000000000000009158-UN', 
+                    '000000000000200943-DIS', '000000000000200943-UN', '000000000000578616-UN', 
+                    '000000000000200944-DIS', '000000000000856869-UN', '000000000000637320-UN', 
+                    '000000000000177167-UN', '000000000000799363-UN', '000000000000666036-UN', 
+                    '000000000000666587-UN', '000000000000666035-UN'
+                ))
+                OR (is2.orden = '1' AND p.ref_id NOT IN (
+                    '000000000000008644-UN', '000000000000210537-UN', '000000000000641934-UN', 
+                    '000000000000342883-UN', '000000000000668375-UN', '000000000000759755-UN', 
+                    '000000000000053692-UN', '000000000000624684-DIS', '000000000000662074-UN', 
+                    '000000000000547168-UN', '000000000000665740-UN', '000000000000053693-UN', 
+                    '000000000000667826-UN', '000000000000955615-UN', '000000000000624685-DIS', 
+                    '000000000000180052-UN', '000000000000180044-UN', '000000000000603859-UN', 
+                    '000000000000655188-UN', '000000000000668149-UN', '000000000000008894-DIS', 
+                    '000000000000008892-DIS', '000000000000604951-DIS', '000000000000653818-UN', 
+                    '000000000000140980-UN', '000000000000140979-UN', '000000000000200942-UN', 
+                    '000000000000639546-UN', '000000000000200942-DIS', '000000000000566684-UN', 
+                    '000000000000566684-DIS', '000000000000626636-DIS', '000000000000604209-UN', 
+                    '000000000000160531-UN', '000000000000653819-UN', '000000000000501297-DIS', 
+                    '000000000000009130-UN', '000000000000870753-UN', '000000000000570212-DIS', 
+                    '000000000000570212-UN', '000000000000578616-DIS', '000000000000009158-UN', 
+                    '000000000000200943-DIS', '000000000000200943-UN', '000000000000578616-UN', 
+                    '000000000000200944-DIS', '000000000000856869-UN', '000000000000637320-UN', 
+                    '000000000000177167-UN', '000000000000799363-UN', '000000000000666036-UN', 
+                    '000000000000666587-UN', '000000000000666035-UN'
+                ))
+            )
+            LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id
+            LEFT JOIN ecommdata.lista8 l ON l.material = p.material
+            WHERE l.material IS NOT NULL
+            AND c.n2 IS NOT NULL
+            AND c.n3 IS NOT null;
+                    """
         cursor.execute(uber_catalog_query)
         results = cursor.fetchall()
         columns = [i[0] for i in cursor.description]
