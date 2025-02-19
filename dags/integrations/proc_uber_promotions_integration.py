@@ -41,9 +41,9 @@ def _join_Catalog_from_s3(ds, ti):
 
     results = []
 
-    if numero_dia_semana == 0 :
+    
 
-        uber_catalog_query = f"""
+    uber_catalog_query = f"""
                 SELECT DISTINCT  
                     p.material AS SKU,
                     se.umv AS Unidad_de_unidad_venta,
@@ -106,9 +106,9 @@ def _join_Catalog_from_s3(ds, ti):
             AND c.n2 IS NOT NULL
             AND c.n3 IS NOT null;
                     """
-        cursor.execute(uber_catalog_query)
-        results = cursor.fetchall()
-        columns = [i[0] for i in cursor.description]
+    cursor.execute(uber_catalog_query)
+    results = cursor.fetchall()
+    columns = [i[0] for i in cursor.description]
 
     if len(results) == 0:
         print(f"No records found. Skipping...")
@@ -245,34 +245,34 @@ def _send_joined_data_to_sftp(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     #Envio de productos 
-    if numero_dia_semana == 0:
-        s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Catalog)
 
-        print(f"Number of files found: {len(s3_file_list)}")
+    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Catalog)
 
-        for products_file in s3_file_list:
-            print(products_file)
+    print(f"Number of files found: {len(s3_file_list)}")
 
-            products_object = s3_hook.get_key(products_file, bucket_name=s3_bucket)
-            products_object_body = pd.read_csv(products_object.get()["Body"])
+    for products_file in s3_file_list:
+        print(products_file)
 
-            output_products_file = products_file.split("/")[-1]
-            print(output_products_file)
-            print(f"File to load to SFTP Server: {output_products_file}")
+        products_object = s3_hook.get_key(products_file, bucket_name=s3_bucket)
+        products_object_body = pd.read_csv(products_object.get()["Body"])
 
-            key_buffer = io.StringIO(ftp_rsa_key)
-            p_key = paramiko.RSAKey.from_private_key(key_buffer)
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
-            sftp = ssh.open_sftp()
+        output_products_file = products_file.split("/")[-1]
+        print(output_products_file)
+        print(f"File to load to SFTP Server: {output_products_file}")
+
+        key_buffer = io.StringIO(ftp_rsa_key)
+        p_key = paramiko.RSAKey.from_private_key(key_buffer)
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
+        sftp = ssh.open_sftp()
 
             
-            remotePath = f"/prod/Archivo_productos_semana_{output_products_file}"
-            with sftp.open(remotePath, 'w') as f:
-                f.write(products_object_body.to_csv(index=False, sep=';'))
+        remotePath = f"/prod/Archivo_productos_semana_{output_products_file}"
+        with sftp.open(remotePath, 'w') as f:
+            f.write(products_object_body.to_csv(index=False, sep=';'))
         
-            ssh.close()
+        ssh.close()
     
     #Envio de stock diario
     s3_file_list_stock = s3_hook.list_keys(s3_bucket, prefix=prefix_Stock)
