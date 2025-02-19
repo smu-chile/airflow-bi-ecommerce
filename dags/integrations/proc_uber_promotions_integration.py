@@ -123,12 +123,18 @@ def _join_Catalog_from_s3(ds, ti):
     aux_list.append(df)
 
 
+    print(df)
+    print(df.dtypes)
+
     buffer = io.StringIO()
     df['sku'] = df['sku'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    df['código de barras'] = df['código de barras'].apply(lambda x: str(x) if pd.notnull(x) else x)
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
     
+    print(df)
+    print(df.dtypes)
     
     s3_hook.load_string(buffer.getvalue(),
                 key=join_file_name,
