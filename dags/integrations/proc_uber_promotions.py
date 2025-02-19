@@ -68,6 +68,7 @@ def _join_promo_prices_test_from_s3(ds, ti):
       AND wp.fecha_fin_de_promocion >= CURRENT_DATE
       AND wp.tipo_promocion IN (1, 2, 4, 7)
       AND wp.registro_valido = TRUE
+      and wp.cantidad_n < 10
       AND wp.organizacion_ventas = '1000'
       AND wp.canal_distribucion = '10'
       AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
