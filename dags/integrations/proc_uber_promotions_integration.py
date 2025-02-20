@@ -126,7 +126,8 @@ def _join_Catalog_from_s3(ds, ti):
     print(df['código de barras'])
 
     print(df['código de barras'].dtypes)
-    print(df['Prueba EAN'].dtypes)
+
+    
     buffer = io.StringIO()
     df['sku'] = df['sku'].apply(lambda x: int(x) if pd.notnull(x) else x)
     df['código de barras'] = df['código de barras'].apply(lambda x: str(x) if pd.notnull(x) else x)
