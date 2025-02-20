@@ -1,13 +1,20 @@
 WITH RankedPrices AS (
-    SELECT 
+        SELECT 
+        p.id as id,
         CONCAT(l.material, '-', l.umv) AS skuRefid,
         1 AS skuMinQuantity,
         p.precio AS price,
-        l.precio_regular AS precio_l8,
         t.nombre_tienda_janis,
-        p.precio_lista AS listPrice,
-        TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS') AS validFrom,
-        TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS') AS validTo,
+        p.precio AS listPrice,
+        10 as costPrice,
+        case
+            when p.valido_desde is not null then TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS')
+            else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+        end as validFrom,
+        case
+            when p.valido_hasta is not null then TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS')
+            else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+        end as validTo,
         0 AS "locked",
         1 AS updatePending,
         1 AS active,
@@ -20,6 +27,8 @@ WITH RankedPrices AS (
     LEFT JOIN 
         ecommdata.precios p 
         ON p.ref_id = CONCAT(l.material, '-', l.umv) AND p.id_tienda_janis = t.id_janis
+    where t.id not in ('0018', '1917')
+    and t.status = 1
 )
 INSERT INTO ecommdata.precios_san_felipe (
     id,
@@ -28,6 +37,7 @@ INSERT INTO ecommdata.precios_san_felipe (
     skuMinQuantity,
     price,
     listPrice,
+    costPrice,
     validFrom,
     validTo,
     "locked",
@@ -35,12 +45,13 @@ INSERT INTO ecommdata.precios_san_felipe (
     active
 )
 SELECT
-    '' as id,
+    id,
     '0053' AS store,
     skuRefid,
     skuMinQuantity,
     price,
     listPrice,
+    10 as costPrice,
     validFrom,
     validTo,
     "locked",
@@ -50,15 +61,15 @@ FROM
     RankedPrices
 WHERE 
     rn = 1
-    AND price = precio_l8
 UNION ALL
 SELECT
-    '' as id,
+    id,
     '0054' AS store,
     skuRefid,
     skuMinQuantity,
     price,
     listPrice,
+    10 as costPrice,
     validFrom,
     validTo,
     "locked",
@@ -68,15 +79,15 @@ FROM
     RankedPrices
 WHERE 
     rn = 1
-    AND price = precio_l8
 UNION ALL
 SELECT
-    '' as id,
+    id,
     '0398' AS store,
     skuRefid,
     skuMinQuantity,
     price,
     listPrice,
+    10 as costPrice,
     validFrom,
     validTo,
     "locked",
@@ -86,4 +97,3 @@ FROM
     RankedPrices
 WHERE 
     rn = 1
-    AND price = precio_l8;
