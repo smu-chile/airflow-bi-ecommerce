@@ -1,19 +1,19 @@
 WITH RankedPrices AS (
-    SELECT 
+        SELECT 
         p.id as id,
         CONCAT(l.material, '-', l.umv) AS skuRefid,
         1 AS skuMinQuantity,
-        l.precio_regular AS price,
+        p.precio AS price,
         t.nombre_tienda_janis,
-        l.precio_regular AS listPrice,
+        p.precio AS listPrice,
         10 as costPrice,
         case
-        	when p.valido_desde is not null then TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS')
-        	else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+            when p.valido_desde is not null then TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS')
+            else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
         end as validFrom,
         case
-        	when p.valido_hasta is not null then TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS')
-        	else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+            when p.valido_hasta is not null then TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS')
+            else TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
         end as validTo,
         0 AS "locked",
         1 AS updatePending,
@@ -27,6 +27,8 @@ WITH RankedPrices AS (
     LEFT JOIN 
         ecommdata.precios p 
         ON p.ref_id = CONCAT(l.material, '-', l.umv) AND p.id_tienda_janis = t.id_janis
+    where t.id not in ('0018', '1917')
+    and t.status = 1
 )
 INSERT INTO ecommdata.precios_san_felipe (
     id,
