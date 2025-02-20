@@ -262,7 +262,8 @@ def _send_joined_data_to_sftp(ds):
         print(products_file)
 
         products_object = s3_hook.get_key(products_file, bucket_name=s3_bucket)
-        products_object_body = pd.read_csv(products_object.get()["Body"])
+        # Asegurar que "codigo de barra" sea tratado como texto
+        products_object_body = pd.read_csv(products_object.get()["Body"], dtype={"código de barras": str})
 
         output_products_file = products_file.split("/")[-1]
         print(output_products_file)
@@ -308,36 +309,6 @@ def _send_joined_data_to_sftp(ds):
 
         with sftp.open(remotePath, 'w') as f:
                 f.write(stock_object_body.to_csv(index=False, sep=';'))
-    
-    #Envio de productos V2
-
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix_Catalog)
-
-    print(f"Number of files found: {len(s3_file_list)}")
-
-    for products_file in s3_file_list:
-        print(products_file)
-
-        products_object = s3_hook.get_key(products_file, bucket_name=s3_bucket)
-        products_object_body = pd.read_csv(products_object.get()["Body"])
-
-        output_products_file = products_file.split("/")[-1]
-        print(output_products_file)
-        print(f"File to load to SFTP Server: {output_products_file}")
-
-        key_buffer = io.StringIO(ftp_rsa_key)
-        p_key = paramiko.RSAKey.from_private_key(key_buffer)
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(ftp_host, username = ftp_user, port = ftp_port, pkey = p_key)
-        sftp = ssh.open_sftp()
-
-            
-        remotePath = f"/prod/CS-UNI-STOCK-PRICES-Prueba-catalogo{output_products_file}"
-        with sftp.open(remotePath, 'w') as f:
-            f.write(products_object_body.to_csv(index=False, sep=';'))
-        
-        ssh.close()
     
     print("Todo Cargadito")
         
