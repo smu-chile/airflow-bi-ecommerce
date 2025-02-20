@@ -48,7 +48,7 @@ def _join_Catalog_from_s3(ds, ti):
                     p.material AS SKU,
                     se.umv AS Unidad_de_unidad_venta,
                     se.ean::varchar AS "código de barras",
-                    se.ean::varchar AS "Prueba EAN"
+                    se.ean::varchar AS "Prueba EAN",
                     p.nombre AS descripcion,
                     m.nombre AS Marca,
                     CONCAT('https://unimarc.vteximg.com.br', is2.imagen) AS main_image_url,
