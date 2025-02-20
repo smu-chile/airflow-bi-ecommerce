@@ -105,7 +105,8 @@ with DAG(
                 , ws.ref_id as id_tienda
                 , wlw.id as id_janis
                 , CASE 
-                    when wld.status > 0 then true
+                    when wld.status = 3 then true
+                    when wld.status = 1 then true
                     else false
                 END as dock_activo
                 from wms_logistic_warehouses wlw 

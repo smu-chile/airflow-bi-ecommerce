@@ -19,7 +19,7 @@ def load_staffing_matrix_to_s3(ds):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     matriz_query = """SELECT *
         from ecommdata.matriz_dotacion;"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_dev")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(matriz_query)
@@ -68,7 +68,7 @@ def calculate_and_load_turnos_to_s3(ti,ds):
 
     operadores_query = """SELECT *
         from ecommdata.dotacion_operadores;"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_dev")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(operadores_query)
@@ -132,7 +132,7 @@ def load_staffing_to_postgres(ti):
 
     operadores_query = """SELECT *
         from ecommdata.dotacion_horarios;"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_dev")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(operadores_query)
@@ -170,7 +170,7 @@ def load_staffing_to_postgres(ti):
         DO NOTHING; 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn_dev")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)

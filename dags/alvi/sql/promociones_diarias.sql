@@ -33,6 +33,7 @@ SELECT DISTINCT
                     on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
         WHERE wp.tipo_promocion IN (10,9,4)
         and wp.id_mecanica in (18,83,40,26)
+        and wp.n_promocion not in (9920092021, 9960782024)--Promociones excluidas y la XXXXX
         and wp.nombre_promocion not ilike '%LOCAL%'
         and wp.nombre_promocion not ilike '%LIQUIDACION%' 
         and wp.nombre_promocion not ilike '%TERMINAL%' 
@@ -42,6 +43,6 @@ SELECT DISTINCT
         and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
         and s.vtex_id is not null
         and wp.precio_promocional > 0
-        AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '2 day'
+        AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '1 day'
         AND wp.fecha_fin_de_promocion >= '{ds}'::date + interval '1 day'
         ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion DESC;

@@ -9,10 +9,43 @@ from airflow.models import Variable
 
 import pendulum
 
-def lista8():
+def lista8(ds):
     import pandas as pd
-    promociones_query = """select concat(material,'-',umv) as ref_id, id_tienda, fecha
-                    from ecommdata_alvi.lista8"""
+    promociones_query = f"""select distinct concat(material,'-',umv) as ref_id, id_tienda, fecha
+                from ecommdata_alvi.lista8 l
+                union
+                SELECT 
+                    distinct 
+                    p.ref_id, 
+                    t.id as id_tienda,
+                    '{ds}'::date+1 as fecha
+                FROM 
+                    ecommdata_alvi.productos p
+                CROSS JOIN 
+                    (SELECT id 
+                    FROM ecommdata_alvi.tiendas 
+                    WHERE status = 1
+                    and id <> '1') t
+                WHERE 
+                    p.ref_id IN (
+                        '000000000099999999-UN', '000000000099999998-UN', '000000000099999997-UN',
+                        '000000000099999996-UN', '000000000099999995-UN', '000000000000651290-UN',
+                        '000000000000203455-UN', '000000000000198339-UN', '000000000000006552-UN',
+                        '000000000000006558-UN', '000000000000141193-UN', '000000000000650419-UN',
+                        '000000000000182334-UN', '000000000000209774-UN', '000000000000010526-UN',
+                        '000000000000662165-UN', '000000000000817523-BOL', '000000000668910001-UN',
+                        '000000000000010571-UN', '000000000000609686-UN', '000000000000651342-UN',
+                        '000000000000005054-UN', '000000000000344299-UN', '000000000000192563-UN',
+                        '000000000000941355-UN', '000000000000009228-UN', '000000000400308001-UN',
+                        '000000000000023002-UN', '000000000000007518-UN', '000000000000006126-UN',
+                        '000000000000006531-UN', '000000000000006519-UN', '000000000000132462-UN',
+                        '000000000000141205-UN', '000000000000010517-UN', '000000000000010584-UN',
+                        '000000000000647706-UN', '000000000666270001-UN', '000000000000024003-UN',
+                        '000000000000652477-UN', '000000000000662077-UN', '000000000000671669-UN',
+                        '000000000000211077-UN', '000000000000136746-UN', '000000000000956561-UN',
+                        '000000000000807141-UN', '000000000000807140-UN', '000000000000009229-UN',
+                        '000000000000008511-UN'
+                    );"""
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -135,7 +168,7 @@ def load_tables_to_s3(ts,ds):
 
     df_producto_tienda_janis = producto_tienda_janis()
     print(f"Ready productos por tienda en janis de hoy\n")
-    df_lista_8 = lista8()
+    df_lista_8 = lista8(ds)
     print(f"Ready lista8 de hoy\n")
     df_productos = productos()
     print("Ready productos\n")
