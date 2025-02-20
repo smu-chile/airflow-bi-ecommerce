@@ -48,7 +48,6 @@ def _join_Catalog_from_s3(ds, ti):
                     p.material AS SKU,
                     se.umv AS Unidad_de_unidad_venta,
                     se.ean::varchar AS "código de barras",
-                    se.ean::varchar AS "Prueba EAN",
                     p.nombre AS descripcion,
                     m.nombre AS Marca,
                     CONCAT('https://unimarc.vteximg.com.br', is2.imagen) AS main_image_url,
@@ -125,7 +124,6 @@ def _join_Catalog_from_s3(ds, ti):
 
 
     print(df['código de barras'])
-    print(df['Prueba EAN'])
 
     print(df['código de barras'].dtypes)
     print(df['Prueba EAN'].dtypes)
@@ -136,10 +134,8 @@ def _join_Catalog_from_s3(ds, ti):
     buffer.seek(0)
 
     print(df['código de barras'])
-    print(df['Prueba EAN'])
 
     print(df['código de barras'].dtypes)
-    print(df['Prueba EAN'].dtypes)
     
     s3_hook.load_string(buffer.getvalue(),
                 key=join_file_name,
