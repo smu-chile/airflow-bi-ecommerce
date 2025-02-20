@@ -223,7 +223,7 @@ with DAG(
     'workflow_promotions_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental workflow_promotion data.",
-    schedule_interval="30 8,15 * * *",
+    schedule_interval="30 8,13,16,18 * * *",
     start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
