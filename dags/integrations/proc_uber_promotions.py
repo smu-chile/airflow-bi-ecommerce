@@ -165,7 +165,7 @@ def _send_joined_data_to_sftp(ds):
         print(promotions_file_test)
 
         promotions_object = s3_hook.get_key(promotions_file_test, bucket_name=s3_bucket)
-        promotions_object_body = pd.read_csv(promotions_object.get()["Body"])
+        promotions_object_body = pd.read_csv(promotions_object.get()["Body"], dtype={"ean": str})
 
         output_promotions_file = promotions_file_test.split("/")[-1]
         print(output_promotions_file)

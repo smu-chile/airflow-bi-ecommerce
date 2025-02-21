@@ -292,7 +292,7 @@ def _send_joined_data_to_sftp(ds):
         print(stock_file)
 
         stock_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
-        stock_object_body = pd.read_csv(stock_object.get()["Body"])
+        stock_object_body = pd.read_csv(stock_object.get()["Body"], dtype={"EAN": str})
 
         output_stock_file = stock_file.split("/")[-1]
         print(output_stock_file)
