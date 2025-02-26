@@ -151,7 +151,7 @@ def productos_mfc(ds):
                         group by ref_id_sku
                     ) as venta_dia
                 on venta_dia.ref_id = pt.ref_id
-                where pt.id_tienda = '1917'
+                where pt.id_tienda in ('1917', '0917')
                 and pt.activo is true"""
     print(productos_mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")

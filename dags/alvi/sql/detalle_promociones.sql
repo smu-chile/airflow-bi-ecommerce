@@ -33,6 +33,6 @@ SELECT oj.fecha_creacion,
    FROM ecommdata_alvi.ordenes_janis oj
      LEFT JOIN ecommdata_alvi.tiendas t ON oj.id_tienda_janis = t.id_janis
      LEFT JOIN ecommdata_alvi.orden_productos op ON op.id_orden = oj.id
-     LEFT JOIN ecommdata_alvi.categorias c ON op.ref_id_categoria = c.ref_id
+     LEFT JOIN ecommdata_alvi.categorias c ON op.id_categoria = c.ref_id
      LEFT JOIN ecommdata_alvi.orden_producto_promociones opp ON op.id = opp.orden_producto
   WHERE oj.fecha_creacion::date = '{{ds}}'::date

@@ -9,9 +9,8 @@ import pendulum
 
 def _get_rappi_active_stores():
     peya_stores_query = """
-        SELECT id
-        FROM integraciones.tiendas_last_millers
-        WHERE id_rappi is not NULL;
+        select t.id_tienda 
+        from ecommdata_m10.tiendas t ;
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -44,73 +43,42 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     for store_id in rappi_store_ids:
         print(f"Store id: {store_id}")
         
-        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/store_id_{store_id}_COMBO_UNIMA.csv"
+        join_file_name = f"integraciones/last_millers/stock/out/rappi/M10/Complex/{exec_date}/store_id_{store_id}_COMBO_RAPPI.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
 
         peya_stock_query = f"""
-            SELECT DISTINCT  
-                (s.ou_id::int) AS store_id,
-                WP.fecha_inicio_de_promocion AS start_date,
-                WP.fecha_fin_de_promocion AS end_date,
+            select 
+                lspp.id_tienda AS store_id,
+                w.fecha_inicio_de_promocion as start_date,
+                W.fecha_fin_de_promocion AS end_date,
                 CASE
-                    WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN 
-                        CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), 'Pague ', CAST(cantidad_m AS VARCHAR))
-                    WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN 
-                        CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), 'x por ', CAST(ROUND(wp.precio_total_promocional, 0) AS VARCHAR))
+                    WHEN w.desc_promocion IN ('COMBINACION NXM') THEN 
+                    CONCAT('llevas ', CAST(w.cantidad_n AS VARCHAR), 'Pague ', CAST(cantidad_m AS VARCHAR))
+                    WHEN w.desc_promocion IN ('COMBINACION NX$') THEN 
+                    CONCAT('llevas ', CAST(w.cantidad_n AS VARCHAR), 'x por ', CAST(ROUND(w.precio_total_promocional, 0) AS VARCHAR))
                 END AS description,
                 CASE
-                    WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN 
-                        CONCAT('L', CAST(wp.cantidad_n AS VARCHAR), '_P', CAST(cantidad_m AS VARCHAR))
-                    WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN 
-                        CONCAT('T', CAST(FLOOR(((lspp.precio - (wp.precio_total_promocional / wp.cantidad_n)) / lspp.precio) * 100) AS VARCHAR), '_U', CAST(wp.cantidad_n AS VARCHAR))
+                    WHEN w.desc_promocion IN ('COMBINACION NXM') THEN 
+                    CONCAT('L', CAST(w.cantidad_n AS VARCHAR), '_P', CAST(cantidad_m AS VARCHAR))
+                    WHEN w.desc_promocion IN ('COMBINACION NX$') THEN 
+                    CONCAT('T', CAST(FLOOR(((lspp.precio - (w.precio_total_promocional / w.cantidad_n)) / lspp.precio) * 100) AS VARCHAR), '_U', CAST(w.cantidad_n AS VARCHAR))
                 END AS type_format,
                 case
-                	when wp.descripcion_material like '%,%' then REPLACE(wp.descripcion_material, ',', '')
-                	else wp.descripcion_material
+                    when w.desc_material  like '%,%' then REPLACE(w.desc_material, ',', '')
+                    else w.desc_material
                 end AS name,
-                (wp.material::int) AS id
-            FROM 
-                ecommdata.workflow_promociones wp 
-            LEFT JOIN 
-                integraciones.stock s ON s.sku_product = wp.material 
-            LEFT JOIN 
-                integraciones.tiendas_last_millers tlm ON tlm.id = s.ou_id 
-            LEFT JOIN 
-                integraciones.productos p ON s.sku_key = p.sku_key AND p.ean = wp.ean
-            LEFT JOIN 
-                integraciones.lm_stock_precio_promo lspp ON lspp.ean = wp.ean AND lspp.id_tienda = s.ou_id
-            WHERE 
-                wp.fecha_inicio_de_promocion <= CURRENT_DATE
-                AND wp.fecha_fin_de_promocion >= CURRENT_DATE
-                AND tlm.id_rappi IS NOT NULL
-                AND wp.tipo_promocion IN (2, 7)
-                AND wp.registro_valido = TRUE
-                AND wp.organizacion_ventas = '1000'
-                AND wp.canal_distribucion = '10'
-                AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
-                AND wp.nombre_promocion::text !~~ '%MFC%'::text
-                AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-                AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-                AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-                AND wp.nombre_promocion::text !~~ '%917%'::text
-                AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-                AND wp.nombre_promocion::text !~~ '% LOC%'::text
-                AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                (w.material::int) AS id
+                from ecommdata_m10.workflow w 
+                left join integraciones.lm_stock_precio_promo_10 lspp on lspp.ean = w.ean 
+                where  w.fecha_inicio_de_promocion <= CURRENT_DATE
+                AND w.fecha_fin_de_promocion >= CURRENT_DATE
+                AND w.tipo_promocion IN (2, 7)
+                AND w.organizacion_ventas = '1000'
+                AND w.canal_distribucion = '10'
+                AND w.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
                 AND lspp.ean IS NOT null
-                and wp.n_promocion  not in  ('5552392024','1120012024',
-                '1120022024',
-                '1120032024',
-                '1120042024',
-                '1120052024',
-                '1120062024',
-                '1120082024',
-                '1120092024',
-                '1120102024',
-                '1120112024',
-                '1120122024',
-                '4000512024','1120012025','1120022025','1120032025','1120042025')
                 and lspp.id_tienda = '{store_id}'
         ;
         """
@@ -152,7 +120,7 @@ def _send_joined_data_to_stfp(ds):
     ftp_rsa_key = Variable.get("SFTP_RAPPI_PASSWORD")
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/"
+    prefix = f"integraciones/last_millers/stock/out/rappi/M10/Complex/{exec_date}/"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -175,7 +143,7 @@ def _send_joined_data_to_stfp(ds):
                                port=ftp_port,
                                password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
-            remotePath = f"/sftp-allies/sftppruebas_co/store_id-{output_promo_file}_COMBO_UNIMARC"
+            remotePath = f"/sftp-allies/sftppruebas_co/store_id-{output_promo_file}_COMBO_RAPPI"
             sftp.putfo(localFile, remotePath)
         
         print("File loaded.")
@@ -190,7 +158,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_rappi_promotion_complex",
+    "proc_rappi_M10_promotion_complex",
     default_args=default_args,
     description="Cruce de stock, precios y precios promocionales complejas para integracion Rappi",
     schedule_interval=None, 
@@ -198,7 +166,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS","PROMOTIONS"],
+    tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS","PROMOTIONS","M10"],
 ) as dag:
 
     dag.doc_md = """

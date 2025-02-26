@@ -30,8 +30,9 @@ def _send_stock_999_to_janis(ds):
 
 
     query = """
-        select distinct material
-        from ecommdata.lista8 
+        select distinct coalesce(s.erp_id, l.material)
+        from ecommdata.lista8 l
+        left join ecommdata.skus s on concat(l.material,'-',l.umv) = s.ref_id
     """
 
     result = conn.execute(query)
