@@ -27,7 +27,7 @@ WITH RankedPrices AS (
     LEFT JOIN 
         ecommdata.precios p 
         ON p.ref_id = CONCAT(l.material, '-', l.umv) AND p.id_tienda_janis = t.id_janis
-    where t.id not in ('0018', '1917')
+    where t.id in ('0469','0917','0581','0347','0336','0034')
     and t.status = 1
 )
 INSERT INTO ecommdata.precios_san_felipe (
