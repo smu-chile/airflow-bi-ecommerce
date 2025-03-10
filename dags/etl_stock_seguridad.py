@@ -51,7 +51,7 @@ def stock(ds):
     results=pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","dia","semana"]
     results.info()
-    results = results["ref_id","id_tienda"]
+    results = results[["ref_id","id_tienda"]]
     results.info()
     cursor.close()
     pg_connection.close()
