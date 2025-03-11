@@ -24,3 +24,4 @@ Polygon
 Point
 slack_sdk
 xlsxwriter
+python==3.10.9
