@@ -13,7 +13,7 @@ pymongo[srv]==3.12
 pysftp==0.2.8
 pytz==2022.2.1
 requests
-sqlalchemy
+sqlalchemy==2.0.38
 vincenty
 google
 google-analytics-data
@@ -24,3 +24,4 @@ Polygon
 Point
 slack_sdk
 xlsxwriter
+python==3.13.2
