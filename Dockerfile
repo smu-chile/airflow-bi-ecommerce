@@ -1,4 +1,4 @@
-FROM reigncl/airflow:2.2.4-python3.9-onbuild
+FROM reigncl/airflow:2.2.4-python3.11-onbuild
 
 USER root
 RUN sudo rm /etc/apt/sources.list.d/pgdg.list
