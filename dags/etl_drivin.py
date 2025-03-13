@@ -1128,6 +1128,226 @@ def drivin_users_to_postgres(ti, ts):
     print("Data loaded to Postgres: ecommdata.drivin_users")
     return
 
+def get_api_entrega_pruebas(exception_cases):
+    import requests
+    import pandas as pd
+    from airflow.models import Variable  
+
+    url = "https://external.driv.in/api/external/v2/pod"
+
+    # Variables de Airflow
+    api_key = Variable.get("API_KEY_DRIVIN")
+    headers = {
+        'X-API-Key': api_key
+    }
+
+    try:
+        # Realizar la solicitud a la API
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Levanta excepción para errores HTTP 4xx/5xx
+
+        data = response.json()
+
+        # Procesar la respuesta de la API
+        if 'response' in data and isinstance(data['response'], list):
+           lista = [
+                (
+                    order.get("order_code"),
+                    order.get("delivered_by"),
+                    order.get("scenario_token"),
+                    order.get("comment"),
+                    order.get("pod_timestamp"),
+                    order.get("pod_lat"),
+                    order.get("pod_lng"),
+                    order.get("delivered_date"),
+                    order.get("order_status"),
+                    order.get("reason_name"),
+                    order.get("reason_code"),
+                    item.get("item_code"),
+                    item.get("item_status"),
+                    item.get("reason_name"),
+                    item.get("reason_code"),
+                    item.get("delivered_units"),
+                    item.get("delivered_date"),
+                    image.get("image_url")
+                )
+                for order in data["orders"]
+                for item in data["items"]
+                for image in data["images"]
+            ]
+        else:
+            print(f"Formato inesperado en la respuesta de la API: {data}")
+            exception_cases.append(url)
+            lista = []
+
+    except requests.exceptions.HTTPError as http_err:
+        print(f"HTTP error occurred: {http_err}")
+        exception_cases.append(url)
+        lista = []
+    except requests.exceptions.RequestException as req_err:
+        print(f"Request error occurred: {req_err}")
+        exception_cases.append(url)
+        lista = []
+    except Exception as err:
+        print(f"An error occurred: {err}")
+        exception_cases.append(url)
+        lista = []
+
+    return lista
+
+def drivin_entrega_prueba_to_s3(ts, ds):
+    import pandas as pd
+    import requests
+    import io
+    from airflow.models import Variable
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+
+    # Genera fecha actual
+    exec_date = ds.replace("-", "/")
+    date_aux = ts.replace("-", "_")
+    prefix = f"forecast_and_planning/drivin/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    exception_cases = []
+
+    lista_usuarios = get_api_users(exception_cases)
+
+    columns = [ "order_code",
+                "delivered_by",
+                "scenario_token",
+                "comment",
+                "pod_timestamp",
+                "pod_lat",
+                "pod_lng",
+                "delivered_date",
+                "order_status",
+                "reason_name",
+                "reason_code",
+                "item_code",
+                "item_status",
+                "reason_name",
+                "reason_code",
+                "delivered_units",
+                "delivered_date",
+                "image_url"
+    ]
+    df = pd.DataFrame(lista_usuarios, columns=columns)
+
+    # Guardar CSV
+    buffer = io.StringIO()
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    # Construir el nombre del archivo en S3 
+    filename = f"forecast_and_planning/drivin/{exec_date}/entrega_pruebas/entrega_pruebas_{date_aux}.csv"
+
+    print(f"Con fecha {ds} y nombre de archivo como {filename}")
+
+    # Cargar el archivo en S3
+    s3_hook.load_string(
+        buffer.getvalue(),
+        key=filename,
+        bucket_name=s3_bucket,
+        replace=True,
+        encrypt=False
+    )
+
+    print("Se logró transformar los datos de entrega pruebas en un archivo .csv")
+    print(f"Archivo cargado en S3: {prefix}")
+
+    return filename
+
+def drivin_entrega_prueba_to_postgres(ti, ts):
+    import pandas as pd
+    import sqlalchemy
+    import numpy as np
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    from airflow.providers.postgres.hooks.postgres import PostgresHook
+    from airflow.models import Variable
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["drivin_entrega_prueba_to_s3"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: " + filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception(f"Key {filename} does not exist.")
+    
+    # Obtener el archivo desde el S3
+    hook_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(hook_object.get()["Body"])
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successful.")
+        return
+
+    print(f"Number of records extracted: {len(df.index)}")
+
+    df["fecha_hora"] = ts
+
+    columns = [ "order_code",
+                "delivered_by",
+                "scenario_token",
+                "comment",
+                "pod_timestamp",
+                "pod_lat",
+                "pod_lng",
+                "delivered_date",
+                "order_status",
+                "reason_name",
+                "reason_code",
+                "item_code",
+                "item_status",
+                "reason_name",
+                "reason_code",
+                "delivered_units",
+                "delivered_date",
+                "image_url"
+    ]
+
+    columns_query = ",".join(columns)
+    excluded_query = ",".join([f"EXCLUDED.{column}" for column in columns])
+    values_query = ",".join(["%s" for _ in columns])
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+    
+     # Convertir datos
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+
+    print(f"Number of records to load: {len(fixed_records)}")
+
+    # Consulta incremental para PostgreSQL
+    incremental_query = f"""
+        INSERT INTO ecommdata.drivin_entrega_prueba ({columns_query}) 
+        VALUES ({values_query})
+        ON CONFLICT (order_code)
+        DO UPDATE SET ({columns_query}) = ({excluded_query});
+    """
+    print(incremental_query)
+
+    # Cargar en PostgreSQL
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.executemany(incremental_query, fixed_records)
+    pg_connection.commit()
+    cursor.close()
+    pg_connection.close()
+    print("Data loaded to Postgres: ecommdata.drivin_users")
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -1192,6 +1412,18 @@ with DAG(
     t9 =  PythonOperator(
         task_id = "drivin_users_to_postgres",
         python_callable = drivin_users_to_postgres,
-    )        
+    )   
+    t10 =  PythonOperator(
+        task_id = "get_api_entrega_pruebas",
+        python_callable = get_api_entrega_pruebas,
+    )  
+    t11=  PythonOperator(
+        task_id = "drivin_entrega_prueba_to_s3",
+        python_callable = drivin_entrega_prueba_to_s3,
+    )  
+    t12   =  PythonOperator(
+        task_id = "drivin_entrega_prueba_to_postgres",
+        python_callable = drivin_entrega_prueba_to_postgres,
+    )    
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10 >> t11 >> t12 
