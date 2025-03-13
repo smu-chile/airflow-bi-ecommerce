@@ -237,7 +237,7 @@ dag = DAG(
     start_date=pendulum.datetime(2025, 3, 15, tz="America/Santiago"),
     schedule_interval='0 9 * * *',
     catchup=False,
-    tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "S3", "NICOLAS"],
+    tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "S3", "NICOLAS"]
 )
 
 # Definir las tareas
