@@ -115,8 +115,6 @@ def promos_out_to_s3(ds):
 
     # Cambiando columnas a minusculas
     
-    df.columns = df.columns.str.lower()
-
     df = df[['N_PROMOCION',
              'NOMBRE_PROMOCION',
              'CANAL_DISTRIBUCION',
