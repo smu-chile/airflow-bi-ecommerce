@@ -223,6 +223,14 @@ def promociones_comparadas_to_postgresql(ti):
     return
     
 
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+
 # Definir el DAG
 dag = DAG(
     'cargar_promociones_comparadas',
