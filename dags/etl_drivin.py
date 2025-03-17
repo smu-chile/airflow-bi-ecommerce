@@ -1134,7 +1134,7 @@ def get_api_entrega_pruebas(exception_cases):
     from airflow.models import Variable  
 
     url = "https://external.driv.in/api/external/v2/pod"
-    
+
     # Variables de Airflow
     api_key = Variable.get("API_KEY_DRIVIN")
     headers = {
@@ -1413,17 +1413,13 @@ with DAG(
         task_id = "drivin_users_to_postgres",
         python_callable = drivin_users_to_postgres,
     )   
-    t10 =  PythonOperator(
-        task_id = "get_api_entrega_pruebas",
-        python_callable = get_api_entrega_pruebas,
-    )  
-    t11=  PythonOperator(
+    t10=  PythonOperator(
         task_id = "drivin_entrega_prueba_to_s3",
         python_callable = drivin_entrega_prueba_to_s3,
     )  
-    t12   =  PythonOperator(
+    t11   =  PythonOperator(
         task_id = "drivin_entrega_prueba_to_postgres",
         python_callable = drivin_entrega_prueba_to_postgres,
     )    
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10 >> t11 >> t12 
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10 >> t11 
