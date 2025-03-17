@@ -1129,6 +1129,7 @@ def drivin_users_to_postgres(ti, ts):
     return
 
 def get_api_entrega_pruebas(exception_cases):
+    from datetime import datetime
     import requests
     import pandas as pd
     from airflow.models import Variable  
