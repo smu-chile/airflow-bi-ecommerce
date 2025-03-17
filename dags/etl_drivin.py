@@ -1133,7 +1133,11 @@ def get_api_entrega_pruebas(exception_cases):
     import pandas as pd
     from airflow.models import Variable  
 
-    url = "https://external.driv.in/api/external/v2/pod"
+    # Obtener la fecha actual en formato YYYY-MM-DD
+    current_date = datetime.now().strftime('%Y-%m-%d')
+
+    # Crear la URL con la fecha actual
+    url = f"https://external.driv.in/api/external/v2/pods?start_date={current_date}&end_date={current_date}"
 
     # Variables de Airflow
     api_key = Variable.get("API_KEY_DRIVIN")
