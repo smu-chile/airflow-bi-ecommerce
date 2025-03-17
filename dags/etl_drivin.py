@@ -1134,7 +1134,7 @@ def get_api_entrega_pruebas(exception_cases):
     from airflow.models import Variable  
 
     url = "https://external.driv.in/api/external/v2/pod"
-
+    
     # Variables de Airflow
     api_key = Variable.get("API_KEY_DRIVIN")
     headers = {
@@ -1212,7 +1212,7 @@ def drivin_entrega_prueba_to_s3(ts, ds):
 
     exception_cases = []
 
-    lista_usuarios = get_api_users(exception_cases)
+    lista_usuarios = get_api_entrega_pruebas(exception_cases)
 
     columns = [ "order_code",
                 "delivered_by",
