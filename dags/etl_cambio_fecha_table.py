@@ -11,7 +11,7 @@ import pendulum
 
 from datetime import datetime, timedelta
 
-def render_netezza_view(ds):
+def render_netezza_view():
     from io import StringIO
     import os
     import jaydebeapi
@@ -35,10 +35,10 @@ def render_netezza_view(ds):
                 PRECIO_PROMOCIONAL,
                 PRECIO_TOTAL_PROMOCIONAL,
                 CANAL_DISTRIBUCION,
-                fecha_inicio_de_promocion,
-                fecha_fin_de_promocion,
+                FECHA_INICIO_DE_PROMOCION,
+                FECHA_FIN_DE_PROMOCION,
                 ultima_carga,
-                ROW_NUMBER() OVER (PARTITION BY MATERIAL ORDER BY fecha_inicio_de_promocion DESC) AS rn
+                ROW_NUMBER() OVER (PARTITION BY MATERIAL ORDER BY FECHA_INICIO_DE_PROMOCION DESC) AS rn
             FROM DWC_SMU.SMU.VW_FACT_WORKFLOW
         )
         SELECT 
@@ -57,18 +57,18 @@ def render_netezza_view(ds):
             actual.PRECIO_MODAL_TOTAL,
             actual.PRECIO_PROMOCIONAL,
             actual.PRECIO_TOTAL_PROMOCIONAL,
-            actual.fecha_inicio_de_promocion ,
-            actual.fecha_fin_de_promocion, 
-            anterior.fecha_inicio_de_promocion AS fecha_inicio_anterior, 
-            anterior.fecha_fin_de_promocion AS fecha_fin_anterior
+            actual.FECHA_INICIO_DE_PROMOCION ,
+            actual.FECHA_FIN_DE_PROMOCION, 
+            anterior.FECHA_INICIO_DE_PROMOCION AS FECHA_INICIO_ANTERIOR, 
+            anterior.FECHA_FIN_DE_PROMOCION AS fecha_fin_anterior
         FROM DatosConRank actual
         LEFT JOIN DatosConRank anterior 
             ON actual.MATERIAL = anterior.MATERIAL 
             AND actual.rn = 1 
             AND anterior.rn = 2
         WHERE actual.ultima_carga = 'X'  
-        AND (actual.fecha_inicio_de_promocion <> anterior.fecha_inicio_de_promocion 
-            OR actual.fecha_fin_de_promocion <> anterior.fecha_fin_de_promocion);"""
+        AND (actual.FECHA_INICIO_DE_PROMOCION <> anterior.FECHA_INICIO_DE_PROMOCION 
+            OR actual.FECHA_FIN_DE_PROMOCION <> anterior.FECHA_FIN_DE_PROMOCION);"""
     
     print(sql_str)
 
@@ -116,7 +116,7 @@ def promos_out_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    df = render_netezza_view(ds)
+    df = render_netezza_view()
 
     print("Correcta extracion de datos de Neeteezaa")
 
@@ -136,10 +136,10 @@ def promos_out_to_s3(ds):
              'PRECIO_MODAL',
              'PRECIO_PROMOCIONAL',
              'PRECIO_TOTAL_PROMOCIONAL',
-             'fecha_inicio_de_promocion',
-             'fecha_fin_de_promocion',
-             'fecha_inicio_anterior',
-             'fecha_fin_anterior']]
+             'FECHA_INICIO_DE_PROMOCION',
+             'FECHA_FIN_DE_PROMOCION',
+             'FECHA_INICIO_ANTERIOR',
+             'FECHA_FIN_ANTERIOR']]
     
     print("\nHasta acá todo bien al filtrar las columnas :D\n")
     
@@ -157,11 +157,10 @@ def promos_out_to_s3(ds):
              'PRECIO_MODAL',
              'PRECIO_PROMOCIONAL',
              'PRECIO_TOTAL_PROMOCIONAL',
-             'fecha_inicio_de_promocion',
-             'fecha_fin_de_promocion',
-             'fecha_inicio_anterior',
-             'fecha_fin_anterior']
-
+             'FECHA_INICIO_DE_PROMOCION',
+             'FECHA_FIN_DE_PROMOCION',
+             'FECHA_INICIO_ANTERIOR',
+FECHA_FIN_ANTERIOR
     print(df.info())
 
     buffer = io.StringIO()
@@ -254,21 +253,14 @@ with DAG(
         guardar en S3 y Upsert en postgres.
         """ 
     # Definir las tareas
+
     t0 = PythonOperator(
-        task_id='render_netezza_view',
-        python_callable=render_netezza_view,
-        dag=dag,
-    )
-
-    t1 = PythonOperator(
         task_id='promos_out_to_s3',
-        python_callable=promos_out_to_s3,
-        dag=dag,
+        python_callable=promos_out_to_s3
     )
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id='Promociones_comparadas_to_postgresql',
-        python_callable=promociones_comparadas_to_postgresql,
-        dag=dag,
+        python_callable=promociones_comparadas_to_postgresql
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1 
