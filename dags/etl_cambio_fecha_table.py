@@ -60,7 +60,7 @@ def render_netezza_view():
             actual.FECHA_INICIO_DE_PROMOCION ,
             actual.FECHA_FIN_DE_PROMOCION, 
             anterior.FECHA_INICIO_DE_PROMOCION AS FECHA_INICIO_ANTERIOR, 
-            anterior.FECHA_FIN_DE_PROMOCION AS fecha_fin_anterior
+            anterior.FECHA_FIN_DE_PROMOCION AS FECHA_FIN_ANTERIOR
         FROM DatosConRank actual
         LEFT JOIN DatosConRank anterior 
             ON actual.MATERIAL = anterior.MATERIAL 
@@ -93,7 +93,7 @@ def render_netezza_view():
     df = pd.DataFrame(rows, columns=columns)
     df = df[['N_PROMOCION','NOMBRE_PROMOCION','CANAL_DISTRIBUCION','ID_EVENTO',
              'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
-             'MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
+             'MATERIAL','DESC_MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
              'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','FECHA_INICIO_DE_PROMOCION',
              'FECHA_FIN_DE_PROMOCION','FECHA_INICIO_ANTERIOR','FECHA_FIN_ANTERIOR']]
     print(df)
