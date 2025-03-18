@@ -12,9 +12,11 @@ import pendulum
 from datetime import datetime, timedelta
 
 def render_netezza_view(ds):
-    import jaydebeapi
+    from io import StringIO
     import os
+    import jaydebeapi
     import pandas as pd
+
 
     sql_str= f"""WITH DatosConRank AS (
             SELECT 
@@ -89,6 +91,11 @@ def render_netezza_view(ds):
     columns = [desc[0] for desc in cur.description]
     rows = cur.fetchall()
     df = pd.DataFrame(rows, columns=columns)
+    df = df[['N_PROMOCION','NOMBRE_PROMOCION','CANAL_DISTRIBUCION','ID_EVENTO',
+             'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
+             'MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
+             'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','fecha_inicio_de_promocion',
+             'fecha_fin_de_promocion','fecha_inicio_anterior','fecha_fin_anterior']]
     print(df)
     cur.close()
     conn.close()
