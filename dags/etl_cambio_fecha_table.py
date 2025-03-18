@@ -94,8 +94,8 @@ def render_netezza_view(ds):
     df = df[['N_PROMOCION','NOMBRE_PROMOCION','CANAL_DISTRIBUCION','ID_EVENTO',
              'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
              'MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
-             'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','fecha_inicio_de_promocion',
-             'fecha_fin_de_promocion','fecha_inicio_anterior','fecha_fin_anterior']]
+             'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','FECHA_INICIO_DE_PROMOCION',
+             'FECHA_FIN_DE_PROMOCION','FECHA_INICIO_ANTERIOR','FECHA_FIN_ANTERIOR']]
     print(df)
     cur.close()
     conn.close()
