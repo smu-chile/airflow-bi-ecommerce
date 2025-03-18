@@ -11,7 +11,7 @@ import pendulum
 
 from datetime import datetime, timedelta
 
-def render_netezza_view(ds):
+def render_netezza_view():
     from io import StringIO
     import os
     import jaydebeapi
@@ -254,21 +254,16 @@ with DAG(
         guardar en S3 y Upsert en postgres.
         """ 
     # Definir las tareas
-    t0 = PythonOperator(
-        task_id='render_netezza_view',
-        python_callable=render_netezza_view,
-        dag=dag,
-    )
 
-    t1 = PythonOperator(
+    t0 = PythonOperator(
         task_id='promos_out_to_s3',
         python_callable=promos_out_to_s3,
         dag=dag,
     )
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id='Promociones_comparadas_to_postgresql',
         python_callable=promociones_comparadas_to_postgresql,
         dag=dag,
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1 
