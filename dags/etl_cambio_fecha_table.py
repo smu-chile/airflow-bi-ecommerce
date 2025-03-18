@@ -160,7 +160,7 @@ def promos_out_to_s3(ds):
              'FECHA_INICIO_DE_PROMOCION',
              'FECHA_FIN_DE_PROMOCION',
              'FECHA_INICIO_ANTERIOR',
-FECHA_FIN_ANTERIOR
+             'FECHA_FIN_ANTERIOR']
     print(df.info())
 
     buffer = io.StringIO()
