@@ -38,6 +38,7 @@ def render_netezza_view():
                 FECHA_INICIO_DE_PROMOCION,
                 FECHA_FIN_DE_PROMOCION,
                 ultima_carga,
+                ORGANIZACION_VENTAS,
                 ROW_NUMBER() OVER (PARTITION BY MATERIAL ORDER BY FECHA_INICIO_DE_PROMOCION DESC) AS rn
             FROM DWC_SMU.SMU.VW_FACT_WORKFLOW
         )
@@ -60,7 +61,8 @@ def render_netezza_view():
             actual.FECHA_INICIO_DE_PROMOCION ,
             actual.FECHA_FIN_DE_PROMOCION, 
             anterior.FECHA_INICIO_DE_PROMOCION AS FECHA_INICIO_ANTERIOR, 
-            anterior.FECHA_FIN_DE_PROMOCION AS FECHA_FIN_ANTERIOR
+            anterior.FECHA_FIN_DE_PROMOCION AS FECHA_FIN_ANTERIOR,
+            actual.ORGANIZACION_VENTAS
         FROM DatosConRank actual
         LEFT JOIN DatosConRank anterior 
             ON actual.MATERIAL = anterior.MATERIAL 
@@ -68,7 +70,8 @@ def render_netezza_view():
             AND anterior.rn = 2
         WHERE actual.ultima_carga = 'X'  
         AND (actual.FECHA_INICIO_DE_PROMOCION <> anterior.FECHA_INICIO_DE_PROMOCION 
-            OR actual.FECHA_FIN_DE_PROMOCION <> anterior.FECHA_FIN_DE_PROMOCION);"""
+            OR actual.FECHA_FIN_DE_PROMOCION <> anterior.FECHA_FIN_DE_PROMOCION)
+        AND ACTUAL.ORGANIZACION_VENTAS IN ('1000','7500')"""
     
     print(sql_str)
 
@@ -95,7 +98,7 @@ def render_netezza_view():
              'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
              'MATERIAL','DESC_MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
              'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','FECHA_INICIO_DE_PROMOCION',
-             'FECHA_FIN_DE_PROMOCION','FECHA_INICIO_ANTERIOR','FECHA_FIN_ANTERIOR']]
+             'FECHA_FIN_DE_PROMOCION','FECHA_INICIO_ANTERIOR','FECHA_FIN_ANTERIOR','ORGANIZACION_VENTAS']]
     print(df)
     cur.close()
     conn.close()
@@ -139,7 +142,8 @@ def promos_out_to_s3(ds):
              'FECHA_INICIO_DE_PROMOCION',
              'FECHA_FIN_DE_PROMOCION',
              'FECHA_INICIO_ANTERIOR',
-             'FECHA_FIN_ANTERIOR']]
+             'FECHA_FIN_ANTERIOR',
+             'ORGANIZACION_VENTAS']]
     
     print("\nHasta acá todo bien al filtrar las columnas :D\n")
     
@@ -160,7 +164,8 @@ def promos_out_to_s3(ds):
              'FECHA_INICIO_DE_PROMOCION',
              'FECHA_FIN_DE_PROMOCION',
              'FECHA_INICIO_ANTERIOR',
-             'FECHA_FIN_ANTERIOR']
+             'FECHA_FIN_ANTERIOR',
+             'ORGANIZACION_VENTAS']
     print(df.info())
 
     buffer = io.StringIO()
