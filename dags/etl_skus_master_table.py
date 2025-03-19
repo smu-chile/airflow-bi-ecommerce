@@ -236,7 +236,7 @@ with DAG(
     'etl_skus_master_table',
     default_args=default_args,
     description="cargar maestra skus",
-    schedule_interval= "0 5 * * 1",
+    schedule_interval= "0 9 * * 1",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "maestra_skus", "proveedores", "PATRICIO"],
