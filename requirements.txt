@@ -24,6 +24,3 @@ Polygon
 Point
 slack_sdk
 xlsxwriter
-pyjwt==2.4.0
-mysql-connector-python==9.1.0
-httpx==0.23
