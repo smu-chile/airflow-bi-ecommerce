@@ -199,7 +199,7 @@ def truncate_table():
     engine = sqlalchemy.create_engine(conn_url)
 
     connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdecommdata_alviata.peso_volumen_alvi"
+    truncate_query = "TRUNCATE TABLE ecommdata_alvi.peso_volumen_alvi"
     connection.execute(text(truncate_query))
     connection.close()
 
@@ -218,7 +218,7 @@ default_args = {
 # Definir el DAG
 
 with DAG(
-    'cargar_promociones_comparadas',
+    'cargar_Peso_volumen_alvi',
     default_args=default_args,
     description='Guarda datos de peso y volumen de alvi en S3 y las carga en la base de datos',
     schedule_interval='0 9 * * *',
@@ -237,7 +237,6 @@ with DAG(
         task_id='truncate_table',
         python_callable=truncate_table
     )
-
     t1 = PythonOperator(
         task_id='data_out_to_s3',
         python_callable=data_out_to_s3
