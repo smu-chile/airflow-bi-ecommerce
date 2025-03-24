@@ -17,62 +17,22 @@ def render_netezza_view():
     import jaydebeapi
     import pandas as pd
 
+    sql_str= f""" 
+    SELECT 
+        sku_key, 
+        altura, ancho, 
+        envase, longitud, 
+        peso_bruto,
+        peso_neto ,
+        SKU_PRODUCT ,
+        volumen, 
+        unidad_de_volumen, 
+        unidad_peso, 
+        unidad_laa, unidad, 
+        nm
+    FROM DWC_SMU.SMU.VW_DIM_SKU_ATTR
+    """
 
-    sql_str= f"""WITH DatosConRank AS (
-            SELECT 
-                MATERIAL,
-                N_PROMOCION,
-                NOMBRE_PROMOCION,
-                ID_EVENTO,
-                DESCRIPCION_EVENTO_PROMOCIONAL,
-                ID_MECANICA,
-                DESCRIPCION_MECANICA,
-                DESC_MATERIAL,
-                UN_MEDIDA_VENTA,
-                EAN,
-                PRECIO_MODAL,
-                PRECIO_MODAL_TOTAL,
-                PRECIO_PROMOCIONAL,
-                PRECIO_TOTAL_PROMOCIONAL,
-                CANAL_DISTRIBUCION,
-                FECHA_INICIO_DE_PROMOCION,
-                FECHA_FIN_DE_PROMOCION,
-                ultima_carga,
-                ORGANIZACION_VENTAS,
-                ROW_NUMBER() OVER (PARTITION BY MATERIAL ORDER BY FECHA_INICIO_DE_PROMOCION DESC) AS rn
-            FROM DWC_SMU.SMU.VW_FACT_WORKFLOW
-        )
-        SELECT 
-            actual.N_PROMOCION,
-            actual.NOMBRE_PROMOCION,
-            actual.CANAL_DISTRIBUCION,
-            actual.ID_EVENTO,
-            actual.DESCRIPCION_EVENTO_PROMOCIONAL,
-            actual.ID_MECANICA,
-            actual.DESCRIPCION_MECANICA,
-            actual.MATERIAL,
-            actual.DESC_MATERIAL,
-            actual.UN_MEDIDA_VENTA,
-            actual.EAN,
-            actual.PRECIO_MODAL,
-            actual.PRECIO_MODAL_TOTAL,
-            actual.PRECIO_PROMOCIONAL,
-            actual.PRECIO_TOTAL_PROMOCIONAL,
-            actual.FECHA_INICIO_DE_PROMOCION ,
-            actual.FECHA_FIN_DE_PROMOCION, 
-            anterior.FECHA_INICIO_DE_PROMOCION AS FECHA_INICIO_ANTERIOR, 
-            anterior.FECHA_FIN_DE_PROMOCION AS FECHA_FIN_ANTERIOR,
-            actual.ORGANIZACION_VENTAS
-        FROM DatosConRank actual
-        LEFT JOIN DatosConRank anterior 
-            ON actual.MATERIAL = anterior.MATERIAL 
-            AND actual.rn = 1 
-            AND anterior.rn = 2
-        WHERE actual.ultima_carga = 'X'  
-        AND (actual.FECHA_INICIO_DE_PROMOCION <> anterior.FECHA_INICIO_DE_PROMOCION 
-            OR actual.FECHA_FIN_DE_PROMOCION <> anterior.FECHA_FIN_DE_PROMOCION)
-        AND ACTUAL.ORGANIZACION_VENTAS IN ('1000','7500')"""
-    
     print(sql_str)
 
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
@@ -94,18 +54,15 @@ def render_netezza_view():
     columns = [desc[0] for desc in cur.description]
     rows = cur.fetchall()
     df = pd.DataFrame(rows, columns=columns)
-    df = df[['N_PROMOCION','NOMBRE_PROMOCION','CANAL_DISTRIBUCION','ID_EVENTO',
-             'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
-             'MATERIAL','DESC_MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
-             'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','FECHA_INICIO_DE_PROMOCION',
-             'FECHA_FIN_DE_PROMOCION','FECHA_INICIO_ANTERIOR','FECHA_FIN_ANTERIOR','ORGANIZACION_VENTAS']]
+    df = df[['SKU_KEY','ALTURA','ANCHO','ENVASE','LONGITUD','PESO_BRUTO','PESO_NETO','SKU_PRODUCT',
+             'VOLUMEN','UNIDAD_DE_VOLUMEN','UNIDAD_LAA','UNIDAD','NM']]
     print(df)
     cur.close()
     conn.close()
 
     return df
 
-def promos_out_to_s3(ds):
+def data_out_to_s3(ds):
     import pandas as pd
     import numpy as np
     import io
@@ -123,54 +80,45 @@ def promos_out_to_s3(ds):
 
     print("Correcta extracion de datos de Neeteezaa")
 
-    # Cambiando columnas a minusculas
-    
-    df = df[['N_PROMOCION',
-             'NOMBRE_PROMOCION',
-             'CANAL_DISTRIBUCION',
-             'ID_EVENTO',
-             'DESCRIPCION_EVENTO_PROMOCIONAL',
-             'ID_MECANICA',
-             'DESCRIPCION_MECANICA',
-             'MATERIAL',
-             'DESC_MATERIAL',
-             'UN_MEDIDA_VENTA',
-             'EAN',
-             'PRECIO_MODAL',
-             'PRECIO_PROMOCIONAL',
-             'PRECIO_TOTAL_PROMOCIONAL',
-             'FECHA_INICIO_DE_PROMOCION',
-             'FECHA_FIN_DE_PROMOCION',
-             'FECHA_INICIO_ANTERIOR',
-             'FECHA_FIN_ANTERIOR',
-             'ORGANIZACION_VENTAS']]
+    df.columns = df.columns.str.lower()
+
+    df = df[['sku_key',
+             'altura',
+             'ancho',
+             'envase',
+             'longitud',
+             'peso_bruto',
+             'peso_neto',
+             'sku_product',
+             'volumen',
+             'unidad_de_volumen',
+             'unidad_peso',
+             'unidad_laa',
+             'unidad'
+             'nm']]
     
     print("\nHasta acá todo bien al filtrar las columnas :D\n")
-    
-    df.columns = ['N_PROMOCION',
-             'NOMBRE_PROMOCION',
-             'CANAL_DISTRIBUCION',
-             'ID_EVENTO',
-             'DESCRIPCION_EVENTO_PROMOCIONAL',
-             'ID_MECANICA',
-             'DESCRIPCION_MECANICA',
-             'MATERIAL',
-             'DESC_MATERIAL',
-             'UN_MEDIDA_VENTA',
-             'EAN',
-             'PRECIO_MODAL',
-             'PRECIO_PROMOCIONAL',
-             'PRECIO_TOTAL_PROMOCIONAL',
-             'FECHA_INICIO_DE_PROMOCION',
-             'FECHA_FIN_DE_PROMOCION',
-             'FECHA_INICIO_ANTERIOR',
-             'FECHA_FIN_ANTERIOR',
-             'ORGANIZACION_VENTAS']
+
+    df.columns = ['sku_key',
+             'altura',
+             'ancho',
+             'envase',
+             'longitud',
+             'peso_bruto',
+             'peso_neto',
+             'sku_product',
+             'volumen',
+             'unidad_de_volumen',
+             'unidad_peso',
+             'unidad_laa',
+             'unidad'
+             'nm']
+
     print(df.info())
 
     buffer = io.StringIO()
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"Promociones_comparadas/{exec_date}/promociones_comparadas{date_aux}.csv"
+    filename = f"Peso_volumen_alvi/{exec_date}/peso_volumen_alvi{date_aux}.csv"
     buffer.seek(0)
     print("se transformo el dataframe a un archivo .csv")
     print(f"con fecha {ds} y nombre de filename como {filename}")
@@ -184,14 +132,13 @@ def promos_out_to_s3(ds):
 
     return filename
 
-def promociones_comparadas_to_postgresql(ti):
-    print("todo bien por acá")
+def data_to_postgresql(ti):
     import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
 
-    filename = ti.xcom_pull(key="return_value", task_ids=["promos_out_to_s3"])[0]
+    filename = ti.xcom_pull(key="return_value", task_ids=["data_out_to_s3"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -218,10 +165,15 @@ def promociones_comparadas_to_postgresql(ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE ecommdecommdata_alviata.peso_volumen_alvi"
+    connection.execute(text(truncate_query))
+    connection.close()
+
     with engine.begin() as conn:
-        df.to_sql(name="promociones_comparadas",
+        df.to_sql(name="peso_volumen_alvi",
                     con=conn,         
-                    schema="ecommdata",         
+                    schema="ecommdata_alvi",         
                     if_exists='append',         
                     index=False,         
                     chunksize=20000,         
@@ -254,7 +206,6 @@ def truncate_table():
     print("Tabla borrada con exito")
 
     return
-    
 
 default_args = {
     "owner": "ecommerce_data",
@@ -269,17 +220,16 @@ default_args = {
 with DAG(
     'cargar_promociones_comparadas',
     default_args=default_args,
-    description='Guarda promociones comparadas en S3 y las carga en la base de datos',
+    description='Guarda datos de peso y volumen de alvi en S3 y las carga en la base de datos',
     schedule_interval='0 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
-    tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "S3", "NICOLAS"]
+    tags=["DATA", "postgres", "ecommdata_alvi", "Promociones_comparadas", "S3", "NICOLAS" ,"Capacity"]
 ) as dag:
 
     dag.doc_md = """
-        Carga y actualiza data de API driv.in, Rutas, Escenarios, Vehiculos, Ordene y direcciones\n
-        guardar en S3 y Upsert en postgres.
+        carga de datos peso y volumen alvi , solicitado por el equipo de capacity
         """ 
     # Definir las tareas
 
@@ -287,13 +237,14 @@ with DAG(
         task_id='truncate_table',
         python_callable=truncate_table
     )
+
     t1 = PythonOperator(
-        task_id='promos_out_to_s3',
-        python_callable=promos_out_to_s3
+        task_id='data_out_to_s3',
+        python_callable=data_out_to_s3
     )
     t2 = PythonOperator(
-        task_id='Promociones_comparadas_to_postgresql',
-        python_callable=promociones_comparadas_to_postgresql
+        task_id='data_to_postgresql',
+        python_callable=data_to_postgresql
     )
 
     t0 >> t1 >> t2
