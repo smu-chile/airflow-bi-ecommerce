@@ -230,6 +230,30 @@ def promociones_comparadas_to_postgresql(ti):
     print("Data saved to PostgreSQL.")
 
     return
+
+def truncate_table():
+    
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    connection = engine.connect()
+    truncate_query = "TRUNCATE TABLE ecommdata.promociones_comparadas"
+    connection.execute(text(truncate_query))
+    connection.close()
+
+    print("Tabla borrada con exito")
+
+    return
     
 
 default_args = {
@@ -260,12 +284,16 @@ with DAG(
     # Definir las tareas
 
     t0 = PythonOperator(
+        task_id='truncate_table',
+        python_callable=truncate_table
+    )
+    t1 = PythonOperator(
         task_id='promos_out_to_s3',
         python_callable=promos_out_to_s3
     )
-    t1 = PythonOperator(
+    t2 = PythonOperator(
         task_id='Promociones_comparadas_to_postgresql',
         python_callable=promociones_comparadas_to_postgresql
     )
 
-    t0 >> t1 
+    t0 >> t1 >> t2
