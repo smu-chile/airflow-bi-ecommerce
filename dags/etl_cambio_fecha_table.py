@@ -247,7 +247,7 @@ def truncate_table():
     engine = sqlalchemy.create_engine(conn_url)
 
     connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdecommdata_alviata.peso_volumen_alvi"
+    truncate_query = "TRUNCATE TABLE ecommdata.promociones_comparadas"
     connection.execute(text(truncate_query))
     connection.close()
 
