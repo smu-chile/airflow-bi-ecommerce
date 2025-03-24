@@ -166,7 +166,7 @@ def data_to_postgresql(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdecommdata_alviata.peso_volumen_alvi"
+    truncate_query = "TRUNCATE TABLE ecommdata_alvi.peso_volumen_alvi"
     connection.execute(text(truncate_query))
     connection.close()
 
