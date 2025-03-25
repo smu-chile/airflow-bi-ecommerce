@@ -272,7 +272,7 @@ with DAG(
     description='Guarda promociones comparadas en S3 y las carga en la base de datos',
     schedule_interval='0 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
-    catchup=True,
+    catchup=False,
     max_active_runs=1,
     tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "S3", "NICOLAS"]
 ) as dag:
