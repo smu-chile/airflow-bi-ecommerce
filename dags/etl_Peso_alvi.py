@@ -28,8 +28,9 @@ def render_netezza_view():
         volumen, 
         unidad_de_volumen, 
         unidad_peso, 
-        unidad_laa, unidad, 
-        nm
+        unidad_laa, 
+        unidad, 
+        'nm'
     FROM DWC_SMU.SMU.VW_DIM_SKU_ATTR
     """
 
@@ -55,7 +56,7 @@ def render_netezza_view():
     rows = cur.fetchall()
     df = pd.DataFrame(rows, columns=columns)
     df = df[['SKU_KEY','ALTURA','ANCHO','ENVASE','LONGITUD','PESO_BRUTO','PESO_NETO','SKU_PRODUCT',
-             'VOLUMEN','UNIDAD_DE_VOLUMEN','UNIDAD_LAA','UNIDAD','NM']]
+             'VOLUMEN','UNIDAD_DE_VOLUMEN','UNIDAD_PESO''UNIDAD_LAA','UNIDAD','NM']]
     print(df)
     cur.close()
     conn.close()
@@ -94,7 +95,7 @@ def data_out_to_s3(ds):
              'unidad_de_volumen',
              'unidad_peso',
              'unidad_laa',
-             'unidad'
+             'unidad',
              'nm']]
     
     print("\nHasta acá todo bien al filtrar las columnas :D\n")
@@ -111,7 +112,7 @@ def data_out_to_s3(ds):
              'unidad_de_volumen',
              'unidad_peso',
              'unidad_laa',
-             'unidad'
+             'unidad',
              'nm']
 
     print(df.info())
@@ -223,7 +224,7 @@ with DAG(
     description='Guarda datos de peso y volumen de alvi en S3 y las carga en la base de datos',
     schedule_interval='0 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
-    catchup=True,
+    catchup=False,
     max_active_runs=1,
     tags=["DATA", "postgres", "ecommdata_alvi", "Promociones_comparadas", "S3", "NICOLAS" ,"Capacity"]
 ) as dag:
