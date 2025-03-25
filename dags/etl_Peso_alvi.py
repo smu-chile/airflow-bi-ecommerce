@@ -30,7 +30,7 @@ def render_netezza_view():
         unidad_peso, 
         unidad_laa, 
         unidad, 
-        'nm'
+        nm
     FROM DWC_SMU.SMU.VW_DIM_SKU_ATTR
     """
 
@@ -56,7 +56,7 @@ def render_netezza_view():
     rows = cur.fetchall()
     df = pd.DataFrame(rows, columns=columns)
     df = df[['SKU_KEY','ALTURA','ANCHO','ENVASE','LONGITUD','PESO_BRUTO','PESO_NETO','SKU_PRODUCT',
-             'VOLUMEN','UNIDAD_DE_VOLUMEN','UNIDAD_PESO''UNIDAD_LAA','UNIDAD','NM']]
+             'VOLUMEN','UNIDAD_DE_VOLUMEN','UNIDAD_PESO','UNIDAD_LAA','UNIDAD','NM']]
     print(df)
     cur.close()
     conn.close()
