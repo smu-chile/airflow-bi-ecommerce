@@ -7,6 +7,8 @@ from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+import pendulum
+
 def get_top_productos():
     import pandas as pd
     productos_query = """with productos as (
