@@ -21,9 +21,11 @@ def _get_rappi_active_stores():
     cursor.close()
     pg_connection.close()
     return results
-
+#################################################################################################################
+# #                                   Carga de promociones Complejas                                            #
+#################################################################################################################
 def _join_stock_and_promo_prices_from_s3(ds, ti):
-    import json
+    import io
     import pandas as pd
 
     rappi_stores = ti.xcom_pull(key="return_value", task_ids=["get_rappi_active_stores"])[0]
@@ -42,19 +44,19 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     for store_id in rappi_store_ids:
         print(f"Store id: {store_id}")
         
-        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/{store_id}.json"
+        join_file_name = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/store_id_{store_id}_COMBO_UNIMA.csv"
         if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
             continue
 
         peya_stock_query = f"""
             SELECT DISTINCT  
-                CAST(s.ou_id AS VARCHAR) AS store_id,
-                TO_CHAR(WP.fecha_inicio_de_promocion, 'YYYY/MM/DD') AS start_date,
-                TO_CHAR(WP.fecha_fin_de_promocion, 'YYYY/MM/DD') AS end_date,
+                (s.ou_id::int) AS store_id,
+                WP.fecha_inicio_de_promocion AS start_date,
+                WP.fecha_fin_de_promocion AS end_date,
                 CASE
                     WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN 
-                        CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), ',Pague ', CAST(cantidad_m AS VARCHAR))
+                        CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), 'Pague ', CAST(cantidad_m AS VARCHAR))
                     WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN 
                         CONCAT('llevas ', CAST(wp.cantidad_n AS VARCHAR), 'x por ', CAST(ROUND(wp.precio_total_promocional, 0) AS VARCHAR))
                 END AS description,
@@ -64,8 +66,11 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN 
                         CONCAT('T', CAST(FLOOR(((lspp.precio - (wp.precio_total_promocional / wp.cantidad_n)) / lspp.precio) * 100) AS VARCHAR), '_U', CAST(wp.cantidad_n AS VARCHAR))
                 END AS type_format,
-                wp.descripcion_material AS name,
-                CAST((wp.material::int) AS VARCHAR) AS id
+                case
+                	when wp.descripcion_material like '%,%' then REPLACE(wp.descripcion_material, ',', '')
+                	else wp.descripcion_material
+                end AS name,
+                (wp.material::int) AS id
             FROM 
                 ecommdata.workflow_promociones wp 
             LEFT JOIN 
@@ -105,7 +110,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 '1120102024',
                 '1120112024',
                 '1120122024',
-                '4000512024')
+                '4000512024','1120012025','1120022025','1120032025','1120042025')
                 and lspp.id_tienda = '{store_id}'
         ;
         """
@@ -121,25 +126,30 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         df = pd.DataFrame(results, columns=columns)
         print(f"Number of records found on stock: {len(df.index)}")
 
-        df.columns = map(str.lower, df.columns)
-        df["is_available"] = True
+        buffer = io.StringIO()
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
 
-        dict_body = df.to_dict(orient="records")
-        json_body = json.dumps(dict_body)
-
-        s3_hook.load_string(json_body,
-                    key=join_file_name,
-                    bucket_name=s3_bucket,
-                    replace=True,
-                    encrypt=False)
+        s3_hook.load_string(buffer.getvalue(),
+                            key=join_file_name,
+                            bucket_name=s3_bucket,
+                            replace=True,
+                            encrypt=False)
+        
 
     cursor.close()
     pg_connection.close()
     return
 
-def _send_joined_data_to_api(ds):
-    import json
-    import requests
+
+def _send_joined_data_to_stfp(ds):
+    import os
+    import pysftp
+
+    ftp_host = Variable.get("SFTP_RAPPI_HOST")
+    ftp_port = 22
+    ftp_user = Variable.get("SFTP_RAPPI_USER")
+    ftp_rsa_key = Variable.get("SFTP_RAPPI_PASSWORD")
 
     exec_date = ds.replace("-", "/")
     prefix = f"integraciones/last_millers/stock/out/rappi/Complex/{exec_date}/"
@@ -151,40 +161,25 @@ def _send_joined_data_to_api(ds):
 
     print(f"Number of files found: {len(s3_file_list)}")
 
-    responses_prefix = f"rappi/api/stock/post/full/responses/{exec_date}/"
+    for promo_file in s3_file_list:
+        print(promo_file)
 
-    for stock_file in s3_file_list:
-        print(stock_file)
+        stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
+        stock_object_body = stock_object.get()["Body"]
 
-        json_body_object = s3_hook.get_key(stock_file, bucket_name=s3_bucket)
-        json_body_string = json_body_object.get()["Body"].read()
-        json_body = json.loads(json_body_string)
-        payload = {
-            "records": json_body
-        }
+        output_promo_file = promo_file.split("/")[-1]
+        print(f"File to load to SFTP Server: {output_promo_file}")
 
-        print(f"Number of records found: {len(payload['records'])}")
-        rappi_endpoint = "https://services.grability.rappi.com/api/cpgs-integration/datasets"
-
-        headres = {
-            "api_key": Variable.get("RAPPI_API_KEY"),
-            "Content-Type": "application/json"
-        }
-        response = requests.post(url=rappi_endpoint, json=payload, headers=headres)
-        print(response.status_code)
-        try:
-            response_json = response.json()
-            response_string = json.dumps(response_json)
-            s3_hook.load_string(response_string,
-                  key=responses_prefix+stock_file.split("/")[-1],
-                  bucket_name=s3_bucket,
-                  replace=True,
-                  encrypt=False)
-            print("Response body saved to S3.")
-        except Exception as e:
-            print(e)
-            print("Error on response.")
-            break
+        with pysftp.Connection(host=ftp_host,
+                               username=ftp_user,
+                               port=ftp_port,
+                               password=ftp_rsa_key) as sftp:
+            localFile = stock_object_body
+            remotePath = f"/sftp-allies/sftppruebas_co/store_id-{output_promo_file}_COMBO_UNIMARC"
+            sftp.putfo(localFile, remotePath)
+        
+        print("File loaded.")
+    
     return
 
 default_args = {
@@ -223,8 +218,8 @@ with DAG(
     )
 
     t2 = PythonOperator(
-        task_id = "send_joined_data_to_api",
-        python_callable = _send_joined_data_to_api
+        task_id = "_send_joined_data_to_stfp",
+        python_callable = _send_joined_data_to_stfp
     )
 
     t0 >> t1 >> t2

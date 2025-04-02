@@ -1,8 +1,10 @@
 FROM reigncl/airflow:2.2.4-python3.9-onbuild
 
 USER root
+RUN sudo rm /etc/apt/sources.list.d/pgdg.list
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys B7B3B788A8D3785C
-RUN apt-get update 
+RUN echo deb https://apt-archive.postgresql.org/pub/repos/apt buster-pgdg main > /etc/apt/sources.list.d/postgresql.list
+RUN apt-get update
 RUN apt-get install default-jre -y
 RUN apt-get install python3-dev -y
 ENV JAVA_HOME="/usr/lib/jvm/java-1.8-openjdk/"

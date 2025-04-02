@@ -1,6 +1,7 @@
 # Local config files
 .airflowignore
 .env
+.venv
 local-values.yaml
 docker-compose.yml
 

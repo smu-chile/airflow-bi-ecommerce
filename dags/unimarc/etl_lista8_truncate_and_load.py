@@ -25,9 +25,10 @@ def _stopper_lista8(ts):
     print(f"Files detected: {s3_file_list}")
 
     query = """
-        select id 
+       select id 
     from ecommdata.tiendas t
-    where t.status = 1;
+    where t.status = 1
+    and t.id <> '1917';
     """
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")

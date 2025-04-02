@@ -134,6 +134,8 @@ def _incremental_load_sales_table_unimarc(ti, ds):
     print(df)
     df = df[df["id_org"] == "1"]
     print(df)
+    df["id_tienda"] = df["id_tienda"].astype("string").str.pad(4, "left", '0')
+    df["material"] = df["material"].astype("string").str.pad(18, "left", '0')
 
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
@@ -168,7 +170,7 @@ def _incremental_load_sales_table_unimarc(ti, ds):
     cursor = pg_connection.cursor()
     cursor.executemany(query, fixed_records)
     cursor.execute(delete_query)
-    pg_connection.commit()
+    pg_connection.commit()  
     cursor.close()
     pg_connection.close()
     print("Data loaded to Postgres")

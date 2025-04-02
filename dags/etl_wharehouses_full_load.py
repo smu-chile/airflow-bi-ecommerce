@@ -59,6 +59,7 @@ def _full_load_bodegas_table(ti):
     connection.close()
 
     # Save to PostgreSQL:
+    df = df.drop_duplicates(subset=["id"])
     df.to_sql(name="bodegas",
                 con=engine,         
                 schema="ecommdata",         
@@ -105,7 +106,8 @@ with DAG(
                 , ws.ref_id as id_tienda
                 , wlw.id as id_janis
                 , CASE 
-                    when wld.status > 0 then true
+                    when wld.status = 3 then true
+                    when wld.status = 1 then true
                     else false
                 END as dock_activo
                 from wms_logistic_warehouses wlw 
