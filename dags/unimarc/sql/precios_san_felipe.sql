@@ -1,13 +1,20 @@
 WITH RankedPrices AS (
     SELECT 
+        p.id AS id,
         CONCAT(l.material, '-', l.umv) AS skuRefid,
         1 AS skuMinQuantity,
         p.precio AS price,
-        l.precio_regular AS precio_l8,
-        t.nombre_tienda_janis,
-        p.precio_lista AS listPrice,
-        TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS') AS validFrom,
-        TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS') AS validTo,
+        t.id AS store_id,
+        p.precio AS listPrice,
+        10 AS costPrice,
+        CASE
+            WHEN p.valido_desde IS NOT NULL THEN TO_CHAR(p.valido_desde, 'DD-MM-YYYY HH24:MI:SS')
+            ELSE TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+        END AS validFrom,
+        CASE
+            WHEN p.valido_hasta IS NOT NULL THEN TO_CHAR(p.valido_hasta, 'DD-MM-YYYY HH24:MI:SS')
+            ELSE TO_CHAR(current_date, 'DD-MM-YYYY HH24:MI:SS')
+        END AS validTo,
         0 AS "locked",
         1 AS updatePending,
         1 AS active,
@@ -19,7 +26,13 @@ WITH RankedPrices AS (
         ON l.id_tienda = t.id
     LEFT JOIN 
         ecommdata.precios p 
-        ON p.ref_id = CONCAT(l.material, '-', l.umv) AND p.id_tienda_janis = t.id_janis
+        ON p.ref_id = CONCAT(l.material, '-', l.umv) 
+        AND p.id_tienda_janis = t.id_janis
+    WHERE 
+        t.id IN ('0469', '0917', '0581', '0347', '0336', '0034', '0053', '0054', '0398')
+        AND t.status = 1
+        AND (p.valido_desde IS NULL OR p.valido_hasta IS NULL OR p.valido_desde <= p.valido_hasta)
+        AND p.precio IS NOT NULL
 )
 INSERT INTO ecommdata.precios_san_felipe (
     id,
@@ -28,6 +41,7 @@ INSERT INTO ecommdata.precios_san_felipe (
     skuMinQuantity,
     price,
     listPrice,
+    costPrice,
     validFrom,
     validTo,
     "locked",
@@ -35,55 +49,24 @@ INSERT INTO ecommdata.precios_san_felipe (
     active
 )
 SELECT
-    '' as id,
-    '0053' AS store,
-    skuRefid,
-    skuMinQuantity,
-    price,
-    listPrice,
-    validFrom,
-    validTo,
-    "locked",
-    updatePending,
-    active
-FROM 
-    RankedPrices
-WHERE 
-    rn = 1
-    AND price = precio_l8
-UNION ALL
-SELECT
-    '' as id,
-    '0054' AS store,
-    skuRefid,
-    skuMinQuantity,
-    price,
-    listPrice,
-    validFrom,
-    validTo,
-    "locked",
-    updatePending,
-    active
-FROM 
-    RankedPrices
-WHERE 
-    rn = 1
-    AND price = precio_l8
-UNION ALL
-SELECT
-    '' as id,
-    '0398' AS store,
-    skuRefid,
-    skuMinQuantity,
-    price,
-    listPrice,
-    validFrom,
-    validTo,
-    "locked",
-    updatePending,
-    active
-FROM 
-    RankedPrices
-WHERE 
-    rn = 1
-    AND price = precio_l8;
+    p.id AS id,
+    t.id AS store,
+    r.skuRefid,
+    r.skuMinQuantity,
+    r.price,
+    r.listPrice,
+    10 AS costPrice,
+    r.validFrom,
+    r.validTo,
+    r."locked",
+    r.updatePending,
+    r.active
+FROM RankedPrices r
+LEFT JOIN ecommdata.precios p 
+    ON p.ref_id = r.skuRefid 
+    AND (p.id_tienda_janis = (SELECT id_janis FROM ecommdata.tiendas WHERE id = '0053')
+     OR p.id_tienda_janis = (SELECT id_janis FROM ecommdata.tiendas WHERE id = '0054')
+     OR p.id_tienda_janis = (SELECT id_janis FROM ecommdata.tiendas WHERE id = '0398'))  
+LEFT JOIN ecommdata.tiendas t 
+    ON t.id_janis = p.id_tienda_janis  
+WHERE r.rn = 1;
