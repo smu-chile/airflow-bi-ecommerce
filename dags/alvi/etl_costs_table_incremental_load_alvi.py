@@ -60,7 +60,7 @@ def _create_final_costs_table_alvi(ti,ts):
 
     execution_datetime = ts[:10].replace("-", "/")
 
-    dw_sku_attr_file = "data_warehouse/DWC_SMU.SMU.VW_DIM_STORE/"+execution_datetime+"/"
+    dw_sku_attr_file = "data_warehouse/DWC_SMU.SMU.VW_DIM_SKU_ATTR/"+execution_datetime+"/"
 
     print("Searching prefix: "+dw_sku_attr_file)
 
@@ -68,7 +68,7 @@ def _create_final_costs_table_alvi(ti,ts):
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     dw_sku_attr_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=dw_sku_attr_file)
-    print("Store object list: "+str(dw_sku_attr_list))
+    print("SKU ATTR Object List: "+str(dw_sku_attr_list))
     if len(dw_sku_attr_list) == 0:
         print("There are no objects on the given prefix. Upstream tasks will be mark as Failed.")
 
