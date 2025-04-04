@@ -52,41 +52,37 @@ def _get_ou_key_list_alvi(ti, ts):
 
     return store_ou_key_list
 
-def _create_final_costs_table_alvi(ti,ts):
+def _create_final_costs_table_alvi(ti, ts):
     import pandas as pd
     import sqlalchemy
 
-    #Extraer archivo de sku_attr
-
     execution_datetime = ts[:10].replace("-", "/")
+    dw_sku_attr_file = f"data_warehouse/DWC_SMU.SMU.VW_DIM_SKU_ATTR/{execution_datetime}/"
 
-    dw_sku_attr_file = "data_warehouse/DWC_SMU.SMU.VW_DIM_SKU_ATTR/"+execution_datetime+"/"
-
-    print("Searching prefix: "+dw_sku_attr_file)
+    print("Searching prefix: " + dw_sku_attr_file)
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     dw_sku_attr_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=dw_sku_attr_file)
-    print("SKU ATTR Object List: "+str(dw_sku_attr_list))
-    if len(dw_sku_attr_list) == 0:
-        print("There are no objects on the given prefix. Upstream tasks will be mark as Failed.")
 
-    #Obtener el primer archivo de la lista
+    print("SKU ATTR Object List: " + str(dw_sku_attr_list))
+    if not dw_sku_attr_list:
+        raise ValueError("No se encontraron archivos para SKU ATTR")
+
+    # Obtener el primer archivo de la lista
     dw_sku_attr_key = dw_sku_attr_list[0]
-    
+
     # Buscar los archivos generados en el día para las tablas respectivas
     dw_fact_ou_logt_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_fact_ou_logt_smy_filtered_load_alvi"])[0]
-
     store_ou_key_list = ti.xcom_pull(key="return_value", task_ids=["get_ou_key_list_from_datawarehouse_alvi"])[0]
     df_store_ou_key = pd.DataFrame(store_ou_key_list, columns=["OU_KEY", "STORE_ID"])
 
     # Verifica si los archivos existen en S3
     if not s3_hook.check_for_key(dw_fact_ou_logt_file, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % dw_fact_ou_logt_file)
+        raise Exception(f"Key {dw_fact_ou_logt_file} does not exist.")
     if not s3_hook.check_for_key(dw_sku_attr_key, bucket_name=s3_bucket):
         raise Exception(f"Key {dw_sku_attr_key} does not exist in S3.")
-
 
     # Leer los archivos CSV desde S3
     dw_fact_ou_object = s3_hook.get_key(dw_fact_ou_logt_file, bucket_name=s3_bucket)
@@ -94,7 +90,7 @@ def _create_final_costs_table_alvi(ti,ts):
     df_dw_fact_ou_store = pd.merge(df_dw_fact_ou, df_store_ou_key, on="OU_KEY", how="left")
     df_dw_fact_ou_store = df_dw_fact_ou_store[["DATE_VALUE", "ACTIVO", "CATALOGADO", "NBR_ITM_SOLD", "COGS", "SKU_KEY", "STORE_ID"]]
 
-    dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_file, bucket_name=s3_bucket)
+    dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_key, bucket_name=s3_bucket)
     df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"], dtype={"SKU_PRODUCT": "str"})
     df_dw_sku_attr = df_dw_sku_attr[["SKU_PRODUCT", "NM", "SKU_KEY"]]
 
@@ -120,20 +116,23 @@ def _create_final_costs_table_alvi(ti,ts):
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
-    
+
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
     # Guardar en PostgreSQL
-    df.to_sql(name="costos",
-                con=engine,         
-                schema="ecommdata_alvi",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    df.to_sql(
+        name="costos",
+        con=engine,
+        schema="ecommdata_alvi",
+        if_exists='append',
+        index=False,
+        chunksize=20000,
+        method='multi'
+    )
 
     print("Data saved to PostgreSQL.")
+
 
     return
 
