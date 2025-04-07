@@ -156,9 +156,6 @@ def publicacion_1917_today(ts):
                     and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                     and pc.stock_janis > 0
                     ;"""
-    if not results:
-        print("There are no new nor updated records to load from MFC. Task will return an empty df.")
-        return pd.DataFrame(columns=["ref_id", "id_tienda", "fecha"])
 
     print(mfc_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -166,6 +163,9 @@ def publicacion_1917_today(ts):
     cursor = pg_connection.cursor()
     cursor.execute(mfc_query)
     results = cursor.fetchall()
+    if not results:
+        print("There are no new nor updated records to load from MFC. Task will return an empty df.")
+        return pd.DataFrame(columns=["ref_id", "id_tienda", "fecha"])
     results = pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","fecha",]
     results = results[["ref_id","id_tienda","fecha"]]
