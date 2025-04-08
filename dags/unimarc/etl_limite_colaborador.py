@@ -100,6 +100,9 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
         if response.status_code == 200:
             print(f"✅ xConvenio actualizado para {document_id} con valor {xConvenio_value} en intento {attempt + 1}")
             return True
+        elif response.status_code == 304:
+            print(f"ℹ️ xConvenio para {document_id} ya estaba con el valor {xConvenio_value}, no se necesita actualizar.")
+            return True
         else:
             print(f"⚠️ Error al actualizar xConvenio ({document_id}), intento {attempt + 1}: {response.status_code}")
             time.sleep(delay)  # Espera antes de reintentar
