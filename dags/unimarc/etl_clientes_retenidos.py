@@ -130,10 +130,10 @@ def get_clientes_retenidos():
     return df_clientes
 
 # Función para actualizar el campo xCluster en VTEX
-def limpiar_xCluster(document_id):
+def limpiar_xCluster(document_id, max_retries=3, delay=10):
     import requests
-    
-    # Configuración de la API de VTEX
+    import time
+
     API_URL = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL"
     API_KEY = Variable.get("X_VTEX_API_AppKey")
     API_TOKEN = Variable.get("X_VTEX_API_AppToken")
@@ -143,25 +143,35 @@ def limpiar_xCluster(document_id):
         "X-VTEX-API-AppKey": API_KEY,
         "X-VTEX-API-AppToken": API_TOKEN
     }
+
     update_url = f"{API_URL}/documents"
     update_payload = {
         "userId": document_id,
-        "xCluster": None  # Establecer xCluster a null
+        "xCluster": None
     }
-    
-    response = requests.patch(update_url, json=update_payload, headers=HEADERS)
-    
-    if response.status_code == 200:
-        print(f"Campo xCluster limpiado (establecido a null) para el documento {document_id}")
-        return True  # Retorna True si la actualización fue exitosa
-    else:
-        print(f"Error al limpiar xCluster para el documento {document_id}: {response.status_code}")
-        return False  # Retorna False si hubo un error
-    
+
+    for attempt in range(max_retries):
+        response = requests.patch(update_url, json=update_payload, headers=HEADERS)
+
+        if response.status_code == 200:
+            print(f"✅ xCluster limpiado (null) para {document_id} en intento {attempt + 1}")
+            return True
+        elif response.status_code == 304:
+            print(f"⏩ xCluster ya estaba limpio para {document_id}, intento {attempt + 1}")
+            return True
+        else:
+            print(f"⚠️ Error limpiando xCluster ({document_id}), intento {attempt + 1}: {response.status_code}")
+            time.sleep(delay)
+
+    print(f"❌ Falló la limpieza de xCluster para {document_id} tras {max_retries} intentos.")
+    return False
+
 # Función para actualizar el campo xCluster en VTEX
-def actualizar_xCluster(document_id, xCluster_value):
+# Función para actualizar el campo xCluster en VTEX con reintentos
+def actualizar_xCluster(document_id, xCluster_value, max_retries=3, delay=10):
     import requests
-    # Configuración de la API de VTEX
+    import time
+
     API_URL = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL"
     API_KEY = Variable.get("X_VTEX_API_AppKey")
     API_TOKEN = Variable.get("X_VTEX_API_AppToken")
@@ -171,20 +181,29 @@ def actualizar_xCluster(document_id, xCluster_value):
         "X-VTEX-API-AppKey": API_KEY,
         "X-VTEX-API-AppToken": API_TOKEN
     }
+
     update_url = f"{API_URL}/documents"
     update_payload = {
         "userId": document_id,
-        "xCluster": xCluster_value  # Establecer xCluster a null
+        "xCluster": xCluster_value
     }
-    
-    response = requests.patch(update_url, json=update_payload, headers=HEADERS)
-    
-    if response.status_code == 200:
-        print(f"Campo xCluster establecido como retenidos para el documento {document_id}")
-        return True  # Retorna True si la actualización fue exitosa
-    else:
-        print(f"Error al asignar campo xCluster para el documento {document_id}: {response.status_code}")
-        return False  # Retorna False si hubo un error
+
+    for attempt in range(max_retries):
+        response = requests.patch(update_url, json=update_payload, headers=HEADERS)
+
+        if response.status_code == 200:
+            print(f"✅ xCluster actualizado para {document_id} en intento {attempt + 1}")
+            return True
+        elif response.status_code == 304:
+            print(f"⏩ xCluster ya tenía el valor para {document_id}, intento {attempt + 1}")
+            return True
+        else:
+            print(f"⚠️ Error actualizando xCluster ({document_id}), intento {attempt + 1}: {response.status_code}")
+            time.sleep(delay)
+
+    print(f"❌ Falló la actualización de xCluster para {document_id} tras {max_retries} intentos.")
+    return False
+
 
 # Función para etiquetar clientes como retenidos
 def tagear_clientes_retenidos(ds, ti):
@@ -241,7 +260,7 @@ def tagear_clientes_retenidos(ds, ti):
 def cargar_datos_a_tabla(ds, ti):
     import psycopg2
     import pandas as pd
-    # Establecer conexión a la base de datos y ejecutar la consulta
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -255,21 +274,24 @@ def cargar_datos_a_tabla(ds, ti):
     )
     cursor = conn.cursor()
 
-    # Obtener los datos de los clientes retenidos
     df_clientes_retenidos = get_clientes_retenidos()
 
-    # Insertar los datos en la tabla
     for index, row in df_clientes_retenidos.iterrows():
         cursor.execute("""
-            INSERT INTO ecommdata.clientes_retenidos (user_profile_id, rut, estado, tipo_membresia, fecha_inicio, fecha_fin, recencia, email)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (row["user_profile_id"], row["rut"], row["estado"], row["tipo_membresia"], row["fecha_inicio"], row["fecha_fin"], row["recencia"], row["email"]))
+            INSERT INTO ecommdata.clientes_retenidos (
+                user_profile_id, rut, estado, tipo_membresia,
+                fecha_inicio, fecha_fin, recencia, email, fecha_modificacion
+            )
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+        """, (
+            row["user_profile_id"], row["rut"], row["estado"], row["tipo_membresia"],
+            row["fecha_inicio"], row["fecha_fin"], row["recencia"], row["email"]
+        ))
 
     conn.commit()
     cursor.close()
     conn.close()
-
-    print("Datos cargados en la tabla ecommdata.clientes_retenidos.")
+    print("✅ Datos cargados en la tabla ecommdata.clientes_retenidos.")
 
 # Definir el DAG
 default_args = {
