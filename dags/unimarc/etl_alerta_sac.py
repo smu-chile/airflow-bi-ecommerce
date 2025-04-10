@@ -6,70 +6,142 @@ from airflow.models import Variable
 
 import pendulum
 
-def get_top_productos():
+def query_to_df(query):
     import pandas as pd
-    productos_query = """WITH productos AS (
-                        SELECT frp.fecha_picking::date AS fecha, 
-                               frp.ref_id_producto_substituido AS ref_id_substituido, 
-                               COUNT(frp.unidades_pickeadas) AS cant_sustituciones 
-                        FROM operaciones_unimarc.found_rate_productos frp 
-                        WHERE frp.id_tienda ILIKE '0442'
-                        AND frp.ref_id_producto_substituido IS NOT NULL 
-                        AND frp.fecha_picking IS NOT NULL
-                        AND frp.fecha_picking >= NOW() - INTERVAL '60 minutes' 
-                        GROUP BY frp.fecha_picking::date, frp.ref_id_producto_substituido
-                    )
-                    SELECT * FROM productos p 
-                    ORDER BY cant_sustituciones DESC"""
-    
+    print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    print(productos_query)
-    try:
-        # Ejecutamos la consulta SQL
-        results = pg_hook.get_records(productos_query)
-        
-        # Verificamos si se obtuvieron resultados
-        if not results:
-            print("No data returned from query")
-            return pd.DataFrame()  # Retornamos un DataFrame vacío si no hay resultados
-        
-        # Convertimos los resultados a un DataFrame
-        df = pd.DataFrame(results, columns=["fecha", "ref_id_substituido", "cant_sustituciones"])
-        print(df.head())
-        return df
-    except Exception as e:
-        print(f"Error while executing query: {e}")
-        return pd.DataFrame()  # En caso de error, retornar un DataFrame vacío
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
+    cursor.close()
+    pg_connection.close()
+    return results
 
-def send_to_slack():
+def get_and_send_top_productos():
+    import pandas as pd
     from slack_sdk import WebClient
     from slack_sdk.errors import SlackApiError
+    import requests
+    import json
     import io
+    import os
 
-    results = get_top_productos()
+    interval = f'30 minutos'
+    curr_working_directory = os.getcwd()
+    print(os.getcwd())
+
+    with open(curr_working_directory+f"/dags/unimarc/sql/alertas_sac_productos_no_pickeados.sql", "r") as query_file:
+        query = query_file.read()
     
-    # Si el DataFrame está vacío, no enviamos nada a Slack
+    print("Base query:")
+    print(query)
+
+    results = query_to_df(query)
+
+    print(f"Number of records extracted: {len(results.index)}")
+
     if results.empty:
-        print("No data to send to Slack.")
+        client = WebClient(token=Variable.get("token_slack_bot"))
+        print("No data returned from query")
+        response = client.chat_postMessage(
+                    channel="#alertas-foundrate",
+                    text=f"<!channel> :uia: No hay productos sustituidos en los últimos {interval} :uia:")
+        print(response)
         return
+    print(f"Resultados crudos desde SQL: {results.head(20)}")
     
-    buffer = io.BytesIO()
-    writer = pd.ExcelWriter(buffer, engine='xlsxwriter')
-    results.to_excel(writer, header=True, index=False, sheet_name='Sheet1')
-    writer.close()
-    buffer.seek(0)
-    token = Variable.get("token_slack_bot")
-    client = WebClient(token=token)
+    results=pd.DataFrame(results)
+    results.columns = ["fecha_picking", "descripcion", "unidades_no_pickeadas", "pedidos_afectados"]
+    print(results.head())
 
-    try:
-        client.files_upload(
-            channels=Variable.get("token_slack_channel_pruebas"),
-            initial_comment="Productos con mayor cantidad de sustituciones",
-            filename="top_productos.xlsx",
-            content=buffer.getvalue()
-        )
-    except SlackApiError as e:
-        print(f"Error sending message: {e}")
+    results["unidades_no_pickeadas"] = results["unidades_no_pickeadas"].astype(float).round(2)
+
+    df = pd.DataFrame(results, columns=["fecha_picking", "descripcion", "unidades_no_pickeadas", "pedidos_afectados"])
+
+    # Crear archivo Excel en memoria
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Sheet1")
+    buffer.seek(0)
+
+    file_name = "top_productos.xlsx"
+    file_size = buffer.getbuffer().nbytes
+    token = Variable.get("token_slack_bot")
+    channel_id = Variable.get("token_slack_channel_sac")
+    upload_url_response = requests.post(
+        "https://slack.com/api/files.getUploadURLExternal",
+        data={
+            "filename": file_name,
+            "length": str(file_size),
+            "token": token
+        }
+    ).json()
+
+    upload_url = upload_url_response.get("upload_url")
+    file_id = upload_url_response.get("file_id")
+
+    if not upload_url:
+        print("Error al obtener la URL de subida:", upload_url_response)
+        return
+
+    # Stage 2: Subir archivo usando buffer
+    upload_response = requests.post(
+        upload_url,
+        data=buffer,
+        headers={"Content-Type": "application/octet-stream"}
+    )
+
+    if upload_response.status_code != 200:
+        print("Error al subir archivo:", upload_response.text)
+        return
+
+    # Stage 3: Completar la subida
+    complete_payload = {
+        "files": [{"id": file_id}],
+        "channel_id": channel_id,
+        "initial_comment": f"<!channel> ⚠️ 🚨 ⚠️ Aquí está el top de productos sustituidos en los últimos {interval} ⚠️ 🚨 ⚠️"
+    }
+
+    complete_response = requests.post(
+        "https://slack.com/api/files.completeUploadExternal",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json;charset=utf-8"
+        },
+        data=json.dumps(complete_payload)
+    ).json()
+
+    if not complete_response.get("ok"):
+        print("Error al completar la subida:", complete_response)
+        return
+
+    #Stage 4: Compartir públicamente (opcional)
+    share_payload = {
+        "channel": channel_id,
+        "file": file_id,
+        "initial_comment": "Archivo compartido 📢"
+    }
+
+    share_response = requests.post(
+        "https://slack.com/api/files.sharedPublicURL",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json;charset=utf-8"
+        },
+        data=json.dumps(share_payload)
+    ).json()
+
+    if not share_response.get("ok"):
+        print("Error al compartir públicamente:", share_response)
+        return
+    else:
+        print("✅ Archivo enviado y compartido correctamente.")
+
+    return
 
 default_args = {
     "owner": "ecommerce_data",
@@ -83,7 +155,7 @@ with DAG(
     'etl_alertas_sac',
     default_args=default_args,
     description="Generación de alertas para SAC",
-    schedule_interval="*/15 * * * *",
+    schedule_interval="0,30 * * * *",
     start_date=pendulum.datetime(2025, 3, 30, tz="America/Santiago"),
     catchup=False,
     tags=["Alertas", "SAC", "Found Rate", "Coyhaique", "FRANCISCO"]
@@ -93,14 +165,10 @@ with DAG(
     Alertas para SAC
     """ 
 
+    # Single task to handle both fetching and sending data
     t0 = PythonOperator(
-        task_id="get_products_from_postgres",
-        python_callable=get_top_productos,
-    )
-    
-    t1 = PythonOperator(
-        task_id="send_to_slack",
-        python_callable=send_to_slack,
+        task_id="get_and_send_top_productos",
+        python_callable=get_and_send_top_productos,
     )
 
-    t0 >> t1
+t0
