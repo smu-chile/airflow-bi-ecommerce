@@ -89,6 +89,21 @@ def _load_json_to_s3(ts, ds):
             readyForHandlingDate = linea['readyForHandlingDate']
             deliveryDates = linea['deliveryDates']
 
+            order_url = f'{url}/{orderId}'
+            order_response = requests.request("GET", order_url, headers=headers)
+            print("------------")
+            print(order_url)
+            print("------------")
+            print(order_response.text)
+            order_res = json.loads(order_response.text)
+
+            try:
+                utm_source = order_res['marketingData']['utmSource']
+                utm_medium = order_res['marketingData']['utmMedium']
+            except:
+                utm_source = None
+                utm_medium = None
+
             lista_lineas.append([orderId,
                                  creationDate,
                                  clientName,
@@ -118,7 +133,9 @@ def _load_json_to_s3(ts, ds):
                                  orderFormId,
                                  paymentApprovedDate,
                                  readyForHandlingDate,
-                                 deliveryDates])
+                                 deliveryDates,
+                                 utm_source,
+                                 utm_medium])
         page += 1
         print("p_total "+str(res['paging']['pages']))
         print('checking '+str(page)+'>'+str(res['paging']['pages']))
@@ -153,7 +170,9 @@ def _load_json_to_s3(ts, ds):
                                  'orderFormId',
                                  'paymentApprovedDate',
                                  'readyForHandlingDate',
-                                 'deliveryDates'])
+                                 'deliveryDates',
+                                 'utm_source',
+                                 'utm_medium'])
     
     df = df.astype({
         'orderId': 'string',
@@ -185,7 +204,9 @@ def _load_json_to_s3(ts, ds):
         'orderFormId': 'string',
         'paymentApprovedDate': 'string',
         'readyForHandlingDate': 'string',
-        'deliveryDates': 'string'
+        'deliveryDates': 'string',
+        'utm_source': 'string',
+        'utm_medium': 'string'
     }, errors="ignore")
     
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
@@ -256,7 +277,9 @@ def _get_table_oi_from_S3(ti):
         'orderFormId': 'string',
         'paymentApprovedDate': 'string',
         'readyForHandlingDate': 'string',
-        'deliveryDates': 'string'
+        'deliveryDates': 'string',
+        'utm_source': 'string',
+        'utm_medium': 'string'
     }, errors="ignore")
 
     return df
@@ -295,7 +318,9 @@ def _save_table_oi(ts, ti, ds):
             'orderFormId',
             'paymentApprovedDate',
             'readyForHandlingDate',
-            'deliveryDates']]
+            'deliveryDates',
+            'utm_source',
+            'utm_medium']]
 
     columns_rename = {
             'orderId':'id_orden',
@@ -327,7 +352,9 @@ def _save_table_oi(ts, ti, ds):
             'orderFormId':'id_forma_orden',
             'paymentApprovedDate':'fecha_aprobacion_pago',
             'readyForHandlingDate':'fecha_ready_for_handling',
-            'deliveryDates':'fechas_entrega'
+            'deliveryDates':'fechas_entrega',
+            'utm_source':'utm_source',
+            'utm_medium':'utm_medium'
     }
     df = df.rename(columns=columns_rename)
     host = Variable.get("POSTGRESQL_HOST")

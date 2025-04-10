@@ -199,6 +199,15 @@ def _incremental_load_orders_table(ti):
     
     df = df.drop(columns=["order_id", "value"])
 
+    df_cdf_gct = df_cdf[df_cdf["field"] == "giftcardType"]
+    df_cdf_gct = df_cdf_gct[["order_id", "value"]]
+
+    df = df.merge(df_cdf_gct, left_on="janis_id", right_on="order_id", how="left")
+    df["value"] = df["value"].fillna('NA')
+    df["tipo_giftcard"] = df["value"]
+    
+    df = df.drop(columns=["order_id", "value"])
+
     marketing_data_fields_file = ti.xcom_pull(key="return_value", task_ids=["order_marketing_data_field_incremental_load"])[0]
 
     print("Searching file: "+marketing_data_fields_file)
@@ -209,10 +218,11 @@ def _incremental_load_orders_table(ti):
     df_mdf = pd.read_csv(marketing_data_fields_object.get()["Body"])
 
     # Filter marketing_data_fields_dataframe
-    df_mdf = df_mdf[["order_id", "utm_source"]]
+    df_mdf = df_mdf[["order_id", "utm_source", "utm_medium"]]
 
     df = df.merge(df_mdf, left_on="janis_id", right_on="order_id", how="left")
     df["utm_source"] = df["utm_source"].fillna("NULL")
+    df["utm_medium"] = df["utm_medium"].fillna("NULL")
     
     df = df.drop(columns=["order_id"])
 
@@ -263,7 +273,9 @@ def _incremental_load_orders_table(ti):
         "janis_cart_id",
         "utm_source",
         "nivel_cliente",
-        "requiere_bolsas"
+        "requiere_bolsas",
+        "tipo_giftcard",
+        "utm_medium"
     ]
 
     df = df[["id"]+columns]
@@ -433,7 +445,7 @@ def _order_items_table_incremental_load(ti):
 
     df = df.merge(df_orders, how="inner", left_on="order_id", right_on="original_id").drop(columns=["order_id", "original_id"])
 
-    # # Ensure correct datatypes:
+    # # Ensure Correct datatypes:
     df["item_index"] = df["item_index"].astype("int", errors="ignore")
     df["substitute_of"] = df["substitute_of"].astype("int", errors="ignore")
     df["picker"] = df["picker"].astype("int", errors="ignore")
@@ -797,6 +809,15 @@ def _incremental_load_orders_38_table(ti):
     
     df = df.drop(columns=["order_id", "value"])
 
+    df_cdf_gct = df_cdf[df_cdf["field"] == "giftcardType"]
+    df_cdf_gct = df_cdf_gct[["order_id", "value"]]
+
+    df = df.merge(df_cdf_gct, left_on="janis_id", right_on="order_id", how="left")
+    df["value"] = df["value"].fillna('NA')
+    df["tipo_giftcard"] = df["value"]
+    
+    df = df.drop(columns=["order_id", "value"])
+
     marketing_data_fields_file = ti.xcom_pull(key="return_value", task_ids=["order_marketing_data_field_incremental_load"])[0]
 
     print("Searching file: "+marketing_data_fields_file)
@@ -861,7 +882,8 @@ def _incremental_load_orders_38_table(ti):
         "janis_cart_id",
         "utm_source",
         "nivel_cliente",
-        "requiere_bolsas"
+        "requiere_bolsas",
+        "tipo_giftcard"
     ]
 
     df = df[["id"]+columns]

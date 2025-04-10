@@ -51,6 +51,8 @@ def stock(ds):
     results=pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","dia","semana"]
     results.info()
+    results = results[["ref_id","id_tienda"]]
+    results.info()
     cursor.close()
     pg_connection.close()
     return results
@@ -82,7 +84,7 @@ def venta_tienda(ds):
                     from ecommdata.venta_sku_tienda as v
                     left join ecommdata.tiendas as t
                     on LPAD(v.id_tienda , 4, '0') = t.id
-                    where v.fecha >= '{ds}'::date -70
+                    where v.fecha >= '{ds}'::date - 15
                     and v.organizacion = 'Unimarc'
                     and v.id_tienda <>'1917'
                     """
@@ -113,7 +115,7 @@ def minimos_exhibicion():
                 and l.id_tienda  is not null
                 and l.umv  is not null
                 and t.id is not null
-                and meio.minimo_exhibicion > 2"""
+                and meio.minimo_exhibicion > 1"""
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -160,20 +162,21 @@ def stock_ventas_tiendas_to_s3_am(ds):
     dia = (dia + 1) % 7
 
     #filtramos columnas necesarias de dataframe de ventas
-    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
+    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
 
-    #sumamos venta umv a nivel tienda, sku, dia, semana
-    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
+    #sumamos venta umv a nivel tienda, sku, dia
+    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia"], as_index=False).sum()
 
-    #promediamos venta a nivel tienda,sku, dia
-    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+    #promediamos venta a nivel tienda,sku
+    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
 
-    #filtramos columnas necesarias de venta con la venta promedio de dia de la semana
-    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    #filtramos columnas necesarias de venta con la venta promedio
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
+    df_aux2["dia"] = dia
     df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
 
     #hacemos merge de stock con venta promedio a nivel tienda, sku, dia
-    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
+    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id"])
 
     #rellenamos los registros con dia y venta 0 para los que no hubo venta en el merge
     df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
@@ -184,9 +187,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
     print(df_stock_seguridad["cantidad"])
 
     #Condicion para que si la venta fue menor a dos setear stock seguridad igual a 2
-    condlist = [df_stock_seguridad["cantidad"]>=2,
-                df_stock_seguridad["cantidad"]<2]
-    choicelist = [df_stock_seguridad["cantidad"], 2]
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
@@ -194,7 +197,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #filtrar columnas necesarias del nuevo dataFrame      
     df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
 
-    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
@@ -205,7 +208,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
-    df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
+    #df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
     df_stock_seguridad_aux.info()
 
     df_final = df_stock_seguridad_aux
@@ -220,7 +223,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
 
@@ -258,9 +261,9 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #cargar datos#
     ##############
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=2,
-                df_final["nuevo_stock_seguridad"]<2]
-    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
@@ -322,31 +325,33 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     dia = dia.weekday()
     dia = (dia + 1) % 7
 
-    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
+    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
 
-    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
-    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
-    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia"], as_index=False).sum()
+    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
+    df_aux2["dia"] = dia
     print("\nventa promedio:\n")
     df_aux2.info()
 
     df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
 
     df_aux2.info()
-    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
+    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id"])
     df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
     df_stock_seguridad.info()
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
 
-    condlist = [df_stock_seguridad["cantidad"]>=2,
-                df_stock_seguridad["cantidad"]<2]
-    choicelist = [df_stock_seguridad["cantidad"], 2]
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
     df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
-    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] = round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
@@ -358,14 +363,15 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print(f"\ndia: {dia}\n")
     df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
-    df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
+    #df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
     df_stock_seguridad_aux.info()
 
     df_final = df_stock_seguridad_aux
     df_final.reset_index()
     df_final.info()
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
     #Agregar logica minimos exhibicion
@@ -374,7 +380,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
     print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
@@ -406,6 +412,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print("\n")
     print(df_final)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final["peso"] = df_final["peso"].fillna(1) ##
     print("QA_test")
     print(df_final)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
@@ -418,9 +425,9 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #cargar datos#
     ##############
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=2,
-                df_final["nuevo_stock_seguridad"]<2]
-    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
@@ -521,6 +528,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     print(response.text)
 
     return
+
 
 def carga_stock_seguridad_janis_am(ds,ti):
     import requests
@@ -642,6 +650,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
     print("Data saved to PostgreSQL.")
 
     return
+
 
 def stock_ventas_tiendas_to_postgresql_pm(ti):
     import numpy as np

@@ -81,6 +81,8 @@ def _promotions_table_incremental_load(ti, ts):
         "REGISTRO_VALIDO": "str",
         "CATEGORIA": "str",
         "DESC_CATEGORIA": "str",
+        "DTO_TUC": "str",
+        "PRECIO_TUC": "str"
     }
     df = pd.read_csv(dw_promotion_object.get()["Body"], dtype=columns_types)
     df = df[["ID_WORKFLOW", "N_PROMOCION", "NOMBRE_PROMOCION", "ID_EVENTO", "DESCRIPCION_EVENTO_PROMOCIONAL", "ID_MECANICA",
@@ -92,7 +94,7 @@ def _promotions_table_incremental_load(ti, ts):
 		    "TIPO_FINANCIAMIENTO", "IMPORTE_NEGOCIADO", "PORCENTAJE_FINANCIAMIENTO", "COSTO_NETO_UMP",
 		    "PORCENTAJE_COSTO_PROMOCIONAL", "DESDE_SELL_IN", "HASTA_SELL_IN", "FECHA_INICIO_DE_PROMOCION",
 		    "FECHA_FIN_DE_PROMOCION", "PORCENTAJE_DE_DESCUENTO", "PROMOEVENTMECHANISM", "DESCUENTOFINAL",
-		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT", "FACTOR", "CATEGORIA", "DESC_CATEGORIA"]]
+		    "FECHA_MODIFICACION", "REGISTRO_VALIDO", "NOMBRE_DEL_PROVEEDOR_SELL_OUT", "PROVEEDOR_SELL_OUT", "FACTOR", "CATEGORIA", "DESC_CATEGORIA", "DTO_TUC", "PRECIO_TUC"]]
     df["ID_MECANICA"] = df["ID_MECANICA"].astype("int", errors="ignore")
     df["FACTOR"] = df["FACTOR"].astype("int", errors="ignore")
     
@@ -176,6 +178,8 @@ def _promotions_table_incremental_load(ti, ts):
         "FACTOR": "factor",
         "CATEGORIA": "categoria",
 		"DESC_CATEGORIA": "descripcion_categoria",
+        "DTO_TUC": "dto_tuc",
+        "PRECIO_TUC": "precio_tuc"
     }
 
     df = df.rename(columns=columns_rename)
@@ -219,7 +223,7 @@ with DAG(
     'workflow_promotions_table_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental workflow_promotion data.",
-    schedule_interval="30 8,15 * * *",
+    schedule_interval="30 8,13,16,18 * * *",
     start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -236,7 +240,7 @@ with DAG(
         task_id = "netezza_vw_workflow_incremental_load", 
         python_callable = netezza_full_table_load_to_s3,
         op_kwargs = {
-            "table_name": "NZ_BU.ECOMERCE.VW_WORKFLOW",
+            "table_name": "DWC_SMU.SMU.VW_FACT_WORKFLOW",
             "where": """ ORGANIZACION_VENTAS = '1000'
                         AND REGISTRO_VALIDO = 'X'
                         AND CANAL_DISTRIBUCION in ('10','70')

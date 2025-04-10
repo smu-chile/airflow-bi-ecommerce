@@ -4,10 +4,22 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.janis_utils import incremental_load_table_s3
+from utils.janis_utils import incremental_load_table_s3, load_custom_query_to_s3
 from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
+
+def _measurement_unit_full_load(ti, ts):
+
+    janis_query = f"""
+        SELECT *
+        FROM janis_jackie.measurement_units
+    """
+    print(janis_query)
+
+    file_name = load_custom_query_to_s3(ts, query=janis_query, query_name="measurement_units")
+
+    return file_name
 
 def _incremental_load_skus_table(ti):
     import numpy as np
@@ -31,6 +43,34 @@ def _incremental_load_skus_table(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
 
+    measurement_unit_file = ti.xcom_pull(key="return_value", task_ids=["measurement_unit_full_load"])[0]
+    print("Searching file: "+measurement_unit_file)
+    if not s3_hook.check_for_key(measurement_unit_file, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % measurement_unit_file)
+    
+    measurement_unit_object = s3_hook.get_key(measurement_unit_file, bucket_name=s3_bucket)
+    df_mu = pd.read_csv(measurement_unit_object.get()["Body"])
+
+    df_mu = df_mu[["id","ref_unit"]]
+    
+    df_mu_columns_rename = {
+        "id": "measurement_unit",
+        "ref_unit": "unidad_de_venta"
+    }
+    df_mu = df_mu.rename(columns=df_mu_columns_rename)
+    
+    df = df.merge(df_mu, on="measurement_unit", how="left")
+
+    df_mu_columns_rename = {
+        "measurement_unit": "measurement_unit_un",
+        "unidad_de_venta": "unidad_de_medida_ppum"
+    }
+
+    df_mu = df_mu.rename(columns=df_mu_columns_rename)
+
+    df = df.merge(df_mu, on="measurement_unit_un", how="left")
+
+
     # Select only relevant columns:
     df = df[[
         "id",
@@ -44,7 +84,9 @@ def _incremental_load_skus_table(ti):
         "unit_multiplier", 
         "pack_units", 
         "date_created",
-        "date_modified"
+        "date_modified",
+        "unidad_de_venta",
+        "unidad_de_medida_ppum"
             ]]
 
     # Fix date types and timezone:
@@ -64,7 +106,9 @@ def _incremental_load_skus_table(ti):
         "unit_multiplier": "multiplicador_unidad_medida",
         "pack_units": "unidades_pack",
         "date_created": "fecha_creacion",
-        "date_modified": "fecha_modificacion"
+        "date_modified": "fecha_modificacion",
+        "unidad_de_venta": "unidad_de_venta",
+        "unidad_de_medida_ppum": "unidad_de_medida_ppum"
     }
     df = df.rename(columns=columns_rename)
     df["erp_id"] = df["erp_id"].astype("string").str.replace(".0", "", regex=False).str.zfill(18)
@@ -80,7 +124,9 @@ def _incremental_load_skus_table(ti):
         "multiplicador_unidad_medida",
         "unidades_pack",
         "fecha_creacion",
-        "fecha_modificacion"
+        "fecha_modificacion",
+        "unidad_de_venta",
+        "unidad_de_medida_ppum"
     ]
 
     columns_query = ",".join(columns)
@@ -151,6 +197,11 @@ with DAG(
         }
     )
 
+    t0a = PythonOperator(
+        task_id = "measurement_unit_full_load",
+        python_callable = _measurement_unit_full_load
+    )
+
     t1 = PythonOperator(
         task_id = "incremental_load_table_to_s3",
         python_callable = incremental_load_table_s3,
@@ -167,4 +218,4 @@ with DAG(
         python_callable = _incremental_load_skus_table
     )
 
-    t0 >> t1 >> t2
+    t0 >> t0a >> t1 >> t2

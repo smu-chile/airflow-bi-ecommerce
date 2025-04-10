@@ -59,6 +59,7 @@ def _full_load_bodegas_table(ti):
     connection.close()
 
     # Save to PostgreSQL:
+    df = df.drop_duplicates(subset=["id"])
     df.to_sql(name="bodegas",
                 con=engine,         
                 schema="ecommdata",         
