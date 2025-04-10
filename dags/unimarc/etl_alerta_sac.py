@@ -49,7 +49,7 @@ def get_and_send_top_productos():
         print("No data returned from query")
         response = client.chat_postMessage(
                     channel="#alertas-foundrate",
-                    text=f"<!channel> :uia No hay productos sustituidos en los últimos {interval} :uia:")
+                    text=f"<!channel> :uia: No hay productos sustituidos en los últimos {interval} :uia:")
         print(response)
         return
     print(f"Resultados crudos desde SQL: {results.head(20)}")
