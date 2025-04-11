@@ -3,6 +3,7 @@ from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
+from airflow.sensors.external_task import ExternalTaskSensor
 
 import pendulum
 
@@ -165,10 +166,17 @@ with DAG(
     Alertas para SAC
     """ 
 
-    # Single task to handle both fetching and sending data
-    t0 = PythonOperator(
+    t0 = ExternalTaskSensor(
+        task_id="wait_for_found_rate_productos_unimarc",
+        external_dag_id='etl_found_rate_productos_unimarc',
+        external_task_id=None,
+        allowed_states=['success'],
+        failed_states=['failed']
+    )
+
+    t1 = PythonOperator(
         task_id="get_and_send_top_productos",
         python_callable=get_and_send_top_productos,
     )
 
-t0
+    t0 >> t1
