@@ -87,13 +87,19 @@ def marcar_colaboradores():
             "points_card": "11111111111111111"
         }
 
-        response = requests.post(url, json=[usuario], headers=HEADERS)
+        try:
+            response = requests.post(url, json=[usuario], headers=HEADERS)
+            status_code = response.status_code
+            response_text = response.text
+        except Exception as e:
+            status_code = 500
+            response_text = str(e)
 
         resultados.append({
             "dni": usuario["dni"],
             "email": usuario["email"],
-            "status_code": response.status_code,
-            "response": response.text,
+            "status_code": status_code,
+            "response": response_text,
             "timestamp": datetime.now()
         })
 
@@ -110,38 +116,65 @@ def marcar_colaboradores():
             "points_card": "11111111111111111"
         }
 
-        response = requests.post(url, json=[usuario], headers=HEADERS)
+        try:
+            response = requests.post(url, json=[usuario], headers=HEADERS)
+            status_code = response.status_code
+            response_text = response.text
+        except Exception as e:
+            status_code = 500
+            response_text = str(e)
 
         resultados.append({
             "dni": usuario["dni"],
             "email": usuario["email"],
-            "status_code": response.status_code,
-            "response": response.text,
+            "status_code": status_code,
+            "response": response_text,
             "timestamp": datetime.now()
         })
 
         print(f"🔴 Desactivado Associate: {usuario['email']} → {response.status_code}")
 
-    # 💾 Actualizar tabla viva (solo activos)
-        # 💾 Actualizar tabla viva SOLO con activaciones exitosas que estaban en df_actuales
+    # 💾 Actualizar tabla viva SOLO con activaciones exitosas
     df_resultados = pd.DataFrame(resultados)
-    activaciones_exitosas = df_resultados[
-        (df_resultados["status_code"] == 200)
-    ]["dni"].astype(str)
 
-    df_actuales_filtrados = df_actuales[
-        df_actuales["rut"].astype(str).isin(activaciones_exitosas)
-    ]
+    # ✅ Filtrar activaciones exitosas
+    activaciones_exitosas = df_resultados[df_resultados["status_code"] == 200]["dni"].astype(str)
 
+    # ✅ Usuarios nuevos activados exitosamente
+    df_nuevos_activados = df_actuales[df_actuales["rut"].astype(str).isin(activaciones_exitosas)]
+
+    # ✅ Usuarios que ya estaban antes y siguen activos hoy
+    ruts_nuevos = set(activaciones_exitosas)
+    ruts_actuales = set(df_actuales["rut"].astype(str))
+    ruts_anteriores = set(df_anteriores["dni"].astype(str))
+
+    ruts_ya_estaban = ruts_actuales & ruts_anteriores - ruts_nuevos
+
+    df_ya_estaban = df_actuales[df_actuales["rut"].astype(str).isin(ruts_ya_estaban)]
+
+    # ✅ Unión final: todos los activos válidos
+    df_total_activos = pd.concat([df_nuevos_activados, df_ya_estaban])
+
+    # 🔄 Eliminar solo usuarios que ya no están activos
     with conn.cursor() as cursor:
-        cursor.execute("TRUNCATE ecommdata.auditoria_diamante;")
+        if not df_total_activos.empty:
+            cursor.execute("""
+                DELETE FROM ecommdata.auditoria_diamante
+                WHERE dni NOT IN %s;
+            """, (tuple(df_total_activos['rut'].astype(str)),))
 
-        for _, row in df_actuales_filtrados.iterrows():
+        # 🔁 Insertar o actualizar usuarios activos válidos
+        for _, row in df_total_activos.iterrows():
             cursor.execute("""
                 INSERT INTO ecommdata.auditoria_diamante (
                     dni, email, user_profile_id, id_cliente_janis, modificado_en
                 )
-                VALUES (%s, %s, %s, %s, %s);
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (dni) DO UPDATE SET
+                    email = EXCLUDED.email,
+                    user_profile_id = EXCLUDED.user_profile_id,
+                    id_cliente_janis = EXCLUDED.id_cliente_janis,
+                    modificado_en = EXCLUDED.modificado_en;
             """, (
                 str(row["rut"]),
                 row["email"],
@@ -153,6 +186,9 @@ def marcar_colaboradores():
     conn.commit()
     conn.close()
 
+    print(f"🔍 Usuarios activados: {len(nuevos)}")
+    print(f"🔍 Usuarios desactivados: {len(salientes)}")
+
 
 
 # DAG
@@ -163,7 +199,7 @@ default_args = {
 }
 
 dag = DAG(
-    'etl_colaborador_janis',
+    'etl_auditoria_diamante',
     default_args=default_args,
     description='DAG de marcación de colaboradores en Janis para auditorías',
     schedule_interval="30 7 * * *",  # todos los días a las 7:30 AM
