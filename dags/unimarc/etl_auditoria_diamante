@@ -43,7 +43,8 @@ def marcar_colaboradores():
     WHERE c.fecha = current_date
       AND mpupi.estado IN ('confirmada', 'renovada')
       AND pu.id_cliente_janis IS NOT NULL
-      AND du.email IS NOT NULL;
+      AND du.email IS NOT NULL
+      limit 10;
     """
     df_actuales = pd.read_sql(query_actuales, conn)
 
