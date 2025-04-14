@@ -190,8 +190,6 @@ def marcar_colaboradores():
     print(f"🔍 Usuarios activados: {len(nuevos)}")
     print(f"🔍 Usuarios desactivados: {len(salientes)}")
 
-
-
 # DAG
 default_args = {
     'owner': 'ecommerce_data',
@@ -199,7 +197,7 @@ default_args = {
     'retries': 0,
 }
 
-dag = DAG(
+with DAG(
     'etl_auditoria_diamante',
     default_args=default_args,
     description='DAG de marcación de colaboradores en Janis para auditorías',
@@ -207,12 +205,13 @@ dag = DAG(
     start_date=pendulum.datetime(2025, 4, 10, tz="America/Santiago"),
     catchup=False,
     tags=["associate", "JANIS", "Clientes", "KEVIN", "Unimarc"],
-)
-
-t0 = PythonOperator(
-    task_id='marcar_colaboradores_api',
-    python_callable=marcar_colaboradores,
-    dag=dag
-)
+) as dag:
+    dag.doc_md = """
+    Gestion de campo associate de clientes en Janis para auditorias.\n
+    """ 
+    t0 = PythonOperator(
+        task_id='marcar_colaboradores_api',
+        python_callable=marcar_colaboradores,
+    )
 
 t0
