@@ -43,8 +43,7 @@ def marcar_colaboradores():
     WHERE c.fecha = current_date
       AND mpupi.estado IN ('confirmada', 'renovada')
       AND pu.id_cliente_janis IS NOT NULL
-      AND du.email IS NOT NULL
-      limit 10;
+      AND du.email IS NOT NULL;
     """
     df_actuales = pd.read_sql(query_actuales, conn)
 
@@ -85,7 +84,7 @@ def marcar_colaboradores():
             "email": row["email"],
             "active": True,
             "associate": True,
-            "points_card": "11111111111111111"
+            "points_card": "1111111111111111"
         }
 
         try:
@@ -104,7 +103,11 @@ def marcar_colaboradores():
             "timestamp": datetime.now()
         })
 
-        print(f"🟢 Activado Associate: {usuario['email']} → {response.status_code}")
+        if status_code == 200:
+            print(f"🟢 Activado Associate: {usuario['email']} → {status_code}")
+        else:
+            print(f"❌ Error activando Associate: {usuario['email']} → {status_code} | Respuesta: {response_text}")
+
 
     # ⛔ Desactivar usuarios que salieron
     for _, row in df_anteriores[df_anteriores['dni'].astype(str).isin(salientes)].iterrows():
@@ -114,9 +117,8 @@ def marcar_colaboradores():
             "email": row["email"],
             "active": True,
             "associate": False,
-            "points_card": "11111111111111111"
+            "points_card": "1111111111111111"
         }
-
         try:
             response = requests.post(url, json=[usuario], headers=HEADERS)
             status_code = response.status_code
@@ -133,7 +135,11 @@ def marcar_colaboradores():
             "timestamp": datetime.now()
         })
 
-        print(f"🔴 Desactivado Associate: {usuario['email']} → {response.status_code}")
+        if status_code == 200:
+            print(f"🔴 Desactivado Associate: {usuario['email']} → {status_code}")
+        else:
+            print(f"❌ Error desactivando Associate: {usuario['email']} → {status_code} | Respuesta: {response_text}")
+
 
     # 💾 Actualizar tabla viva SOLO con activaciones exitosas
     df_resultados = pd.DataFrame(resultados)
@@ -190,8 +196,6 @@ def marcar_colaboradores():
     print(f"🔍 Usuarios activados: {len(nuevos)}")
     print(f"🔍 Usuarios desactivados: {len(salientes)}")
 
-
-
 # DAG
 default_args = {
     'owner': 'ecommerce_data',
@@ -199,7 +203,7 @@ default_args = {
     'retries': 0,
 }
 
-dag = DAG(
+with DAG(
     'etl_auditoria_diamante',
     default_args=default_args,
     description='DAG de marcación de colaboradores en Janis para auditorías',
@@ -207,12 +211,13 @@ dag = DAG(
     start_date=pendulum.datetime(2025, 4, 10, tz="America/Santiago"),
     catchup=False,
     tags=["associate", "JANIS", "Clientes", "KEVIN", "Unimarc"],
-)
-
-t0 = PythonOperator(
-    task_id='marcar_colaboradores_api',
-    python_callable=marcar_colaboradores,
-    dag=dag
-)
+) as dag:
+    dag.doc_md = """
+    Gestion de campo associate de clientes en Janis para auditorias.\n
+    """ 
+    t0 = PythonOperator(
+        task_id='marcar_colaboradores_api',
+        python_callable=marcar_colaboradores,
+    )
 
 t0
