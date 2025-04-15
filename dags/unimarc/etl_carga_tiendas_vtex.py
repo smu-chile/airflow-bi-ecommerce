@@ -81,8 +81,8 @@ def carga_tiendas_to_s3(ds):
                 UNNEST(STRING_TO_ARRAY(cp.stores, ',')) AS stores
                 FROM ecommdata.carga_productos cp	
             )
-            SELECT tt.ref_id, 
-            p.vtex_id FROM tablatemporal tt 
+            SELECT tt.ref_id AS ref_id, 
+            p.vtex_id AS vtex_id FROM tablatemporal tt 
             LEFT JOIN ecommdata.productos p ON p.ref_id = tt.ref_id"""
     
     df = query_to_df(query_tiendas_producto)
