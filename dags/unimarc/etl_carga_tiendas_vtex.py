@@ -90,8 +90,8 @@ def carga_tiendas_to_s3(ds):
     lista_ref_ids = df['vtex_id'].unique()
     print(f"cantidad de skus unicos: {len(lista_ref_ids)}")
 
-    account_name = Variable.get("VTEX_ACCOUNT_NAME_QA") #Cambiar a PROD luego 
-    env = Variable.get("VTEX_ENV_QA") #Cambiar a PROD luego
+    account_name = Variable.get("VTEX_ACCOUNT_NAME")  
+    env = Variable.get("VTEX_ENV") 
     
     url_list = []
     for sku in lista_ref_ids:
@@ -250,8 +250,8 @@ def carga_tiendas_vtex_to_postgresql(ti):
 #    
 #    print(f"Number of records extracted: {len(df.index)}")
 #
-#    account_name = Variable.get("VTEX_ACCOUNT_NAME") 
-#    env = Variable.get("VTEX_ENV")
+#    account_name = Variable.get("VTEX_ACCOUNT_NAME_QA") #Cambiar a PROD luego 
+#    env = Variable.get("VTEX_ENV_QA") #Cambiar a PROD luego 
 #
 #    df.columns = ["vtex_id","canal_venta_vtex"]
 #    df.info()
@@ -275,7 +275,7 @@ def carga_tiendas_vtex_to_postgresql(ti):
 #    exception_cases = []
 #   
 #    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey_QA") #Cambiar a PROD luego 
-#    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken_QA")
+#    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken_QA") #Cambiar a PROD luego 
 #    
 #    for thr in range(thread_num):
 #        new_task = Thread(target=bulk_post, args=[post_urls[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
