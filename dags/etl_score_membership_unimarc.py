@@ -163,10 +163,13 @@ def _get_vtex_product_ids_today(ds, ti):
     if not ref_ids:
         print("No ref_ids found. Exiting...")
         return []
+    
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
 
     headers = {
-        "x-vtex-api-appKey": "vtexappkey-unimarc-GONMKR",
-        "x-vtex-api-appToken": "ONPUAZHRCQQFPDOYCVTRTNYTNQGAXLUIQEHEEBGZJZGQINAWAIFXIXUBOVHKSHUQWIPLVJTAOUITHHKZPKZOGWZSJGPJUWGBFPUAYPAQPFJOPAUGLHUIHFKZIWBPTKFS"
+        "x-vtex-api-appKey": X_VTEX_API_AppKey,
+        "X-vtex-api-appToken": X_VTEX_API_AppToken 
     }
 
     base_url = "https://unimarc.vtexcommercestable.com.br/api/catalog_system/pvt/products/productgetbyrefid/"
@@ -205,10 +208,14 @@ def _get_vtex_product_ids_yesterday(ds, ti):
         print("No ref_ids found. Exiting...")
         return []
 
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
     headers = {
-        "x-vtex-api-appKey": "vtexappkey-unimarc-GONMKR",
-        "x-vtex-api-appToken": "ONPUAZHRCQQFPDOYCVTRTNYTNQGAXLUIQEHEEBGZJZGQINAWAIFXIXUBOVHKSHUQWIPLVJTAOUITHHKZPKZOGWZSJGPJUWGBFPUAYPAQPFJOPAUGLHUIHFKZIWBPTKFS"
+        "x-vtex-api-appKey": X_VTEX_API_AppKey,
+        "X-vtex-api-appToken": X_VTEX_API_AppToken 
     }
+
 
     base_url = "https://unimarc.vtexcommercestable.com.br/api/catalog_system/pvt/products/productgetbyrefid/"
     product_ids = []
@@ -250,9 +257,13 @@ def _update_score_for_products_yesterday(ds, ti):
     # Parámetros base
     account_name = "unimarc"
     environment = "vtexcommercestable"
+
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
     headers = {
-        "x-vtex-api-appKey": "vtexappkey-unimarc-GONMKR",
-        "x-vtex-api-appToken": "ONPUAZHRCQQFPDOYCVTRTNYTNQGAXLUIQEHEEBGZJZGQINAWAIFXIXUBOVHKSHUQWIPLVJTAOUITHHKZPKZOGWZSJGPJUWGBFPUAYPAQPFJOPAUGLHUIHFKZIWBPTKFS",
+        "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
+        "X-VTEX-API-AppToken": X_VTEX_API_AppToken,
         "Content-Type": "application/json"
     }
 
@@ -300,9 +311,13 @@ def _update_score_for_products_today(ds, ti):
     # Parámetros base
     account_name = "unimarc"
     environment = "vtexcommercestable"
+
+    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+
     headers = {
-        "x-vtex-api-appKey": "vtexappkey-unimarc-GONMKR",
-        "x-vtex-api-appToken": "ONPUAZHRCQQFPDOYCVTRTNYTNQGAXLUIQEHEEBGZJZGQINAWAIFXIXUBOVHKSHUQWIPLVJTAOUITHHKZPKZOGWZSJGPJUWGBFPUAYPAQPFJOPAUGLHUIHFKZIWBPTKFS",
+        "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
+        "X-VTEX-API-AppToken": X_VTEX_API_AppToken,
         "Content-Type": "application/json"
     }
 
