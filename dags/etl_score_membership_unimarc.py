@@ -329,3 +329,53 @@ def _update_score_for_products_today(ds, ti):
         time.sleep(0.3)  # Para evitar throttling
 
     return
+
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+
+# Definir el DAG
+
+with DAG(
+    'cargar_promociones_comparadas',
+    default_args=default_args,
+    description='Guarda promociones comparadas en S3 y las carga en la base de datos',
+    schedule_interval='0 9 * * *',
+    start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
+    catchup=False,
+    max_active_runs=1,
+    tags=["DATA", "postgres", "VTEX", "score_vtex", "S3", "NICOLAS"]
+) as dag:
+
+    dag.doc_md = """
+        Coloca el score necesario para los productos de membresia
+        """ 
+    # Definir las tareas
+
+    t0 = PythonOperator(
+            task_id='_join_stock_from_s3',
+            python_callable=_join_stock_from_s3
+        )
+    t1 = PythonOperator(
+            task_id='List_ref_id_yesterday',
+            python_callable=_get_ref_ids_from_s3_yesterday
+
+        )
+    t2 = PythonOperator(
+            task_id='put_score_0_yesterday',
+            python_callable=_update_score_for_products_yesterday
+        )
+    t3 = PythonOperator(
+            task_id='list_ref_id_today',
+            python_callable=_get_vtex_product_ids_today
+        )
+    t4 = PythonOperator(
+            task_id='put_score_1_today',
+            python_callable=_update_score_for_products_today
+        )
+    t0 >> t1 >> t2 >> t3 >> t4
