@@ -114,6 +114,8 @@ def marcar_colaboradores():
         usuario = {
             "documentType": "rutCHL",
             "dni": row["dni"],
+            "firstname": row["nombre"],
+            "lastname": row["apellido"],
             "email": row["email"],
             "active": True,
             "associate": False,

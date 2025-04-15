@@ -25,7 +25,10 @@ def query_to_df(query):
     return results
 
 def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
-    r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
+    r = session.get(url, headers = {
+        "X-VTEX-API-AppKey" : X_VTEX_API_AppKey, 
+        "X-VTEX-API-AppToken" : X_VTEX_API_AppToken
+        })
     try:
         responses.append({'json':r.json(), 'url':url})
     except Exception as e:
@@ -38,6 +41,25 @@ def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_
 def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
     for url in url_sublist:
         get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
+    return
+
+def post(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken): #apuntar a QA, luego pasar a PROD
+    r = session.post(url, headers={
+        "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
+        "X-VTEX-API-AppToken": X_VTEX_API_AppToken
+    })
+    try:
+        responses.append({'json': r.json(), 'url': url})
+    except Exception as e:
+        print(e)
+        print(url)
+        print(r)
+        print(r.status_code)
+        exception_cases.append(url)
+
+def bulk_post(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
+    for url in url_sublist:
+        post(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
     return
 
 def carga_tiendas_to_s3(ds):
@@ -54,18 +76,22 @@ def carga_tiendas_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    query_tiendas_producto = f"""select distinct concat(l.material,'-',l.umv) as ref_id, p.vtex_id
-            from ecommdata.lista8 l 
-            left join ecommdata.productos p on p.ref_id = concat(l.material,'-',l.umv)
-            where p.vtex_id is not null"""
+    query_tiendas_producto = f"""WITH tablatemporal AS (
+                SELECT cp."refId" as ref_id, 
+                UNNEST(STRING_TO_ARRAY(cp.stores, ',')) AS stores
+                FROM ecommdata.carga_productos cp	
+            )
+            SELECT tt.ref_id AS ref_id, 
+            p.vtex_id AS vtex_id FROM tablatemporal tt 
+            LEFT JOIN ecommdata.productos p ON p.ref_id = tt.ref_id"""
     
     df = query_to_df(query_tiendas_producto)
     
     lista_ref_ids = df['vtex_id'].unique()
     print(f"cantidad de skus unicos: {len(lista_ref_ids)}")
 
-    account_name = Variable.get("VTEX_ACCOUNT_NAME") 
-    env = Variable.get("VTEX_ENV")
+    account_name = Variable.get("VTEX_ACCOUNT_NAME_QA") #Cambiar a PROD luego 
+    env = Variable.get("VTEX_ENV_QA") #Cambiar a PROD luego
     
     url_list = []
     for sku in lista_ref_ids:
@@ -97,7 +123,7 @@ def carga_tiendas_to_s3(ds):
         thread_tasks.append(new_task)
     for task in thread_tasks:
         task.join()
-        thread_tasks = []
+    thread_tasks = []
     print(responses)
     
     final_responses = []
@@ -172,8 +198,8 @@ def carga_tiendas_vtex_to_postgresql(ti):
             and ref_id is not null"""
     df_productos = query_to_df(query_productos)
 
-    df_final = pd.merge(df, df_tiendas, how="left" ,on = ["canal_venta_vtex"])
-    df_final = pd.merge(df_final, df_productos,how="left" ,on = ["vtex_id"])
+    df_final = pd.merge(df, df_tiendas, how="left", on = ["canal_venta_vtex"])
+    df_final = pd.merge(df_final, df_productos,how="left", on = ["vtex_id"])
 
     df_final = df_final[["id_tienda","ref_id","vtex_id","canal_venta_vtex"]]
 
@@ -198,6 +224,76 @@ def carga_tiendas_vtex_to_postgresql(ti):
 
     return
 
+#def send_data_to_vtex(ti): 
+#    import numpy as np
+#    import pandas as pd
+#    import sqlalchemy
+#    from sqlalchemy import text
+#    import requests
+#    from threading import Thread
+#
+#    filename = ti.xcom_pull(key="return_value", task_ids=["carga_tiendas_to_s3"])[0]
+#
+#    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+#    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+#
+#    print("Searching file: "+filename)
+#    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+#        raise Exception("Key %s does not exist." % filename)
+#
+#    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+#
+#    df = pd.read_csv(s_stock_object.get()["Body"])
+#    if len(df.index) == 0:
+#        print("There are no new nor updated records to load. Task will exit as successfull.")
+#        return
+#    
+#    print(f"Number of records extracted: {len(df.index)}")
+#
+#    account_name = Variable.get("VTEX_ACCOUNT_NAME") 
+#    env = Variable.get("VTEX_ENV")
+#
+#    df.columns = ["vtex_id","canal_venta_vtex"]
+#    df.info()
+#
+#    post_urls = []
+#
+#    for index, row in df.iterrows():
+#        sku = row["vtex_id"]
+#        sales_policy = row["canal_venta_vtex"]
+#        url = f"https://{account_name}.{env}.com.br/api/catalog/pvt/product/{str(int(sku))}/salespolicy/{str(int(sales_policy))}"
+#        post_urls.append(url)
+#    
+#    session = requests.session()
+#    thread_num = 40
+#    task_num = len(post_urls)//thread_num # division entera
+#    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+#    session.mount('https://', adapter)
+#    thread_tasks = []
+#    count = 0
+#    responses = []
+#    exception_cases = []
+#   
+#    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey_QA") #Cambiar a PROD luego 
+#    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken_QA")
+#    
+#    for thr in range(thread_num):
+#        new_task = Thread(target=bulk_post, args=[post_urls[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+#        new_task.start()
+#        thread_tasks.append(new_task)
+#        count = count + 1
+#    # tareas resagadas:
+#    if task_num*thread_num != len(post_urls):
+#        new_task = new_task = Thread(target=bulk_post, args=[post_urls[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+#        new_task.start()
+#        thread_tasks.append(new_task)
+#    for task in thread_tasks:
+#        task.join()
+#    thread_tasks = []
+#    print(responses)
+#
+#    return
+
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -208,7 +304,7 @@ default_args = {
 with DAG(
     'etl_carga_tiendas_vtex',
     default_args=default_args,
-    description="Carga y elimina tradePolicy de tiendas a los productos en vte",
+    description="Carga y elimina tradePolicy de tiendas a los productos en vtex",
     schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2024, 7, 30, tz="America/Santiago"),
     catchup=False,
@@ -225,9 +321,23 @@ with DAG(
         task_id = 'carga_tiendas_to_s3',
         python_callable=carga_tiendas_to_s3,
     )
-    t1 = PythonOperator(
+
+    #t1 = PostgresOperator(
+    #    task_id="truncate_tiendas_vtex",
+    #    postgres_conn_id="postgresql_conn",
+    #    sql="""TRUNCATE ecommdata.producto_tiendas_vtex;"""
+    #)
+
+    t2 = PythonOperator(
         task_id = "carga_tiendas_vtex_to_postgresql",
         python_callable = carga_tiendas_vtex_to_postgresql,
     )
 
-    t0 >> t1
+#    t3 = PythonOperator(
+#        task_id = "send_data_to_vtex",
+#        python_callable = send_data_to_vtex,
+#    )
+
+    #t0 >> t1 >> t2 >> t3
+
+    t0 >> t2
