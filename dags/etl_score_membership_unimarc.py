@@ -357,7 +357,7 @@ default_args = {
 # Definir el DAG
 
 with DAG(
-    'cargar_promociones_comparadas',
+    'etl_score_membresia',
     default_args=default_args,
     description='Guarda promociones comparadas en S3 y las carga en la base de datos',
     schedule_interval='0 9 * * *',
