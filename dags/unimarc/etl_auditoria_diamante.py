@@ -48,7 +48,7 @@ def marcar_colaboradores():
     df_actuales = pd.read_sql(query_actuales, conn)
 
     # 📥 Cargar estado anterior desde tabla viva
-    query_anteriores = "SELECT dni, email FROM ecommdata.auditoria_diamante;"
+    query_anteriores = "SELECT * FROM ecommdata.auditoria_diamante;"
     df_anteriores = pd.read_sql(query_anteriores, conn)
 
     # 🧠 Identificar usuarios nuevos y salientes
@@ -136,7 +136,7 @@ def marcar_colaboradores():
             "response": response_text,
             "timestamp": datetime.now()
         })
-
+    
         if status_code == 200:
             print(f"🔴 Desactivado Associate: {usuario['email']} → {status_code}")
         else:

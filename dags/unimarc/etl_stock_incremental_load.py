@@ -38,7 +38,7 @@ def _save_table_stock_janis(ts, ti):
 
     df = _get_table_stock_janis_from_S3(ts, ti)
     df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified', 'operation_type']]
-    df = df.loc[df['stock'] > 0]
+    df = df.loc[df['stock'] >= 0]
     df["date_published"] = pd.to_datetime(df["date_published"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["date_modified"] = pd.to_datetime(df["date_modified"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
