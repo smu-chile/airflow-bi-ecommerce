@@ -322,11 +322,11 @@ with DAG(
         python_callable=carga_tiendas_to_s3,
     )
 
-    #t1 = PostgresOperator(
-    #    task_id="truncate_tiendas_vtex",
-    #    postgres_conn_id="postgresql_conn",
-    #    sql="""TRUNCATE ecommdata.producto_tiendas_vtex;"""
-    #)
+    t1 = PostgresOperator(
+        task_id="truncate_tiendas_vtex",
+        postgres_conn_id="postgresql_conn",
+        sql="""TRUNCATE ecommdata.producto_tiendas_vtex;"""
+    )
 
     t2 = PythonOperator(
         task_id = "carga_tiendas_vtex_to_postgresql",
@@ -340,4 +340,4 @@ with DAG(
 
     #t0 >> t1 >> t2 >> t3
 
-    t0 >> t2
+    t0 >> t1 >> t2
