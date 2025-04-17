@@ -172,23 +172,27 @@ def marcar_colaboradores():
                 WHERE dni NOT IN %s;
             """, (tuple(df_total_activos['rut'].astype(str)),))
 
-        # 🔁 Insertar o actualizar usuarios activos válidos
+        # Insertar/actualizar activos
         for _, row in df_total_activos.iterrows():
             cursor.execute("""
                 INSERT INTO ecommdata.auditoria_diamante (
-                    dni, email, user_profile_id, id_cliente_janis, modificado_en
+                    dni, email, user_profile_id, id_cliente_janis, nombre, apellido, modificado_en
                 )
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (dni) DO UPDATE SET
                     email = EXCLUDED.email,
                     user_profile_id = EXCLUDED.user_profile_id,
                     id_cliente_janis = EXCLUDED.id_cliente_janis,
+                    nombre = EXCLUDED.nombre,
+                    apellido = EXCLUDED.apellido,
                     modificado_en = EXCLUDED.modificado_en;
             """, (
                 str(row["rut"]),
                 row["email"],
                 str(row["user_profile_id"]),
                 str(row["id_cliente_janis"]),
+                row["nombre"],
+                row["apellido"],
                 datetime.now()
             ))
 
