@@ -73,10 +73,8 @@ def get_users_for_limit():
 def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
     import requests
     import time
-    """
-    Intenta actualizar el campo xConvenio en VTEX con reintentos en caso de fallo.
-    """
-    API_URL = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL"
+
+    API_URL = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL/search"
     API_KEY = Variable.get("X_VTEX_API_AppKey")
     API_TOKEN = Variable.get("X_VTEX_API_AppToken")
 
@@ -88,7 +86,32 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
         "Connection": "keep-alive"
     }
 
-    update_url = f"{API_URL}/documents"
+    # 1. Obtener valor actual de xConvenio filtrando por userId
+    query_params = {
+        "userId": document_id,
+        "_fields": "xConvenio,userId"
+    }
+
+    response_get = requests.get(API_URL, headers=HEADERS, params=query_params)
+
+    if response_get.status_code != 200:
+        print(f"⚠️ No se pudo obtener xConvenio para {document_id}. Status: {response_get.status_code}")
+        return False
+
+    data = response_get.json()
+
+    if not data:
+        print(f"⚠️ No se encontró ningún documento con userId = {document_id}.")
+        return False
+
+    current_value = data[0].get("xConvenio", "").strip().lower()
+
+    if current_value == "baja":
+        print(f"⛔ Usuario {document_id} tiene xConvenio='Baja'. No se actualiza.")
+        return False
+
+    # 2. PATCH si pasó validación
+    update_url = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL/documents"
     update_payload = {
         "userId": document_id,
         "xConvenio": xConvenio_value
@@ -98,17 +121,18 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
         response = requests.patch(update_url, json=update_payload, headers=HEADERS)
 
         if response.status_code == 200:
-            print(f"✅ xConvenio actualizado para {document_id} con valor {xConvenio_value} en intento {attempt + 1}")
+            print(f"✅ xConvenio actualizado para {document_id} con valor '{xConvenio_value}' (intento {attempt + 1})")
             return True
         elif response.status_code == 304:
-            print(f"ℹ️ xConvenio para {document_id} ya estaba con el valor {xConvenio_value}, no se necesita actualizar.")
+            print(f"ℹ️ xConvenio para {document_id} ya estaba con el valor '{xConvenio_value}'.")
             return True
         else:
-            print(f"⚠️ Error al actualizar xConvenio ({document_id}), intento {attempt + 1}: {response.status_code}")
-            time.sleep(delay)  # Espera antes de reintentar
+            print(f"⚠️ Error PATCH en {document_id} intento {attempt + 1}: {response.status_code}")
+            time.sleep(delay)
 
     print(f"❌ Fallo definitivo en la actualización de {document_id} tras {max_retries} intentos.")
     return False
+
 
 #📌 Función Mensual: Reasigna xConvenio
 def reasign_process():
