@@ -11,31 +11,47 @@ from datetime import datetime
 import pendulum
 
 def from_s3_to_postgress(ti):
-    import numpy as np
+    from airflow.models import Variable
+    from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+    from datetime import datetime, timedelta
     import pandas as pd
+    from io import StringIO
     import sqlalchemy
-    from sqlalchemy import text
+    from sqlalchemy import create_engine    
 
-    # Fecha de ayer en formato YYYYMMDD
+    # Fecha de ayer
     fecha_ayer = (datetime.today() - timedelta(days=1)).strftime('%Y%m%d')
-
-    filename = f"membresia_diamante_venta_tienda_fisica/discount_data/discount_data_{fecha_ayer}"
     
+    # Nombre del archivo
+    filename = f"membresia_diamante_venta_tienda_fisica/discount_data/discount_data_{fecha_ayer}.txt"
+    
+    # Variables y conexión S3
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: "+filename)
+    print("Searching file: " + filename)
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
         raise Exception(f"Key {filename} does not exist in bucket {s3_bucket}.")
-    
-    df = pd.read_csv(s_stock_object.get()["Body"])
 
-    if len(df.index) == 0:
-        print("There are no new nor updated records to load. Task will exit as successfull.")
-        return
-    
-    print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+    # Leemos el contenido del archivo como texto
+    file_obj = s3_hook.get_key(filename, bucket_name=s3_bucket)
+    file_content = file_obj.get()["Body"].read().decode("utf-8")
+
+    # Convertimos a DataFrame con los nombres correctos
+    columnas = [
+        "rut_hash",
+        "fecha",
+        "id_transaccion",
+        "tienda",
+        "venta",
+        "ahorro"
+    ]
+    df = pd.read_csv(StringIO(file_content), sep=",", header=None, names=columnas)
+
+    # Nos aseguramos de que los tipos estén como corresponde
+    df["fecha"] = pd.to_datetime(df["fecha"]).dt.date
+    df["venta"] = df["venta"].astype(float)
+    df["ahorro"] = df["ahorro"].astype(float)
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -45,39 +61,47 @@ def from_s3_to_postgress(ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
-    with engine.begin() as conn:
-        df.to_sql(name="membresia_diamante_venta_tienda_fisica",
-                    con=conn,         
-                    schema="ecommdata",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
+    df.to_sql(
+        name="membresia_diamante_venta_tienda_fisica",
+        con=engine,
+        schema="ecommdata",
+        if_exists="append",
+        index=False
+    )
 
-    print("Data saved to PostgreSQL.")
+    print("Carga exitosa a PostgreSQL")
 
-    return
+    return 
 
-def truncate_table():
-    
-    import numpy as np
-    import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
 
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+# Definir el DAG
 
-    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
-    engine = sqlalchemy.create_engine(conn_url)
+with DAG(
+    'elt_carga_membresia_diamante_venta_tienda_fisica',
+    default_args=default_args,
+    description='guarda los datos de venta tienda fisica membresia',
+    schedule_interval='0 9 * * *',
+    start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
+    catchup=False,
+    max_active_runs=1,
+    tags=["DATA", "postgres", "ecommdata", "Membresia", "S3", "NICOLAS"]
+) as dag:
 
-    connection = engine.connect()
-    truncate_query = "TRUNCATE TABLE ecommdata.membresia_diamante_venta_tienda_fisica"
-    connection.execute(text(truncate_query))
-    connection.close()
+    dag.doc_md = """
+        Blablablablabla
+        """ 
+    # Definir las tareas
 
-    print("Tabla borrada con exito")
+    t0 = PythonOperator(
+        task_id='from_s3_to_postgress',
+        python_callable=from_s3_to_postgress
+    )
 
-    return
+    t0
