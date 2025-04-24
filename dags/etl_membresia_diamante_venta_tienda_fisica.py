@@ -95,7 +95,7 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-        Blablablablabla
+        Una funcion que carga una tabla de s3 a postgress.
         """ 
     # Definir las tareas
 
