@@ -23,7 +23,7 @@ def from_s3_to_postgress(ti):
     fecha_ayer = (datetime.today() - timedelta(days=1)).strftime('%Y%m%d')
     
     # Nombre del archivo
-    filename = f"membresia_diamante_venta_tienda_fisica/discount_data/discount_data_{fecha_ayer}.txt"
+    filename = f"membresia_diamante_venta_tienda_fisica/discount_data/discount_data_{fecha_ayer}"
     
     # Variables y conexión S3
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
