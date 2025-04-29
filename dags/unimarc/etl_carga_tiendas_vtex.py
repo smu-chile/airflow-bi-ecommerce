@@ -69,12 +69,13 @@ def delete(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_A
         "X-VTEX-API-AppToken": X_VTEX_API_AppToken
     })
     try:
-        responses.append({'json': r.json(), 'url': url})
+        if r.content and r.headers.get('Content-Type', '').startswith('application/json'):
+            responses.append({'json': r.json(), 'url': url})
+        else:
+            responses.append({'json': None, 'url': url, 'status_code': r.status_code})
     except Exception as e:
-        print(e)
-        print(url)
+        print(f"Error parsing response for {url}: {e}")
         print(r)
-        print(r.status_code)
         exception_cases.append(url)
 
 def bulk_delete(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
@@ -96,70 +97,72 @@ def carga_tiendas_to_s3(ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    query_tiendas_producto = f"""WITH tablatemporal AS (
-                SELECT cp."refId" as ref_id, 
-                UNNEST(STRING_TO_ARRAY(cp.stores, ',')) AS stores
-                FROM ecommdata.carga_productos cp	
-            )
-            SELECT tt.ref_id AS ref_id, 
-            p.vtex_id AS vtex_id FROM tablatemporal tt 
-            LEFT JOIN ecommdata.productos p ON p.ref_id = tt.ref_id"""
+    query_tiendas_producto = f"""WITH tablita AS (
+                                    SELECT cp."refId" AS ref_id, s.vtex_id AS vtex_id,
+                                    UNNEST(STRING_TO_ARRAY(cp.stores, ',')) AS id_tienda
+                                    FROM ecommdata.carga_productos cp
+                                    LEFT JOIN ecommdata.skus s ON s.ref_id = cp."refId" 
+                                )
+                                SELECT t1.*, t.canal_venta_vtex FROM tablita t1 
+                                LEFT JOIN ecommdata.tiendas t on t.id = t1.id_tienda
+                                """
     
     df = query_to_df(query_tiendas_producto)
     
     lista_ref_ids = df['vtex_id'].unique()
     print(f"cantidad de skus unicos: {len(lista_ref_ids)}")
 
-    account_name = Variable.get("VTEX_ACCOUNT_NAME")  
-    env = Variable.get("VTEX_ENV") 
-    
-    url_list = []
-    for sku in lista_ref_ids:
-        url = f"https://{account_name}.{env}.com.br/api/catalog/pvt/product/{str(int(sku))}/salespolicy"
-        url_list.append(url)
-
-    session = requests.session()
-    thread_num = 40
-    task_num = len(url_list)//thread_num # division entera
-    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
-    session.mount('https://', adapter)
-    thread_tasks = []
-    count = 0
-    responses = []
-    exception_cases = []
-   
-    X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
-    X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
-    
-    for thr in range(thread_num):
-        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-        count = count + 1
-    # tareas resagadas:
-    if task_num*thread_num != len(url_list):
-        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-    for task in thread_tasks:
-        task.join()
-    thread_tasks = []
-    print(responses)
-    
-    final_responses = []
-
-    for response in responses:
-            response_aux = response['json']
-            try:
-                for item in response_aux:
-                    aux = (item['ProductId'], item['StoreId'])
-                    final_responses.append(aux)
-            except KeyError as e:
-                print(e)
-                print(response)
-                exception_cases.append(response['url'])
-    
-    df_tiendas_productos = pd.DataFrame(final_responses, columns=["ProductId", "StoreId"])
+    #account_name = Variable.get("VTEX_ACCOUNT_NAME")  
+    #env = Variable.get("VTEX_ENV") 
+    #
+    #url_list = []
+    #for sku in lista_ref_ids:
+    #    url = f"https://{account_name}.{env}.com.br/api/catalog/pvt/product/{str(int(sku))}/salespolicy"
+    #    url_list.append(url)
+    #
+    #session = requests.session()
+    #thread_num = 40
+    #task_num = len(url_list)//thread_num # division entera
+    #adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    #session.mount('https://', adapter)
+    #thread_tasks = []
+    #count = 0
+    #responses = []
+    #exception_cases = []
+    #
+    #X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
+    #X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
+    #
+    #for thr in range(thread_num):
+    #    new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+    #    new_task.start()
+    #    thread_tasks.append(new_task)
+    #    count = count + 1
+    ## tareas resagadas:
+    #if task_num*thread_num != len(url_list):
+    #    new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
+    #    new_task.start()
+    #    thread_tasks.append(new_task)
+    #for task in thread_tasks:
+    #    task.join()
+    #thread_tasks = []
+    #print(responses)
+    #
+    #final_responses = []
+    #
+    #for response in responses:
+    #        response_aux = response['json']
+    #        try:
+    #            for item in response_aux:
+    #                aux = (item['ProductId'], item['StoreId'])
+    #                final_responses.append(aux)
+    #        except KeyError as e:
+    #            print(e)
+    #            print(response)
+    #            exception_cases.append(response['url'])
+    columns = ["ref_id", "vtex_id", "id_tienda", "canal_venta_vtex"]
+    df_tiendas_productos = pd.DataFrame(df, columns=columns)
+    df_tiendas_productos = df_tiendas_productos[["vtex_id", "canal_venta_vtex"]]
     print(df_tiendas_productos.head(30))
         
     buffer = io.StringIO()
@@ -219,6 +222,7 @@ def carga_tiendas_vtex_to_postgresql(ti):
     df_productos = query_to_df(query_productos)
 
     df_final = pd.merge(df, df_tiendas, how="left", on = ["canal_venta_vtex"])
+    print(df_final.head(20))
     df_final = pd.merge(df_final, df_productos,how="left", on = ["vtex_id"])
 
     df_final = df_final[["id_tienda","ref_id","vtex_id","canal_venta_vtex"]]
@@ -270,8 +274,8 @@ def send_data_to_vtex(ti):
     
     print(f"Number of records extracted: {len(df.index)}")
 
-    account_name = Variable.get("VTEX_ACCOUNT_NAME") #Cambiar a PROD luego 
-    env = Variable.get("VTEX_ENV") #Cambiar a PROD luego 
+    account_name = Variable.get("VTEX_ACCOUNT_NAME")
+    env = Variable.get("VTEX_ENV")
 
     df.columns = ["vtex_id","canal_venta_vtex"]
     df.info()
@@ -309,14 +313,29 @@ def send_data_to_vtex(ti):
     # 17870	    28                                                                                  #
     # 74295	    28                                                                                  #
     # 5455      28                                                                                  #
-    # 89803     28                                                                                  #
+    # 89803     28    
+    # 54639
+    # 4989
+    # 11049
+    # 3786
+    # 3557
+    # 4431
+    # 7565
+    # 83499
+    # 6483
+    # 64707
+    # 7709                                                                              #
     #################################################################################################
 
     id_tienda_filtrada = 28
-    lista_ref_ids_a_filtrar = [13752, 40362, 4857, 1789, 69604, 86741, 82503, 17870, 74295, 5455, 89803]
+    lista_ref_ids_a_filtrar = [90849, 90851, 76209]
+
     df = df[df["canal_venta_vtex"] == id_tienda_filtrada]
     df = df[df["vtex_id"].isin(lista_ref_ids_a_filtrar)]
-    
+    print("###################################################################################")
+    print("LOS DATOS SON")
+    print(df)
+    print("###################################################################################")
     post_urls = []
     delete_urls = []
 
@@ -341,7 +360,7 @@ def send_data_to_vtex(ti):
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")  
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")      
 
-    # Primero, lanzar los DELETE antes de los POST
+    #Primero, lanzar los DELETE antes de los POST
     delete_thread_tasks = []
     count = 0
     for thr in range(thread_num):
@@ -391,7 +410,7 @@ with DAG(
     schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2024, 7, 30, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "tiendas", "Productos", "ecommdata", "VTEX", "unimarc", "PATRICIO"],
+    tags=["DATA", "tiendas", "Productos", "ecommdata", "VTEX", "unimarc", "FRANCISCO"],
 ) as dag:
     
 
