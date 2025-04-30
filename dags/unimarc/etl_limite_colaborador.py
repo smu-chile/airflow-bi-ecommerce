@@ -92,6 +92,8 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
         "_fields": "xConvenio,userId"
     }
 
+    print(f"🔹 Revisando - userId: {document_id}")
+
     response_get = requests.get(API_URL, headers=HEADERS, params=query_params)
 
     if response_get.status_code != 200:
@@ -104,10 +106,14 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
         print(f"⚠️ No se encontró ningún documento con userId = {document_id}.")
         return False
 
-    current_value = data[0].get("xConvenio", "").strip().lower()
+    current_value = data[0].get("xConvenio")
+    current_value = current_value.strip().lower() if current_value else ""
 
     if current_value == "baja":
         print(f"⛔ Usuario {document_id} tiene xConvenio='Baja'. No se actualiza.")
+        return False
+    if current_value == "":
+        print(f"⚠️ xConvenio para {document_id} está vacío. No se actualiza.")
         return False
 
     # 2. PATCH si pasó validación
