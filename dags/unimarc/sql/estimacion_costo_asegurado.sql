@@ -1,95 +1,155 @@
-select a.fecha_entrega ,a.id_tienda , a.tienda ,a.modelo_cobro , a.tarifa_asegurado , a.operador,
-case 
-	when a.operador = 'Timejobs' and a.modelo_cobro = 'Shopper'
-		then sum(a.costo_total_pedido) *0.7
-		else sum(a.costo_total_pedido)  
-end as costo_armado, 
-round((count(distinct a.id_orden)::numeric / p.pedidos_tienda)*  a.dotacion,0)::int  as dotacion,
-(round((count(distinct a.id_orden)::numeric / p.pedidos_tienda)*  a.dotacion,0)::int*tarifa_asegurado) as minimo_asegurado,
-case                                                                 -- Cálculo diferencia de asegurado max(asegurado - costo armado ;   0)
-	when a.operador = 'Timejobs' and a.modelo_cobro = 'Shopper'
-		then greatest ((round((count(distinct a.id_orden)::numeric / p.pedidos_tienda) * a.dotacion,0)::int*tarifa_asegurado)- (sum(a.costo_total_pedido)*0.7) ,0 )  ---timjobes rebaja 30% este valor
-	when a.operador in ('Rayo APP' , 'Roca') -- se paga si o si el asegurado
-		then greatest ((a.dotacion::int*tarifa_asegurado)- (sum(a.costo_total_pedido)*0) ,0 )
-	else  greatest ((round((count(distinct a.id_orden)::numeric / p.pedidos_tienda) * a.dotacion,0)::int*tarifa_asegurado)-sum(a.costo_total_pedido) ,0 ) 
-end as diferencia_asegurado
-from -------------------------------TABLAS--------------------------------------------------------------------------------------------
-		(------------ Armado de pedidos------------------------------------------------------------------------------------------
-					select p.id_orden, p.fecha_entrega , p.despachado, p.empleado, p.rut,
-							p.tienda, p.id_tienda, p.transportadora , p.id_transportadora ,
-							case                                                              --operadores
-								when tp.operador = 'Zubale + Rayo APP' then 'Zubale'
-								when tp.operador = 'Boosmap + Rayo APP' then 'Rayo APP'
-								else tp.operador
-							end as operador, 
-							tp.modelo_cobro , p.sku , p.kilometros , tp.tarifa_sku , tp.tarifa_km ,   --datos
-							tp.tarifa_base as total_base,
-							tp.tarifa_sku * p.sku as total_sku,
-							case																		                --kilómetros
-								when p.kilometros is not null and p.despachado = 'si' then p.kilometros * tp.tarifa_km 
-								else 0
-							end as total_km,
-							(tp.tarifa_base  + tp.tarifa_sku * p.sku  +													-- costo variable por pedido:  (base + sku + km)
-								case
-									when p.kilometros is not null and p.despachado = 'si' then p.kilometros * tp.tarifa_km 
-									else 0
-								end ) as costo_total_pedido,
-							tp.tarifa_asegurado , f.dotacion          -- data asegurado     
-					from  ---------------------------------------------------------------------------- TABLAS ----------------------------------
-							forecast_and_planning.pedidos_prefactura_unimarc p      -- pedidos
-					left join 
-							forecast_and_planning.tarifas_prefacturas tp on tp.id_transportadora = p.id_transportadora      -- tarifas
-					left join 
-							forecast_and_planning.forecast f  							--modelo día-tienda
-									on concat(p.fecha_entrega::date, p.id_tienda, tp.modelo_cobro, tp.operador) = concat(f.fecha::date, f.id_tienda, f.modelo, f.operador)
-					where p.pickeada  = 'si' ---------------------------------------------------------------CONDICIONES-------------------------------
-					and tp.id_transportadora  is not null	
-					and 
-					 case 
-						 when tp.id_tienda = '0581' and tp.operador = 'Rayo APP' then f.dotacion  is null
-					 	 else f.dotacion >0
-					 end
-					and fecha_entrega = '{{ds}}'::date)		a  -- costo armado pedido
-	left join 
-				(select id_tienda, fecha_entrega , modelo_cobro,count(distinct id_orden) as pedidos_tienda     -- pesos para dotación con asegurados distintos
-						from (------------ Armado de pedidos------------------------------------------------------------------------------------------
-								select p.id_orden, p.fecha_entrega , p.despachado, p.empleado, p.rut,
-										p.tienda, p.id_tienda, p.transportadora , p.id_transportadora ,
-										case                                                              --operadores
-											when tp.operador = 'Zubale + Rayo APP' then 'Zubale'
-											when tp.operador = 'Boosmap + Rayo APP' then 'Rayo APP'
-											else tp.operador
-										end as operador, 
-										tp.modelo_cobro , p.sku , p.kilometros , tp.tarifa_sku , tp.tarifa_km ,   --datos
-										tp.tarifa_base as total_base,
-										tp.tarifa_sku * p.sku as total_sku,
-										case																		                --kilómetros
-											when p.kilometros is not null and p.despachado = 'si' then p.kilometros * tp.tarifa_km 
-											else 0
-										end as total_km,
-										(tp.tarifa_base  + tp.tarifa_sku * p.sku  +													-- costo variable por pedido:  (base + sku + km)
-											case
-												when p.kilometros is not null and p.despachado = 'si' then p.kilometros * tp.tarifa_km 
-												else 0
-											end ) as costo_total_pedido,
-										tp.tarifa_asegurado , f.dotacion          -- data asegurado     
-								from  ---------------------------------------------------------------------------- TABLAS ----------------------------------
-										forecast_and_planning.pedidos_prefactura_unimarc p      -- pedidos
-								left join 
-										forecast_and_planning.tarifas_prefacturas tp on tp.id_transportadora = p.id_transportadora      -- tarifas
-								left join 
-										forecast_and_planning.forecast f  							--modelo día-tienda
-												on concat(p.fecha_entrega::date, p.id_tienda, tp.modelo_cobro, tp.operador) = concat(f.fecha::date, f.id_tienda, f.modelo, f.operador)
-								where p.pickeada  = 'si' ---------------------------------------------------------------CONDICIONES-------------------------------
-								and tp.id_transportadora  is not null	
-								and 
-								 case 
-									 when tp.id_tienda = '0581' and tp.operador = 'Rayo APP' then f.dotacion  is null
-								 	 else f.dotacion >0
-								 end
-								and fecha_entrega = '{{ds}}'::date) e
-						group by id_tienda, fecha_entrega, modelo_cobro ) p  
-								on  concat(p.id_tienda,p.fecha_entrega, p.modelo_cobro) = concat(a.id_tienda,a.fecha_entrega, a.modelo_cobro)
-	------FIN JOINS----------------------------END-------------END----------------------END------------------------------------------------------------FIN
-	where a.fecha_entrega = '{{ds}}'::date
-	group by a.fecha_entrega ,a.id_tienda , a.tienda ,a.modelo_cobro , a.tarifa_asegurado , a.dotacion ,p.pedidos_tienda, a.operador
+INSERT INTO forecast_and_planning.estimacion_costo_asegurado (
+    fecha_entrega,
+    tienda,
+    id_tienda,
+    modelo_cobro,
+    tarifa_asegurado,
+    operador,
+    id_transportadora,
+    id_transportadoras,
+    costo_armado,
+    dotacion,
+    minimo_asegurado,
+    diferencia_asegurado,
+    tipo_origen
+)
+WITH estimacion AS (
+  SELECT *
+  FROM forecast_and_planning.estimacion_costo_armado
+  WHERE fecha_entrega = '{{ macros.ds_add(ds, -1) }}'
+),
+duplicados AS (
+  SELECT
+    a.fecha_entrega,
+    a.tienda,
+    a.id_tienda,
+    a.modelo_cobro,
+    a.tarifa_asegurado::BIGINT,
+    a.operador,
+    NULL::TEXT AS id_transportadora,
+    STRING_AGG(DISTINCT a.id_transportadora::TEXT, ', ') AS id_transportadoras,
+    SUM(a.costo_total_pedido) * COALESCE(f.factor_pago, 1)::NUMERIC AS costo_armado,
+    MIN(a.dotacion) AS dotacion,
+    MIN(a.dotacion) * a.tarifa_asegurado * COALESCE(f.factor_asegurado, 1) AS minimo_asegurado,
+    GREATEST(
+      (MIN(a.dotacion) * a.tarifa_asegurado * COALESCE(f.factor_asegurado, 1)) -
+      (SUM(a.costo_total_pedido) * COALESCE(f.factor_pago, 1)),
+      0
+    ) AS diferencia_asegurado,
+    'duplicado' AS tipo_origen
+  FROM estimacion a
+  LEFT JOIN forecast_and_planning.factores_asegurado f
+    ON f.operador = a.operador
+   AND f.modelo_cobro = a.modelo_cobro
+   AND a.fecha_entrega BETWEEN f.fecha_inicio AND COALESCE(f.fecha_fin, '9999-12-31')
+  WHERE a.duplicado = 1
+  GROUP BY
+    a.fecha_entrega, a.tienda, a.id_tienda,
+    a.modelo_cobro, a.tarifa_asegurado, a.operador,
+    f.factor_pago, f.factor_asegurado
+),
+no_duplicados AS (
+  SELECT
+    a.fecha_entrega,
+    a.tienda,
+    a.id_tienda,
+    a.modelo_cobro,
+    a.tarifa_asegurado::BIGINT,
+    a.operador,
+    a.id_transportadora,
+    NULL::TEXT AS id_transportadoras,
+    SUM(a.costo_total_pedido) * COALESCE(f.factor_pago, 1)::NUMERIC AS costo_armado,
+    a.dotacion,
+    a.dotacion * a.tarifa_asegurado * COALESCE(f.factor_asegurado, 1) AS minimo_asegurado,
+    GREATEST(
+      (a.dotacion * a.tarifa_asegurado * COALESCE(f.factor_asegurado, 1)) -
+      (SUM(a.costo_total_pedido) * COALESCE(f.factor_pago, 1)),
+      0
+    ) AS diferencia_asegurado,
+    'no_duplicado' AS tipo_origen
+  FROM estimacion a
+  LEFT JOIN forecast_and_planning.factores_asegurado f
+    ON f.operador = a.operador
+   AND f.modelo_cobro = a.modelo_cobro
+   AND a.fecha_entrega BETWEEN f.fecha_inicio AND COALESCE(f.fecha_fin, '9999-12-31')
+  WHERE a.duplicado = 0
+  GROUP BY
+    a.fecha_entrega, a.tienda, a.id_tienda,
+    a.id_transportadora, a.modelo_cobro,
+    a.tarifa_asegurado, a.dotacion, a.operador,
+    f.factor_pago, f.factor_asegurado
+),
+forecast_filtrado AS (
+  SELECT
+    f.fecha,
+    f.id_tienda,
+    f.id_transportadora,
+    f.modelo,
+    f.operador,
+    f.dotacion,
+    f.ordenes,
+    f.duplicado
+  FROM forecast_and_planning.forecast f
+  WHERE f.fecha = '{{ macros.ds_add(ds, -1) }}'
+),
+forecast_sin_pedidos AS (
+  SELECT
+    ff.fecha,
+    ff.id_tienda,
+    ff.id_transportadora,
+    ff.modelo,
+    ff.operador,
+    ff.dotacion,
+    ff.duplicado
+  FROM forecast_filtrado ff
+  LEFT JOIN forecast_and_planning.estimacion_costo_armado est
+    ON est.fecha_entrega = ff.fecha
+   AND est.id_tienda = ff.id_tienda
+   AND est.modelo_cobro = ff.modelo
+   AND est.operador = ff.operador
+  WHERE est.id_tienda IS NULL
+    AND ff.dotacion > 0
+),
+forecast_sin_pedidos_unico AS (
+  SELECT
+    fecha,
+    id_tienda,
+    modelo,
+    operador,
+    MAX(duplicado) AS duplicado,
+    STRING_AGG(DISTINCT id_transportadora::TEXT, ', ') AS id_transportadoras,
+    MAX(id_transportadora)::TEXT AS id_transportadora_unica,
+    MIN(dotacion) AS dotacion
+  FROM forecast_sin_pedidos
+  GROUP BY fecha, id_tienda, modelo, operador
+),
+sin_pedidos AS (
+  SELECT
+    sp.fecha AS fecha_entrega,
+    NULL::TEXT AS tienda,
+    sp.id_tienda,
+    sp.modelo AS modelo_cobro,
+    COALESCE(tp.tarifa_asegurado, 0)::BIGINT AS tarifa_asegurado,
+    sp.operador,
+    CASE WHEN sp.duplicado = 1 THEN NULL ELSE sp.id_transportadora_unica END AS id_transportadora,
+    CASE WHEN sp.duplicado = 1 THEN sp.id_transportadoras ELSE NULL END AS id_transportadoras,
+    0::NUMERIC AS costo_armado,
+    sp.dotacion,
+    sp.dotacion * COALESCE(tp.tarifa_asegurado, 0)::BIGINT * COALESCE(fa.factor_asegurado, 1)::NUMERIC AS minimo_asegurado,
+    sp.dotacion * COALESCE(tp.tarifa_asegurado, 0)::BIGINT * COALESCE(fa.factor_asegurado, 1)::NUMERIC AS diferencia_asegurado,
+    'sin_pedido' AS tipo_origen
+  FROM forecast_sin_pedidos_unico sp
+  LEFT JOIN forecast_and_planning.tarifas_prefacturas tp
+    ON tp.id_transportadora = sp.id_transportadora_unica
+   AND sp.fecha BETWEEN tp.fecha_inicio AND COALESCE(tp.fecha_termino, '9999-12-31')
+  LEFT JOIN forecast_and_planning.factores_asegurado fa
+    ON fa.operador = sp.operador
+   AND fa.modelo_cobro = sp.modelo
+   AND sp.fecha BETWEEN fa.fecha_inicio AND COALESCE(fa.fecha_fin, '9999-12-31')
+)
+SELECT * FROM duplicados
+UNION ALL
+SELECT * FROM no_duplicados
+UNION ALL
+SELECT * FROM sin_pedidos
+ON CONFLICT (fecha_entrega, id_tienda, modelo_cobro, operador, tipo_origen) DO NOTHING;

@@ -156,7 +156,7 @@ with DAG(
     'etl_alertas_sac',
     default_args=default_args,
     description="Generación de alertas para SAC",
-    schedule_interval="0,30 * * * *",
+    schedule_interval="0,30 8-20 * * *",
     start_date=pendulum.datetime(2025, 3, 30, tz="America/Santiago"),
     catchup=False,
     tags=["Alertas", "SAC", "Found Rate", "Coyhaique", "FRANCISCO"]
