@@ -288,43 +288,6 @@ def send_data_to_vtex(ti):
     # están cargados (if) y si no lo están, cargarlos, sino, borrarlos y cargarlos                  #
     # Values to test:                                                                               #
     # Canal de venta vtex: 28 // Canal de venta real: 0398 - Constitución I                         #
-    #                                                                                               #
-    # Productos:                                                                                    # 
-    #  000000000000146169-UN	13752	Levadura seca Lefersa sobre 10 g                            #
-    #  000000000000712974-UN	70463	Servilleta cóctel Abolengo una hoja 40 un                   #
-    #  000000000000222694-UN	4857	Albahaca Gourmet sobre 6 g                                  #
-    #  000000000401724017-UN	1789	Jugo en polvo Livean mango rinde 1 L                        #
-    #  000000000645975001-UN	69604	Jugo en polvo Sprim durazno rinde 1 L                       #
-    #  000000000000665063-UN	86741	Sal fina Nuestra Cocina bolsa 1 Kg                          #
-    #  000000000000661552-UN	82503	Pimienta negra molida Nuestra Cocina 15 g                   #
-    #  000000000000210017-UN	17870	Block de papel lustre Proarte 24 hojas                      #
-    #  000000000645975005-UN	74295	Jugo en polvo Sprim piña rinde 1 L                          #
-    #  000000000000561651-UN	5455	Jugo en polvo Vivo equillibrio arándano ciruela rinde 1 L   #
-    #  000000000000672593-UN	89803	Mondadientes Bioly bolsa 100 un                             #
-    #                                                                                               #
-    # Vtex_id id_tienda_vtex                                                                        #
-    # 13752	    28                                                                                  #
-    # 40362	    28                                                                                  #
-    # 4857	    28                                                                                  #
-    # 1789	    28                                                                                  #
-    # 69604	    28                                                                                  #
-    # 86741	    28                                                                                  #
-    # 82503	    28                                                                                  #
-    # 17870	    28                                                                                  #
-    # 74295	    28                                                                                  #
-    # 5455      28                                                                                  #
-    # 89803     28    
-    # 54639
-    # 4989
-    # 11049
-    # 3786
-    # 3557
-    # 4431
-    # 7565
-    # 83499
-    # 6483
-    # 64707
-    # 7709                                                                              #
     #################################################################################################
 
     id_tienda_filtrada = 28
@@ -333,7 +296,6 @@ def send_data_to_vtex(ti):
     df = df[df["canal_venta_vtex"] == id_tienda_filtrada]
     df = df[df["vtex_id"].isin(lista_ref_ids_a_filtrar)]
     print("###################################################################################")
-    print("LOS DATOS SON")
     print(df)
     print("###################################################################################")
     post_urls = []
