@@ -37,7 +37,7 @@ SELECT p.id_orden,
     tp.tarifa_asegurado,
     f.dotacion,
     f.duplicado
-   FROM forecast_and_planning.pedidos_prefactura p
+   FROM forecast_and_planning.pedidos_prefactura_unimarc p
      LEFT JOIN forecast_and_planning.tarifas_prefacturas tp ON tp.id_transportadora::text = p.id_transportadora::text
      LEFT JOIN forecast_and_planning.forecast f ON p.fecha_entrega = f.fecha::date AND p.id_tienda::text = f.id_tienda::text AND tp.modelo_cobro::text = f.modelo::text AND tp.operador::text = f.operador::text AND p.id_transportadora::text = f.id_transportadora::text
   WHERE p.pickeada = 'si'::text AND tp.id_transportadora IS NOT NULL AND f.dotacion > 0 AND p.fecha_entrega = '{{ macros.ds_add(ds, -1) }}'::date
