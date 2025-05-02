@@ -41,7 +41,7 @@ SELECT DISTINCT
         and wp.nombre_promocion not ilike '%ANDINA%'
         and wp.nombre_promocion not ilike '%EMBONOR%'
         and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
-        and (wp.material = '000000000000572824' and wp.n_promocion not in ('9920062024') )
+        and (wp.material in('000000000000572824', '000000000000759755') and wp.n_promocion not in ('9920062024') )
         and s.vtex_id is not null
         and wp.precio_promocional > 0
         AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '1 day'
