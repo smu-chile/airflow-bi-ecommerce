@@ -16,7 +16,7 @@ def render_netezza_view(ds):
     import os
     import pandas as pd
 
-    sql_str= f"""SELECT * FROM NZ_BU.ECOMERCE.VW_CUBO_SO_ECOMMERCE 
+    sql_str= f"""SELECT * FROM DWC_SMU.SELLOUT.VW_FACT_CUBO_ECOMMERCE_PRINCIPAL  
                 WHERE FECHA_CREACION_VTEX >= '{ds}'::date-1
                 AND FECHA_CREACION_VTEX < '{ds}'::date"""
     
@@ -25,8 +25,8 @@ def render_netezza_view(ds):
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
     dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
     dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
+    dsn_uid = Variable.get("DWC_SELLOUT_USER")
+    dsn_pwd = Variable.get("DWC_SELLOUT_PASSWORD")
     jdbc_driver_name = "org.netezza.Driver" 
     jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
 
@@ -64,7 +64,7 @@ def sell_out_to_s3(ds):
 
     df = render_netezza_view(ds)
 
-    print("Todo bien hasta acá en la extraccion de netezza")
+    print("Todo bien hasta acá en la extracción de DWC")
 
     # Cambiando columnas a minusculas
     df.columns = df.columns.str.lower()
@@ -159,7 +159,6 @@ def sell_out_to_s3(ds):
 
     return filename
 
-
 def sell_out_to_postgresql(ti):
     print("todo bien por acá")
     import numpy as np
@@ -231,7 +230,7 @@ with DAG(
     
 
     dag.doc_md = """
-    Extrae tabla sell_out de dw, lo carga a S3 y postgresql en un intervalo de 30 dias por fecha creacion. \n
+    Extrae tabla sell_out de dwC, lo carga a S3 y postgresql en un intervalo de 30 dias por fecha creacion. \n
     Insert diario 11 am.
     """ 
 
