@@ -34,6 +34,7 @@ SELECT DISTINCT
         WHERE wp.tipo_promocion IN (10,9,4)
         and wp.id_mecanica in (18,83,40,26)
         and wp.n_promocion not in (9920092021, 9960782024)--Promociones excluidas y la XXXXX
+        and wp.n_promocion = '9980082024'
         and wp.nombre_promocion not ilike '%LOCAL%'
         and wp.nombre_promocion not ilike '%LIQUIDACION%' 
         and wp.nombre_promocion not ilike '%TERMINAL%' 
