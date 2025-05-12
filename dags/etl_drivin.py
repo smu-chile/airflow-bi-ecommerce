@@ -1131,163 +1131,147 @@ def drivin_users_to_postgres(ti, ts):
 def get_api_entrega_pruebas(exception_cases):
     from datetime import datetime
     import requests
-    import pandas as pd
     from airflow.models import Variable  
 
-    # Obtener la fecha actual en formato YYYY-MM-DD
     current_date = datetime.now().strftime('%Y-%m-%d')
-
-    # Crear la URL con la fecha actual
     url = f"https://external.driv.in/api/external/v2/pods?start_date={current_date}&end_date={current_date}"
-
-    # Variables de Airflow
     api_key = Variable.get("API_KEY_DRIVIN")
-    headers = {
-        'X-API-Key': api_key
-    }
+    headers = {'X-API-Key': api_key}
+    exception_cases = []
 
     try:
-        # Realizar la solicitud a la API
         response = requests.get(url, headers=headers)
-        response.raise_for_status()  # Levanta excepción para errores HTTP 4xx/5xx
-
+        response.raise_for_status()
         data = response.json()
 
-        # Procesar la respuesta de la API
         if 'response' in data and isinstance(data['response'], list):
-          lista = [
-                (
-                    data.get("planned_date"),
-                    data.get("description"),
-                    data.get("scenario_token"),
-                    data.get("vehicle_code"),
-                    data.get("vehicle_description"),
-                    data.get("schema_code"),
-                    data.get("schema_name"),
-                    data.get("fleet_name"),
-                    data.get("organization_name"),
-                    data.get("organization_alt_name"),
-                    data.get("route_is_approved"),
-                    data.get("route_is_started"),
-                    data.get("route_is_finished"),
-                    data.get("route_approved_at"),
-                    data.get("route_started_at"),
-                    data.get("route_finished_at"),
-                    data.get("driver_name"),
-                    data.get("driver_email"),
-                    data.get("driver_dni"),
-                    data.get("driver_license_number"),
-                    data.get("assistant_1_name"),
-                    data.get("assistant_1_email"),
-                    data.get("route_code"),
-                    data.get("route_comment"),
-                    data.get("employer_code"),
-                    data.get("employer_name"),
-                    data.get("address_name"),
-                    data.get("address_code"),
-                    data.get("address_address_1"),
-                    data.get("address_address_2"),
-                    data.get("address_city"),
-                    data.get("address_county"),
-                    data.get("address_state"),
-                    data.get("address_customer_name"),
-                    data.get("address_lat"),
-                    data.get("address_lng"),
-                    data.get("address_postal_code"),
-                    data.get("address_country"),
-                    data.get("planned_service_time"),
-                    data.get("eta"),
-                    data.get("eta_approved"),
-                    data.get("eta_started"),
-                    data.get("trip_number"),
-                    data.get("trip_code"),
-                    data.get("trip_custom_1"),
-                    data.get("odometer_start"),
-                    data.get("odometer_end"),
-                    data.get("position"),
-                    data.get("start_position"),
-                    data.get("delivery_position"),
-                    data.get("time_windows"),
-                    data.get("distance"),
-                    data.get("tracked_arrival"),
-                    data.get("tracked_leave"),
-                    data.get("tracked_service_time"),
-                    data.get("rating_1"),
-                    data.get("rating_2"),
-                    data.get("rating_3"),
-                    data.get("customer_comment"),
-                    data.get("visit_arrival"),
-                    data.get("visit_leave"),
-                    data.get("images"),
-                    data.get("signature"),
-                    data.get("custom_fields"),
-                    data.get("comment"),
-                    data.get("events"),
-                    data.get("pdf_pod"),
-                    order.get("code"),
-                    order.get("alt_code"),
-                    order.get("description"),
-                    order.get("address_type"),
-                    order.get("pod_arrival"),
-                    order.get("pod_distance"),
-                    order.get("near_pod"),
-                    order.get("pod_lat"),
-                    order.get("pod_lng"),
-                    order.get("delivery_date"),
-                    order.get("deploy_date"),
-                    order.get("billing_date"),
-                    order.get("status"),
-                    order.get("status_code"),
-                    order.get("customer_status"),
-                    order.get("load_status"),
-                    order.get("reason"),
-                    order.get("reason_code"),
-                    order.get("otif"),
-                    order.get("ifd_count"),
-                    order.get("images"),
-                    order.get("comment"),
-                    order.get("supplier_code"),
-                    order.get("supplier_name"),
-                    order.get("client_code"),
-                    order.get("client_name"),
-                    order.get("units"),
-                    order.get("units_1"),
-                    order.get("units_2"),
-                    order.get("units_3"),
-                    order.get("cusom_1"),
-                    order.get("cusom_2"),
-                    order.get("cusom_3"),
-                    order.get("cusom_4"),
-                    order.get("cusom_5"),
-                    order.get("custom_6"),
-                    order.get("number_1"),
-                    order.get("number_2"),
-                    order.get("number_3"),
-                    order.get("is_otd"),
-                    order.get("items"),
-                    order.get("pickups"),
-                )
-                for order in data.get("orders", [])
-            ]
+            lista = []
+            for item in data['response']:
+                for order in item.get("orders", []):
+                    lista.append({
+                        "planned_date": item.get("planned_date"),
+                        "description": item.get("description"),
+                        "scenario_token": item.get("scenario_token"),
+                        "vehicle_code": item.get("vehicle_code"),
+                        "vehicle_description": item.get("vehicle_description"),
+                        "schema_code": item.get("schema_code"),
+                        "schema_name": item.get("schema_name"),
+                        "fleet_name": item.get("fleet_name"),
+                        "organization_name": item.get("organization_name"),
+                        "organization_alt_name": item.get("organization_alt_name"),
+                        "route_is_approved": item.get("route_is_approved"),
+                        "route_is_started": item.get("route_is_started"),
+                        "route_is_finished": item.get("route_is_finished"),
+                        "route_approved_at": item.get("route_approved_at"),
+                        "route_started_at": item.get("route_started_at"),
+                        "route_finished_at": item.get("route_finished_at"),
+                        "driver_name": item.get("driver_name"),
+                        "driver_email": item.get("driver_email"),
+                        "driver_dni": item.get("driver_dni"),
+                        "driver_license_number": item.get("driver_license_number"),
+                        "assistant_1_name": item.get("assistant_1_name"),
+                        "assistant_1_email": item.get("assistant_1_email"),
+                        "route_code": item.get("route_code"),
+                        "route_comment": item.get("route_comment"),
+                        "employer_code": item.get("employer_code"),
+                        "employer_name": item.get("employer_name"),
+                        "address_name": item.get("address_name"),
+                        "address_code": item.get("address_code"),
+                        "address_address_1": item.get("address_address_1"),
+                        "address_address_2": item.get("address_address_2"),
+                        "address_city": item.get("address_city"),
+                        "address_county": item.get("address_county"),
+                        "address_state": item.get("address_state"),
+                        "address_customer_name": item.get("address_customer_name"),
+                        "address_lat": item.get("address_lat"),
+                        "address_lng": item.get("address_lng"),
+                        "address_postal_code": item.get("address_postal_code"),
+                        "address_country": item.get("address_country"),
+                        "planned_service_time": item.get("planned_service_time"),
+                        "eta": item.get("eta"),
+                        "eta_approved": item.get("eta_approved"),
+                        "eta_started": item.get("eta_started"),
+                        "trip_number": item.get("trip_number"),
+                        "trip_code": item.get("trip_code"),
+                        "trip_custom_1": item.get("trip_custom_1"),
+                        "odometer_start": item.get("odometer_start"),
+                        "odometer_end": item.get("odometer_end"),
+                        "position": item.get("position"),
+                        "start_position": item.get("start_position"),
+                        "delivery_position": item.get("delivery_position"),
+                        "time_windows": item.get("time_windows"),
+                        "distance": item.get("distance"),
+                        "tracked_arrival": item.get("tracked_arrival"),
+                        "tracked_leave": item.get("tracked_leave"),
+                        "tracked_service_time": item.get("tracked_service_time"),
+                        "rating_1": item.get("rating_1"),
+                        "rating_2": item.get("rating_2"),
+                        "rating_3": item.get("rating_3"),
+                        "customer_comment": item.get("customer_comment"),
+                        "visit_arrival": item.get("visit_arrival"),
+                        "visit_leave": item.get("visit_leave"),
+                        "images": item.get("images"),
+                        "signature": item.get("signature"),
+                        "custom_fields": item.get("custom_fields"),
+                        "comment": item.get("comment"),
+                        "events": item.get("events"),
+                        "pdf_pod": item.get("pdf_pod"),
+
+                        # Campos renombrados para coincidir con columnas esperadas
+                        "code": order.get("code"),
+                        "alt_code": order.get("alt_code"),
+                        "description_order": order.get("description"),
+                        "address_type": order.get("address_type"),
+                        "pod_arrival": order.get("pod_arrival"),
+                        "pod_distance": order.get("pod_distance"),
+                        "near_pod": order.get("near_pod"),
+                        "pod_lat": order.get("pod_lat"),
+                        "pod_lng": order.get("pod_lng"),
+                        "delivery_date": order.get("delivery_date"),
+                        "deploy_date": order.get("deploy_date"),
+                        "billing_date": order.get("billing_date"),
+                        "status": order.get("status"),
+                        "status_code": order.get("status_code"),
+                        "customer_status": order.get("customer_status"),
+                        "load_status": order.get("load_status"),
+                        "reason": order.get("reason"),
+                        "reason_code": order.get("reason_code"),
+                        "otif": order.get("otif"),
+                        "ifd_count": order.get("ifd_count"),
+                        "supplier_code": order.get("supplier_code"),
+                        "supplier_name": order.get("supplier_name"),
+                        "client_code": order.get("client_code"),
+                        "client_name": order.get("client_name"),
+                        "units": order.get("units"),
+                        "units_1": order.get("units_1"),
+                        "units_2": order.get("units_2"),
+                        "units_3": order.get("units_3"),
+                        "cusom_1": order.get("custom_1"),
+                        "cusom_2": order.get("custom_2"),
+                        "cusom_3": order.get("custom_3"),
+                        "cusom_4": order.get("custom_4"),
+                        "cusom_5": order.get("custom_5"),
+                        "custom_6": order.get("custom_6"),
+                        "number_1": order.get("number_1"),
+                        "number_2": order.get("number_2"),
+                        "number_3": order.get("number_3"),
+                        "is_otd": order.get("is_otd"),
+                        "items": order.get("items"),
+                        "pickups": order.get("pickups"),
+                        "images": order.get("images"),
+                        "comment": order.get("comment")
+                    })
+            return lista        
         else:
             print(f"Formato inesperado en la respuesta de la API: {data}")
             exception_cases.append(url)
-            lista = []
+            return []
 
-    except requests.exceptions.HTTPError as http_err:
-        print(f"HTTP error occurred: {http_err}")
-        exception_cases.append(url)
-        lista = []
     except requests.exceptions.RequestException as req_err:
         print(f"Request error occurred: {req_err}")
         exception_cases.append(url)
-        lista = []
-    except Exception as err:
-        print(f"An error occurred: {err}")
-        exception_cases.append(url)
-        lista = []
+        return []
 
-    return lista
 
 def drivin_entrega_prueba_to_s3(ts, ds):
     import pandas as pd
@@ -1307,6 +1291,10 @@ def drivin_entrega_prueba_to_s3(ts, ds):
     exception_cases = []
 
     lista_usuarios = get_api_entrega_pruebas(exception_cases)
+
+    # Verificar las primeras filas de la lista de datos
+    if lista_usuarios:
+        print(f"Primer registro de lista_usuarios: {lista_usuarios[0]}")
 
     columns = ["planned_date",
                     "description",
