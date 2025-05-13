@@ -1451,9 +1451,9 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
     
     # Obtener el archivo desde el S3
     hook_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
-
     df = pd.read_csv(hook_object.get()["Body"])
-    if len(df.index) == 0:
+
+    if df.empty:
         print("There are no new nor updated records to load. Task will exit as successful.")
         return
 
@@ -1461,123 +1461,42 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
 
     df["fecha_hora"] = ts
 
-    columns = ["planned_date",
-                    "description",
-                    "scenario_token",
-                    "vehicle_code",
-                    "vehicle_description",
-                    "schema_code",
-                    "schema_name",
-                    "fleet_name",
-                    "organization_name",
-                    "organization_alt_name",
-                    "route_is_approved",
-                    "route_is_started",
-                    "route_is_finished",
-                    "route_approved_at",
-                    "route_started_at",
-                    "route_finished_at",
-                    "driver_name",
-                    "driver_email",
-                    "driver_dni",
-                    "driver_license_number",
-                    "assistant_1_name",
-                    "assistant_1_email",
-                    "route_code",
-                    "route_comment",
-                    "employer_code",
-                    "employer_name",
-                    "address_name",
-                    "address_code",
-                    "address_address_1",
-                    "address_address_2",
-                    "address_city",
-                    "address_county",
-                    "address_state",
-                    "address_customer_name",
-                    "address_lat",
-                    "address_lng",
-                    "address_postal_code",
-                    "address_country",
-                    "planned_service_time",
-                    "eta",
-                    "eta_approved",
-                    "eta_started",
-                    "trip_number",
-                    "trip_code",
-                    "trip_custom_1",
-                    "odometer_start",
-                    "odometer_end",
-                    "position",
-                    "start_position",
-                    "delivery_position",
-                    "time_windows",
-                    "distance",
-                    "tracked_arrival",
-                    "tracked_leave",
-                    "tracked_service_time",
-                    "rating_1",
-                    "rating_2",
-                    "rating_3",
-                    "customer_comment",
-                    "visit_arrival",
-                    "visit_leave",
-                    "images",
-                    "signature",
-                    "custom_fields",
-                    "comment",
-                    "events",
-                    "pdf_pod",
-                    "code",
-                    "alt_code",
-                    "description_order",
-                    "address_type",
-                    "pod_arrival",
-                    "pod_distance",
-                    "near_pod",
-                    "pod_lat",
-                    "pod_lng",
-                    "delivery_date",
-                    "deploy_date",
-                    "billing_date",
-                    "status",
-                    "status_code",
-                    "customer_status",
-                    "load_status",
-                    "reason",
-                    "reason_code",
-                    "otif",
-                    "ifd_count",
-                    "images",
-                    "comment",
-                    "supplier_code",
-                    "supplier_name",
-                    "client_code",
-                    "client_name",
-                    "units",
-                    "units_1",
-                    "units_2",
-                    "units_3",
-                    "cusom_1",
-                    "cusom_2",
-                    "cusom_3",
-                    "cusom_4",
-                    "cusom_5",
-                    "custom_6",
-                    "number_1",
-                    "number_2",
-                    "number_3",
-                    "is_otd",
-                    "items",
-                    "pickups"]
+    # Columnas sin duplicados + order_code
+    columns = [
+        "planned_date", "description", "scenario_token", "vehicle_code", "vehicle_description",
+        "schema_code", "schema_name", "fleet_name", "organization_name", "organization_alt_name",
+        "route_is_approved", "route_is_started", "route_is_finished", "route_approved_at",
+        "route_started_at", "route_finished_at", "driver_name", "driver_email", "driver_dni",
+        "driver_license_number", "assistant_1_name", "assistant_1_email", "route_code", "route_comment",
+        "employer_code", "employer_name", "address_name", "address_code", "address_address_1",
+        "address_address_2", "address_city", "address_county", "address_state", "address_customer_name",
+        "address_lat", "address_lng", "address_postal_code", "address_country", "planned_service_time",
+        "eta", "eta_approved", "eta_started", "trip_number", "trip_code", "trip_custom_1",
+        "odometer_start", "odometer_end", "position", "start_position", "delivery_position",
+        "time_windows", "distance", "tracked_arrival", "tracked_leave", "tracked_service_time",
+        "rating_1", "rating_2", "rating_3", "customer_comment", "visit_arrival", "visit_leave",
+        "images", "signature", "custom_fields", "comment", "events", "pdf_pod", "code", "alt_code",
+        "description_order", "address_type", "pod_arrival", "pod_distance", "near_pod", "pod_lat",
+        "pod_lng", "delivery_date", "deploy_date", "billing_date", "status", "status_code",
+        "customer_status", "load_status", "reason", "reason_code", "otif", "ifd_count", 
+        "supplier_code", "supplier_name", "client_code", "client_name", "units", "units_1", "units_2",
+        "units_3", "cusom_1", "cusom_2", "cusom_3", "cusom_4", "cusom_5", "custom_6", "number_1",
+        "number_2", "number_3", "is_otd", "items", "pickups", "fecha_hora", "order_code"
+    ]
+
+    # Validación rápida por si acaso
+    missing_cols = [col for col in columns if col not in df.columns]
+    if missing_cols:
+        raise Exception(f"Missing expected columns in DataFrame: {missing_cols}")
 
     columns_query = ",".join(columns)
-    excluded_query = ",".join([f"EXCLUDED.{column}" for column in columns])
-    values_query = ",".join(["%s" for _ in columns])
+    excluded_query = ",".join([f"EXCLUDED.{col}" for col in columns])
+    values_query = ",".join(["%s"] * len(columns))
+
     df = df.fillna("NULL")
     records = list(df.to_records(index=False))
-    
-     # Convertir datos
+
+    # Convertir a tipos compatibles con psycopg2
     fixed_records = []
     for record in records:
         fixed_record = []
@@ -1592,16 +1511,13 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
 
     print(f"Number of records to load: {len(fixed_records)}")
 
-    # Consulta incremental para PostgreSQL
     incremental_query = f"""
         INSERT INTO ecommdata.drivin_entrega_prueba ({columns_query}) 
         VALUES ({values_query})
         ON CONFLICT (order_code)
         DO UPDATE SET ({columns_query}) = ({excluded_query});
     """
-    print(incremental_query)
 
-    # Cargar en PostgreSQL
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -1609,7 +1525,8 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
-    print("Data loaded to Postgres: ecommdata.drivin_users")
+
+    print("Data loaded to Postgres: ecommdata.drivin_entrega_prueba")
     return
 
 default_args = {
