@@ -43,7 +43,6 @@ SELECT DISTINCT
         and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
         and s.vtex_id is not null
         and wp.precio_promocional > 0
-        and (wp.material in( '000000000000572824','000000000000168914') and n_promocion = '9960252025')
         AND wp.fecha_inicio_de_promocion <= '{ds}'::date + interval '1 day'
         AND wp.fecha_fin_de_promocion >= '{ds}'::date + interval '1 day'
         ORDER BY wp.precio_promocional, wp.fecha_fin_de_promocion DESC;
