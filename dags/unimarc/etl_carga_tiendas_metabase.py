@@ -76,7 +76,8 @@ def tiendas():
     import pandas as pd
     tiendas_query = """select id, status, nombre_tienda_janis
                     from ecommdata.tiendas t 
-                    where status = 1"""
+                    where status = 1
+                    and t.id not in ('1917')"""
     print(tiendas_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
