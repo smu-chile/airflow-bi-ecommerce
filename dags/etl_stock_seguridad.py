@@ -517,7 +517,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
     print(df)
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
@@ -591,7 +591,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -661,7 +661,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -711,7 +711,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
