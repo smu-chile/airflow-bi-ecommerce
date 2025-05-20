@@ -29,7 +29,7 @@ def _check_time(ts):
 
 def stock(ds):
     import pandas as pd
-    stock_tiendas_query = f"""select distinct c.*, date_part('dow','{ds}'::date) as dia, date_part('week','{ds}'::date) as semana
+    stock_tiendas_query = f"""select distinct c.*, date_part('dow','{ds}'::date) as dia, date_part('week','{ds}'::date) as semana, s.erp_id
                     from(select pt.ref_id, pt.id_tienda
                             from ecommdata.productos_tienda pt
                             left join ecommdata.tiendas t on t.id = pt.id_tienda 
@@ -40,6 +40,7 @@ def stock(ds):
                             "refId" as ref_id,
                             unnest(string_to_array(stores, ',')) AS id_tienda
                             from ecommdata.carga_productos cp) as c
+                            left join ecommdata.skus s on s.ref_id = c.ref_id
                             where c.id_tienda not in ('9212', '1917');
                             """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -49,9 +50,9 @@ def stock(ds):
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","id_tienda","dia","semana"]
+    results.columns = ["ref_id","id_tienda","dia","semana", "erp_id"]
     results.info()
-    results = results[["ref_id","id_tienda"]]
+    results = results[["ref_id","id_tienda", "erp_id"]]
     results.info()
     cursor.close()
     pg_connection.close()
@@ -271,7 +272,11 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
+    df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
+    df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
+
 
     ##############
     #cargar datos#
@@ -450,10 +455,12 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print(df_final)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
+    df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
+    df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
     print("\n")
-    print(df_final)
+    print(df_final)    
     ##############
     #cargar datos#
     ##############
@@ -541,7 +548,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = df.erp_id[i]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
@@ -557,6 +564,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
             print(response.text)
             payload = []
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+    print(f"Payload: \n{payload_json}\n")
     response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
 
@@ -614,7 +622,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = df.erp_id[i]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
@@ -630,6 +638,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
             print(response.text)
             payload = []
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+    print(f"Payload: \n{payload_json}\n")
     response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
 
