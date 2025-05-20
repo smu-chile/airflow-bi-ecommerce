@@ -1484,8 +1484,11 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
         "number_2", "number_3", "is_otd", "items", "pickups", "fecha_hora", "order_code"
     ]
 
-    # Validación rápida por si acaso
-    missing_cols = [col for col in columns if col not in df.columns]
+    # Asumiendo que 'code' es el nuevo 'order_code'
+    df.rename(columns={"code": "order_code"}, inplace=True)
+
+    required_columns = ["order_code"]
+    missing_cols = [col for col in required_columns if col not in df.columns]
     if missing_cols:
         raise Exception(f"Missing expected columns in DataFrame: {missing_cols}")
 
