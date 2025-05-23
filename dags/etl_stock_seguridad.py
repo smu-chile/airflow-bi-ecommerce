@@ -184,7 +184,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
 
     #multiplicamos la venta por 0.5 para cargar la mitad del stock de seguridad por regla de negocio
-    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.25
     print(df_stock_seguridad["cantidad"])
 
     #Condicion para que si la venta fue menor a dos setear stock seguridad igual a 2
@@ -193,7 +193,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
+    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],0)
 
     #filtrar columnas necesarias del nuevo dataFrame      
     df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
@@ -287,12 +287,12 @@ def stock_ventas_tiendas_to_s3_am(ds):
     choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],0)
     print(df_final.head())
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=100,
-                df_final["nuevo_stock_seguridad"]<100]
-    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+    condlist = [df_final["nuevo_stock_seguridad"]>=50,
+                df_final["nuevo_stock_seguridad"]<50]
+    choicelist = [50, df_final["nuevo_stock_seguridad"]]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
 
