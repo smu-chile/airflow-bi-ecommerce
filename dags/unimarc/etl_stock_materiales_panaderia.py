@@ -18,20 +18,21 @@ def _send_stock_999_to_janis_pan(ds):
     import requests
     import json
     from sqlalchemy.sql import text
+    from collections import defaultdict
 
     print(f"date: {ds}")
-    
-    # 🔐 Credenciales BD
+
+    # 🔐 Conexión a BD
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
-    
+
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
     conn = engine.connect()
 
-    # 📦 Consulta de panes con material y tienda
+    # 📦 Consulta materiales por tienda
     query = """
         SELECT DISTINCT 
             COALESCE(s.erp_id, l.material) AS material,
@@ -49,54 +50,48 @@ def _send_stock_999_to_janis_pan(ds):
     rows = result.fetchall()
     print(f"Total SKU-tienda encontrados: {len(rows)}")
 
-    # 🧩 Excepciones donde el warehouse no coincide con la tienda
+    # 🧩 Excepciones warehouse
     warehouse_excepciones = {
         '0332': '15f52fc',
         '0469': '0003',
         '0581': '18bced3',
         '0917': '193949d',
         '0956': '956',
-        # Agregar más si aparecen
     }
+    tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
 
-    # 🌐 API Janis
+    # 🌐 Config API Janis
     base_url = Variable.get("JANIS_API_URL")
     url = f"{base_url}stock"
-
-    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
-    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
-    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
-
     headers = {
-        "janis-api-key": JANIS_API_KEY,
-        "janis-api-secret": JANIS_API_SECRET,
-        "janis-client": JANIS_CLIENT,
+        "janis-api-key": Variable.get("JANIS_API_KEY"),
+        "janis-api-secret": Variable.get("JANIS_API_SECRET"),
+        "janis-client": Variable.get("JANIS_CLIENT"),
         "Connection": "keep-alive"
     }
 
-    # 🔄 Envío en bloques de 400
-    separated_list = list(divide_chunks(rows, 400))
+    # 🧩 Agrupar materiales por tienda
+    tienda_to_payload = defaultdict(list)
+    for material, tienda in rows:
+        if tienda in tiendas_sin_warehouse_default:
+            continue
+        warehouse = warehouse_excepciones.get(tienda, tienda)
+        sku = str(material).zfill(18)
+        tienda_to_payload[tienda].append({
+            "IdSku": sku,
+            "Quantity": 999,
+            "Store": tienda,
+            "Warehouse": warehouse
+        })
 
-    for chunk in separated_list:
-        payload = []
-        for r in chunk:
-            material = str(r[0]).zfill(18)
-            id_tienda = r[1]
-            warehouse = warehouse_excepciones.get(id_tienda, id_tienda)
-
-            row = {
-                "IdSku": material,
-                "Quantity": 999,
-                "Store": id_tienda,
-                "Warehouse": warehouse
-            }
-            print(row)
-            payload.append(row)
-
+    # 🔁 Un solo POST por tienda
+    for tienda, payload in tienda_to_payload.items():
+        print(f"⬆️ Enviando {len(payload)} SKUs a tienda {tienda}")
         response = requests.post(url, headers=headers, data=json.dumps(payload))
-        print(f"Status: {response.status_code} | Response: {response.text}")
+        print(f"📦 Store: {tienda} | Status: {response.status_code} | Response: {response.text}")
 
     return
+
 
 
 default_args = {
@@ -107,10 +102,10 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_stock_tiendas_no_visibles',
+    'etl_stock_materiales_panaderia',
     default_args=default_args,
     description="Se agrega stock 999 de materiales de panaderia a tiendas que correspondan",
-    schedule_interval="30 * * * *",
+    schedule_interval="30 9 * * *",
     start_date=pendulum.datetime(2024, 7, 3, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Panaderia", "KEVIN", "ecommdata", "catalogo", "stock"],
