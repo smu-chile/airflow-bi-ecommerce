@@ -515,13 +515,26 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     }
     
     payload=[]
+    # 🧩 Excepciones warehouse
+    warehouse_excepciones = {
+        '0332': '15f52fc',
+        '0469': '0003',
+        '0581': '18bced3',
+        '0917': '193949d',
+        '0956': '956',
+    }
+    tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
     for i in df.index:
         material = df.erp_id[i]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
+        if id_tienda in tiendas_sin_warehouse_default:
+            continue  # saltar tiendas sin warehouse asignado
+        warehouse = warehouse_excepciones.get(id_tienda, id_tienda)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
+                "Warehouse": warehouse,
                 "MinStockDiff": True,
                 "MinStock": stock_seguridad,
                 "Type": 2}
@@ -589,13 +602,26 @@ def carga_stock_seguridad_janis_am(ds,ti):
     }
     
     payload=[]
+    # 🧩 Excepciones warehouse
+    warehouse_excepciones = {
+        '0332': '15f52fc',
+        '0469': '0003',
+        '0581': '18bced3',
+        '0917': '193949d',
+        '0956': '956',
+    }
+    tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
     for i in df.index:
         material = df.erp_id[i]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
+        if id_tienda in tiendas_sin_warehouse_default:
+            continue  # saltar tiendas sin warehouse asignado
+        warehouse = warehouse_excepciones.get(id_tienda, id_tienda)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
+                "Warehouse": warehouse,
                 "MinStockDiff": True,
                 "MinStock": stock_seguridad,
                 "Type": 2}
