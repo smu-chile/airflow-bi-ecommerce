@@ -399,7 +399,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
                 ]
     
     df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
-    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2) #Caution
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2) #Caution
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -436,7 +437,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
     condlist = [df_final["nuevo_stock_seguridad"]>=50,
                 df_final["nuevo_stock_seguridad"]<50]
