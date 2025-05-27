@@ -40,7 +40,7 @@ def stock(ds):
                             "refId" as ref_id,
                             unnest(string_to_array(stores, ',')) AS id_tienda
                             from ecommdata.carga_productos cp) as c
-                            left join ecommdata.skus s on s.ref_id = c.ref_id
+                            left join ecommdata.skus s on c.ref_id = s.ref_id
                             where c.id_tienda not in ('9212', '1917');
                             """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -52,7 +52,7 @@ def stock(ds):
     results=pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","dia","semana", "erp_id"]
     results.info()
-    results = results[["ref_id","id_tienda", "erp_id"]]
+    results = results[["ref_id","id_tienda","erp_id"]]
     results.info()
     cursor.close()
     pg_connection.close()
@@ -193,7 +193,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],0)
+    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
     #filtrar columnas necesarias del nuevo dataFrame      
     df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
@@ -224,9 +224,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    #Lógica 1#
-
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0) #Esto en la tercera lógica no va
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
 
@@ -241,26 +239,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
     
     df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
 
-    # LÓGICA 2 #
-
-    #mask_meios = ~df_final["ref_id"].str.endswith(("-KG", "-KGV"))
-    #
-    #df_final["nuevo_stock_seguridad"] = df_final.apply(
-    #    lambda row: row["minimo_exhibicion"]
-    #    if mask_meios.loc[row.name] and row["nuevo_stock_seguridad"] > row["minimo_exhibicion"]
-    #    else row["nuevo_stock_seguridad"],
-    #    axis=1
-    #)
-
-    # LÓGICA 3 #
-
-    # Aplicar: si hay mínimo válido (>= 0), lo usamos. Si no, se mantiene el valor por venta.
-    #df_final["nuevo_stock_seguridad"] = np.where(
-    #    df_final["minimo_exhibicion"].notna() & (df_final["minimo_exhibicion"] >= 0),
-    #    df_final["minimo_exhibicion"],
-    #    df_final["nuevo_stock_seguridad"]
-    #)
-    # FIN NUEVAS LÓGICAS #
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
@@ -293,7 +271,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],0)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
     print(df_final.head())
 
     condlist = [df_final["nuevo_stock_seguridad"]>=50,
@@ -406,10 +384,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-
-    # LÓGICA 1 #
-
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0) #Esto en la tercera lógica no va
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
     print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
@@ -424,30 +399,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
                 ]
     
     df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
-    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2) #Caution
 
-    # LÓGICA 2 #
-
-    # Aplica lógica de mínimos SOLO si NO es KG o KGV
-    #mask_meios = ~df_final["ref_id"].str.endswith(("-KG", "-KGV"))
-
-    #df_final["nuevo_stock_seguridad"] = df_final.apply(
-    #    lambda row: row["minimo_exhibicion"]
-    #    if mask_meios.loc[row.name] and row["nuevo_stock_seguridad"] > row["minimo_exhibicion"]
-    #    else row["nuevo_stock_seguridad"],
-    #    axis=1
-    #)
-
-    # LÓGICA 3 #
-
-    # Aplicar: si hay mínimo válido (>= 0), lo usamos. Si no, se mantiene el valor por venta.
-    #df_final["nuevo_stock_seguridad"] = np.where(
-    #    df_final["minimo_exhibicion"].notna() & (df_final["minimo_exhibicion"] >= 0),
-    #    df_final["minimo_exhibicion"],
-    #    df_final["nuevo_stock_seguridad"]
-    #)
-    #
-    # FIN NUEVAS LÓGICAS #
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
@@ -473,7 +426,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
     df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
     print("\n")
-    print(df_final)    
+    print(df_final)
     ##############
     #cargar datos#
     ##############
@@ -576,8 +529,8 @@ def carga_stock_seguridad_janis_pm(ds,ti):
             response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
+        print(f"Payload: \n{payload_json}\n")
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
-    print(f"Payload: \n{payload_json}\n")
     response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
 
@@ -650,8 +603,8 @@ def carga_stock_seguridad_janis_am(ds,ti):
             response = requests.post(url, headers=headers, data=payload_json)
             print(response.text)
             payload = []
+        print(f"Payload: \n{payload_json}\n")
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
-    print(f"Payload: \n{payload_json}\n")
     response = requests.post(url, headers=headers, data=payload_json)
     print(response.text)
 
@@ -821,5 +774,3 @@ with DAG(
     t0 >> t1_am >> t2_am >> t3_am
     t0 >> t1_pm >> t2_pm >> t3_pm
     t0 >> t_dummy
-
-
