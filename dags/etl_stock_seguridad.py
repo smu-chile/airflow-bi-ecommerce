@@ -224,20 +224,24 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    #df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
+    #Lógica 1#
+
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0) #Esto en la tercera lógica no va
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
 
-    #condlist_1 = [
-    #        df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
-    #        df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
-    #        ]
-    #choicelist_1 = [
-    #            df_final["minimo_exhibicion"],
-    #            df_final["nuevo_stock_seguridad"]
-    #            ]
-    #
-    #df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+    condlist_1 = [
+            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
+            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
+            ]
+    choicelist_1 = [
+                df_final["minimo_exhibicion"],
+                df_final["nuevo_stock_seguridad"]
+                ]
+    
+    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+
+    # LÓGICA 2 #
 
     #mask_meios = ~df_final["ref_id"].str.endswith(("-KG", "-KGV"))
     #
@@ -248,13 +252,15 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #    axis=1
     #)
 
-    # Aplicar: si hay mínimo válido (>= 0), lo usamos. Si no, se mantiene el valor por venta.
-    df_final["nuevo_stock_seguridad"] = np.where(
-        df_final["minimo_exhibicion"].notna() & (df_final["minimo_exhibicion"] >= 0),
-        df_final["minimo_exhibicion"],
-        df_final["nuevo_stock_seguridad"]
-    )
+    # LÓGICA 3 #
 
+    # Aplicar: si hay mínimo válido (>= 0), lo usamos. Si no, se mantiene el valor por venta.
+    #df_final["nuevo_stock_seguridad"] = np.where(
+    #    df_final["minimo_exhibicion"].notna() & (df_final["minimo_exhibicion"] >= 0),
+    #    df_final["minimo_exhibicion"],
+    #    df_final["nuevo_stock_seguridad"]
+    #)
+    # FIN NUEVAS LÓGICAS #
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
@@ -362,7 +368,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
     df_stock_seguridad.info()
-    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.25
 
     condlist = [df_stock_seguridad["cantidad"]>=1,
                 df_stock_seguridad["cantidad"]<1]
@@ -391,7 +397,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final.reset_index()
     df_final.info()
 
-    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
@@ -401,22 +406,27 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    #df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
+
+    # LÓGICA 1 #
+
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0) #Esto en la tercera lógica no va
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
     print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
 
-    #condlist_1 = [
-    #        df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
-    #        df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
-    #        ]
-    #choicelist_1 = [
-    #            df_final["minimo_exhibicion"],
-    #            df_final["nuevo_stock_seguridad"]
-    #            ]
-    #
-    #df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
-    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    condlist_1 = [
+            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
+            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
+            ]
+    choicelist_1 = [
+                df_final["minimo_exhibicion"],
+                df_final["nuevo_stock_seguridad"]
+                ]
+    
+    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+
+    # LÓGICA 2 #
 
     # Aplica lógica de mínimos SOLO si NO es KG o KGV
     #mask_meios = ~df_final["ref_id"].str.endswith(("-KG", "-KGV"))
@@ -428,13 +438,16 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     #    axis=1
     #)
 
-    # Aplicar: si hay mínimo válido (>= 0), lo usamos. Si no, se mantiene el valor por venta.
-    df_final["nuevo_stock_seguridad"] = np.where(
-        df_final["minimo_exhibicion"].notna() & (df_final["minimo_exhibicion"] >= 0),
-        df_final["minimo_exhibicion"],
-        df_final["nuevo_stock_seguridad"]
-    )
+    # LÓGICA 3 #
 
+    # Aplicar: si hay mínimo válido (>= 0), lo usamos. Si no, se mantiene el valor por venta.
+    #df_final["nuevo_stock_seguridad"] = np.where(
+    #    df_final["minimo_exhibicion"].notna() & (df_final["minimo_exhibicion"] >= 0),
+    #    df_final["minimo_exhibicion"],
+    #    df_final["nuevo_stock_seguridad"]
+    #)
+    #
+    # FIN NUEVAS LÓGICAS #
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
 
@@ -450,7 +463,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print("\n")
     print(df_final)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
-    df_final["peso"] = df_final["peso"].fillna(1) ##
+    df_final["peso"] = df_final["peso"].fillna(1)
     print("QA_test")
     print(df_final)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
@@ -472,9 +485,9 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=100,
-                df_final["nuevo_stock_seguridad"]<100]
-    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+    condlist = [df_final["nuevo_stock_seguridad"]>=50,
+                df_final["nuevo_stock_seguridad"]<50]
+    choicelist = [50, df_final["nuevo_stock_seguridad"]]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final = df_final[df_final['id_tienda'] != '1917']
