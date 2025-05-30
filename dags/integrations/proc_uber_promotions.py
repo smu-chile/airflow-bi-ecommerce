@@ -80,6 +80,7 @@ def _join_promo_prices_test_from_s3(ds, ti):
       AND wp.nombre_promocion::TEXT !~~ '%917%'::TEXT
       AND wp.nombre_promocion::TEXT !~~ '%ESTADO%'::TEXT
       AND wp.nombre_promocion::TEXT !~~ '% LOC%'::TEXT
+      and wp.nombre_promocion::text !~~ '%CYBER%'::text
       AND wp.nombre_promocion::TEXT !~~ '%LIQ%'::text
       AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
                                  '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
