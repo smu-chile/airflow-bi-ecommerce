@@ -68,6 +68,7 @@ left join (
 	AND wp.nombre_promocion::text !~~ '%917%'::text
 	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
 	and wp.nombre_promocion::text !~~ '% LOC%'::text
+	and wp.nombre_promocion::text !~~ '%CYBER%'::text
 	and wp.nombre_promocion::text !~~ '%LIQ%'::text
 	and wp.n_promocion  not in  ('5640502024','5552392024','1120012024',
 '1120022024',
