@@ -130,6 +130,23 @@ def minimos_exhibicion():
     pg_connection.close()
     return results
 
+def excluidos_ss():
+    import pandas as pd
+    query = """select id_tienda, ref_id
+                from ecommdata.productos_excluidos_ss;"""
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
+    cursor.close()
+    pg_connection.close()
+    return results
+
 def stock_ventas_tiendas_to_s3_am(ds):
     import pandas as pd
     import numpy as np
@@ -283,7 +300,17 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final = df_final[df_final['id_tienda'] != '1917']
     df_final = df_final[df_final['id_tienda'] != '9212']
     print(df_final.head())
+    # Aplicar lógica de excluidos
+    df_excluidos = excluidos_ss()
+    df_excluidos["id_tienda"] = df_excluidos["id_tienda"].astype(str).str.zfill(4)
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str).str.zfill(4)
+    df_final = df_final.merge(df_excluidos, how="left", on=["id_tienda", "ref_id"], indicator=True)
 
+    # Si el producto está en los excluidos, forzar nuevo_stock_seguridad = 0
+    df_final.loc[df_final["_merge"] == "both", "nuevo_stock_seguridad"] = 0
+    df_final = df_final.drop(columns=["_merge"])
+    print("Productos con stock seguridad 0 (por exclusión):")
+    print(df_final[(df_final["nuevo_stock_seguridad"] == 0) & (df_final["id_tienda"] == "0917")].head(10))
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"stock_seguridad/{exec_date}/stock_seguridad_am_{date_aux}.csv"
@@ -449,7 +476,17 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final[df_final['id_tienda'] != '9212']
 
     print(df_final)
+    # Aplicar lógica de excluidos
+    df_excluidos = excluidos_ss()
+    df_excluidos["id_tienda"] = df_excluidos["id_tienda"].astype(str).str.zfill(4)
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str).str.zfill(4)
+    df_final = df_final.merge(df_excluidos, how="left", on=["id_tienda", "ref_id"], indicator=True)
 
+    # Si el producto está en los excluidos, forzar nuevo_stock_seguridad = 0
+    df_final.loc[df_final["_merge"] == "both", "nuevo_stock_seguridad"] = 0
+    df_final = df_final.drop(columns=["_merge"])
+    print("Productos con stock seguridad 0 (por exclusión):")
+    print(df_final[(df_final["nuevo_stock_seguridad"] == 0) & (df_final["id_tienda"] == "0917")].head(10))
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"stock_seguridad/{exec_date}/stock_seguridad_pm_{date_aux}.csv"
