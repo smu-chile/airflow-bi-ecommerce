@@ -125,18 +125,18 @@ default_args = {
 }
 
 with DAG(
-    'etl_stock_materiales_pollos',
+    'etl_janis_unificacion_stock_materiales',
     default_args=default_args,
-    description="Carga de stock 999 de materiales de pollo (pares de ref_id) en tiendas habilitadas",
-    schedule_interval=None,  # Solo ejecución manual
+    description="Suma el stock de pares de ref_id específicos de productos y los carga duplicados por SKU en la API de Janis (pendiente de escalabilidad)",
+    schedule_interval= "5 9 * * *",  # Solo ejecución manual
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
-    tags=["Janis", "Pollos", "Stock", "ecommdata", "local","KEVIN"],
+    tags=["Janis", "Pollos", "Stock", "ecommdata","KEVIN"],
 ) as dag:
 
     dag.doc_md = """
-    ### DAG: etl_stock_materiales_pollos
-    Suma el stock de pares de ref_id específicos de productos de pollo y los carga duplicados por SKU en la API de Janis.
+    ### DAG: etl_janis_unificacion_stock_materiales
+    Suma el stock de pares de ref_id específicos de productos y los carga duplicados por SKU en la API de Janis.
     """
 
     t0 = PythonOperator(
