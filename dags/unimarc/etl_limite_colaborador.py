@@ -62,7 +62,7 @@ def get_users_for_limit():
         cur.executemany(insert_query, values)
 
     conn.commit()
-    print(f"✅ {len(df_success)} filas insertadas en 'excluidos_colaborador'.")
+    print(f"✅ {len(df_success)} filas revisadas.")
     
     conn.close()
 
@@ -140,73 +140,6 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
     return False
 
 
-#📌 Función Mensual: Reasigna xConvenio
-def reasign_process():
-    import psycopg2
-    import pandas as pd
-    
-    """
-    Proceso mensual que recupera los datos de 'excluidos_colaborador' y reasigna xConvenio en VTEX.
-    """
-    print("🔹 Iniciando proceso de reasignación de xConvenio...")
-
-    conn = psycopg2.connect(
-        host=Variable.get("POSTGRESQL_HOST"),
-        database=Variable.get("POSTGRESQL_DB"),
-        user=Variable.get("POSTGRESQL_USER"),
-        password=Variable.get("POSTGRESQL_PASSWORD"),
-        port="5432"
-    )
-
-    query = """
-        SELECT user_profile_id, descuento_colaborador, descuento_referido 
-        FROM ecommdata.excluidos_colaborador;
-    """
-
-    df_users = pd.read_sql_query(query, conn)
-
-    print(df_users.info())
-
-    conn.close()
-
-    if df_users.empty:
-        print("⚠️ No hay usuarios para reasignar xConvenio este mes.")
-        return
-
-    print(f"🔹 Se encontraron {len(df_users)} usuarios para actualizar.")
-    for _, row in df_users.iterrows():
-        user_id = row["user_profile_id"]
-        
-        # Asigna el valor de xConvenio según las condiciones
-        print(f"Procesando usuario {user_id} - descuento_colaborador: {row['descuento_colaborador']}, descuento_referido: {row['descuento_referido']}")
-        if row["descuento_colaborador"] < 0:
-            xConvenio_value = "Unimarc"
-        elif row["descuento_referido"] < 0:
-            xConvenio_value = "referido2023"
-        else:
-            continue  # Si no cumple ninguna condición, no se actualiza
-        actualizar_xConvenio(user_id, xConvenio_value)
-    
-    # 📌 Truncar la tabla 'excluidos_colaborador' después de reasignar xConvenio
-    conn = psycopg2.connect(
-        host=Variable.get("POSTGRESQL_HOST"),
-        database=Variable.get("POSTGRESQL_DB"),
-        user=Variable.get("POSTGRESQL_USER"),
-        password=Variable.get("POSTGRESQL_PASSWORD"),
-        port="5432"
-    )
-
-    # Ejecutar el comando TRUNCATE para vaciar la tabla
-    with conn.cursor() as cur:
-        truncate_query = "TRUNCATE TABLE ecommdata.excluidos_colaborador;"
-        cur.execute(truncate_query)
-        conn.commit()
-        print("✅ Tabla 'excluidos_colaborador' truncada exitosamente.")
-
-    conn.close()
-    print("✅ Proceso de reasignación de xConvenio finalizado.")
-    return
-
 # 📌 Configuración base
 default_args = {
     "owner": "ecommerce_data",
@@ -235,25 +168,3 @@ with DAG(
     )
 
     t0  # 🔹 Ejecuta diariamente
-
-
-# 📌 DAG Mensual (Reasignation Task)
-with DAG(
-    'etl_reasignacion_colaborador',
-    default_args=default_args,
-    description="Proceso mensual de reasignacion de colaboradores excluidos.",
-    schedule_interval="0 0 1 * *",  # 🔹 Se ejecuta el 1 de cada mes a las 00:00
-    start_date=pendulum.datetime(2025, 4, 1, tz="America/Santiago"),
-    catchup=False,
-    max_active_runs=1, 
-    tags=["VTEX","xConvenio","Master Data", "colaborador", "Mensual", "KEVIN"]
-) as dag_mensual:
-
-    dag_mensual.doc_md = "🔹 Proceso de reasignacion que se ejecuta una vez al mes."
-
-    t0 = PythonOperator(
-        task_id="reasign_process",
-        python_callable=reasign_process
-    )
-
-    t0  # 🔹 Ejecuta mensualmente
