@@ -128,7 +128,7 @@ with DAG(
     'etl_stock_materiales_pollos',
     default_args=default_args,
     description="Carga de stock 999 de materiales de pollo (pares de ref_id) en tiendas habilitadas",
-    schedule_interval=None,  # Solo ejecución manual
+    schedule_interval= "0 9 * * *",  
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Pollos", "Stock", "ecommdata", "local","KEVIN"],
