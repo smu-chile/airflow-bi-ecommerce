@@ -3,6 +3,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.sensors.external_task import ExternalTaskSensor
 
 from datetime import datetime
 import pendulum
@@ -37,18 +38,18 @@ def _send_stock_to_janis_pollos(ds):
             SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051712-KGV', '000000000000051813-KGV')) AS stock_051813_051712_KGV,
             SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051728-KG', '000000000000051845-KGV')) AS stock_051845_051728,
             SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051802-KGV', '000000000000668742-KGV')) AS stock_668742_051802,
-            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051806-KGV', '000000000000674766-KGV')) AS stock_051806_674766
+            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051806-KGV', '000000000000674766-KGV')) AS stock_051806_674766,
         FROM ecommdata.stock s 
         LEFT JOIN ecommdata.tiendas t ON t.id = s.id_tienda 
         WHERE s.ref_id IN (
             '000000000000051712-KGV', '000000000000051813-KGV',
             '000000000000051728-KG', '000000000000051845-KGV',
             '000000000000051802-KGV', '000000000000668742-KGV',
-            '000000000000051806-KGV', '000000000000674766-KGV'
+            '000000000000051806-KGV', '000000000000674766-KGV',
         )
         AND s.fecha = current_date
         AND t.status = 1
-        AND t.id not in ('0053', '0054', '0398')
+        AND t.id NOT IN ('0053', '0054', '0398')
         GROUP BY s.id_tienda, s.id_bodega, t.id_janis
     """
 
@@ -79,9 +80,10 @@ def _send_stock_to_janis_pollos(ds):
     # Pares de ref_id que comparten stock combinado (materiales de pollo)
     pares_ref_id = [
         ('000000000000051712', '000000000000051813'),
-        ('000000000000051728',  '000000000000051845'),
+        ('000000000000051728', '000000000000051845'),
         ('000000000000051802', '000000000000668742'),
-        ('000000000000051806', '000000000000674766')
+        ('000000000000051806', '000000000000674766'),
+        #('000000000000626678', '000000000000674767')  # 🆕 agregado
     ]
 
     # 🧩 Construcción del payload
@@ -139,9 +141,17 @@ with DAG(
     Suma el stock de pares de ref_id específicos de productos y los carga duplicados por SKU en la API de Janis.
     """
 
-    t0 = PythonOperator(
+    t0 = ExternalTaskSensor(
+        task_id="wait_for_stock",
+        external_dag_id='etl_stock_incremental_load',
+        external_task_id=None,
+        allowed_states=['success'],
+        failed_states=['failed']
+    )
+
+    t1 = PythonOperator(
         task_id="send_stock_to_janis_pollos",
         python_callable=_send_stock_to_janis_pollos,
     )
 
-    t0
+    t0 >> t1
