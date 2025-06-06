@@ -130,7 +130,7 @@ with DAG(
     'etl_janis_unificacion_stock_materiales',
     default_args=default_args,
     description="Suma el stock de pares de ref_id específicos de productos y los carga duplicados por SKU en la API de Janis (pendiente de escalabilidad)",
-    schedule_interval= "0 9 * * *",  # Solo ejecución manual
+    schedule_interval= "0 1,4/4 * * *",  # Solo ejecución manual
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Pollos", "Stock", "ecommdata","KEVIN"],
