@@ -38,19 +38,19 @@ def _send_stock_to_janis_pollos(ds):
             SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051712-KGV', '000000000000051813-KGV')) AS stock_051813_051712_KGV,
             SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051728-KG', '000000000000051845-KGV')) AS stock_051845_051728,
             SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051802-KGV', '000000000000668742-KGV')) AS stock_668742_051802,
-            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051806-KGV', '000000000000674766-KGV')) AS stock_051806_674766,
+            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051806-KGV', '000000000000674766-KGV')) AS stock_051806_674766
         FROM ecommdata.stock s 
         LEFT JOIN ecommdata.tiendas t ON t.id = s.id_tienda 
         WHERE s.ref_id IN (
             '000000000000051712-KGV', '000000000000051813-KGV',
             '000000000000051728-KG', '000000000000051845-KGV',
             '000000000000051802-KGV', '000000000000668742-KGV',
-            '000000000000051806-KGV', '000000000000674766-KGV',
+            '000000000000051806-KGV', '000000000000674766-KGV'
         )
         AND s.fecha = current_date
         AND t.status = 1
         AND t.id NOT IN ('0053', '0054', '0398')
-        GROUP BY s.id_tienda, s.id_bodega, t.id_janis
+        GROUP BY s.id_tienda, s.id_bodega, t.id_janis;
     """
 
     result = conn.execute(text(query))
@@ -82,7 +82,7 @@ def _send_stock_to_janis_pollos(ds):
         ('000000000000051712', '000000000000051813'),
         ('000000000000051728', '000000000000051845'),
         ('000000000000051802', '000000000000668742'),
-        ('000000000000051806', '000000000000674766'),
+        ('000000000000051806', '000000000000674766')
         #('000000000000626678', '000000000000674767')  # 🆕 agregado
     ]
 
