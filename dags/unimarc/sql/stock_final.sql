@@ -41,9 +41,9 @@ left join ecommdata.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.
 left join ecommdata.lista_infaltables li on p.material = li.material
 where t.status = 1 and (b.dock_activo is true)
 and NOT (
-	(t.id_tienda = '0018' AND b.id_bodega = '9051') OR
-	(t.id_tienda = '0069' AND b.id_bodega = '0576') OR
-	(t.id_tienda = '0088' AND b.id_bodega = '0324')
+	(t.id = '0018' AND b.id = '9051') OR
+	(t.id = '0069' AND b.id = '0576') OR
+	(t.id = '0088' AND b.id = '0324')
 )
 ;
 DELETE from ecommdata.stock
