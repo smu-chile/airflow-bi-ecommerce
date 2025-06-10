@@ -523,7 +523,9 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
     df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
-    print(df)
+    print(df.head(10))
+    df = df[df['erp_id'].notnull() & (df['erp_id'].astype(str).str.strip() != "")]
+    print(df.head(10))
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -564,11 +566,15 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     #tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
     for i in df.index:
         material = df.erp_id[i]
+        if not isinstance(material, str) or material.lower() == "nan" or material.strip() == "": #Si es que el material es NaN o vacío
+            print(f"⚠️ SKU inválido (omitido del payload, confirmar existencia en Janis): {material}")
+            continue
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         warehouse = warehouse_excepciones.get(id_tienda, id_tienda)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         if not all([material, id_tienda, warehouse, stock_seguridad is not None]):
             print(f"❌ Registro inválido: {material}, {id_tienda}, {warehouse}, {stock_seguridad}")
+            continue
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
@@ -636,6 +642,9 @@ def carga_stock_seguridad_janis_am(ds,ti):
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
     df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
+    print(df.head(10))
+    df = df[df['erp_id'].notnull() & (df['erp_id'].astype(str).str.strip() != "")]
+    print(df.head(10))
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -665,6 +674,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
     }
     
     payload=[]
+    errores_fk=[]
     # 🧩 Excepciones warehouse
     warehouse_excepciones = {
         '0332': '15f52fc',
@@ -673,14 +683,18 @@ def carga_stock_seguridad_janis_am(ds,ti):
         '0917': '193949d',
         '0956': '956',
     }
-    tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
+    #tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
     for i in df.index:
         material = df.erp_id[i]
+        if not isinstance(material, str) or material.lower() == "nan" or material.strip() == "": #Si es que el material es NaN o vacío
+            print(f"⚠️ SKU inválido (omitido del payload, confirmar existencia en Janis): {material}")
+            continue
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
-        if id_tienda in tiendas_sin_warehouse_default:
-            continue  # saltar tiendas sin warehouse asignado
         warehouse = warehouse_excepciones.get(id_tienda, id_tienda)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        if not all([material, id_tienda, warehouse, stock_seguridad is not None]):
+            print(f"❌ Registro inválido: {material}, {id_tienda}, {warehouse}, {stock_seguridad}")
+            continue
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
@@ -691,13 +705,38 @@ def carga_stock_seguridad_janis_am(ds,ti):
         payload.append(row)    
         if i % 499 == 0:
             payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+            print(f"📤 Enviando {len(payload)} registros")
             response = requests.post(url, headers=headers, data=payload_json)
-            print(response.text)
+            print("📥 Respuesta:", response.status_code, response.text)
+            try:
+                resp_json = response.json()
+                if resp_json.get("code") == 13:
+                    errores_fk.extend([p["IdSku"] for p in payload])
+                    print("❌ Errores FK en bloque:", [p["IdSku"] for p in payload])
+            except Exception as e:
+                print("❗ Error al parsear response:", e)
             payload = []
         #print(f"Payload: \n{payload_json}\n")
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
     response = requests.post(url, headers=headers, data=payload_json)
-    print(response.text)
+    print(f"📤 Enviando {len(payload)} registros finales")
+    print("📥 Respuesta final:", response.status_code, response.text)
+
+    try:
+        resp_json = response.json()
+        if resp_json.get("code") == 13:
+            errores_fk.extend([p["IdSku"] for p in payload])
+            print("❌ Errores FK en bloque final:", [p["IdSku"] for p in payload])
+    except Exception as e:
+        print("❗ Error al parsear response:", e)
+
+    if errores_fk:
+        print(f"⚠️ Total SKUs con error FK: {len(errores_fk)}")
+        print(errores_fk)
+    else:
+        print("✅ Todos los SKUs se enviaron sin errores FK")
+    #response = requests.post(url, headers=headers, data=payload_json)
+    #print(response.text)
 
     return
 
