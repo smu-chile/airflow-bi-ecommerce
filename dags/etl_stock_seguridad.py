@@ -609,8 +609,8 @@ def carga_stock_seguridad_janis_pm(ds,ti):
         print(errores_fk)
     else:
         print("✅ Todos los SKUs se enviaron sin errores FK")
-    response = requests.post(url, headers=headers, data=payload_json)
-    print(response.text)
+    #response = requests.post(url, headers=headers, data=payload_json)
+    #print(response.text)
 
     return
 
