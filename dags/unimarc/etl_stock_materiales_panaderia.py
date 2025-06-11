@@ -105,7 +105,7 @@ with DAG(
     'etl_stock_materiales_panaderia',
     default_args=default_args,
     description="Se agrega stock 999 de materiales de panaderia a tiendas que correspondan",
-    schedule_interval="30 9 * * *",
+    schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2024, 7, 3, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Panaderia", "KEVIN", "ecommdata", "catalogo", "stock"],
