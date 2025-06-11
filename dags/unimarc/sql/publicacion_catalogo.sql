@@ -1,7 +1,5 @@
 insert into ecommdata.publicacion_catalogo
-(with data_publicacion as (
-select distinct on (s.ultima_actualizacion, s.ref_id, s.id_tienda, s.id_bodega)
-s.ultima_actualizacion as fecha_hora
+select s.ultima_actualizacion as fecha_hora
 , s.material
 , s.ref_id
 , s.descripcion 
@@ -94,15 +92,4 @@ end as precio_valido
 	else true
 end as tienda_valida) val on true
 where s.fecha = '{{ds}}'::date
-order by s.ultima_actualizacion, s.id_tienda desc
-)
-select *
-from data_publicacion d
-where not exists (
-  select 1
-  from ecommdata.publicacion_catalogo pc
-  where pc.fecha_hora = d.fecha_hora
-    and pc.ref_id = d.ref_id
-    and pc.id_tienda = d.id_tienda
-    and pc.id_bodega = d.id_bodega
-))
+order by s.ultima_actualizacion, s.id_tienda desc;
