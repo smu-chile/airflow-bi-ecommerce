@@ -92,4 +92,5 @@ end as precio_valido
 	else true
 end as tienda_valida) val on true
 where s.fecha = '{{ds}}'::date
-order by s.ultima_actualizacion, s.id_tienda desc;
+order by s.ultima_actualizacion, s.id_tienda desc
+on conflict (fecha_hora, ref_id, id_tienda, id_bodega) do nothing;
