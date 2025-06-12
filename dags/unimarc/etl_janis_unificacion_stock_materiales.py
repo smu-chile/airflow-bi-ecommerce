@@ -9,53 +9,123 @@ from datetime import datetime
 import pendulum
 
 
-def _send_stock_to_janis_pollos(ds):
+def _send_stock_sap_to_janis(ds):
+    import jaydebeapi
+    import os
     import pandas as pd
-    import sqlalchemy
     import requests
     import json
-    from sqlalchemy.sql import text
     from collections import defaultdict
+    from airflow.models import Variable
+    from airflow.macros import ds_add
 
-    print(f"date: {ds}")
+    # 📅 Fecha de ejecución
+    exec_date = ds_add(ds, 0).replace("-", "/")
 
-    # 🔐 Conexión a BD
-    host = Variable.get("POSTGRESQL_HOST")
-    database = Variable.get("POSTGRESQL_DB")
-    username = Variable.get("POSTGRESQL_USER")
-    password = Variable.get("POSTGRESQL_PASSWORD")
+    # 🔐 Conexión a DW
+    dsn_database = Variable.get("DW_SECRET_DATABASE")
+    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
+    dsn_port = "5480"
+    dsn_uid = Variable.get("DW_SECRET_USER")
+    dsn_pwd = Variable.get("DW_PASSWORD")
+    jdbc_driver_name = "org.netezza.Driver"
+    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+    conn_str = f"jdbc:netezza://{dsn_hostname}:{dsn_port}/{dsn_database}"
+    conn = jaydebeapi.connect(jdbc_driver_name, conn_str, {'user': dsn_uid, 'password': dsn_pwd}, jars=jdbc_driver_loc)
+    cursor = conn.cursor()
 
-    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
-    engine = sqlalchemy.create_engine(conn_url)
-    conn = engine.connect()
-
-    # 📦 Query para obtener stock combinado de materiales de pollos
-    query = """
-        SELECT 
-            s.id_tienda, 
-            s.id_bodega, 
-            t.id_janis,
-            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051712-KGV', '000000000000051813-KGV')) AS stock_051813_051712_KGV,
-            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051728-KG', '000000000000051845-KGV')) AS stock_051845_051728,
-            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051802-KGV', '000000000000668742-KGV')) AS stock_668742_051802,
-            SUM(s.stock_janis::float) FILTER (WHERE s.ref_id IN ('000000000000051806-KGV', '000000000000674766-KGV')) AS stock_051806_674766
-        FROM ecommdata.stock s 
-        LEFT JOIN ecommdata.tiendas t ON t.id = s.id_tienda 
-        WHERE s.ref_id IN (
-            '000000000000051712-KGV', '000000000000051813-KGV',
-            '000000000000051728-KG', '000000000000051845-KGV',
-            '000000000000051802-KGV', '000000000000668742-KGV',
-            '000000000000051806-KGV', '000000000000674766-KGV'
-        )
-        AND s.fecha = current_date
-        AND t.status = 1
-        AND t.id NOT IN ('0053', '0054', '0398')
-        GROUP BY s.id_tienda, s.id_bodega, t.id_janis;
+    # 📄 Query embebida desde SAP
+    query = f"""
+        SELECT SA.SKU_PRODUCT 
+            , OU.OU_ID
+            , S.NBR_ITM AS STOCK
+        FROM DWC_SMU.SMU.VW_FACT_STOCK S
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA ON SA.SKU_KEY  = S.SKU_KEY
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU ON OU.OU_KEY = S.OU_KEY
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION O ON OU.ORG_KEY = O.ORGANIZATION_KEY
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A ON A.ALMACEN_KEY =S.ALMACEN_KEY
+        LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
+        WHERE OU.OU_ID NOT IN ('0053', '0054', '0398')
+        AND OU.OU_ID IN ('0469',
+        '0069',
+        '0472',
+        '0458',
+        '0109',
+        '0465',
+        '0903',
+        '0333',
+        '0347',
+        '0917',
+        '0336',
+        '0332',
+        '0581',
+        '0717',
+        '0017',
+        '0375',
+        '0788',
+        '0959',
+        '0914',
+        '0920',
+        '0034',
+        '0111',
+        '1917',
+        '0445',
+        '0778',
+        '0025',
+        '0686',
+        '0086',
+        '0464',
+        '0681',
+        '0755',
+        '0442',
+        '0736',
+        '0713',
+        '0761',
+        '0345',
+        '0344',
+        '0626',
+        '0021',
+        '0007',
+        '0441',
+        '0600',
+        '0028',
+        '0767',
+        '0916',
+        '0018',
+        '0089',
+        '0362',
+        '0327',
+        '0088')
+        AND O.PRIM_CMRCL_NM IN ('Unimarc') 
+        AND S.DATE_VALUE = current_date
+        AND S.APLICA_STOCK = 'S'
+        AND A.ALMACEN_COD = '0001'
+        AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
+        AND PART.PARTICULARIDAD_COD = 'A'
+        AND S.NBR_ITM > 0
+        AND sa.SKU_PRODUCT IN ('000000000000051712', '000000000000051813',
+                '000000000000051728', '000000000000051845',
+                '000000000000051802', '000000000000668742',
+                '000000000000051806', '000000000000674766')
+        GROUP BY 1,2,3;
     """
 
-    result = conn.execute(text(query))
-    rows = result.fetchall()
-    print(f"Total tiendas con stock agregado: {len(rows)}")
+    cursor.execute(query)
+    columns = [i[0] for i in cursor.description]
+    rows = cursor.fetchall()
+    df = pd.DataFrame(rows, columns=columns)
+    print(f"🔍 Filas extraídas desde DW: {len(df)}")
+
+    if df.empty:
+        raise Exception("❌ No hay stock disponible para los SKU solicitados.")
+
+    # 📦 Pares de SKU
+    sku_pares = [
+        ('000000000000051712', '000000000000051813'),
+        ('000000000000051728', '000000000000051845'),
+        ('000000000000051802', '000000000000668742'),
+        ('000000000000051806', '000000000000674766')
+    ]
 
     # 🧩 Excepciones warehouse
     warehouse_excepciones = {
@@ -77,44 +147,74 @@ def _send_stock_to_janis_pollos(ds):
         "Connection": "keep-alive"
     }
 
-    # Pares de ref_id que comparten stock combinado (materiales de pollo)
-    pares_ref_id = [
-        ('000000000000051712', '000000000000051813'),
-        ('000000000000051728', '000000000000051845'),
-        ('000000000000051802', '000000000000668742'),
-        ('000000000000051806', '000000000000674766')
-        #('000000000000626678', '000000000000674767')  # 🆕 agregado
-    ]
+    # 🧱 Agrupación por tienda y SKU
+    grouped = df.groupby(['OU_ID', 'SKU_PRODUCT'])['STOCK'].sum().reset_index()
 
-    # 🧩 Construcción del payload
+    df["STOCK"] = df["STOCK"].astype(float).round(2)
+
     tienda_to_payload = defaultdict(list)
-    for row in rows:
-        tienda_id = str(row[0])
+    total_tiendas = 0
+    total_skus_enviados = 0
 
+    for tienda_id in grouped['OU_ID'].unique():
         if tienda_id in tiendas_sin_warehouse_default:
+            print(f"⛔ Tienda {tienda_id} excluida.")
             continue
 
         warehouse = warehouse_excepciones.get(tienda_id, tienda_id)
+        skus_cargados = 0
+        unidades_totales = 0
 
-        for i, (sku1, sku2) in enumerate(pares_ref_id):
-            stock_value = row[i + 3]  # offset de columnas
-            if stock_value is None or stock_value <= 0:
+        for sku1, sku2 in sku_pares:
+            subset = grouped[
+                (grouped['OU_ID'] == tienda_id) &
+                (grouped['SKU_PRODUCT'].isin([sku1, sku2]))
+            ]
+
+            if subset.empty:
                 continue
+
+            print(f"\n📊 [ANTES] Stock individual en tienda {tienda_id} para el par ({sku1}, {sku2}):")
+            stock_individual = {}
+            for _, row in subset.iterrows():
+                stock_val = int(row['STOCK'])
+                stock_individual[row['SKU_PRODUCT']] = stock_val
+                print(f"   - SKU: {row['SKU_PRODUCT']} → {stock_val} unidades")
+
+            total_stock = sum(stock_individual.values())
+            print(f"➕ [UNIFICADO] Stock total combinado para el par ({sku1}, {sku2}) en tienda {tienda_id}: {total_stock} unidades")
 
             for sku in (sku1, sku2):
                 tienda_to_payload[tienda_id].append({
                     "IdSku": sku,
-                    "Quantity": int(stock_value),
+                    "Quantity": int(total_stock),
                     "Store": tienda_id,
-                    "Warehouse": warehouse
+                    "Warehouse": warehouse,
+                    "Type": 1
                 })
-                print(f"SKU: {sku} | Cantidad: {stock_value} | Tienda: {tienda_id} | Warehouse: {warehouse}")
+                print(f"🧾 Payload → SKU: {sku} | Quantity: {total_stock} | Store: {tienda_id} | Warehouse: {warehouse}")
+                skus_cargados += 1
+                unidades_totales += total_stock
+        print(f"🧾 Tienda: {tienda_id} | SKU: {sku} | Unified Stock: {total_stock} | Warehouse: {warehouse}")
 
-    # 🔁 Enviar payload por tienda
+        if skus_cargados > 0:
+            total_tiendas += 1
+            total_skus_enviados += skus_cargados
+            print(f"📌 {tienda_id} → {skus_cargados} SKUs | {unidades_totales} unidades totales")
+
+    # 📤 Envío a Janis
     for tienda, payload in tienda_to_payload.items():
-        print(f"⬆️ Enviando {len(payload)} SKUs a tienda {tienda}")
-        response = requests.post(url, headers=headers, data=json.dumps(payload))
-        print(f"📦 Store: {tienda} | Status: {response.status_code} | Response: {response.text}")
+        print(f"⬆️ Enviando {len(payload)} SKUs a tienda {tienda}")  
+        try:
+            response = requests.post(url, headers=headers, data=json.dumps(payload), timeout=10)
+            print(f"📦 Store: {tienda} | Status: {response.status_code} | Response: {response.text}")
+            if response.status_code != 200:
+                print(f"❌ Error ({response.status_code}) al cargar tienda {tienda}: {response.text}")
+            else:
+                print(f"✅ Carga exitosa para tienda {tienda}")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ Excepción al cargar tienda {tienda}: {str(e)}")
+
 
 
 # 🎛 Configuración del DAG
@@ -130,7 +230,7 @@ with DAG(
     'etl_janis_unificacion_stock_materiales',
     default_args=default_args,
     description="Suma el stock de pares de ref_id específicos de productos y los carga duplicados por SKU en la API de Janis (pendiente de escalabilidad)",
-    schedule_interval= "0 1,4/4 * * *",  # Solo ejecución manual
+    schedule_interval= "0 7 * * *", 
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Pollos", "Stock", "ecommdata","KEVIN"],
@@ -141,17 +241,9 @@ with DAG(
     Suma el stock de pares de ref_id específicos de productos y los carga duplicados por SKU en la API de Janis.
     """
 
-    t0 = ExternalTaskSensor(
-        task_id="wait_for_stock",
-        external_dag_id='etl_stock_incremental_load',
-        external_task_id=None,
-        allowed_states=['success'],
-        failed_states=['failed']
+    t0 = PythonOperator(
+        task_id="send_stock_sap_to_janis",
+        python_callable=_send_stock_sap_to_janis,
     )
 
-    t1 = PythonOperator(
-        task_id="send_stock_to_janis_pollos",
-        python_callable=_send_stock_to_janis_pollos,
-    )
-
-    t0 >> t1
+    t0 
