@@ -68,7 +68,7 @@ with DAG(
     'etl_ranking_productos',
     default_args=default_args,
     description="Extracción de datos de tabla ventas_ecommerce_dw y posterior carga de ranking de SKUs de ultimos 30 dias segmentados por tienda",
-    schedule_interval="0 7 * * MON",
+    schedule_interval="0 7 1 * *",
     start_date=pendulum.datetime(2022, 8, 11, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "ecommdata", "stock", "Unimarc", "ventas_ecommerce_dw", "SERGIO"],
