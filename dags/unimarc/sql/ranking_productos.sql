@@ -19,10 +19,12 @@ FROM (
         FROM
             ecommdata.ventas_ecommerce_datawarehouse ved
             LEFT JOIN ecommdata.skus s ON s.ref_id = ved.ref_id_sku
+            left join ecommdata.calendario c on c.fecha=ved.fecha_facturacion::date
         WHERE
-            fecha_facturacion >= '{ds}'::date - 30
+            c.mes_relativo = -1
             AND ved.ref_id_sku <> '000000000000630792-UN'
             and ved.canal_venta = 'E-COMMERCE'
+            and ved.id_tienda not like '3%' and ved.id_tienda not in( '9212','9051')
         GROUP BY
             ved.ref_id_sku
     ),
@@ -54,7 +56,7 @@ FROM (
         LEFT JOIN ecommdata.skus s ON s.ref_id = r.ref_id_sku
         left join ecommdata.productos p on p.ref_id  = r.ref_id_sku
         left join ecommdata.categorias c on p.id_categoria = c.id
-        left join ecommdata.marcas m on m.id = p.id_marca 
+        left join ecommdata.marcas m on m.id = p.id_marca
     ORDER BY
         ranking
 ) AS Subquery;
