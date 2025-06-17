@@ -84,7 +84,7 @@ with DAG(
     'etl_tipo_abasticimiento_mfc',
     default_args=default_args,
     description="Carga tipo abasticimiento de los productos del MFC.",
-    schedule_interval="30 9 * * *",
+    schedule_interval="45 9 * * *",
     start_date=pendulum.datetime(2024, 6, 15, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
