@@ -156,7 +156,7 @@ with DAG(
     "etl_ventas_meli_datawarehouse_incremental_load",
     default_args=default_args,
     description="Extracción diaria de ventas Mercado Libre de DataWarehouse.",
-    schedule_interval="30 11 * * *",
+    schedule_interval="50 11 * * *",
     start_date=datetime(2024, 1, 1),
     catchup=False,
     max_active_runs=1,

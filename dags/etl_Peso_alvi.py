@@ -222,7 +222,7 @@ with DAG(
     'cargar_Peso_volumen_alvi',
     default_args=default_args,
     description='Guarda datos de peso y volumen de alvi en S3 y las carga en la base de datos',
-    schedule_interval='0 9 * * *',
+    schedule_interval='15 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
