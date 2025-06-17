@@ -104,7 +104,7 @@ with DAG(
     'etl_minimos_exhibicion',
     default_args=default_args,
     description="cargar minimos de exhibicion a tabla en postgresql",
-    schedule_interval="30 7 * * *",
+    schedule_interval="0 8 * * *",
     start_date=pendulum.datetime(2024, 2, 19, tz="America/Santiago"),
     catchup=False,
     tags=["DATA","minimos_exhibicion", "unimarc", "DW", "PATRICIO"],
