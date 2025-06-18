@@ -32,7 +32,7 @@ def transportadoras():
         'X-VTEX-API-AppToken': X_VTEX_API_AppToken
         }
 
-    conn.request("GET", "/api/logistics/pvt/shipping-policies?page=1&perPage=200", headers=headers)
+    conn.request("GET", "/api/logistics/pvt/shipping-policies?page=1&perPage=500", headers=headers)
     res = conn.getresponse()
     
     data = res.read()
