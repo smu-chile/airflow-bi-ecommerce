@@ -77,7 +77,10 @@ def _load_lista8(ts):
         "PRECIO PROMOCIONAL": "int",
         "DESCRIPCION": "str",
         "STOCK X UMV": "float",
-        "SUSTITUTO": "bool"
+        "SUSTITUTO": "bool",
+        "BLOQ.CENTRO": "bool",
+        "BLOQ.FORMATO": "bool",
+        "CATALOGADO": "bool"
     }
 
     column_names = {
@@ -93,7 +96,10 @@ def _load_lista8(ts):
         "PRECIO PROMOCIONAL": "precio_promocional",
         "DESCRIPCION": "descripcion",
         "STOCK X UMV": "stock_x_umv",
-        "SUSTITUTO": "sustituto"
+        "SUSTITUTO": "sustituto",
+        "BLOQ.CENTRO": "bloq_centro",
+        "BLOQ.FORMATO": "bloq_formato",
+        "CATALOGADO": "catalogado" 
     }
 
     dataframe_list = []
@@ -107,6 +113,22 @@ def _load_lista8(ts):
         df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
         df['SUSTITUTO'] = df['SUSTITUTO'].fillna('Y')
         df['SUSTITUTO'] = df['SUSTITUTO'].map({'X': True, 'Y': False})
+        
+        for col in ["BLOQ.CENTRO", "BLOQ.FORMATO", "CATALOGADO"]: # Asegura que las nuevas columnas sean booleanas y existan
+            if col not in df.columns:
+                df[col] = False 
+            # Asegura que todo sea booleano (maneja posibles combinatorias o strings)
+            df[col] = df[col].map({'X': True, 'Y': False, 
+                                   1: True, 0: False, 
+                                   '1': True, '0': False, 
+                                   True: True, False: False, 
+                                   'True': True, 'False': False,
+                                   'SI': True, 'NO': False,
+                                   'S': True, 'N': False})
+            
+            # Si quedaron NaN transformar (por si acaso)
+            df[col] = df[col].fillna(False) # Asigna False a las otras columnas si es NaN
+
         df = df.astype(column_types)
         dataframe_list.append(df)
     df_full = pd.concat(dataframe_list, ignore_index=True)
@@ -170,7 +192,7 @@ with DAG(
 
     dag.doc_md = """
     Extracción de archivos csv de lista8 desde bucket de S3, transformación y carga de datos en tabla ecommdata_unimarc.lista8. \n
-    Un sensor espera por 3 horas la presencia de un archivo bandera (.TRG) que indique que la carga de los csv de datos está completa. \n
+    Un sensor espera por 1 hora la presencia de un archivo bandera (.TRG) que indique que la carga de los csv de datos está completa. \n
     Se realiza previamente un truncado de todos los datos y posteriormente se realiza la carga del día
     """ 
     t0 = S3KeySensor(
