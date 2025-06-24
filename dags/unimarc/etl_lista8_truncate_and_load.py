@@ -114,10 +114,10 @@ def _load_lista8(ts):
         df['SUSTITUTO'] = df['SUSTITUTO'].fillna('Y')
         df['SUSTITUTO'] = df['SUSTITUTO'].map({'X': True, 'Y': False})
         
-        for col in ["ACTIVO", "CATALOGADO", "BLOQUEO"]: # Asegura que las nuevas columnas sean booleanas y existan
+        for col in ["BLOQ.CENTRO", "BLOQ.FORMATO", "CATALOGADO"]: # Asegura que las nuevas columnas sean booleanas y existan
             if col not in df.columns:
-                df[col] = True if col == "BLOQUEO" else False  # Asigna True a BLOQUEO, False a las otras
-            # Asegura que todo sea booleano (maneja posibles 'X'/'Y' o strings)
+                df[col] = False 
+            # Asegura que todo sea booleano (maneja posibles combinatorias o strings)
             df[col] = df[col].map({'X': True, 'Y': False, 
                                    1: True, 0: False, 
                                    '1': True, '0': False, 
@@ -127,10 +127,7 @@ def _load_lista8(ts):
                                    'S': True, 'N': False})
             
             # Si quedaron NaN transformar (por si acaso)
-            if col == "BLOQUEO":
-                df[col] = df[col].fillna(True) # Asigna True a BLOQUEO si es NaN
-            else:
-                df[col] = df[col].fillna(False) # Asigna False a las otras columnas si es NaN
+            df[col] = df[col].fillna(False) # Asigna False a las otras columnas si es NaN
 
         df = df.astype(column_types)
         dataframe_list.append(df)
