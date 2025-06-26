@@ -23,10 +23,6 @@ SELECT
     0 as locked,
     1 as updatepending,
     1 as active
---locked
---updatepending
---active
-	--p.precio - p_pajaritos.precio AS diferencia_precio
 FROM 
     ecommdata_alvi.precios p
 LEFT JOIN 
@@ -37,6 +33,9 @@ LEFT JOIN
     ON p.id_sku_janis = p_pajaritos.id_sku_janis 
     AND p_pajaritos.id_tienda_janis = 9
     AND p.cantidad_minima_sku = p_pajaritos.cantidad_minima_sku
+INNER JOIN ecommdata_alvi.lista8 l
+    ON p.ref_id = (l.material||'-'||l.umv)
+   AND l.id_tienda = t.id
 WHERE 
     t.status = 1
     AND t.id_janis != 9
