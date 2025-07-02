@@ -13,6 +13,8 @@ import pendulum
 def _load_stores_table(ti, ds):
     import pandas as pd
     import sqlalchemy
+    from sqlalchemy import Table, MetaData
+    from sqlalchemy.dialects.postgresql import insert
     
     stores_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
 
@@ -61,14 +63,32 @@ def _load_stores_table(ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
-    df.to_sql(name="tiendas_dw",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-    print("Data loaded to Postgres")
+    md = MetaData(schema="ecommdata")
+    tiendas = Table("tiendas_dw", md, autoload_with=engine)
+
+    # Preparar el INSERT…ON CONFLICT
+    records = df.to_dict(orient="records")
+    stmt = insert(tiendas).values(records)
+    # `id_tienda` es PRIMARY KEY
+    stmt = stmt.on_conflict_do_nothing(index_elements=["id_tienda"])
+
+    # Sólo actualizamos las columnas que queremos, excluyendo 'zona' y PK:
+    excluded = stmt.excluded
+    cols_to_upd = {
+        c.name: getattr(excluded, c.name)
+        for c in tiendas.columns
+        if c.name not in ("id_tienda", "zona")
+    }
+
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["id_tienda"],
+        set_=cols_to_upd
+    )
+
+    # Ejecución
+    with engine.begin() as conn:
+        result = conn.execute(stmt)
+        print(f"{result.rowcount} filas nuevas insertadas (el resto se ignoró por conflicto)")
 
     return
 
@@ -91,7 +111,8 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tiendas desde DW hasta Workspace.
+    Extracción y carga de tiendas desde DW hasta Workspace.\n
+    Es un Upsert de la tabla `ecommdata.tiendas_dw` en el Workspace.
     """ 
     
     t0 = PythonOperator(
@@ -106,17 +127,17 @@ with DAG(
         }
     )
 
-    t1 = PostgresOperator(
-        task_id = "clear_table",
-        postgres_conn_id="postgresql_conn",
-        sql="""
-        truncate ecommdata.tiendas_dw
-        """
-    )
+    #t1 = PostgresOperator(
+    #    task_id = "clear_table",
+    #    postgres_conn_id="postgresql_conn",
+    #    sql="""
+    #    truncate ecommdata.tiendas_dw
+    #    """
+    #)
 
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id = "load_stores_table",
         python_callable = _load_stores_table
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1
