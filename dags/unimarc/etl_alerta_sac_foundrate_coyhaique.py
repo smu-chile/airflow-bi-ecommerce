@@ -153,7 +153,7 @@ default_args = {
 }
 
 with DAG(
-    'etl_alertas_sac',
+    'etl_alertas_sac_foundrate_coyhaique',
     default_args=default_args,
     description="Generación de alertas para SAC",
     schedule_interval="0,30 8-20 * * *",
@@ -163,7 +163,7 @@ with DAG(
 ) as dag:
     
     dag.doc_md = """
-    Alertas para SAC
+    Alertas para SAC, asociada al foundrate de productos para coyhaique.
     """ 
 
     t0 = ExternalTaskSensor(
