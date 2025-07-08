@@ -1,4 +1,4 @@
-def truncate_text(text, max_length=100):
+def truncate_text(text, max_length=1000):
     if text== None:
         return None
     if len(text) > max_length:
