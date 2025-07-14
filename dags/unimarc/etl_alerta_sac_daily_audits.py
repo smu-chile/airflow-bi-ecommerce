@@ -30,33 +30,37 @@ def get_and_send_audits_daily():
     metadata = MetaData(schema="ecommdata")
     metadata.reflect(
         bind=engine,
-        only=["ordenes_janis", "orden_cambios_de_estado", "tiendas"]
+        only=["ordenes_janis", "orden_cambios_de_estado", "tiendas", "despachos"]
     )
-    Base = automap_base(metadata=metadata)
+    Base = automap_base(metadata=metadata) 
     Base.prepare()
 
     OrdenesJanis  = Base.classes.ordenes_janis
     OrdenCambios  = Base.classes.orden_cambios_de_estado
     Tiendas       = Base.classes.tiendas
-
-    session = Session(engine)
+    Despachos     = Base.classes.despachos
 
     # Fecha a filtrar (día de ejecución)
-    fecha_consulta = pendulum.now("America/Santiago").date() #pendulum.parse(ds).date() #ds.date()
+    session = Session(engine)
+    fecha_consulta = pendulum.now("America/Santiago").date()
 
     # Query ORM
     q = (
         session.query(
             Tiendas.id.label("tienda"),
+            Despachos.id_transportadora.label("transportadora"),
             func.count(distinct(OrdenesJanis.id)).label("total auditorias")
         )
         .outerjoin(OrdenCambios, OrdenCambios.id_orden == OrdenesJanis.janis_id)
         .outerjoin(Tiendas,      Tiendas.id_janis   == OrdenesJanis.id_tienda_janis)
+        .outerjoin(Despachos,    Despachos.id_orden       == OrdenesJanis.id)
         .filter(
             OrdenCambios.estado_nuevo == 5,
             func.date(OrdenesJanis.fecha_facturacion) == fecha_consulta
         )
-        .group_by(Tiendas.id)
+        .group_by(
+            Tiendas.id,
+            Despachos.id_transportadora)
         .order_by(func.count(distinct(OrdenesJanis.id)).desc())
     )
     
