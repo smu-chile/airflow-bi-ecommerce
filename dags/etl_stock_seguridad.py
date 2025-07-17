@@ -133,7 +133,21 @@ def minimos_exhibicion():
 def excluidos_ss():
     import pandas as pd
     query = """select id_tienda, ref_id
-                from ecommdata.productos_excluidos_ss;"""
+                from ecommdata.productos_excluidos_ss
+            union
+                select
+                l.id_tienda,
+                CONCAT(l.material, '-', l.umv) AS ref_id
+                from ecommdata.lista8 l
+                join ecommdata.productos p
+                on p.ref_id = CONCAT(l.material, '-', l.umv)
+                join ecommdata.categorias c
+                on c.id = p.id_categoria
+                join ecommdata.tiendas t
+                on t.id = l.id_tienda
+                where l.id_tienda in ('0581','0333','0347','0917','0089')
+                and c.id in (11279384,48312575,11279387,48312578) --Frutas y Verduras, Granel y Orgánico, no filtra frutos secos o congelados.
+        ;"""
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
