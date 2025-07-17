@@ -146,7 +146,7 @@ def excluidos_ss():
                 join ecommdata.tiendas t
                 on t.id = l.id_tienda
                 where l.id_tienda in ('0581','0333','0347','0917','0089')
-                and c.id in (11279384,48312575,11279387,48312578) --Frutas y Verduras, Granel y Orgánico, no filtra frutos secos o congelados.
+                and c.id in (11279384,48312575,11279387,48312578)
         ;"""
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
