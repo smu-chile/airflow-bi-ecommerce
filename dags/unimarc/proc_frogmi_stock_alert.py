@@ -151,11 +151,11 @@ def _post_request_to_publish_task_endpoint(ts):
         r_material = registro[7]
         r_descripcion = registro[1]
         product_body = {
-            "product_code": r_material,
+            "product_code": str(int(r_material)),
             "place_code": "alerta_repo"
         }
         product_body_e = {
-            "product_code": r_material,
+            "product_code": str(int(r_material)),
             "place_code": "Found_Rate_ecommerce"
         }
         payloads.append(_pre_payload(
