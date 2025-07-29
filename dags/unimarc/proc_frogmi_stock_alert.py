@@ -165,6 +165,9 @@ def _post_request_to_publish_task_endpoint(ts):
             task_start_date=task_start_date, 
             template='a6dbc4bd-64e6-4628-bb6b-66902cba3a7e',
             accountable_area_code='ADMIN_LOCAL_PILOTO'))
+    if payloads:
+        primer_product_code = payloads[0]["data"][0]["attributes"]["products"][0]["product_code"]
+        print(f"[DEBUG] Primer product_code enviado: {primer_product_code}")
 
     # Send payloads to S3
     print(payloads)
