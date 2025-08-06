@@ -16,4 +16,8 @@ ADD requirements.txt /opt/airflow/
 
 USER airflow
 RUN pip install --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir \
+        "apache-airflow-providers-google==2.2.0" \
+        "google-cloud-bigquery>=2.0.0,<3.0.0" \
+        "google-cloud-storage>=1.30,<2.0.0" 
