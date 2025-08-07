@@ -32,7 +32,7 @@ def transportadoras():
         'X-VTEX-API-AppToken': X_VTEX_API_AppToken
         }
 
-    conn.request("GET", "/api/logistics/pvt/shipping-policies?page=1&perPage=200", headers=headers)
+    conn.request("GET", "/api/logistics/pvt/shipping-policies?page=1&perPage=500", headers=headers)
     res = conn.getresponse()
     
     data = res.read()
@@ -149,7 +149,21 @@ def coordenadas_poligono(poligono):
 
             flattened_coordinates = [coordinate for coordinates_list in items for coordinate in coordinates_list]
             parsed_data = {"poligono": poligono, "coordenadas": flattened_coordinates}
-            df = pd.DataFrame(parsed_data)
+            print(parsed_data)
+            # filtramos duplicados manteniendo orden
+            seen = set()
+            unique_coords = []
+            for coord in flattened_coordinates:
+                tup = tuple(coord)
+                if tup not in seen:
+                    seen.add(tup)
+                    unique_coords.append(coord)
+            if unique_coords:
+                unique_coords.append(unique_coords[0])  # Aseguramos que el polígono se cierre
+
+            # ya no hay ni repeticiones al cerrar el polígono ni por re-procesos
+            parsed = {"poligono": poligono, "coordenadas": unique_coords}
+            df = pd.DataFrame(parsed)
 
             return df
         else:
@@ -184,7 +198,7 @@ def poligonos_to_s3(ds):
 
     print(df_final)
 
-    lista_poligonos_activos = df_final["polygon"].tolist()
+    lista_poligonos_activos = df_final["polygon"].dropna().unique().tolist()
     df_coordenadas = pd.DataFrame()
     for poligono in lista_poligonos_activos:
         df_aux = coordenadas_poligono(poligono)

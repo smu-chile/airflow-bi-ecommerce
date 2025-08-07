@@ -45,4 +45,3 @@ inner JOIN p_pajaritos
  AND p.cantidad_minima_sku = p_pajaritos.cantidad_minima_sku
 WHERE t.status = 1                -- tiendas activas
   AND (p.precio <> p_pajaritos.precio)
-

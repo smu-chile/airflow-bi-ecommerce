@@ -148,6 +148,7 @@ def _delete_daily_data(ts, ds):
             select * 
             from information_schema.tables 
             where table_name='{partition_name}'
+            and table_schema='ecommdata_alvi'
         );
     """
 

@@ -346,18 +346,12 @@ with DAG(
 
     # Trigger last miller's DAGs
     t14 = TriggerDagRunOperator(
-        task_id="trigger_peya_stock_integration",
-        trigger_dag_id="proc_peya_stock_integration",
-        wait_for_completion=False
-    )
-
-    t15 = TriggerDagRunOperator(
         task_id="trigger_proc_rappi_stock_integration",
         trigger_dag_id="proc_rappi_stock_integration",
         wait_for_completion=False
     )
 
-    t16 = TriggerDagRunOperator(
+    t15 = TriggerDagRunOperator(
         task_id="trigger_proc_uber_promotions_integration",
         trigger_dag_id="proc_uber_promotions_integration",
         wait_for_completion=False
@@ -371,4 +365,4 @@ with DAG(
     t3 >> td
     t8 >> td
     td >> t9 >> t10 >> t11 >> t12 >> t13
-    t13 >> [t14, t15, t16]
+    t13 >> [t14, t15]

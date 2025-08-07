@@ -230,7 +230,9 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvicl006": Variable.get("VTEX_ALVI3181_ACCOUNT_NAME"),
         "alvicl007": Variable.get("VTEX_ALVI3187_ACCOUNT_NAME"),
         "alvicl011": Variable.get("VTEX_ALVI3188_ACCOUNT_NAME"),
-        "alvitobalaba3193": Variable.get("VTEX_ALVI3193_ACCOUNT_NAME")
+        "alvitobalaba3193": Variable.get("VTEX_ALVI3193_ACCOUNT_NAME"),
+        "alvicl012": Variable.get("VTEX_ALVI3088_ACCOUNT_NAME"),
+        "alvicl013": Variable.get("VTEX_ALVI3094_ACCOUNT_NAME")
     }
 
     x_vtex_api_appkey = {
@@ -245,7 +247,9 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Appkey"),
         "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Appkey"),
         "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Appkey"),
-        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Appkey")
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Appkey"),
+        "alvicl012": Variable.get("X_VTEX_ALVI3088_API_Appkey"),
+        "alvicl013": Variable.get("X_VTEX_ALVI3094_API_Appkey")
     }
 
     x_vtex_api_apptoken = {
@@ -260,7 +264,9 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Apptoken"),
         "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Apptoken"),
         "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Apptoken"),
-        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Apptoken")
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Apptoken"),
+        "alvicl012": Variable.get("X_VTEX_ALVI3088_API_Apptoken"),
+        "alvicl013": Variable.get("X_VTEX_ALVI3094_API_Apptoken")
     }
     for name in vtex_account_name:
         print(name)
@@ -366,7 +372,9 @@ def _vtex_get_stock_retries(ti, ts):
         "alvicl006": Variable.get("VTEX_ALVI3181_ACCOUNT_NAME"),
         "alvicl007": Variable.get("VTEX_ALVI3187_ACCOUNT_NAME"),
         "alvicl011": Variable.get("VTEX_ALVI3188_ACCOUNT_NAME"),
-        "alvitobalaba3193": Variable.get("VTEX_ALVI3193_ACCOUNT_NAME")
+        "alvitobalaba3193": Variable.get("VTEX_ALVI3193_ACCOUNT_NAME"),
+        "alvicl012": Variable.get("VTEX_ALVI3088_ACCOUNT_NAME"),
+        "alvicl013": Variable.get("VTEX_ALVI3094_ACCOUNT_NAME")
     }
 
     x_vtex_api_appkey = {
@@ -381,7 +389,9 @@ def _vtex_get_stock_retries(ti, ts):
         "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Appkey"),
         "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Appkey"),
         "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Appkey"),
-        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Appkey")
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Appkey"),
+        "alvicl012": Variable.get("X_VTEX_ALVI3088_API_Appkey"),
+        "alvicl013": Variable.get("X_VTEX_ALVI3094_API_Appkey")
     }
 
     x_vtex_api_apptoken = {
@@ -396,7 +406,9 @@ def _vtex_get_stock_retries(ti, ts):
         "alvicl006": Variable.get("X_VTEX_ALVI3181_API_Apptoken"),
         "alvicl007": Variable.get("X_VTEX_ALVI3187_API_Apptoken"),
         "alvicl011": Variable.get("X_VTEX_ALVI3188_API_Apptoken"),
-        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Apptoken")
+        "alvitobalaba3193": Variable.get("X_VTEX_ALVI3193_API_Apptoken"),
+        "alvicl012": Variable.get("X_VTEX_ALVI3088_API_Apptoken"),
+        "alvicl013": Variable.get("X_VTEX_ALVI3094_API_Apptoken")
     }
     
     for name in vtex_account_name:

@@ -68,6 +68,7 @@ def _join_promo_prices_test_from_s3(ds, ti):
       AND wp.fecha_fin_de_promocion >= CURRENT_DATE
       AND wp.tipo_promocion IN (1, 2, 4, 7)
       AND wp.registro_valido = TRUE
+      and wp.cantidad_n < 10
       AND wp.organizacion_ventas = '1000'
       AND wp.canal_distribucion = '10'
       AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
@@ -79,10 +80,11 @@ def _join_promo_prices_test_from_s3(ds, ti):
       AND wp.nombre_promocion::TEXT !~~ '%917%'::TEXT
       AND wp.nombre_promocion::TEXT !~~ '%ESTADO%'::TEXT
       AND wp.nombre_promocion::TEXT !~~ '% LOC%'::TEXT
+      and wp.nombre_promocion::text !~~ '%CYBER%'::text
       AND wp.nombre_promocion::TEXT !~~ '%LIQ%'::text
       AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
                                  '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
-                                 '4000512024')
+                                 '4000512024','1120012025','1120022025','1120032025','1120042025','1120212025')
 )
 SELECT ean,
        id_de_tienda,
@@ -164,7 +166,7 @@ def _send_joined_data_to_sftp(ds):
         print(promotions_file_test)
 
         promotions_object = s3_hook.get_key(promotions_file_test, bucket_name=s3_bucket)
-        promotions_object_body = pd.read_csv(promotions_object.get()["Body"])
+        promotions_object_body = pd.read_csv(promotions_object.get()["Body"], dtype={"ean": str})
 
         output_promotions_file = promotions_file_test.split("/")[-1]
         print(output_promotions_file)

@@ -25,12 +25,11 @@ def _check_time(ts):
     elif (time_str == "05:30"):
         return "stock_ventas_tiendas_to_s3_am"
     else:
-        return "task_skip"
-    #    return "stock_ventas_tiendas_to_s3_pm"
+        return "stock_ventas_tiendas_to_s3_pm"
 
 def stock(ds):
     import pandas as pd
-    stock_tiendas_query = f"""select distinct c.*, date_part('dow','{ds}'::date) as dia, date_part('week','{ds}'::date) as semana
+    stock_tiendas_query = f"""select distinct c.*, date_part('dow','{ds}'::date) as dia, date_part('week','{ds}'::date) as semana, s.erp_id
                     from(select pt.ref_id, pt.id_tienda
                             from ecommdata.productos_tienda pt
                             left join ecommdata.tiendas t on t.id = pt.id_tienda 
@@ -41,6 +40,7 @@ def stock(ds):
                             "refId" as ref_id,
                             unnest(string_to_array(stores, ',')) AS id_tienda
                             from ecommdata.carga_productos cp) as c
+                            left join ecommdata.skus s on c.ref_id = s.ref_id
                             where c.id_tienda not in ('9212', '1917');
                             """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -50,7 +50,9 @@ def stock(ds):
     cursor.execute(stock_tiendas_query)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
-    results.columns = ["ref_id","id_tienda","dia","semana"]
+    results.columns = ["ref_id","id_tienda","dia","semana", "erp_id"]
+    results.info()
+    results = results[["ref_id","id_tienda","erp_id"]]
     results.info()
     cursor.close()
     pg_connection.close()
@@ -83,7 +85,7 @@ def venta_tienda(ds):
                     from ecommdata.venta_sku_tienda as v
                     left join ecommdata.tiendas as t
                     on LPAD(v.id_tienda , 4, '0') = t.id
-                    where v.fecha >= '{ds}'::date -70
+                    where v.fecha >= '{ds}'::date - 15
                     and v.organizacion = 'Unimarc'
                     and v.id_tienda <>'1917'
                     """
@@ -114,7 +116,38 @@ def minimos_exhibicion():
                 and l.id_tienda  is not null
                 and l.umv  is not null
                 and t.id is not null
-                and meio.minimo_exhibicion > 2"""
+                and meio.minimo_exhibicion > 1"""
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
+    cursor.close()
+    pg_connection.close()
+    return results
+
+def excluidos_ss():
+    import pandas as pd
+    query = """select id_tienda, ref_id
+                from ecommdata.productos_excluidos_ss
+            union
+                select
+                l.id_tienda,
+                CONCAT(l.material, '-', l.umv) AS ref_id
+                from ecommdata.lista8 l
+                join ecommdata.productos p
+                on p.ref_id = CONCAT(l.material, '-', l.umv)
+                join ecommdata.categorias c
+                on c.id = p.id_categoria
+                join ecommdata.tiendas t
+                on t.id = l.id_tienda
+                where l.id_tienda in ('0581','0333','0347','0917','0089')
+                and c.id in (11279384,48312575,11279387,48312578)
+        ;"""
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -161,33 +194,34 @@ def stock_ventas_tiendas_to_s3_am(ds):
     dia = (dia + 1) % 7
 
     #filtramos columnas necesarias de dataframe de ventas
-    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
+    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
 
-    #sumamos venta umv a nivel tienda, sku, dia, semana
-    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
+    #sumamos venta umv a nivel tienda, sku, dia
+    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia"], as_index=False).sum()
 
-    #promediamos venta a nivel tienda,sku, dia
-    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+    #promediamos venta a nivel tienda,sku
+    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
 
-    #filtramos columnas necesarias de venta con la venta promedio de dia de la semana
-    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    #filtramos columnas necesarias de venta con la venta promedio
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
+    df_aux2["dia"] = dia
     df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
 
     #hacemos merge de stock con venta promedio a nivel tienda, sku, dia
-    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
+    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id"])
 
     #rellenamos los registros con dia y venta 0 para los que no hubo venta en el merge
     df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
 
     #multiplicamos la venta por 0.5 para cargar la mitad del stock de seguridad por regla de negocio
-    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.5
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.25
     print(df_stock_seguridad["cantidad"])
 
     #Condicion para que si la venta fue menor a dos setear stock seguridad igual a 2
-    condlist = [df_stock_seguridad["cantidad"]>=2,
-                df_stock_seguridad["cantidad"]<2]
-    choicelist = [df_stock_seguridad["cantidad"], 2]
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
@@ -195,7 +229,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     #filtrar columnas necesarias del nuevo dataFrame      
     df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
 
-    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
@@ -206,7 +240,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
-    df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
+    #df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
     df_stock_seguridad_aux.info()
 
     df_final = df_stock_seguridad_aux
@@ -221,7 +255,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
 
@@ -253,30 +287,44 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
+    df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
+    df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
+
 
     ##############
     #cargar datos#
     ##############
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=2,
-                df_final["nuevo_stock_seguridad"]<2]
-    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
     print(df_final.head())
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=100,
-                df_final["nuevo_stock_seguridad"]<100]
-    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+    condlist = [df_final["nuevo_stock_seguridad"]>=50,
+                df_final["nuevo_stock_seguridad"]<50]
+    choicelist = [50, df_final["nuevo_stock_seguridad"]]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
 
     df_final = df_final[df_final['id_tienda'] != '1917']
     df_final = df_final[df_final['id_tienda'] != '9212']
     print(df_final.head())
+    # Aplicar lógica de excluidos
+    df_excluidos = excluidos_ss()
+    df_excluidos["id_tienda"] = df_excluidos["id_tienda"].astype(str).str.zfill(4)
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str).str.zfill(4)
+    df_final = df_final.merge(df_excluidos, how="left", on=["id_tienda", "ref_id"], indicator=True)
 
+    # Si el producto está en los excluidos, forzar nuevo_stock_seguridad = 0
+    df_final.loc[df_final["_merge"] == "both", "nuevo_stock_seguridad"] = 0
+    df_final = df_final.drop(columns=["_merge"])
+    print("Productos con stock seguridad 0 (por exclusión):")
+    print(df_final[(df_final["nuevo_stock_seguridad"] == 0) & (df_final["id_tienda"] == "0917")].head(10))
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"stock_seguridad/{exec_date}/stock_seguridad_am_{date_aux}.csv"
@@ -291,7 +339,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     print(f"File load on S3: {prefix}")
 
     return filename
-"""
+
 def stock_ventas_tiendas_to_s3_pm(ds):
     import pandas as pd
     import numpy as np
@@ -323,31 +371,33 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     dia = dia.weekday()
     dia = (dia + 1) % 7
 
-    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia","semana"]]
+    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
 
-    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia","semana"], as_index=False).sum()
-    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
-    df_aux2 = df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
+    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia"], as_index=False).sum()
+    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
+    df_aux2["dia"] = dia
     print("\nventa promedio:\n")
     df_aux2.info()
 
     df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
 
     df_aux2.info()
-    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
+    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id"])
     df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
     df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
     df_stock_seguridad.info()
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.25
 
-    condlist = [df_stock_seguridad["cantidad"]>=2,
-                df_stock_seguridad["cantidad"]<2]
-    choicelist = [df_stock_seguridad["cantidad"], 2]
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
 
     df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
 
     df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
-    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
+    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
     df_stock_seguridad_aux["nuevo_stock_seguridad"] = round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
     df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
     df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
@@ -359,14 +409,14 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print(f"\ndia: {dia}\n")
     df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
-    df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
+    #df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
     df_stock_seguridad_aux.info()
 
     df_final = df_stock_seguridad_aux
     df_final.reset_index()
     df_final.info()
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
     #Agregar logica minimos exhibicion
@@ -375,7 +425,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(2)
+    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
     print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
@@ -390,7 +440,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
                 ]
     
     df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
-    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2) #Caution
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -407,35 +458,49 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print("\n")
     print(df_final)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final["peso"] = df_final["peso"].fillna(1)
     print("QA_test")
     print(df_final)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
-    df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
-
+    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
+    #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
+    df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
+    df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
     print("\n")
     print(df_final)
     ##############
     #cargar datos#
     ##############
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=2,
-                df_final["nuevo_stock_seguridad"]<2]
-    choicelist = [df_final["nuevo_stock_seguridad"], 2]
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
-    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
+    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
-    condlist = [df_final["nuevo_stock_seguridad"]>=100,
-                df_final["nuevo_stock_seguridad"]<100]
-    choicelist = [100, df_final["nuevo_stock_seguridad"]]
+    condlist = [df_final["nuevo_stock_seguridad"]>=50,
+                df_final["nuevo_stock_seguridad"]<50]
+    choicelist = [50, df_final["nuevo_stock_seguridad"]]
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final = df_final[df_final['id_tienda'] != '1917']
     df_final = df_final[df_final['id_tienda'] != '9212']
 
     print(df_final)
+    # Aplicar lógica de excluidos
+    df_excluidos = excluidos_ss()
+    df_excluidos["id_tienda"] = df_excluidos["id_tienda"].astype(str).str.zfill(4)
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str).str.zfill(4)
+    df_final = df_final.merge(df_excluidos, how="left", on=["id_tienda", "ref_id"], indicator=True)
 
+    # Si el producto está en los excluidos, forzar nuevo_stock_seguridad = 0
+    df_final.loc[df_final["_merge"] == "both", "nuevo_stock_seguridad"] = 0
+    df_final = df_final.drop(columns=["_merge"])
+    print("Productos con stock seguridad 0 (por exclusión):")
+    print(df_final[(df_final["nuevo_stock_seguridad"] == 0) & (df_final["id_tienda"] == "0917")].head(10))
     buffer = io.StringIO()
     df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
     filename = f"stock_seguridad/{exec_date}/stock_seguridad_pm_{date_aux}.csv"
@@ -471,8 +536,10 @@ def carga_stock_seguridad_janis_pm(ds,ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
-    print(df)
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
+    print(df.head(10))
+    df = df[df['erp_id'].notnull() & (df['erp_id'].astype(str).str.strip() != "")]
+    print(df.head(10))
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -501,28 +568,72 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     }
     
     payload=[]
+    errores_fk=[]
+    # 🧩 Excepciones warehouse
+    warehouse_excepciones = {
+        '0332': '15f52fc',
+        '0469': '0003',
+        '0581': '18bced3',
+        '0917': '193949d',
+        '0956': '956',
+    }
+    #tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = df.erp_id[i]
+        if not isinstance(material, str) or material.lower() == "nan" or material.strip() == "": #Si es que el material es NaN o vacío
+            print(f"⚠️ SKU inválido (omitido del payload, confirmar existencia en Janis): {material}")
+            continue
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
+        warehouse = warehouse_excepciones.get(id_tienda, id_tienda)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        if not all([material, id_tienda, warehouse, stock_seguridad is not None]):
+            print(f"❌ Registro inválido: {material}, {id_tienda}, {warehouse}, {stock_seguridad}")
+            continue
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
+                "Warehouse": warehouse,
                 "MinStockDiff": True,
                 "MinStock": stock_seguridad,
                 "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
             payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+            print(f"📤 Enviando {len(payload)} registros")
             response = requests.post(url, headers=headers, data=payload_json)
-            print(response.text)
+            print("📥 Respuesta:", response.status_code, response.text)
+            try:
+                resp_json = response.json()
+                if resp_json.get("code") == 13:
+                    errores_fk.extend([p["IdSku"] for p in payload])
+                    print("❌ Errores FK en bloque:", [p["IdSku"] for p in payload])
+            except Exception as e:
+                print("❗ Error al parsear response:", e)
             payload = []
+        #print(f"Payload: \n{payload_json}\n")
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
     response = requests.post(url, headers=headers, data=payload_json)
-    print(response.text)
+    print(f"📤 Enviando {len(payload)} registros finales")
+    print("📥 Respuesta final:", response.status_code, response.text)
+
+    try:
+        resp_json = response.json()
+        if resp_json.get("code") == 13:
+            errores_fk.extend([p["IdSku"] for p in payload])
+            print("❌ Errores FK en bloque final:", [p["IdSku"] for p in payload])
+    except Exception as e:
+        print("❗ Error al parsear response:", e)
+
+    if errores_fk:
+        print(f"⚠️ Total SKUs con error FK: {len(errores_fk)}")
+        print(errores_fk)
+    else:
+        print("✅ Todos los SKUs se enviaron sin errores FK")
+    #response = requests.post(url, headers=headers, data=payload_json)
+    #print(response.text)
 
     return
-"""
+
 
 def carga_stock_seguridad_janis_am(ds,ti):
     import requests
@@ -544,7 +655,10 @@ def carga_stock_seguridad_janis_am(ds,ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
+    print(df.head(10))
+    df = df[df['erp_id'].notnull() & (df['erp_id'].astype(str).str.strip() != "")]
+    print(df.head(10))
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -574,25 +688,69 @@ def carga_stock_seguridad_janis_am(ds,ti):
     }
     
     payload=[]
+    errores_fk=[]
+    # 🧩 Excepciones warehouse
+    warehouse_excepciones = {
+        '0332': '15f52fc',
+        '0469': '0003',
+        '0581': '18bced3',
+        '0917': '193949d',
+        '0956': '956',
+    }
+    #tiendas_sin_warehouse_default = ['0463', '0486', '0576', '0915', '0931', '0979']
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = df.erp_id[i]
+        if not isinstance(material, str) or material.lower() == "nan" or material.strip() == "": #Si es que el material es NaN o vacío
+            print(f"⚠️ SKU inválido (omitido del payload, confirmar existencia en Janis): {material}")
+            continue
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
+        warehouse = warehouse_excepciones.get(id_tienda, id_tienda)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
+        if not all([material, id_tienda, warehouse, stock_seguridad is not None]):
+            print(f"❌ Registro inválido: {material}, {id_tienda}, {warehouse}, {stock_seguridad}")
+            continue
         row = {"IdSku": material,
                 "Quantity": 0,
                 "Store": id_tienda,
+                "Warehouse": warehouse,
                 "MinStockDiff": True,
                 "MinStock": stock_seguridad,
                 "Type": 2}
         payload.append(row)    
         if i % 499 == 0:
             payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
+            print(f"📤 Enviando {len(payload)} registros")
             response = requests.post(url, headers=headers, data=payload_json)
-            print(response.text)
+            print("📥 Respuesta:", response.status_code, response.text)
+            try:
+                resp_json = response.json()
+                if resp_json.get("code") == 13:
+                    errores_fk.extend([p["IdSku"] for p in payload])
+                    print("❌ Errores FK en bloque:", [p["IdSku"] for p in payload])
+            except Exception as e:
+                print("❗ Error al parsear response:", e)
             payload = []
+        #print(f"Payload: \n{payload_json}\n")
     payload_json = json.dumps(payload, ensure_ascii=False).replace('"true"', 'true').replace('"false"', 'false')
     response = requests.post(url, headers=headers, data=payload_json)
-    print(response.text)
+    print(f"📤 Enviando {len(payload)} registros finales")
+    print("📥 Respuesta final:", response.status_code, response.text)
+
+    try:
+        resp_json = response.json()
+        if resp_json.get("code") == 13:
+            errores_fk.extend([p["IdSku"] for p in payload])
+            print("❌ Errores FK en bloque final:", [p["IdSku"] for p in payload])
+    except Exception as e:
+        print("❗ Error al parsear response:", e)
+
+    if errores_fk:
+        print(f"⚠️ Total SKUs con error FK: {len(errores_fk)}")
+        print(errores_fk)
+    else:
+        print("✅ Todos los SKUs se enviaron sin errores FK")
+    #response = requests.post(url, headers=headers, data=payload_json)
+    #print(response.text)
 
     return
 
@@ -613,7 +771,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -645,7 +803,7 @@ def stock_ventas_tiendas_to_postgresql_am(ti):
 
     return
 
-"""
+
 def stock_ventas_tiendas_to_postgresql_pm(ti):
     import numpy as np
     import pandas as pd
@@ -663,7 +821,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
 
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
@@ -694,7 +852,7 @@ def stock_ventas_tiendas_to_postgresql_pm(ti):
     print("Data saved to PostgreSQL.")
 
     return
-"""
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -732,33 +890,31 @@ with DAG(
         python_callable = stock_ventas_tiendas_to_s3_am,
     )
 
-    #t1_pm = PythonOperator(
-    #    task_id = "stock_ventas_tiendas_to_s3_pm",
-    #    python_callable = stock_ventas_tiendas_to_s3_pm,
-    #)
+    t1_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_s3_pm",
+        python_callable = stock_ventas_tiendas_to_s3_pm,
+    )
 
     t2_am = PythonOperator(
         task_id = "stock_ventas_tiendas_to_postgresql_am",
         python_callable = stock_ventas_tiendas_to_postgresql_am,
     )
 
-    #t2_pm = PythonOperator(
-    #    task_id = "stock_ventas_tiendas_to_postgresql_pm",
-    #    python_callable = stock_ventas_tiendas_to_postgresql_pm,
-    #)
+    t2_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_pm",
+        python_callable = stock_ventas_tiendas_to_postgresql_pm,
+    )
 
     t3_am = PythonOperator(
         task_id = "carga_stock_seguridad_janis_am",
         python_callable = carga_stock_seguridad_janis_am
     )
 
-    #t3_pm = PythonOperator(
-    #    task_id = "carga_stock_seguridad_janis_pm",
-    #    python_callable = carga_stock_seguridad_janis_pm
-    #)
+    t3_pm = PythonOperator(
+        task_id = "carga_stock_seguridad_janis_pm",
+        python_callable = carga_stock_seguridad_janis_pm
+    )
 
     t0 >> t1_am >> t2_am >> t3_am
-    #t0 >> t1_pm >> t2_pm >> t3_pm
+    t0 >> t1_pm >> t2_pm >> t3_pm
     t0 >> t_dummy
-
-
