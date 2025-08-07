@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime
 
@@ -117,10 +117,10 @@ with DAG(
     
     t0 = PythonOperator(
         task_id = "load_custom_query_to_s3",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """SELECT STORE_ID, STORE_NAME, OU_KEY, STORE_KEY, ORG_KEY, CANAL_DIST, ORG_COMPRAS, ORG_VENTAS, CITY_ID, COUNTY_DESC
-            FROM DWC_SMU.SMU.VW_DIM_STORE
+            FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE`
             WHERE STORE_ID <> '200' AND CANAL_DIST IS NOT NULL;
             """,
             "query_name": "tiendas_dw",
