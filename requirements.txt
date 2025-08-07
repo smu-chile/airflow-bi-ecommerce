@@ -19,7 +19,7 @@ google
 google-analytics-data
 paramiko
 geopandas
-shapely
+shapely<2.0
 Polygon
 Point
 slack_sdk
