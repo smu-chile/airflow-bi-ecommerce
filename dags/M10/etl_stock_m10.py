@@ -118,7 +118,7 @@ with DAG(
                 CASE WHEN (L.BLOQUEO_TIENDA ='' OR L.BLOQUEO_FORMATO ='') THEN FALSE ELSE TRUE END AS BLOQUEOS
                 FROM DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY L 
                 JOIN DWC_SMU.SMU.VW_DIM_OU_HIERARCHY O 
-                ON L.OU_KEY = O.OU_KEY AND  O.ORG_IP_ID ='02'
+                ON L.OU_KEY = O.OU_KEY AND  O.ORG_IP_ID in ('02','09')
                 JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY H 
                 ON L.SKU_KEY = H.SKU_KEY 
                 WHERE
