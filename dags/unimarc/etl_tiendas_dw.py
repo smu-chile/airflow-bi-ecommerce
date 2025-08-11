@@ -35,9 +35,6 @@ def _load_stores_table(ti, ds):
     columns_rename = {
             "STORE_ID" : "id_tienda",
             "STORE_NAME" : "nombre_tienda",
-            "OU_KEY" : "ou_key",
-            "STORE_KEY" : "store_key",
-            "ORG_KEY" : "org_key",
             "CANAL_DIST" : "canal_dist",
             "ORG_COMPRAS" : "org_compras",
             "ORG_VENTAS" : "org_ventas",
