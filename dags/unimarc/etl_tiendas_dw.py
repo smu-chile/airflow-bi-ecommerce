@@ -119,7 +119,7 @@ with DAG(
         task_id = "load_custom_query_to_s3",
         python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
-            "query": """SELECT STORE_ID, STORE_NAME, OU_KEY, STORE_KEY, ORG_KEY, CANAL_DIST, ORG_COMPRAS, ORG_VENTAS, CITY_ID, COUNTY_DESC
+            "query": """SELECT STORE_ID, STORE_NAME, CANAL_DIST, ORG_COMPRAS, ORG_VENTAS, CITY_ID, COUNTY_DESC
             FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE`
             WHERE STORE_ID <> '200' AND CANAL_DIST IS NOT NULL;
             """,
