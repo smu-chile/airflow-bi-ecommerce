@@ -64,3 +64,57 @@ def load_custom_bq_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connec
 
     print("✅ Archivo subido a S3:", file_name)
     return file_name
+
+def netezza_full_table_load_to_s3(ts, table_name, where=None, date_query=None, aws_conn_id="aws_s3_connection", extra_prefix=None):
+    print("Execution datetime: " + ts)
+    curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
+    prefix = BASE_S3_PATH+table_name+"/"+curr_datetime+"_"
+    if extra_prefix is not None:
+        prefix = prefix+extra_prefix+"_"
+    file_name = prefix+table_name+".csv"    
+
+    print("File to be created: "+file_name)
+
+    sql_str = f"SELECT * FROM {table_name}"
+    if where is not None:
+        sql_str = sql_str + " WHERE " + where
+    if date_query is not None:
+        date_query = date_query % ts[:10]
+        sql_str = sql_str + " AND " + date_query
+
+    print(sql_str)
+
+    # ---------- 3) Credenciales BQ ----------
+    sa_info = Variable.get("BIGQUERY_CREDENTIALS", deserialize_json=True)
+    creds = service_account.Credentials.from_service_account_info(
+        sa_info,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    )
+    client = bigquery.Client(
+        project=sa_info["project_id"],
+        credentials=creds,
+    )
+
+    # ---------- 4) Ejecutar Query y traer a pandas ----------
+    job = client.query(sql_str)
+    df = job.to_dataframe()
+
+    print("Columnas:")
+    print(list(df.columns))
+
+    buffer = StringIO()
+
+    print("Number of records:")
+    print(len(df.index))
+    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id=aws_conn_id)
+    s3_hook.load_string(buffer.getvalue(),
+                  key=file_name,
+                  bucket_name=s3_bucket,
+                  replace=True,
+                  encrypt=False)
+
+    return file_name

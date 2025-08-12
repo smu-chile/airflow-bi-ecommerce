@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 
 from utils.calendar import delta_yearweeks
-from utils.netezza_utils import netezza_full_table_load_to_s3
+from utils.bigquery_utils import bigquery_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -113,7 +113,7 @@ default_args = {
 with DAG(
     'calendar_table_etl',
     default_args=default_args,
-    description="Netezza vm_dim_date full table load to S3 and transformation-load to Postgres",
+    description="Bigquery vm_dim_date full table load to S3 and transformation-load to Postgres",
     schedule_interval="30 7 * * *",
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
@@ -125,8 +125,8 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "netezza_vm_dim_date_full_load",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_DATE"},
+        python_callable = bigquery_full_table_load_to_s3,
+        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE`"},
         retries = 3,
         retry_delay = timedelta(minutes=5)
     )
