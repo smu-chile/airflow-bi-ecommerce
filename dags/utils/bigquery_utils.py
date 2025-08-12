@@ -65,7 +65,7 @@ def load_custom_bq_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connec
     print("✅ Archivo subido a S3:", file_name)
     return file_name
 
-def netezza_full_table_load_to_s3(ts, table_name, where=None, date_query=None, aws_conn_id="aws_s3_connection", extra_prefix=None):
+def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, aws_conn_id="aws_s3_connection", extra_prefix=None):
     print("Execution datetime: " + ts)
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     prefix = BASE_S3_PATH+table_name+"/"+curr_datetime+"_"
