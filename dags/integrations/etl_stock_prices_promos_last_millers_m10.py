@@ -142,7 +142,9 @@ def last_millers_m10_to_postgres(ds):
     print(f"Number of records extracted: {len(df.index)}")
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
-    df['ean'] = df['ean'].apply(lambda x: int(x))
+    df = df[df['ean'].astype(str).str.isnumeric()]
+    # Convertir a int
+    df['ean'] = df['ean'].astype(int)
     df.info()
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
