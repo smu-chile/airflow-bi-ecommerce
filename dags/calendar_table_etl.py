@@ -16,7 +16,7 @@ def _generate_calendar_table(ti):
     import sqlalchemy
     from sqlalchemy import text
 
-    dw_date_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_date_full_load"])[0]
+    dw_date_file_name = ti.xcom_pull(key="return_value", task_ids=["bigquery_vm_dim_date_full_load"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -121,12 +121,12 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Netezza VW_DIM_DATE full table load and relative dates calculation.
+    Bigquery VW_DIM_DATE full table load and relative dates calculation.
     """ 
     t0 = PythonOperator(
-        task_id = "netezza_vm_dim_date_full_load",
+        task_id = "bigquery_vm_dim_date_full_load",
         python_callable = bigquery_full_table_load_to_s3,
-        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE`"},
+        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE`","where":"DATE_VALUE >= '2012-01-01'"},
         retries = 3,
         retry_delay = timedelta(minutes=5)
     )
