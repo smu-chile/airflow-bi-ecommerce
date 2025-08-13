@@ -126,7 +126,8 @@ with DAG(
     t0 = PythonOperator(
         task_id = "bigquery_vm_dim_date_full_load",
         python_callable = bigquery_full_table_load_to_s3,
-        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE`","where":"DATE_VALUE >= '2012-01-01'"},
+        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE`",
+                     "where":" DATE_VALUE >= '2012-01-01'"},
         retries = 3,
         retry_delay = timedelta(minutes=5)
     )
