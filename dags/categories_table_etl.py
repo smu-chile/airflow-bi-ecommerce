@@ -80,7 +80,13 @@ def process_categories_table(ti):
 
     columns_query = ",".join(columns)
     values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
+
+    # 1) solo activas
+    df = df[df["status"] == "activo"]
+
+    #👇 Nueva línea para quitar nulos
+    df = df[df["ref_id"].notnull()]          # fuera los que no tengan ref_id
+
     records = list(df.to_records(index=False))
     
     # Change data types to native python types
