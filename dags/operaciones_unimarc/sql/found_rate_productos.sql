@@ -22,7 +22,10 @@ orden
 														11370572,11370571,11370573,11370576,11370575,
 														11370574,11370577,11370561,11370562,11370565,
 														11370564,11370563,11370557,19380738,11370560,
-														11370559,19380740,19380739,27486849)
+														11370559,19380740,19380739,2748684948312585,
+														48312586,48312587,48312588,48312589,48312590,
+														48312591,48312592,48312593,48312594,48312595,
+														48312596,48312597,48312598,48312599)
     								and umv = 'kg' and (unidades_pickeadas / unidades_solicitadas) >= 0.7 then 3
     -- cuando NO tiene sustituto, NO es categoria carne y es KG -> Completo
     when producto_substituido is false and umv = 'kg' and (unidades_pickeadas / unidades_solicitadas) >= 0.8 then 3
