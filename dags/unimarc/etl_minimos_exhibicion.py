@@ -6,7 +6,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-from utils.bigquery_utils import load_custom_query_to_bigquery
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 import pendulum
 
@@ -117,7 +117,7 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_bigquery,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT h.SKU_PRODUCT,h.UMB, STORE_H.STORE_ID, STORE_H.STORE, STORE_H.ORG_IP , h.SKU_NM , s.MINIMO_EXHIBICION, s.PLANOGRAMADO_FLG,
