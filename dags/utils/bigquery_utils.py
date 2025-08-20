@@ -84,7 +84,7 @@ def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, 
 
     print(sql_str)
 
-    # ---------- 3) Credenciales BQ ----------
+    # ---------- Credenciales BQ ----------
     sa_info = Variable.get("BIGQUERY_CREDENTIALS", deserialize_json=True)
     creds = service_account.Credentials.from_service_account_info(
         sa_info,
@@ -95,7 +95,7 @@ def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, 
         credentials=creds,
     )
 
-    # ---------- 4) Ejecutar Query y traer a pandas ----------
+    # ---------- Ejecutar Query y traer a pandas ----------
     job = client.query(sql_str)
     df = job.to_dataframe()
 
