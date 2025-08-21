@@ -84,7 +84,7 @@ def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, 
 
     print(sql_str)
 
-    # ---------- 3) Credenciales BQ ----------
+    # ---------- Credenciales BQ ----------
     sa_info = Variable.get("BIGQUERY_CREDENTIALS", deserialize_json=True)
     creds = service_account.Credentials.from_service_account_info(
         sa_info,
@@ -95,7 +95,7 @@ def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, 
         credentials=creds,
     )
 
-    # ---------- 4) Ejecutar Query y traer a pandas ----------
+    # ---------- Ejecutar Query y traer a pandas ----------
     job = client.query(sql_str)
     df = job.to_dataframe()
 
@@ -118,3 +118,38 @@ def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, 
                   encrypt=False)
 
     return file_name
+
+def bq_query_to_df(query, query_parameters=None, location="US"):
+    """
+    Ejecuta una consulta en BigQuery y retorna un DataFrame de pandas.
+    
+    Args:
+        query (str): SQL a ejecutar (puede incluir parámetros @name).
+        query_parameters (list|None): Lista de parámetros de BigQuery, p.ej.:
+            [
+              bigquery.ScalarQueryParameter("ds", "DATE", date(2025,8,20)),
+              bigquery.ArrayQueryParameter("tiendas", "STRING", ["0089","0469"])
+            ]
+          Si no necesitas parámetros, deja None.
+        location (str): Región del job de BQ (default "US").
+    Returns:
+        pandas.DataFrame df
+    """
+    print(f"Query to be executed: {query}")
+
+    # Conexión/credenciales como en render_netezza_view
+    sa_info = Variable.get("BIGQUERY_CREDENTIALS", deserialize_json=True)
+    creds = service_account.Credentials.from_service_account_info(
+        sa_info, scopes=["https://www.googleapis.com/auth/cloud-platform"]
+    )
+    client = bigquery.Client(project=sa_info["project_id"], credentials=creds, location=location)
+
+    job_config = None
+    if query_parameters:
+        job_config = bigquery.QueryJobConfig(query_parameters=query_parameters)
+
+    job = client.query(query, job_config=job_config)
+    df = job.to_dataframe()
+
+    print(df.head(20))
+    return df
