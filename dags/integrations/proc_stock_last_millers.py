@@ -131,11 +131,17 @@ def _get_products_from_datawarehouse(ds):
     import jaydebeapi
     import os
     import pandas as pd
+    from utils.bigquery_utils import bq_query_to_df
 
     curr_working_directory = os.getcwd()
     print(os.getcwd())
     with open(curr_working_directory+"/dags/integrations/sql/productos.sql", "r") as query_file:
         products_query = query_file.read()
+    
+    df = bq_query_to_df(products_query)
+    
+    if df.empty:
+        raise Exception("ERROR: No records found.")
 
     exec_date = macros.ds_add(ds, 1)
     exec_date = exec_date.replace("-", "/")
@@ -143,28 +149,12 @@ def _get_products_from_datawarehouse(ds):
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string = 'jdbc:netezza://' + dsn_hostname + ':' + dsn_port + '/' + dsn_database
-    conn = jaydebeapi.connect(jdbc_driver_name, connection_string, {'user': dsn_uid, 'password': dsn_pwd},jars=jdbc_driver_loc)
-    cur = conn.cursor()
-
     file_name = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/productos.csv"
 
     if s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
         print(f"File {file_name} already exists on S3 bucket. Skipping...")
         return file_name
 
-    cur.execute(products_query)
-    results = cur.fetchall()
-    columns = [i[0] for i in cur.description]
-    df = pd.DataFrame(results, columns=columns)
     print(f"Records found: {len(df.index)}")
 
     buffer = io.StringIO()
