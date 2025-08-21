@@ -107,15 +107,15 @@ def render_netezza_view(id_tienda,id_material,ds):
                 ON S.PARTICULARIDAD_KEY = PART.PARTICULARIDAD_KEY 
                 WHERE A.ALMACEN_COD = '0001' 
                 AND S.APLICA_STOCK = 'S' 
-                AND DATE_VALUE = DATE('@ds') + INTERVAL 1 DAY 
-                AND OU.OU_ID in ('@id_tienda') 
+                AND DATE_VALUE = DATE(@ds) + INTERVAL 1 DAY 
+                AND OU.OU_ID IN UNNEST(@tiendas) 
                 AND PART.PARTICULARIDAD_COD = 'A' 
                 AND S.TIPO_STOCK_KEY = MD5('TIPOSTOCK^CL^SMC^') 
                 AND sa.SKU_PRODUCT IN UNNEST(@materiales);"""
     print(sql_str)
     job_config = bigquery.QueryJobConfig(
         query_parameters=[
-            bigquery.ScalarQueryParameter("ds", "STRING", ds),                 # formato 'YYYY-MM-DD'
+            bigquery.ScalarQueryParameter("ds", "DATE", ds),
             bigquery.ArrayQueryParameter("tiendas", "STRING", id_tienda),
             bigquery.ArrayQueryParameter("materiales", "STRING", id_material),
         ]
@@ -165,10 +165,10 @@ def cuadratura_to_s3(ds):
     print("lista de tiendas\n")
     print(list_tienda)
 
-    list_tienda = ' '.join(list_tienda)
-    list_tienda = list_tienda.replace(" ", "','")
-    list_material = ' '.join(list_material)
-    list_material = list_material.replace(" ", "','")
+    #list_tienda = ' '.join(list_tienda)
+    #list_tienda = list_tienda.replace(" ", "','")
+    #list_material = ' '.join(list_material)
+    #list_material = list_material.replace(" ", "','")
     
     df_dw = render_netezza_view(list_tienda,list_material,ds)
     df_aux = pd.DataFrame(df_dw)
