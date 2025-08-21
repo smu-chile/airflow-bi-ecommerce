@@ -92,7 +92,7 @@ def render_netezza_view(id_tienda,id_material,ds):
     client = bigquery.Client(project=sa_info["project_id"], credentials=creds)
 
     sql_str= """SELECT sa.SKU_PRODUCT AS material ,
-                NBR_ITM AS stock ,
+                CAST(NBR_ITM AS FLOAT64) AS stock ,
                 ou.ou_id AS id_tienda ,
                 SA.NM AS nombre ,
                 DATE_VALUE as fecha
