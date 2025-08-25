@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -250,7 +250,7 @@ with DAG(
 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT H.SKU_KEY,H.SKU_PRODUCT, H.GRUPO_KEY, H.GRUPO_ID, H.GRUPO_DSC, H.CATEGORIA_KEY, H.CAT_ID, H.CAT_DSC,

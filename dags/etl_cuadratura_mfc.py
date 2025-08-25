@@ -135,52 +135,60 @@ def ubicaciones_mfc(ds):
     return results
 
 def render_netezza_view(id_material,ds):
-    import jaydebeapi
+    from google.cloud import bigquery
+    from google.oauth2 import service_account
     import os
+
+    # ----- 1) Cliente BigQuery -----
+    sa_info = Variable.get("BIGQUERY_CREDENTIALS", deserialize_json=True)
+    creds = service_account.Credentials.from_service_account_info(
+        sa_info,
+        scopes=["https://www.googleapis.com/auth/cloud-platform"],
+    )
+    client = bigquery.Client(project=sa_info["project_id"], credentials=creds)
 
     sql_str= """SELECT sa.SKU_PRODUCT AS material ,
                 NBR_ITM AS stock ,
                 ou.ou_id AS id_tienda ,
                 SA.NM AS nombre ,
                 DATE_VALUE as fecha
-                FROM DWC_SMU.SMU.VW_FACT_STOCK S 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_STOCK` S 
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR` SA
                 ON SA.SKU_KEY = S.SKU_KEY 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU 
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` OU 
                 ON OU.OU_KEY = S.OU_KEY 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A 
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ALMACEN` A 
                 ON A.ALMACEN_KEY =S.ALMACEN_KEY 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART 
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PARTICULARIDAD` PART 
                 ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY 
                 WHERE A.ALMACEN_COD = '0001' 
                 AND S.APLICA_STOCK = 'S' 
-                AND DATE_VALUE = '"""+ds+"""' ::date +1
-                AND OU.OU_ID in ('1917','0917') 
+                AND DATE_VALUE = DATE(@ds) + INTERVAL 1 DAY
+                AND OU.OU_ID IN ('1917','0917') 
                 AND PART.PARTICULARIDAD_COD = 'A' 
-                AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683) 
-                AND sa.SKU_PRODUCT in ('"""+id_material+"""');"""
+                AND S.TIPO_STOCK_KEY = MD5('TIPOSTOCK^CL^SMC^')
+                AND sa.SKU_PRODUCT IN UNNEST(@materiales);"""
+    ####################################################################################################
     print(sql_str)
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("ds", "DATE", ds),
+            bigquery.ArrayQueryParameter("materiales", "STRING", id_material),
+        ]
+    )
 
-    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
+    # ----- 4) Ejecuta y retorna DF -----
+    job = client.query(sql_str, job_config=job_config)
+    df = job.to_dataframe()
+
+    # print opcionales de debug
+    print("Filas retornadas:", len(df.index))
+    print("Columnas:", list(df.columns))
+
+    #######################################################################################################################################
+    print(sql_str) 
+    print(df.head())
     
-    conn = jaydebeapi.connect(jdbc_driver_name, 
-                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
-                                jars=jdbc_driver_loc)
-
-    cur = conn.cursor()
-    cur.execute(sql_str)
-    df = cur.fetchall()
-    print(df)
-    cur.close()
-    conn.close()
-
     return df
 
 def create_and_load_s3(ds):
@@ -225,10 +233,10 @@ def create_and_load_s3(ds):
     list_material = list(dict.fromkeys(list_material))
     list_tienda = list(dict.fromkeys(list_tienda))
 
-    list_tienda = ' '.join(list_tienda)
-    list_tienda = list_tienda.replace(" ", "','")
-    list_material = ' '.join(list_material)
-    list_material = list_material.replace(" ", "','")
+    #list_tienda = ' '.join(list_tienda)
+    #list_tienda = list_tienda.replace(" ", "','")
+    #list_material = ' '.join(list_material)
+    #list_material = list_material.replace(" ", "','")
 
     lista_dw = render_netezza_view(list_material,ds)
     df_aux = pd.DataFrame(lista_dw)
