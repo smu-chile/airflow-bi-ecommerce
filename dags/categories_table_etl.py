@@ -81,11 +81,8 @@ def process_categories_table(ti):
     columns_query = ",".join(columns)
     values_query = "%s,"+",".join(["%s" for column in columns])
 
-    # 1) solo activas
-    df = df[df["status"] == "activo"]
-
-    #👇 Nueva línea para quitar nulos
-    df = df[df["ref_id"].notnull()]          # fuera los que no tengan ref_id
+    #Solo obtener categorias con ref_id (Janis genero nuevas categorias )
+    df = df[df["ref_id"].notnull()]          
 
     records = list(df.to_records(index=False))
     

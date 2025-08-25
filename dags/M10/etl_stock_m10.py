@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -104,30 +104,31 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT
-                DISTINCT ("VARCHAR"(O.OU_ID))::VARCHAR(4) AS ID_TIENDA,
-                "TIMESTAMP"(L.DATE_VALUE)                 AS FECHA_MEDICION_INVENTARIO,
-                ("VARCHAR"(H.SKU_PRODUCT))::VARCHAR(18)   AS SKU,
-                H.SKU_NM                                  AS DESC_SKU,
-                (H.UMB)::VARCHAR(4)                       AS UMB,
-                INT8(L.STOCK_UMB_ST)                      AS STOCK_UMB,
-                INT4(L.IN_STOCK_FOTO)                     AS INSTOCK,
-                CASE WHEN (L.BLOQUEO_TIENDA ='' OR L.BLOQUEO_FORMATO ='') THEN FALSE ELSE TRUE END AS BLOQUEOS
-                FROM DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY L 
-                JOIN DWC_SMU.SMU.VW_DIM_OU_HIERARCHY O 
-                ON L.OU_KEY = O.OU_KEY AND  O.ORG_IP_ID in ('02','09')
-                JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY H 
-                ON L.SKU_KEY = H.SKU_KEY 
-                WHERE
-                    (((((((H.SKU_PRODUCT NOTNULL) AND
-                    (O.OU_KEY NOTNULL)) AND
-                    (L.CONSIG <> 'X'::"NVARCHAR")) AND
-                    (L.GDS_PD_TP_ID <> 'VERP'::"NVARCHAR")) AND
-                    ("NVARCHAR"(L.APLICA_STOCK) = 'S'::"NVARCHAR")) AND
-                    ((L.DATE_VALUE) = '{{ds}}'::DATE-1)))
+                SELECT DISTINCT
+                    CAST(O.OU_ID AS STRING)                           AS ID_TIENDA,
+                    CAST(L.DATE_VALUE AS TIMESTAMP)                   AS FECHA_MEDICION_INVENTARIO,
+                    CAST(H.SKU_PRODUCT AS STRING)                     AS SKU,
+                    H.SKU_NM                                          AS DESC_SKU,
+                    CAST(H.UMB AS STRING)                             AS UMB,
+                    CAST(L.STOCK_UMB_ST AS INT64)                     AS STOCK_UMB,
+                    CAST(L.IN_STOCK_FOTO AS INT64)                    AS INSTOCK,
+                    CASE WHEN (COALESCE(L.BLOQUEO_TIENDA,'') = '' OR COALESCE(L.BLOQUEO_FORMATO,'') = '')
+                        THEN FALSE ELSE TRUE END                     AS BLOQUEOS
+                    FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_OU_LOGT_SMY`        L
+                    JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_OU_HIERARCHY`        O
+                        ON L.OU_KEY = O.OU_KEY AND O.ORG_IP_ID IN ('02','09')
+                    JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` H
+                        ON L.SKU_KEY = H.SKU_KEY
+                    WHERE
+                    H.SKU_PRODUCT IS NOT NULL
+                    AND O.OU_KEY IS NOT NULL
+                    AND L.CONSIG <> 'X'
+                    AND L.GDS_PD_TP_ID <> 'VERP'
+                    AND CAST(L.APLICA_STOCK AS STRING) = 'S'
+                    AND DATE(L.DATE_VALUE) = DATE_SUB(DATE({{ds}}), INTERVAL 1 DAY);
             """,
             "query_name": "stock_m10"
         },
