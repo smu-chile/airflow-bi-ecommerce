@@ -244,7 +244,7 @@ with DAG(
                         AND REGISTRO_VALIDO = 'X'
                         AND CANAL_DISTRIBUCION in ('10','70')
                         AND ID_EVENTO <> 572 """,
-            "date_query": "FECHA_FIN_DE_PROMOCION >= TO_DATE('%s', 'YYYY-MM-DD') - INTERVAL '7 days' ",
+            "date_query": "FECHA_FIN_DE_PROMOCION >= DATE('%s') - INTERVAL 7 DAY ",
             "extra_prefix": "incremental"
         },
         retries = 2,
