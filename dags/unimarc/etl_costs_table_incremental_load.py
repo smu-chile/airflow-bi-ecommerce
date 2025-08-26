@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import netezza_full_table_load_to_s3
+from utils.bigquery_utils import bigquery_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
@@ -42,12 +42,12 @@ def _get_ou_key_list(ti, ts):
     df_stores = pd.read_csv(store_object.get()["Body"])
 
     df_stores = df_stores[df_stores["STORE_ID"].isin(store_ids)]
-    ou_key_list = df_stores["OU_NK"].to_list()
+    ou_key_list = df_stores["OU_HEX"].to_list()
     ou_key_list_string = "(" + ",".join([f"'{str(ou_key)}'" for ou_key in ou_key_list]) + ")"
     print(ou_key_list_string[0:11])
     ti.xcom_push(key="ou_key_list", value=ou_key_list_string)
 
-    store_ou_key_list = list(zip(df_stores["OU_NK"], df_stores["STORE_ID"]))
+    store_ou_key_list = list(zip(df_stores["OU_HEX"], df_stores["STORE_ID"]))
 
     return store_ou_key_list
 
@@ -59,7 +59,7 @@ def _create_final_costs_table(ti):
     dw_sku_attr_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_sku_attr_full_load"])[0]
 
     store_ou_key_list = ti.xcom_pull(key="return_value", task_ids=["get_ou_key_list_from_datawarehouse"])[0]
-    df_store_ou_key = pd.DataFrame(store_ou_key_list, columns=["OU_NK", "STORE_ID"])
+    df_store_ou_key = pd.DataFrame(store_ou_key_list, columns=["OU_HEX", "STORE_ID"])
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -71,7 +71,7 @@ def _create_final_costs_table(ti):
 
     dw_fact_ou_object = s3_hook.get_key(dw_fact_ou_logt_file, bucket_name=s3_bucket)
     df_dw_fact_ou = pd.read_csv(dw_fact_ou_object.get()["Body"])
-    df_dw_fact_ou_store = pd.merge(df_dw_fact_ou, df_store_ou_key, on="OU_NK", how="left")
+    df_dw_fact_ou_store = pd.merge(df_dw_fact_ou, df_store_ou_key, on="OU_HEX", how="left")
     df_dw_fact_ou_store = df_dw_fact_ou_store[["DATE_VALUE", "ACTIVO", "CATALOGADO", "NBR_ITM_SOLD", "COGS", "SKU_KEY", "STORE_ID"]]
 
     dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_file, bucket_name=s3_bucket)
@@ -132,7 +132,7 @@ with DAG(
     start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
-    tags=["DATA", "DW", "S3", "workspace", "costos", "unimarc", "MATIAS"],
+    tags=["DATA", "BQ", "S3", "workspace", "costos", "unimarc", "KEVIN"],
 ) as dag:
 
     dag.doc_md = """
@@ -151,11 +151,11 @@ with DAG(
 
     t2 = PythonOperator(
         task_id = "netezza_vm_fact_ou_logt_smy_filtered_load",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_FACT_OU_LOGT_SMY",
+        python_callable = bigquery_full_table_load_to_s3,
+        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_OU_LOGT_SMY`",
                     "where": """ (NBR_ITM_SOLD > 0 OR COGS > 0)
-                                AND OU_NK IN {{ti.xcom_pull(key="ou_key_list", task_ids=["get_ou_key_list_from_datawarehouse"][0])}}
-                                AND DATE_VALUE = TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
+                                AND OU_HEX IN {{ti.xcom_pull(key="ou_key_list", task_ids=["get_ou_key_list_from_datawarehouse"][0])}}
+                                AND DATE_VALUE = DATE('{{execution_date.strftime('%Y-%m-%d')}}') 
                             """ 
         },
         retries = 2,
@@ -165,8 +165,8 @@ with DAG(
 
     t3 = PythonOperator(
         task_id = "netezza_vm_dim_sku_attr_full_load",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_SKU_ATTR"},
+        python_callable = bigquery_full_table_load_to_s3,
+        op_kwargs = {"table_name": "cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR"},
         retries = 2,
         retry_delay = timedelta(minutes=1)
     )
