@@ -43,7 +43,7 @@ def _get_ou_key_list(ti, ts):
 
     df_stores = df_stores[df_stores["STORE_ID"].isin(store_ids)]
     ou_key_list = df_stores["OU_NK"].to_list()
-    ou_key_list_string = "(" + ",".join([str(ou_key) for ou_key in ou_key_list]) + ")"
+    ou_key_list_string = "(" + ",".join([f"'{str(ou_key)}'" for ou_key in ou_key_list]) + ")"
     print(ou_key_list_string[0:11])
     ti.xcom_push(key="ou_key_list", value=ou_key_list_string)
 
