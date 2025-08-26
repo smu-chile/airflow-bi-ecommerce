@@ -123,7 +123,7 @@ with DAG(
                     , SH.SEC_DSC 
                     , SH.NEG_DSC 
                     , SH.LIN_DESC
-                `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` SH
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` SH
                 WHERE SH.SKU_PRODUCT IS NOT NULL
                 AND SH.SKU_PRODUCT <> 'REF_S210'
                 AND SH.GRUPO_DSC <> 'Sin asignar';
