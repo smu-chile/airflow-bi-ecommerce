@@ -128,7 +128,7 @@ with DAG(
                     AND L.CONSIG <> 'X'
                     AND L.GDS_PD_TP_ID <> 'VERP'
                     AND CAST(L.APLICA_STOCK AS STRING) = 'S'
-                    AND DATE(L.DATE_VALUE) = DATE_SUB(DATE({{ds}}), INTERVAL 1 DAY);
+                    AND DATE(L.DATE_VALUE) = DATE_SUB(PARSE_DATE('%Y-%m-%d', '{{ ds }}'), INTERVAL 1 DAY);
             """,
             "query_name": "stock_m10"
         },
