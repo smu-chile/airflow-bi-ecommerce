@@ -6,8 +6,19 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 
 import pendulum
+
+def branch_8am(ts):
+    exec_date = pendulum.parse(ts, tz="America/Santiago")
+    hora = exec_date.hour
+    print(f"Hora de ejecución: {hora}")
+    if hora == 8:
+        return "get_and_send_cargas_csv"
+    else:
+        return "skip_send"
 
 def lista8(ds):
     import pandas as pd
@@ -408,6 +419,98 @@ def load_tables_to_postgres(ti):
 
     return
 
+def _upload_to_slack(file_name: str, data_bytes: bytes, channel_id: str, token: str):
+    import requests, json
+    # 1) pedir URL de subida
+    upload_url_resp = requests.post(
+        "https://slack.com/api/files.getUploadURLExternal",
+        data={
+            "filename": file_name,
+            "length": str(len(data_bytes)),
+            "token": token,
+        }
+    ).json()
+    upload_url = upload_url_resp.get("upload_url")
+    file_id    = upload_url_resp.get("file_id")
+    if not upload_url:
+        raise RuntimeError(f"Error getUploadURLExternal: {upload_url_resp}")
+
+    # 2) subir bytes
+    up_resp = requests.post(
+        upload_url,
+        data=data_bytes,
+        headers={"Content-Type": "application/octet-stream"}
+    )
+    if up_resp.status_code != 200:
+        raise RuntimeError(f"Error subiendo {file_name}: {up_resp.text}")
+
+    # 3) completar subida
+    comp = requests.post(
+        "https://slack.com/api/files.completeUploadExternal",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        },
+        data=json.dumps({
+            "files": [{"id": file_id}],
+            "channel_id": channel_id,
+            "initial_comment": f"📎<!channel> [Alvi] Ya se puede cargar {file_name}! :cat0:"
+        })
+    ).json()
+    if not comp.get("ok"):
+        raise RuntimeError(f"Error completeUploadExternal {file_name}: {comp}")
+
+
+def get_and_send_cargas_csv():
+    """
+    Ejecuta 2 queries en Postgres (carga_productos y carga_skus)
+    y sube 2 CSV separados a Slack.
+    """
+    import pandas as pd
+    import io
+
+    # conexiones / vars
+    pg_hook   = PostgresHook(postgres_conn_id="postgresql_conn")
+    engine    = pg_hook.get_sqlalchemy_engine()
+    token     = Variable.get("token_slack_bot")
+    channel_id = Variable.get("token_slack_carga_tiendas") 
+    fecha_str = str(pendulum.now("America/Santiago").date())
+
+    SQL_PRODUCTOS = """
+        select CONCAT("refId",';',stores,';',publish,';',"updatePending",';',visible,';',active)
+               as "refId;stores;publish;updatePending;visible;active"
+        from ecommdata_alvi.carga_productos
+    """
+    SQL_SKUS = """
+        select CONCAT("refId",';',publish,';',"updatePending",';',active)
+               as "refId;publish;updatePending;active"
+        from ecommdata_alvi.carga_skus
+    """
+
+    # ejecutar y exportar a CSV (separador coma; el contenido ya viene con ';' embebido)
+    df_prod = pd.read_sql(SQL_PRODUCTOS, engine)
+    df_skus = pd.read_sql(SQL_SKUS, engine)
+
+    # si no hay filas, igual subimos un CSV con solo cabecera pa que quede trazabilidad
+    buf_prod = io.StringIO()
+    buf_skus = io.StringIO()
+    df_prod.to_csv(buf_prod, index=False)  # header incluido
+    df_skus.to_csv(buf_skus, index=False)
+
+    # a bytes
+    bytes_prod = buf_prod.getvalue().encode("utf-8")
+    bytes_skus = buf_skus.getvalue().encode("utf-8")
+
+    # nombres bonitos
+    file_prod = f"carga_productos_{fecha_str}.csv"
+    file_skus = f"carga_skus_{fecha_str}.csv"
+
+    # subir a Slack
+    _upload_to_slack(file_prod, bytes_prod, channel_id, token)
+    _upload_to_slack(file_skus, bytes_skus, channel_id, token)
+
+    print(f"✅ CSVs enviados: {file_prod}, {file_skus}")
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -449,6 +552,10 @@ with DAG(
         task_id = "load_tables_to_postgres",
         python_callable = load_tables_to_postgres,
     )
-    
 
-    t0 >> t1 >> t2
+    t3 = PythonOperator(
+        task_id = "get_and_send_cargas_csv",
+        python_callable = get_and_send_cargas_csv,
+    )    
+
+    t0 >> t1 >> t2 >> t3
