@@ -3,7 +3,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.operators.external_task import ExternalTaskSensor
+from airflow.sensors.external_task import ExternalTaskSensor
 
 from utils.bigquery_utils import bigquery_full_table_load_to_s3
 
