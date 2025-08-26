@@ -75,10 +75,11 @@ def _create_final_costs_table(ti):
     df_dw_fact_ou_store = df_dw_fact_ou_store[["DATE_VALUE", "ACTIVO", "CATALOGADO", "NBR_ITM_SOLD", "COGS", "SKU_KEY", "STORE_ID"]]
 
     dw_sku_attr_object = s3_hook.get_key(dw_sku_attr_file, bucket_name=s3_bucket)
-    
-    print(df.head(5))
+    print("Fact and SKU ATTR dataframes loaded.")
+    print(df_dw_fact_ou_store.head(5))
     df_dw_sku_attr = pd.read_csv(dw_sku_attr_object.get()["Body"], dtype={"SKU_PRODUCT": "str"})
     df_dw_sku_attr = df_dw_sku_attr[["SKU_PRODUCT", "NM", "SKU_KEY"]]
+    print(df_dw_sku_attr.head(5))
 
     df = pd.merge(df_dw_fact_ou_store, df_dw_sku_attr, on="SKU_KEY", how="left")
     df = df.drop(columns=["SKU_KEY"])
