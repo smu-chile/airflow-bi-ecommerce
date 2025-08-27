@@ -58,7 +58,7 @@ def _create_final_costs_table_alvi(ti, ts):
     import sqlalchemy
 
     execution_datetime = ts[:10].replace("-", "/")
-    dw_sku_attr_file = f"data_warehouse/`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR`/{execution_datetime}/"
+    dw_sku_attr_file = f"data_warehouse/cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR/{execution_datetime}/"
 
     print("Searching prefix: " + dw_sku_attr_file)
 
