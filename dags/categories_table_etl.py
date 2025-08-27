@@ -80,7 +80,10 @@ def process_categories_table(ti):
 
     columns_query = ",".join(columns)
     values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
+
+    #Solo obtener categorias con ref_id (Janis genero nuevas categorias )
+    df = df[df["ref_id"].notnull()]          
+
     records = list(df.to_records(index=False))
     
     # Change data types to native python types

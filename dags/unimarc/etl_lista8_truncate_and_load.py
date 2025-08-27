@@ -5,10 +5,27 @@ from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 
+from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
 
 import pendulum
+
+def lista8():
+    import pandas as pd
+    lista8 = """select concat(l.material, '-', l.umv) as ref_id, id_tienda from ecommdata.lista8 l;"""
+    print(lista8)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(lista8)
+    results = cursor.fetchall()
+    results=pd.DataFrame(results)
+    results.columns = ["ref_id","id_tienda"]
+    print(results.head())
+    cursor.close()
+    pg_connection.close()
+    return results
 
 def _stopper_lista8(ts):
     import pandas as pd
@@ -167,8 +184,70 @@ def _load_lista8(ts):
             FROM catalogo.productos_excluidos pe
             WHERE l.material = pe.material and l.umv = pe.umv
         """)
-
+        conn.execute("""
+            DELETE FROM ecommdata.lista8 l
+            WHERE l.material in ('000000000000655232','000000000000671384','000000000000671581','000000000000671582','000000000000671583','000000000000671584','000000000000671585','000000000000671586','000000000000671587','000000000000671588','000000000000671589','000000000000671590','000000000000671591','000000000000671592','000000000000671593','000000000000671594','000000000000671595','000000000000671596','000000000000671646','000000000000671649','000000000000671650','000000000000671671','000000000000671672','000000000000671673','000000000000671674','000000000000671675','000000000000671676','000000000000671677','000000000000671678','000000000000671679','000000000000671680','000000000000671683','000000000000671753','000000000000671754','000000000000671755','000000000000671756','000000000000671757','000000000000671765','000000000000672059','000000000000672089','000000000000672248','000000000000673021','000000000000673649','000000000000673650','000000000000673711','000000000000673712','000000000000674028','000000000000674029','000000000000674030','000000000000674031','000000000000674032','000000000000675333','000000000000675334','000000000000675353','000000000000675354','000000000000675355','000000000000675356','000000000000675357','000000000000675421','000000000000675738','000000000000675739','000000000000675740','000000000000675751','000000000000675752','000000000000676042','000000000000676043','000000000000676044','000000000000676045','000000000000676046','000000000673517002','000000000673517004')
+                     """)
     print("Data saved to PostgreSQL. Table: ecommdata.lista8")
+
+    return
+
+def _load_lista9_filtered(ti):
+    import pandas as pd
+    import sqlalchemy
+
+    #obtener archivo con xcom desde S3
+    file_name = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    if  not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % file_name)
+    
+    s3_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
+    df_dw = pd.read_csv(s3_object.get()["Body"])
+
+    # Debe traer: ref_id, id_tienda
+    df_dw.columns = [c.strip().lower() for c in df_dw.columns]
+    if "ref_id" not in df_dw.columns or "id_tienda" not in df_dw.columns:
+        raise Exception(f"CSV inválido; columnas: {list(df_dw.columns)} (se esperan 'ref_id' e 'id_tienda')")
+
+    ventas = df_dw[["ref_id", "id_tienda"]].copy()
+    ventas["ref_id"] = ventas["ref_id"].astype(str).str.strip()
+    ventas["id_tienda"] = ventas["id_tienda"].astype(str).str.zfill(4)
+    ventas = ventas.drop_duplicates()
+    print(f"[DW] filas ventas únicas: {len(ventas)}")
+
+    df_l8 = lista8()  
+    df_l8["ref_id"] = df_l8["ref_id"].astype(str).str.strip()
+    df_l8["id_tienda"] = df_l8["id_tienda"].astype(str).str.zfill(4)
+
+    # Inner join en pandas SOLO para obtener el set de llaves válidas en lista8 que tienen venta
+    df_full = df_l8.merge(ventas, on=["ref_id", "id_tienda"], how="inner").drop_duplicates()
+    print(f"[JOIN-keys] llaves a traer completas desde lista8: {len(df_full)}")
+    if df_full.empty:
+        raise Exception("No hay llaves (ref_id, id_tienda) con venta presentes en lista8.")
+
+    # Conexión y carga de datos a PostgreSQL
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE ecommdata.lista9") 
+        df_full.to_sql(name="lista9",
+                    con=conn,         
+                    schema="ecommdata",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL. Table: ecommdata.lista9")
 
     return
 
@@ -187,13 +266,14 @@ with DAG(
     start_date=pendulum.datetime(2022, 7, 3, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "SAP", "ecommdata", "lista8", "PATRICIO"],
+    tags=["DATA", "SAP", "ecommdata", "lista8", "FRANCISCO"],
 ) as dag:
 
     dag.doc_md = """
     Extracción de archivos csv de lista8 desde bucket de S3, transformación y carga de datos en tabla ecommdata_unimarc.lista8. \n
     Un sensor espera por 1 hora la presencia de un archivo bandera (.TRG) que indique que la carga de los csv de datos está completa. \n
-    Se realiza previamente un truncado de todos los datos y posteriormente se realiza la carga del día
+    Se realiza previamente un truncado de todos los datos y posteriormente se realiza la carga del día. \n
+    Lista8 contiene todos los datos del surtido, por lo que se está filtrando para obtener solo los productos con ventas y cargarlos en [temporal_name]lista9.
     """ 
     t0 = S3KeySensor(
         task_id = "wait_for_lista8_flag_file",
@@ -215,4 +295,54 @@ with DAG(
         python_callable = _load_lista8
     )
 
-    t0 >> t1 >> t2
+    t3 = PythonOperator(
+        task_id = "extract_data_from_dw",
+        python_callable = load_custom_query_to_s3,
+        op_kwargs = {
+            "query": """
+                WITH venta_skus AS (
+                    SELECT (S.SKU_PRODUCT || '-' || CASE 
+                            WHEN S.UMB = 'ST' THEN 'UN'
+                            ELSE S.UMB
+                        END) AS ref_id,
+                        STORE_H.STORE_ID AS id_tienda,
+                        SUM(COALESCE (VENTAC.VENTA_BRUTA::float,0)) AS total_venta_bruta,
+                        SUM(COALESCE (VENTAC.VENTA_NETA::float,0)) AS total_venta_neta,
+                        SUM(COALESCE (VENTAC.VENTA_UMV::float,0)) AS total_unidades_vendidas
+                        FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE VENTAC
+                            LEFT JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H 
+                                ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
+                            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S 
+                                ON VENTAC.SKU_KEY = S.SKU_KEY
+                            LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P 
+                                ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
+                            LEFT JOIN DWC_SMU.SMU.VW_DIM_UOM U 
+                                ON P.UOM_VTA_KEY = U.UOM_KEY
+                            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH 
+                                ON VENTAC.SKU_KEY = SH.SKU_KEY
+                        WHERE VENTAC.DATE_VALUE::timestamp >= current_date::date - INTERVAL '15 days'
+                            AND STORE_H.ORG_IP_ID IN ('01')
+                            AND VENTAC.CANAL_DISTRIB IN ('10')
+                        GROUP BY 1,2
+                        HAVING
+                        COALESCE(SUM(VENTAC.VENTA_UMV::float), 0) > 0
+                        OR COALESCE(SUM(VENTAC.VENTA_NETA::float), 0) > 0
+                        OR COALESCE(SUM(VENTAC.VENTA_BRUTA::float), 0) > 0
+                )
+            SELECT DISTINCT ref_id, id_tienda 
+            FROM venta_skus;
+            """,
+            "query_name": "ecommdata/lista8_productos_con_ventas"
+        },
+        retries = 1,
+        retry_delay = timedelta(minutes=1),
+        execution_timeout = timedelta(minutes=60),
+        pool = "backfill_pool"
+    )
+
+    t4 = PythonOperator(
+        task_id = "filter_and_load_lista9",
+        python_callable = _load_lista9_filtered
+    )
+
+    t0 >> t1 >> t2 >> t3 >> t4

@@ -12,14 +12,15 @@ import pendulum
 
 def api_ok_to_shop(ds,last_time):
     import pandas as pd
-    import requests
-    import time
+    import http.client
+    import json
     import io
     import zipfile
     
     exec_date_unix = last_time
     
-    api_url = 'https://api.okto.shop/v2/products/dump'
+    api_host = "api.okto.shop"
+    api_path = "/v2/products/dump"
     headers = {
         'Content-Type': 'application/json',
         'x-auth-token': Variable.get("token_ok_to_shop")
@@ -167,21 +168,19 @@ def api_ok_to_shop(ds,last_time):
         "since": exec_date_unix
     }
 
-    # Hacer la solicitud a la API
-    response = requests.post(api_url, headers=headers, json=body)
-    
-    if response.status_code == 200:
-        # Descargar y descomprimir el archivo ZIP en memoria
-        with zipfile.ZipFile(io.BytesIO(response.content)) as zip_file:
-            # Suponiendo que solo hay un archivo en el ZIP
+    conn = http.client.HTTPSConnection(api_host)
+    conn.request("POST", api_path, body=json.dumps(body), headers=headers)
+    res = conn.getresponse()
+
+    if res.status == 200:
+        zip_data = res.read()
+        with zipfile.ZipFile(io.BytesIO(zip_data)) as zip_file:
             csv_filename = zip_file.namelist()[0]
-            
-            # Leer el CSV directamente desde el ZIP como un DataFrame
-            with zip_file.open(csv_filename) as csv_file:
-                df = pd.read_csv(csv_file, sep=';', encoding='utf-8')
-                return df
+            with zip_file.open(csv_filename) as csv_content:
+                df = pd.read_csv(csv_content, sep=';', encoding='utf-8')
+                return df 
     else:
-        raise Exception(f"Error al descargar el archivo: {response.status_code}")
+        raise Exception(f"Error al descargar el archivo: {res.status}")
 
 def ok_to_shop_api_to_s3(ds,ti):
     import pandas as pd

@@ -104,6 +104,7 @@ def _promotions_table_incremental_load(ti, ts):
     df["FECHA_INICIO_DE_PROMOCION"] = pd.to_datetime(df["FECHA_INICIO_DE_PROMOCION"], format="%Y-%m-%d", errors="ignore")
     df["FECHA_FIN_DE_PROMOCION"] = pd.to_datetime(df["FECHA_FIN_DE_PROMOCION"], format="%Y-%m-%d", errors="ignore")
     df["FECHA_MODIFICACION"] = pd.to_datetime(df["FECHA_MODIFICACION"], format="%Y-%m-%d %H:%M:%S.000", errors="ignore")
+    
 
     # Fix percentage data:
     print("Fixing percentage columns...")
@@ -182,6 +183,8 @@ def _promotions_table_incremental_load(ti, ts):
     }
 
     df = df.rename(columns=columns_rename)
+
+    df = df[~((df["n_promocion"] == 4000842025) & (df["material"] == "000000000624855"))]
 
     print("Number of records to be loaded: "+str(len(df.index)))
 
