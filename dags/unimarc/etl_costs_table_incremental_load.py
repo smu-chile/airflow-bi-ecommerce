@@ -167,7 +167,7 @@ with DAG(
     t3 = PythonOperator(
         task_id = "netezza_vm_dim_sku_attr_full_load",
         python_callable = bigquery_full_table_load_to_s3,
-        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR`"},
+        op_kwargs = {"table_name": "cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR"},
         retries = 2,
         retry_delay = timedelta(minutes=1)
     )
