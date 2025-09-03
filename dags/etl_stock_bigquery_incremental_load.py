@@ -177,7 +177,6 @@ def upsert_stock_postgres(ti):
     from sqlalchemy.dialects.postgresql import insert as pg_insert
     from sqlalchemy import func
     from time import perf_counter
-    import pendulum
 
     print("=" * 100)
     print("[upsert] START (chunked)")
@@ -327,8 +326,8 @@ with DAG(
         task_id = "delete_old_data",
         postgres_conn_id="postgresql_conn",
         sql="""
-        truncate ecommdata.stock_dw_bq
-        WHERE fecha < current_date - interval '7 days';
+        delete from ecommdata.stock_dw_bq
+        where fecha < current_date::date - interval '7 days';
         """,
     )
 
