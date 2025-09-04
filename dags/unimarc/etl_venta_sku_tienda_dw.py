@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3 
 
 from datetime import datetime
 
@@ -363,35 +363,36 @@ with DAG(
     
     t0 = PythonOperator(
         task_id = "load_custom_query_to_s3",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """SELECT VENTAC.DATE_VALUE
-            , VENTAC.STORE_ID
-            , STORE_H.ORG_IP_ID
-            , STORE_H.ORG_IP
-            , S.SKU_PRODUCT
-            , U.UOM_COD_COM
-            , VENTAC.VENTA_BRUTA
-            , VENTAC.VENTA_NETA
-            , VENTAC.VENTA_UMV
-            , SH.GRUPO_DSC
-            , SH.CAT_DSC
-            , SH.LIN_DESC
-            , SH.SEC_DSC
-            , SH.NEG_DSC
-            , SH.SKU_NM
-            , SH.PROCEDENCIA
-            , SH.BRAND_DESC
-            , SH.MARCA_PROPIA
-            , SH.DESC_TIPO_MATERIAL
-            , SH.DESC_CATEGORIA_MATERIAL
-            FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE VENTAC
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON VENTAC.SKU_KEY = S.SKU_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_UOM U ON P.UOM_VTA_KEY = U.UOM_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON VENTAC.SKU_KEY = SH.SKU_KEY
-            WHERE VENTAC.DATE_VALUE = '{{ds}}' AND STORE_H.ORG_IP_ID IN ('01', '06' , '08');
+                        , VENTAC.STORE_ID
+                        , STORE_H.ORG_IP_ID
+                        , STORE_H.ORG_IP
+                        , S.SKU_PRODUCT
+                        , U.UOM_COD_COM
+                        , VENTAC.VENTA_BRUTA
+                        , VENTAC.VENTA_NETA
+                        , VENTAC.VENTA_UMV
+                        , SH.GRUPO_DSC
+                        , SH.CAT_DSC
+                        , SH.LIN_DESC
+                        , SH.SEC_DSC
+                        , SH.NEG_DSC
+                        , SH.SKU_NM
+                        , SH.PROCEDENCIA
+                        , SH.BRAND_DESC
+                        , SH.MARCA_PROPIA
+                        , SH.DESC_TIPO_MATERIAL
+                        , SH.DESC_CATEGORIA_MATERIAL
+                        FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_REGISTRO_VENTA_CONTABLE VENTAC
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE_HIERARCHY STORE_H ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR S ON VENTAC.SKU_KEY = S.SKU_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PRODUCT P ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_UOM U ON P.UOM_VTA_KEY = U.UOM_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY SH ON VENTAC.SKU_KEY = SH.SKU_KEY
+                        WHERE VENTAC.DATE_VALUE = DATE('{{ds}}') 
+                        AND STORE_H.ORG_IP_ID IN ('01', '06' , '08');
             """,
             "query_name": "venta_sku_tienda_dw",
         }

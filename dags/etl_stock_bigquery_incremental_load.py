@@ -183,7 +183,7 @@ def upsert_stock_postgres(ti):
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     key = ti.xcom_pull(key="snapshot_key")
-    CHUNK_ROWS = int(Variable.get("PG_UPSERT_CHUNK_ROWS", default_var="20000"))
+    CHUNK_ROWS = int(Variable.get("PG_UPSERT_CHUNK_ROWS", default_var="200000"))
     print(f"[upsert] snapshot: s3://{s3_bucket}/{key} | CHUNK_ROWS={CHUNK_ROWS}")
 
     tmp_path = f"/tmp/pg_upsert_{pendulum.now('UTC').int_timestamp}.csv"
@@ -327,7 +327,7 @@ with DAG(
         postgres_conn_id="postgresql_conn",
         sql="""
         delete from ecommdata.stock_dw_bq
-        where fecha < current_date::date - interval '7 days';
+        where fecha < current_date::date - interval '3 days';
         """,
     )
 
