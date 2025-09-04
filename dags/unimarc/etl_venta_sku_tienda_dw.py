@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3 
 
 from datetime import datetime
 
@@ -363,7 +363,7 @@ with DAG(
     
     t0 = PythonOperator(
         task_id = "load_custom_query_to_s3",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """SELECT VENTAC.DATE_VALUE
                         , VENTAC.STORE_ID
