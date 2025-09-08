@@ -8,6 +8,8 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _create_final_store_table(ti):
     """
     Read S3 files with store tables from Janis and Datawarehouse.
@@ -182,7 +184,7 @@ with DAG(
     default_args=default_args,
     description="Extraction and transformation of store data unimarc.",
     schedule_interval=None,
-    start_date=datetime(2022, 5, 1),
+    start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "S3", "Janis", "Workspace", "Tiendas", "Unimarc", "MATIAS"],
 ) as dag:

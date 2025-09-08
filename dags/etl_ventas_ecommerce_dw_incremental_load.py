@@ -8,6 +8,8 @@ from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _ventas_dw_incremental_load(ti):
     import pandas as pd
     import numpy as np
@@ -156,8 +158,8 @@ with DAG(
     "etl_ventas_ecommerce_datawarehouse_incremental_load",
     default_args=default_args,
     description="Extracción diaria de ventas ecommerce de DataWarehouse.",
-    schedule_interval="30 11 * * *",
-    start_date=datetime(2020, 8, 1),
+    schedule_interval="30 7 * * *",
+    start_date=pendulum.datetime(2020, 8, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
     concurrency=2,

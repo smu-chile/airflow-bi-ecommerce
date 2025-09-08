@@ -7,6 +7,8 @@ from utils.janis_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _full_load_bultos(ti):
     import pandas as pd
     import sqlalchemy
@@ -73,8 +75,8 @@ with DAG(
     'etl_bultos_full_load',
     default_args=default_args,
     description="Extracción y carga tabla bultos y su relación con la tabla ordenes desde Janis Replica hasta Workspace.",
-    schedule_interval="0 9 * * *",
-    start_date=datetime(2022, 3, 15),
+    schedule_interval="0 5 * * *",
+    start_date=pendulum.datetime(2022, 3, 15, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "bultos", "MATIAS"],
 ) as dag:

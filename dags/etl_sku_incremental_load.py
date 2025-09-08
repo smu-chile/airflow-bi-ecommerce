@@ -9,6 +9,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+import pendulum
+
 def _measurement_unit_full_load(ti, ts):
 
     janis_query = f"""
@@ -177,8 +179,8 @@ with DAG(
     'etl_skus_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla skus desde Janis Replica hasta Workspace.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 1, 1),
+    schedule_interval="0 3 * * *",
+    start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "skus", "MATIAS"],
 ) as dag:
