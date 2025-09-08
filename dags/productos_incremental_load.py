@@ -9,6 +9,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+import pendulum
+
 def _incremental_load_products_table(ti):
     import numpy as np
     import pandas as pd
@@ -124,8 +126,8 @@ with DAG(
     'etl_productos_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla productos desde Janis Replica hasta Workspace.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 1, 1),
+    schedule_interval="0 3 * * *",
+    start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "productos", "MATIAS"],
 ) as dag:

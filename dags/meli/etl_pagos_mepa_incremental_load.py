@@ -8,6 +8,8 @@ from airflow.models import Variable
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def get(order_id, responses, failed_request_attempts, session, headers):
     params = {
             "sort": "date_created",
@@ -333,8 +335,8 @@ with DAG(
     "etl_pagos_mercadopago_incremental_load",
     default_args=default_args,
     description="Extracción periodica de pagos de MercadoPago a SMU a través de API Rest.",
-    schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 7, 20),
+    schedule_interval="0 7 * * *",
+    start_date=pendulum.datetime(2022, 7, 20, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,

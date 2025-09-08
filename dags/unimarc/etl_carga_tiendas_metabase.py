@@ -13,13 +13,13 @@ from airflow.operators.dummy import DummyOperator
 import pendulum
 
 def branch_8am(ts):
-    exec_date = pendulum.parse(ts, tz="America/Santiago")
-    hora = exec_date.hour
-    print(f"Hora de ejecución: {hora}")
-    if hora == 8:
-        return "get_and_send_cargas_csv"
-    else:
-        return "skip_send"
+    exec_date = pendulum.parse(ts)
+    local_dt = exec_date.in_timezone("America/Santiago")
+    hora = local_dt.hour
+    print(f"ts: {ts}")
+    print(f"UTC: {exec_date}, Chile: {local_dt}, hora={hora}")
+
+    return "get_and_send_cargas_csv" if hora == 8 else "skip_send"
     
 def lista8():
     import pandas as pd

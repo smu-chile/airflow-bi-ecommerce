@@ -5,6 +5,8 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from datetime import datetime, timedelta
 
+import pendulum
+
 # Funcion auxiliar para carga de dataframes con upsert
 def _upsert_records(df, table_name, engine, schema="ecommdata"):
     import numpy as np
@@ -848,7 +850,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tablas: pagos; operaciones e interacciones desde Middleware de Pagos hasta el Workspace en Postgresql.",
     schedule_interval="0 */3 * * *",
-    start_date=datetime(2022, 4, 1),
+    start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones", "mw_inscripciones", "MATIAS"],

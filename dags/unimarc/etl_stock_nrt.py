@@ -10,6 +10,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _get_stock_nrt_documents(ds, ts):
     from bson.json_util import dumps
     max_updated_at_value = ds
@@ -127,7 +129,7 @@ with DAG(
     default_args=default_args,
     description="Extracción periodica de Stock NRT.",
     schedule_interval="0 * * * *",
-    start_date=datetime(2022, 9, 20),
+    start_date=pendulum.datetime(2022, 9, 20, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
