@@ -7,6 +7,8 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _brands_table_full_load(ti):
     import numpy as np
     import pandas as pd
@@ -89,8 +91,8 @@ with DAG(
     'etl_marcas_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla marcas desde Janis Replica hasta Workspace.",
-    schedule_interval="0 9 * * *",
-    start_date=datetime(2022, 4, 1),
+    schedule_interval="0 5 * * *",
+    start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "marcas", "MATIAS"],
 ) as dag:

@@ -6,6 +6,7 @@ from datetime import datetime
 import pandas as pd
 import sqlalchemy
 
+import pendulum
 
 def load_offsets_to_postgres():
     # 1. Ejecutar la query en MariaDB
@@ -80,7 +81,7 @@ default_args = {
 with DAG(
     dag_id="etl_janis_offsets_to_postgres",
     default_args=default_args,
-    start_date=datetime(2022, 7, 10),
+    start_date=pendulum.datetime(2022, 7, 10, tz="America/Santiago"),
     schedule_interval="30 8 * * *", # Ejecutar diariamente a las 08:30 AM
     catchup=False,
     tags=["janis", "logistica", "offsets", "forecast_and_planning", "KEVIN"],

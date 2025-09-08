@@ -7,6 +7,8 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _generate_ff_profiles_table(ti):
     import pandas as pd
     import sqlalchemy
@@ -45,21 +47,19 @@ def _generate_ff_profiles_table(ti):
         "user_modified": "modificado_por",
         "status": "estado"
     })
+ 
+    # Fix date types:
+    for col in ["fecha_creacion", "fecha_modificacion"]:
+        secs = pd.to_numeric(df[col], errors="coerce")
+        dt = pd.to_datetime(secs, unit="s", errors="coerce")
+        dt = dt.dt.tz_localize("UTC").dt.tz_convert("America/Santiago")
+        df[col] = dt.astype("string")
 
-    # Cast date to local tz
-    df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-    df["fecha_modificacion"] = pd.to_datetime(df["fecha_modificacion"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
-
-    # Column data types
-    df = df.astype({
-        "nombre": "string",
-        "codigo": "string",
-        "fecha_creacion": "string",
-        "fecha_modificacion": "string",
-        "creado_por": "int",
-        "modificado_por": "int",
-        "estado": "int"
-    })
+    df["nombre"] = df["nombre"].astype("string")
+    df["codigo"] = df["codigo"].astype("string")
+    df["estado"] = pd.to_numeric(df["estado"], errors="coerce").astype("Int64")
+    df["creado_por"] = pd.to_numeric(df["creado_por"], errors="coerce").astype("Int64")
+    df["modificado_por"] = pd.to_numeric(df["modificado_por"], errors="coerce").astype("Int64")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -98,8 +98,8 @@ with DAG(
     'etl_ff_perfiles_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla ff_perfiles desde Janis Replica hasta Workspace.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 4, 1),
+    schedule_interval="0 3 * * *",
+    start_date=pendulum.datetime(2022, 4, 1),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "ff_perfiles", "MATIAS"],
 ) as dag:

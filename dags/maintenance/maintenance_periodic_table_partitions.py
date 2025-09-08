@@ -5,6 +5,8 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime
 
+import pendulum
+
 PARTITION_PERIODS = {
     "daily": "daily",
 }
@@ -94,8 +96,8 @@ with DAG(
     'maintenance_periodic_table_partitions',
     default_args=default_args,
     description="Creación de particiones periodicas.",
-    schedule_interval="0 3 * * *",
-    start_date=datetime(2021, 1, 1),
+    schedule_interval="0 23 * * *",
+    start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["MAINTENANCE", "partitions", "DB", "PostgreSQL", "MATIAS"],
 ) as dag:

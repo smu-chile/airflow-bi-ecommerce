@@ -9,6 +9,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _get_orders_meli_documents(ti, ts):
     from bson.json_util import dumps
     max_updated_at_value = ti.xcom_pull(key="return_value", task_ids=["get_max_updated_at_date"])[0]
@@ -152,8 +154,8 @@ with DAG(
     "etl_ordenes_mercado_libre_incremental_load",
     default_args=default_args,
     description="Extracción periodica de ordenes de Unimarc a través de MercadoLibre.",
-    schedule_interval="0 10 * * *",
-    start_date=datetime(2022, 6, 29),
+    schedule_interval="0 7 * * *",
+    start_date=pendulum.datetime(2022, 6, 29, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
