@@ -11,7 +11,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     import json
     import pandas as pd
 
-    rappi_store_ids = ['3512','3552','3540','3227','3580','3546','3547','3564','3579'] #cambiar por lista
+    rappi_store_ids = ['3512','3552','3540','3227','3580','3546','3547','3564','3579','3564','3570','3036'] #cambiar por lista
     print(rappi_store_ids)
 
     exec_date = ds.replace("-", "/")
