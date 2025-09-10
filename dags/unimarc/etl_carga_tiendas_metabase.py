@@ -21,7 +21,7 @@ def branch_8am():
     end = ctx["data_interval_end"]  
     end_cl = end.in_timezone("America/Santiago")
 
-    print(f"[BRANCH] start={ctx['data_interval_start']} end={end} | CL end={end_cl}")
+    print(f"[BRANCH] start={ctx['data_interval_start']} end={end} | CL end={end_cl} | hour={end_cl.hour}")
 
     # si el slot es el de las 08:00 CL → manda alerta
     return "get_and_send_cargas_csv" if end_cl.hour == 8 else "skip_send"
