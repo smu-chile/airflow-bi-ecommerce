@@ -8,8 +8,8 @@ import pendulum
 
 def extract_bq_to_s3(ti, ds, ts):
     """
-    BQ → CSV local (por chunks) → S3.
-    Carpeta única por día: ecommdata/stock_bq_dw/YYYY/MM/DD/stock_{HHmmss}.csv
+    BQ → SELECT en shards (sin materializar) → DataFrame por chunks → CSV → S3.
+    Evita 403 'Response too large to return' partiendo el result set en N shards.
     """
     import os
     import pandas as pd
@@ -20,7 +20,7 @@ def extract_bq_to_s3(ti, ds, ts):
     print("=" * 100)
     print(f"[extract] START | ds={ds} | ts={ts}")
 
-    # --- SQL ---
+    # --- SQL base (SIN materializar) ---
     BQ_STOCK_QUERY = f"""
     SELECT
         LPAD(CAST(SA.SKU_PRODUCT AS STRING), 18, '0') AS material,
@@ -44,17 +44,18 @@ def extract_bq_to_s3(ti, ds, ts):
             ON A.ALMACEN_KEY = S.ALMACEN_KEY
         LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PARTICULARIDAD PART
             ON PART.PARTICULARIDAD_KEY = S.PARTICULARIDAD_KEY
-        WHERE
-            A.ALMACEN_COD = '0001'
-            AND S.APLICA_STOCK = 'S'
-            AND S.TIPO_STOCK_KEY = MD5('TIPOSTOCK^CL^SMC^')
-            AND PART.PARTICULARIDAD_COD = 'A'
-            AND S.DATE_VALUE = '{ds}'
+    WHERE
+        A.ALMACEN_COD = '0001'
+        AND S.APLICA_STOCK = 'S'
+        AND S.TIPO_STOCK_KEY = MD5('TIPOSTOCK^CL^SMC^')
+        AND PART.PARTICULARIDAD_COD = 'A'
+        AND S.DATE_VALUE = '{ds}'
     """
-    print("[extract] SQL >>>")
+
+    print("[extract] SQL base >>>")
     print("\n".join("  " + ln for ln in BQ_STOCK_QUERY.strip().splitlines()))
 
-    # --- Credenciales y clientes ---
+    # --- Credenciales y cliente BQ ---
     sa_info = Variable.get("BIGQUERY_CREDENTIALS", deserialize_json=True)
     creds = service_account.Credentials.from_service_account_info(
         sa_info, scopes=["https://www.googleapis.com/auth/cloud-platform"]
@@ -91,72 +92,74 @@ def extract_bq_to_s3(ti, ds, ts):
 
     print(f"[extract] SNAPSHOT | tmp={tmp_path} | s3://{s3_bucket}/{key}")
 
-    # --- Query & streaming por chunks ---
     CHUNK_ROWS = int(Variable.get("BQ_CHUNK_ROWS", default_var="50000"))
-    print(f"[extract] CHUNK_ROWS={CHUNK_ROWS}")
+    SHARDS = int(Variable.get("BQ_SHARDS", default_var="32"))  # sube a 64/128 si aún te queda grande
+    print(f"[extract] CHUNK_ROWS={CHUNK_ROWS} | SHARDS={SHARDS}")
 
-    t0 = perf_counter()
-    job = bq_client.query(BQ_STOCK_QUERY)
-    print(f"[extract] Job enviado | job_id={job.job_id}")
+    # --- Sharding por hash (sin tables) ---
+    BASE_SQL = BQ_STOCK_QUERY + """
+      AND MOD(ABS(FARM_FINGERPRINT(CAST(S.SKU_HEX AS STRING))), @shards) = @shard_idx
+    """
 
-    row_it = job.result(page_size=CHUNK_ROWS)
-
-    # Stats opcionales
-    try:
-        stats = getattr(job, "_properties", {}).get("statistics", {}).get("query", {})
-        bytes_proc = int(stats.get("totalBytesProcessed", 0))
-        slot_ms = int(stats.get("totalSlotMs", 0))
-        cache_hit = bool(stats.get("cacheHit", False))
-        print(f"[extract] BQ stats | bytes_processed={bytes_proc:,} | slot_ms={slot_ms:,} | cache_hit={cache_hit}")
-    except Exception:
-        pass
-
-    print(f"[extract] BQ total_rows reportado: {row_it.total_rows}")
-
-    # NORMALIZA A 'nbr_item' PARA MATCHEAR TABLA
     want_cols = ["sku_product", "nbr_item", "id_tienda", "nombre", "fecha", "sku_key", "org_compras", "org_ip_id"]
-
     first = True
     total = 0
-    chunk_i = 0
     showed_head = False
+    t0 = perf_counter()
 
-    for chunk in row_it.to_dataframe_iterable(bqstorage_client=bqstorage_client):
-        chunk_i += 1
-        c0 = perf_counter()
+    for shard_idx in range(SHARDS):
+        qparams = [
+            bigquery.ScalarQueryParameter("shards", "INT64", SHARDS),
+            bigquery.ScalarQueryParameter("shard_idx", "INT64", shard_idx),
+        ]
+        job_config = bigquery.QueryJobConfig(query_parameters=qparams)
 
-        # rename + tipos
-        chunk = chunk.rename(columns={
-            "material": "sku_product",
-            "stock": "nbr_item",
-        })
+        print(f"[extract] lanzando shard {shard_idx+1}/{SHARDS} ...")
+        job = bq_client.query(BASE_SQL, job_config=job_config)
 
-        chunk["sku_product"] = chunk["sku_product"].astype(str).str.zfill(18)
-        chunk["id_tienda"] = chunk["id_tienda"].astype(str).str.zfill(4)
+        # Al ir shard por shard, cada result entra y evitamos el 403
+        row_pages = job.result(page_size=CHUNK_ROWS)
 
-        chunk["nbr_item"] = pd.to_numeric(chunk["nbr_item"], errors="coerce").astype("float64")
-        chunk["fecha"] = pd.to_datetime(chunk["fecha"], errors="coerce").dt.date
-        chunk = chunk[want_cols]
+        # stats opcional
+        try:
+            stats = getattr(job, "_properties", {}).get("statistics", {}).get("query", {})
+            bytes_proc = int(stats.get("totalBytesProcessed", 0))
+            cache_hit = bool(stats.get("cacheHit", False))
+            print(f"[extract] shard#{shard_idx:02d} | bytes={bytes_proc:,} | cache={cache_hit}")
+        except Exception:
+            pass
 
-        # Mostrar head del primer chunk procesado
-        if not showed_head:
-            print("[extract] HEAD (primer chunk):")
-            try:
-                print(chunk.head(10).to_string(index=False))
-            except Exception as e:
-                print(f"[extract][warn] no se pudo imprimir head: {e}")
-            showed_head = True
+        # iteramos en DataFrames (aplica Storage API si está disponible)
+        for chunk in row_pages.to_dataframe_iterable(bqstorage_client=bqstorage_client):
+            c0 = perf_counter()
 
-        # append (no cargamos todo a RAM)
-        chunk.to_csv(tmp_path, index=False, mode="a", header=first, line_terminator="\n")
-        first = False
-        total += len(chunk)
-        c1 = perf_counter()
-        print(f"[extract] chunk#{chunk_i:02d} | rows={len(chunk):,} | cum={total:,} | {c1 - c0:.3f}s")
+            # rename + tipos
+            chunk = chunk.rename(columns={
+                "material": "sku_product",
+                "stock": "nbr_item",
+            })
+            chunk["sku_product"] = chunk["sku_product"].astype(str).str.zfill(18)
+            chunk["id_tienda"]   = chunk["id_tienda"].astype(str).str.zfill(4)
+            chunk["nbr_item"]    = pd.to_numeric(chunk["nbr_item"], errors="coerce").astype("float64")
+            chunk["fecha"]       = pd.to_datetime(chunk["fecha"], errors="coerce").dt.date
+            chunk = chunk[want_cols]
+
+            if not showed_head:
+                print("[extract] HEAD (primer chunk):")
+                try:
+                    print(chunk.head(10).to_string(index=False))
+                except Exception as e:
+                    print(f"[extract][warn] no se pudo imprimir head: {e}")
+                showed_head = True
+
+            # append al CSV sin cargar todo a RAM
+            chunk.to_csv(tmp_path, index=False, mode="a", header=first, line_terminator="\n")
+            first = False
+            total += len(chunk)
+            print(f"[extract] shard#{shard_idx:02d} += {len(chunk):,} rows | cum={total:,} | {perf_counter()-c0:.3f}s")
 
     if first:
-        # sin filas -> deja header
-        import pandas as pd  # por si quedó fuera de scope
+        # sin filas → sólo header
         pd.DataFrame(columns=want_cols).to_csv(tmp_path, index=False)
         print("[extract] no rows → CSV con solo header")
 
@@ -177,8 +180,7 @@ def extract_bq_to_s3(ti, ds, ts):
     # XComs
     ti.xcom_push(key="snapshot_key", value=key)
     ti.xcom_push(key="rows_count", value=int(total))
-    t1 = perf_counter()
-    print(f"[extract] DONE | rows_total={total:,} | elapsed={t1 - t0:.3f}s")
+    print(f"[extract] DONE | rows_total={total:,} | elapsed={perf_counter()-t0:.3f}s")
     print("=" * 100)
 
 
