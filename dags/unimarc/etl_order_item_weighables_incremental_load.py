@@ -9,6 +9,8 @@ from utils.janis_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _check_empty_table(ti):
     import pandas as pd
     import sqlalchemy
@@ -198,7 +200,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_pesables desde Janis Replica Unimarc hasta Workspace.",
     schedule_interval="*/30 * * * *",
-    start_date=datetime(2022, 2, 1),
+    start_date=pendulum.datetime(2022, 2, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "orden_producto_pesables", "unimarc", "cyber", "MATIAS"],

@@ -54,9 +54,6 @@ def lista8():
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
-                        union
-                        select *
-                        from ecommdata.lista8_extra le 
                         """
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
