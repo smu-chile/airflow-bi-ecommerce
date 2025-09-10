@@ -23,14 +23,14 @@ def extract_bq_to_s3(ti, ds, ts):
     # --- SQL ---
     BQ_STOCK_QUERY = f"""
     SELECT
-        LPAD(SA.SKU_PRODUCT, 18, '0') AS material,
-        S.NBR_ITM                     AS stock,
-        LPAD(OU.OU_ID, 4, '0')        AS id_tienda,
-        SA.NM                         AS nombre,
-        S.DATE_VALUE                  AS fecha,
-        S.SKU_HEX                     AS sku_key -- (hex=key)
-        LPAD(ST.ORG_COMPRAS, 4, '0')  AS org_compras,
-        O.ORG_IP_ID                   AS org_ip_id
+        LPAD(CAST(SA.SKU_PRODUCT AS STRING), 18, '0') AS material,
+        S.NBR_ITM                                     AS stock,
+        LPAD(CAST(OU.OU_ID AS STRING), 4, '0')        AS id_tienda,
+        SA.NM                                         AS nombre,
+        S.DATE_VALUE                                  AS fecha,
+        S.SKU_HEX                                     AS sku_key, -- (hex=key)
+        LPAD(CAST(ST.ORG_COMPRAS AS STRING), 4, '0')  AS org_compras,
+        O.ORG_IP_ID                                   AS org_ip_id
     FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_STOCK S
         LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR SA
             ON SA.SKU_KEY = S.SKU_KEY
@@ -119,6 +119,8 @@ def extract_bq_to_s3(ti, ds, ts):
     first = True
     total = 0
     chunk_i = 0
+    showed_head = False
+
     for chunk in row_it.to_dataframe_iterable(bqstorage_client=bqstorage_client):
         chunk_i += 1
         c0 = perf_counter()
@@ -129,12 +131,21 @@ def extract_bq_to_s3(ti, ds, ts):
             "stock": "nbr_item",
         })
 
-        chunk["material"] = chunk["material"].astype(str).str.zfill(18)
+        chunk["sku_product"] = chunk["sku_product"].astype(str).str.zfill(18)
         chunk["id_tienda"] = chunk["id_tienda"].astype(str).str.zfill(4)
 
         chunk["nbr_item"] = pd.to_numeric(chunk["nbr_item"], errors="coerce").astype("float64")
         chunk["fecha"] = pd.to_datetime(chunk["fecha"], errors="coerce").dt.date
         chunk = chunk[want_cols]
+
+        # Mostrar head del primer chunk procesado
+        if not showed_head:
+            print("[extract] HEAD (primer chunk):")
+            try:
+                print(chunk.head(10).to_string(index=False))
+            except Exception as e:
+                print(f"[extract][warn] no se pudo imprimir head: {e}")
+            showed_head = True
 
         # append (no cargamos todo a RAM)
         chunk.to_csv(tmp_path, index=False, mode="a", header=first, line_terminator="\n")
