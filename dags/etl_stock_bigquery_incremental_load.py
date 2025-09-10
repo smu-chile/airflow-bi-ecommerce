@@ -23,29 +23,33 @@ def extract_bq_to_s3(ti, ds, ts):
     # --- SQL ---
     BQ_STOCK_QUERY = f"""
     SELECT
-        SA.SKU_PRODUCT AS material,
-        S.NBR_ITM      AS stock,
-        OU.OU_ID       AS id_tienda,
-        SA.NM          AS nombre,
-        S.DATE_VALUE   AS fecha,
-        S.SKU_HEX      AS sku_key -- (hex=key)
+        LPAD(SA.SKU_PRODUCT, 18, '0') AS material,
+        S.NBR_ITM                     AS stock,
+        LPAD(OU.OU_ID, 4, '0')        AS id_tienda,
+        SA.NM                         AS nombre,
+        S.DATE_VALUE                  AS fecha,
+        S.SKU_HEX                     AS sku_key -- (hex=key)
+        LPAD(ST.ORG_COMPRAS, 4, '0')  AS org_compras,
+        O.ORG_IP_ID                   AS org_ip_id
     FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_STOCK S
-    LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR SA
-      ON SA.SKU_KEY = S.SKU_KEY
-    LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT OU
-      ON OU.OU_KEY = S.OU_KEY
-    LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION O
-      ON OU.ORG_KEY = O.ORGANIZATION_KEY
-    LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ALMACEN A
-      ON A.ALMACEN_KEY = S.ALMACEN_KEY
-    LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PARTICULARIDAD PART
-      ON PART.PARTICULARIDAD_KEY = S.PARTICULARIDAD_KEY
-    WHERE
-        A.ALMACEN_COD = '0001'
-        AND S.APLICA_STOCK = 'S'
-        AND S.TIPO_STOCK_KEY = MD5('TIPOSTOCK^CL^SMC^')
-        AND PART.PARTICULARIDAD_COD = 'A'
-        AND S.DATE_VALUE = '{ds}'
+        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR SA
+            ON SA.SKU_KEY = S.SKU_KEY
+        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT OU
+            ON OU.OU_KEY = S.OU_KEY
+        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION O
+            ON OU.ORG_KEY = O.ORGANIZATION_KEY
+        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE ST 
+            ON O.ORGANIZATION_KEY = ST.ORG_KEY
+        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ALMACEN A
+            ON A.ALMACEN_KEY = S.ALMACEN_KEY
+        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PARTICULARIDAD PART
+            ON PART.PARTICULARIDAD_KEY = S.PARTICULARIDAD_KEY
+        WHERE
+            A.ALMACEN_COD = '0001'
+            AND S.APLICA_STOCK = 'S'
+            AND S.TIPO_STOCK_KEY = MD5('TIPOSTOCK^CL^SMC^')
+            AND PART.PARTICULARIDAD_COD = 'A'
+            AND S.DATE_VALUE = '{ds}'
     """
     print("[extract] SQL >>>")
     print("\n".join("  " + ln for ln in BQ_STOCK_QUERY.strip().splitlines()))
@@ -109,8 +113,8 @@ def extract_bq_to_s3(ti, ds, ts):
 
     print(f"[extract] BQ total_rows reportado: {row_it.total_rows}")
 
-    # NORMALIZA A 'nbr_item' PARA MATCHEAR TU TABLA
-    want_cols = ["sku_product", "nbr_item", "id_tienda", "nombre", "fecha", "sku_key"]
+    # NORMALIZA A 'nbr_item' PARA MATCHEAR TABLA
+    want_cols = ["sku_product", "nbr_item", "id_tienda", "nombre", "fecha", "sku_key", "org_compras", "org_ip_id"]
 
     first = True
     total = 0
@@ -124,6 +128,10 @@ def extract_bq_to_s3(ti, ds, ts):
             "material": "sku_product",
             "stock": "nbr_item",
         })
+
+        chunk["material"] = chunk["material"].astype(str).str.zfill(18)
+        chunk["id_tienda"] = chunk["id_tienda"].astype(str).str.zfill(4)
+
         chunk["nbr_item"] = pd.to_numeric(chunk["nbr_item"], errors="coerce").astype("float64")
         chunk["fecha"] = pd.to_datetime(chunk["fecha"], errors="coerce").dt.date
         chunk = chunk[want_cols]
@@ -164,33 +172,20 @@ def extract_bq_to_s3(ti, ds, ts):
 
 
 def upsert_stock_postgres(ti):
-    """
-    S3 snapshot → Postgres (por chunks).
-    ON CONFLICT (sku_product, id_tienda, fecha, nombre, sku_key)
-    SET solo nbr_item (+ updated_at si existe)
-    """
+    import io
     import os
-    import pandas as pd
-    import numpy as np
     import sqlalchemy as sa
-    from sqlalchemy import MetaData, Table
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-    from sqlalchemy import func
+    from sqlalchemy import text
     from time import perf_counter
 
     print("=" * 100)
-    print("[upsert] START (chunked)")
+    print("[upsert] START (COPY + single upsert)")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     key = ti.xcom_pull(key="snapshot_key")
-    CHUNK_ROWS = int(Variable.get("PG_UPSERT_CHUNK_ROWS", default_var="200000"))
-    print(f"[upsert] snapshot: s3://{s3_bucket}/{key} | CHUNK_ROWS={CHUNK_ROWS}")
+    print(f"[upsert] snapshot: s3://{s3_bucket}/{key}")
 
-    tmp_path = f"/tmp/pg_upsert_{pendulum.now('UTC').int_timestamp}.csv"
-    s3 = S3Hook(aws_conn_id="aws_s3_connection")
-    print(f"[upsert] descargando a {tmp_path} ...")
-    s3.get_key(key, bucket_name=s3_bucket).download_file(tmp_path)
-
+    # --- Conexión PG (psycopg2 bajo SQLAlchemy) ---
     host     = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -200,88 +195,65 @@ def upsert_stock_postgres(ti):
     )
     print(f"[upsert] PG OK | host={host} db={database}")
 
-    meta = MetaData(schema="ecommdata")
-    tbl  = Table("stock_dw_bq", meta, autoload_with=engine)
-    print(f"[upsert] tabla: {tbl.fullname} | columnas={list(tbl.c.keys())}")
+    # --- Abrimos stream S3 (sin descargar a disco) ---
+    s3 = S3Hook(aws_conn_id="aws_s3_connection")
+    obj = s3.get_key(key, bucket_name=s3_bucket)
+    body = obj.get()["Body"]  # botocore.response.StreamingBody
+    # COPY requiere texto; envolvemos bytes → texto sin cargar todo en RAM
+    stream = io.TextIOWrapper(body, encoding="utf-8", newline="")
 
-    key_cols  = ["sku_product", "id_tienda", "fecha", "nombre", "sku_key"]
-    want_cols = ["sku_product", "nbr_item", "id_tienda", "nombre", "fecha", "sku_key"]
-
-    total = 0
-    batch = 0
     t0 = perf_counter()
+    with engine.begin() as conn:
+        # 1) staging temporal
+        conn.execute(text("""
+            CREATE TEMP TABLE IF NOT EXISTS tmp_stock_dw_bq (
+                sku_product text,
+                nbr_item    double precision,
+                id_tienda   text,
+                nombre      text,
+                fecha       date,
+                sku_key     text,
+                org_compras text,
+                org_ip_id   text
+            ) ON COMMIT DROP;
+            TRUNCATE tmp_stock_dw_bq;
+        """))
+        print("[upsert] temp table ready")
 
-    for chunk in pd.read_csv(tmp_path, chunksize=CHUNK_ROWS):
-        batch += 1
-        b0 = perf_counter()
+        raw_conn = conn.connection 
+        with raw_conn.cursor() as cur:
+            cur.copy_expert(
+                """
+                COPY tmp_stock_dw_bq (sku_product, nbr_item, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id)
+                FROM STDIN WITH (FORMAT csv, HEADER true)
+                """,
+                stream
+            )
+        print("[upsert] COPY OK")
 
-        # normaliza nombres por si viniera "stock"
-        if "stock" in chunk.columns and "nbr_item" not in chunk.columns:
-            chunk = chunk.rename(columns={"stock": "nbr_item"})
-
-        # tipos básicos
-        chunk["nbr_item"] = pd.to_numeric(chunk["nbr_item"], errors="coerce").astype("float64")
-        chunk["fecha"]    = pd.to_datetime(chunk["fecha"], errors="coerce").dt.date
-
-        # ordena/filtra columnas
-        chunk = chunk[want_cols]
-
-        # ⚠️ NO usar dtype 'string' de pandas; usar 'object' + sanitizar nulos
-        chunk = chunk.astype({
-            "sku_product": "object",
-            "id_tienda":   "object",
-            "nombre":      "object",
-            "sku_key":     "object",
-        }, errors="ignore")
-
-        # convierte NA/NaN/NaT -> None (psycopg2 lo adapta a NULL)
-        chunk = chunk.where(pd.notna(chunk), None)
-
-        # opcional: ver nulos por columna
-        try:
-            nulls = {c: int(chunk[c].isna().sum() if hasattr(chunk[c], "isna") else 0) for c in chunk.columns}
-            print(f"[upsert] batch#{batch} nulls={nulls}")
-        except Exception:
-            pass
-
-        rows = chunk.to_dict(orient="records")
-        insert_stmt = pg_insert(tbl).values(rows)
-
-        updatable = {"nbr_item": insert_stmt.excluded.nbr_item}
-        if "updated_at" in tbl.c:
-            updatable["updated_at"] = func.now()
-
-        upsert_stmt = insert_stmt.on_conflict_do_update(
-            index_elements=key_cols,
-            set_=updatable
-        )
-
-        try:
-            with engine.begin() as conn:
-                conn.execute(upsert_stmt)
-        except Exception as e:
-            print(f"[upsert][error] batch#{batch} falló: {e}")
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
-            raise
-
-        total += len(chunk)
-        b1 = perf_counter()
-        print(f"[upsert] batch#{batch:02d} | rows={len(chunk):,} | cum={total:,} | {b1 - b0:.3f}s")
-
-    try:
-        size = os.path.getsize(tmp_path)
-    except Exception:
-        size = -1
-    try:
-        os.remove(tmp_path)
-    except Exception:
-        pass
+        # UPSERT
+        conn.execute(text("""
+            INSERT INTO ecommdata.stock_dw_bq
+                (sku_product, nbr_item, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id)
+            SELECT
+                NULLIF(sku_product,'')::text,
+                nbr_item::double precision,
+                NULLIF(id_tienda,'')::text,
+                NULLIF(nombre,'')::text,
+                fecha::date,
+                NULLIF(sku_key,'')::text,
+                NULLIF(org_compras,'')::text,
+                NULLIF(org_ip_id,'')::text
+            FROM tmp_stock_dw_bq
+            ON CONFLICT (sku_product, id_tienda, fecha, nombre, sku_key,org_compras, org_ip_id)
+            DO UPDATE SET
+                nbr_item   = EXCLUDED.nbr_item,
+                updated_at = NOW();
+        """))
+        print("[upsert] single UPSERT OK")
 
     t1 = perf_counter()
-    print(f"[upsert] DONE | total_rows={total:,} | tmp_size~{size if size!=-1 else 'n/a'} bytes | elapsed={t1 - t0:.3f}s")
+    print(f"[upsert] DONE | elapsed={t1 - t0:.3f}s")
     print("=" * 100)
 
 
@@ -307,7 +279,7 @@ with DAG(
     dag.doc_md = """
     **Flow:** BigQuery → DataFrame (chunked) → S3 → Postgres (chunked).
     - Snapshot: `ecommdata/stock_bq_dw/YYYY/MM/DD/stock_{HHmmss}.csv`.
-    - UPSERT en `ecommdata.stock_dw_bq` con conflicto en (`sku_product`, `id_tienda`, `fecha`, `nombre`, `sku_key`).
+    - UPSERT en `ecommdata.stock_dw_bq`
     - Solo se actualiza `nbr_item` (y `updated_at` si existe).
     - Tamaños configurables vía Variables: `BQ_CHUNK_ROWS`, `PG_UPSERT_CHUNK_ROWS`.
     """
