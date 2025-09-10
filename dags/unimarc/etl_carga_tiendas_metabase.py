@@ -8,18 +8,24 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import BranchPythonOperator
 from airflow.operators.dummy import DummyOperator  
+from airflow.operators.python import get_current_context
 
 
 import pendulum
 
-def branch_8am(ts):
-    exec_date = pendulum.parse(ts)
-    local_dt = exec_date.in_timezone("America/Santiago")
-    hora = local_dt.hour
-    print(f"ts: {ts}")
-    print(f"UTC: {exec_date}, Chile: {local_dt}, hora={hora}")
 
-    return "get_and_send_cargas_csv" if hora == 8 else "skip_send"
+def branch_8am():
+    ctx = get_current_context()
+
+    # el "slot" que está corriendo
+    end = ctx["data_interval_end"]  
+    end_cl = end.in_timezone("America/Santiago")
+
+    print(f"[BRANCH] start={ctx['data_interval_start']} end={end} | CL end={end_cl} | hour={end_cl.hour}")
+
+    # si el slot es el de las 08:00 CL → manda alerta
+    return "get_and_send_cargas_csv" if end_cl.hour == 8 else "skip_send"
+
     
 def lista8():
     import pandas as pd
