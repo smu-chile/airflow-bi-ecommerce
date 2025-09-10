@@ -9,6 +9,7 @@ from utils.janis_alvi_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
 
 def _get_order_item_promotion_additional_info_from_janis(ts):
     # Search based on wms_orders.id
@@ -121,7 +122,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promocion_extrainfo desde Janis Replica Alvi hasta Workspace.",
     schedule_interval=None,
-    start_date=datetime(2023, 7, 13),
+    start_date=pendulum.datetime(2023, 7, 13, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata_alvi", "orden_producto_promocion_extrainfo", "alvi", "cyber"],

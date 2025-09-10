@@ -6,6 +6,8 @@ from airflow.hooks.S3_hook import S3Hook
 from utils.janis_utils import load_full_table_to_s3
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _prices_table_full_load(ts):
     exec_date = ts[:10].replace("-","/")
     exec_date = datetime.strptime(exec_date, "%Y/%m/%d") + timedelta(days=1)
@@ -178,11 +180,11 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_precios_truncade_and_load',
+    'etl_precios_truncate_and_load',
     default_args=default_args,
     description="Extracción, truncado y carga de tabla price desde Janis Replica hasta el Workspace en Postgresql.",
-    schedule_interval="0 7 * * *",
-    start_date=datetime(2022, 8, 29),
+    schedule_interval="0 3 * * *",
+    start_date=pendulum.datetime(2022, 8, 29, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "precios", "MATIAS"],

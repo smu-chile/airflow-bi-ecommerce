@@ -87,7 +87,7 @@ def last_millers_m10_to_s3(ds):
             and s.stock > 0
             and s.bloqueos is not true
             and m.nombre is not null
-            and s.id_tienda in ('3512','3552','3540','3227','3580','3546','3547','3564','3579');
+            and s.id_tienda in ('3512','3552','3540','3227','3580','3546','3547','3564','3579','3570','3036');
             """
         df = query_to_df(query)
         print(f"informacion obtenida de la Query: {df.info()}")
