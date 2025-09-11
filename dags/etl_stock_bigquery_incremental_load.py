@@ -242,7 +242,7 @@ def upsert_stock_postgres(ti):
                 NULLIF(org_compras,'')::text,
                 NULLIF(org_ip_id,'')::text
             FROM tmp_stock_dw_bq
-            ON CONFLICT (sku_product, id_tienda, fecha, sku_key)
+            ON CONFLICT (sku_product, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id)
             DO UPDATE SET
                 nbr_item   = EXCLUDED.nbr_item,
                 updated_at = NOW();
