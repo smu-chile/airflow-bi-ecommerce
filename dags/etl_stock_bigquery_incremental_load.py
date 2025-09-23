@@ -230,6 +230,20 @@ def upsert_stock_postgres(ti):
 
         # UPSERT
         conn.execute(text("""
+            WITH src AS (
+                SELECT
+                    sku_key,
+                    id_tienda,
+                    fecha,
+                    MAX(nbr_item)    AS nbr_item,     -- criterio determinístico
+                    MAX(sku_product) AS sku_product,  -- se refresca
+                    MAX(nombre)      AS nombre,
+                    MAX(org_compras) AS org_compras,
+                    MAX(org_ip_id)   AS org_ip_id
+                FROM tmp_stock_dw_bq
+                WHERE sku_key IS NOT NULL AND id_tienda IS NOT NULL AND fecha IS NOT NULL
+                GROUP BY sku_key, id_tienda, fecha
+                )
             INSERT INTO ecommdata.stock_dw_bq
                 (sku_product, nbr_item, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id)
             SELECT
@@ -241,11 +255,11 @@ def upsert_stock_postgres(ti):
                 NULLIF(sku_key,'')::text,
                 NULLIF(org_compras,'')::text,
                 NULLIF(org_ip_id,'')::text
-            FROM tmp_stock_dw_bq
-            ON CONFLICT (sku_product, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id)
+            FROM src
+            ON CONFLICT (sku_key, id_tienda, fecha)
             DO UPDATE SET
-                nbr_item   = EXCLUDED.nbr_item,
-                updated_at = NOW();
+            nbr_item    = EXCLUDED.nbr_item,
+            updated_at  = NOW();
         """))
         print("[upsert] single UPSERT OK")
 
