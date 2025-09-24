@@ -36,7 +36,7 @@ def _send_stock_sap_to_janis(ds):
 
     # 📄 Query embebida desde SAP
     query = f"""
-        SELECT SA.SKU_PRODUCT 
+        SELECT SA.SKU_PRODUCT   
             , OU.OU_ID
             , S.NBR_ITM AS STOCK
         FROM DWC_SMU.SMU.VW_FACT_STOCK S
@@ -106,7 +106,8 @@ def _send_stock_sap_to_janis(ds):
         AND sa.SKU_PRODUCT IN ('000000000000051712', '000000000000051813',
                 '000000000000051728', '000000000000051845',
                 '000000000000051802', '000000000000668742',
-                '000000000000051806', '000000000000674766')
+                '000000000000051806', '000000000000674766',
+                '000000000000038087', '000000000000038088')
         GROUP BY 1,2,3;
     """
 
@@ -124,7 +125,8 @@ def _send_stock_sap_to_janis(ds):
         ('000000000000051712', '000000000000051813'),
         ('000000000000051728', '000000000000051845'),
         ('000000000000051802', '000000000000668742'),
-        ('000000000000051806', '000000000000674766')
+        ('000000000000051806', '000000000000674766'), ## stock produtos ariztia + super pollo
+        ('000000000000038087', '000000000000038088')  ## stock productos platanos
     ]
 
     # 🧩 Excepciones warehouse
