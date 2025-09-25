@@ -30,7 +30,8 @@ def extract_bq_to_s3(ti, ds, ts):
         S.DATE_VALUE                                  AS fecha,
         S.SKU_HEX                                     AS sku_key,
         LPAD(CAST(ST.ORG_COMPRAS AS STRING), 4, '0')  AS org_compras,
-        O.ORG_IP_ID                                   AS org_ip_id
+        O.ORG_IP_ID                                   AS org_ip_id,
+        O.PRIM_CMRCL_NM                               AS org_principal
     FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_STOCK` S
         LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR` SA
             ON SA.SKU_KEY = S.SKU_KEY
@@ -113,8 +114,7 @@ def extract_bq_to_s3(ti, ds, ts):
 
     print(f"[extract] BQ total_rows reportado: {row_it.total_rows}")
 
-    # NORMALIZA A 'nbr_item' PARA MATCHEAR TU TABLA
-    want_cols = ["sku_product", "nbr_item", "id_tienda", "nombre", "fecha", "sku_key", "org_compras", "org_ip_id"]
+    want_cols = ["sku_product", "nbr_item", "id_tienda", "nombre", "fecha", "sku_key", "org_compras", "org_ip_id", "org_principal"]
 
     first = True
     total = 0
@@ -211,7 +211,8 @@ def upsert_stock_postgres(ti):
                 fecha       date,
                 sku_key     text,
                 org_compras text,
-                org_ip_id   text
+                org_ip_id   text,
+                org_principal text
             ) ON COMMIT DROP;
             TRUNCATE tmp_stock_dw_bq;
         """))
@@ -221,7 +222,7 @@ def upsert_stock_postgres(ti):
         with raw_conn.cursor() as cur:
             cur.copy_expert(
                 """
-                COPY tmp_stock_dw_bq (sku_product, nbr_item, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id)
+                COPY tmp_stock_dw_bq (sku_product, nbr_item, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id, org_principal)
                 FROM STDIN WITH (FORMAT csv, HEADER true)
                 """,
                 stream
@@ -239,13 +240,14 @@ def upsert_stock_postgres(ti):
                     MAX(sku_product) AS sku_product,  -- se refresca
                     MAX(nombre)      AS nombre,
                     MAX(org_compras) AS org_compras,
-                    MAX(org_ip_id)   AS org_ip_id
+                    MAX(org_ip_id)   AS org_ip_id,
+                    MAX(org_principal) AS org_principal
                 FROM tmp_stock_dw_bq
                 WHERE sku_key IS NOT NULL AND id_tienda IS NOT NULL AND fecha IS NOT NULL
                 GROUP BY sku_key, id_tienda, fecha
                 )
             INSERT INTO ecommdata.stock_dw_bq
-                (sku_product, nbr_item, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id)
+                (sku_product, nbr_item, id_tienda, nombre, fecha, sku_key, org_compras, org_ip_id, org_principal)
             SELECT
                 NULLIF(sku_product,'')::text,
                 nbr_item::double precision,
@@ -254,7 +256,8 @@ def upsert_stock_postgres(ti):
                 fecha::date,
                 NULLIF(sku_key,'')::text,
                 NULLIF(org_compras,'')::text,
-                NULLIF(org_ip_id,'')::text
+                NULLIF(org_ip_id,'')::text,
+                NULLIF(org_principal,'')::text
             FROM src
             ON CONFLICT (sku_key, id_tienda, fecha)
             DO UPDATE SET
