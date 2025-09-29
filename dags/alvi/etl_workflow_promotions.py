@@ -5,7 +5,6 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import netezza_full_table_load_to_s3
 from utils.bigquery_utils import bigquery_full_table_load_to_s3
 
 from datetime import datetime, timedelta
