@@ -46,7 +46,7 @@ def _get_order_shipping_from_janis(ts):
     if len(order_ids) == 0:
         s3_object_name = "empty"
         return s3_object_name
-    if len(order_ids) > 2000:
+    if len(order_ids) > 2500:
         print("ERROR: id list is too long. Rec: TRUNCATE and performe a full load.")
         raise Exception("ERROR: id list is too long. Rec: TRUNCATE and performe a full load.")
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
