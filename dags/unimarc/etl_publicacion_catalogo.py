@@ -25,10 +25,90 @@ def _check_time(ts):
         return "task_skip"
     else:
         return "load_table_publicacion_catalogo"
+    
+def _stream_query_to_s3_multipart(pg_conn, query, s3_client, bucket_name, key, part_size_bytes=8 * 1024 * 1024):
+    """
+    Streamea el resultado de un SELECT a S3 como UN SOLO CSV usando multipart upload.
+    """
+    import io, csv, uuid
+
+    # Cursor con nombre (server-side). Nombre aleatorio para evitar colisiones.
+    cur = pg_conn.cursor(name=f"cur_{uuid.uuid4().hex[:8]}")
+    cur.itersize = 100000
+    cur.execute(query)
+
+    buffer = io.StringIO(newline="")
+    writer = csv.writer(buffer)
+
+    # Header
+    colnames = [d[0] for d in cur.description]
+    writer.writerow(colnames)
+
+    # Inicia multipart
+    mpu = s3_client.create_multipart_upload(Bucket=bucket_name, Key=key, ContentType="text/csv")
+    upload_id = mpu["UploadId"]
+    parts = []
+    part_number = 1
+
+    def _upload_part():
+        nonlocal buffer, part_number
+        data = buffer.getvalue().encode("utf-8")
+        if not data:
+            return
+        resp = s3_client.upload_part(
+            Bucket=bucket_name,
+            Key=key,
+            PartNumber=part_number,
+            UploadId=upload_id,
+            Body=data,
+        )
+        parts.append({"ETag": resp["ETag"], "PartNumber": part_number})
+        part_number += 1
+        buffer = io.StringIO(newline="")
+
+    wrote_any = False
+    try:
+        while True:
+            rows = cur.fetchmany(cur.itersize)
+            if not rows:
+                break
+            wrote_any = True
+            for row in rows:
+                writer.writerow(row)
+                if buffer.tell() >= part_size_bytes:
+                    _upload_part()
+
+        # Última parte (si hubo filas)
+        if wrote_any:
+            _upload_part()
+            s3_client.complete_multipart_upload(
+                Bucket=bucket_name,
+                Key=key,
+                UploadId=upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+        else:
+            # Solo header (sin filas): objeto simple
+            s3_client.abort_multipart_upload(Bucket=bucket_name, Key=key, UploadId=upload_id)
+            s3_client.put_object(
+                Bucket=bucket_name,
+                Key=key,
+                Body=buffer.getvalue().encode("utf-8"),
+                ContentType="text/csv",
+            )
+    except Exception:
+        # Limpieza ante error
+        try:
+            s3_client.abort_multipart_upload(Bucket=bucket_name, Key=key, UploadId=upload_id)
+        except Exception:
+            pass
+        raise
+    finally:
+        cur.close()
 
 def _store_periodic_data(ts):
-    import boto3, tempfile, os
-    import pandas as pd
+    import boto3, pandas as pd  # (mantengo tus imports locales tal cual)
+    from datetime import datetime, timedelta
 
     dt_string = ts[:16]
     curr_datetime = dt_string.replace('T',' ')
@@ -44,38 +124,34 @@ def _store_periodic_data(ts):
         where pc.fecha_hora < '{ts}'::timestamp - interval '14 days' and pc.fecha_hora::time <> '12:00:00'
     """
     print(select_query)
+
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
-    # ── escribimos CSV en “trocitos” dentro de un archivo temporal ────────
-    chunksize = 100000
-    total_size = 0
-    with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".csv") as tmp:
-        for i, chunk in enumerate(
-                pd.read_sql_query(select_query, pg_connection, chunksize=chunksize)
-        ):
-            # header solo en el primer chunk
-            total_size += len(chunk)
-            chunk.to_csv(tmp, header=(i == 0), index=False, encoding="utf-8")
-            tmp.flush()                      # fuerza escritura al disco
-            print(f"chunk {i+1}: {len(chunk)} filas")
+    # Opcional: timeouts razonables para selects largos
+    with pg_connection.cursor() as c:
+        c.execute("SET statement_timeout = '45min';")
+        pg_connection.commit()
 
-        tmp.seek(0)                          # vuelve al inicio pa’ el upload
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=Variable.get("AWS_ACCESS_KEY"),
+        aws_secret_access_key=Variable.get("AWS_SECRET_KEY"),
+        region_name="us-east-1",
+    )
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
 
-        # ── upload a S3 (sin re-cargar todo a RAM) ────────────────────────
-        access_key = Variable.get("AWS_ACCESS_KEY")
-        secret_key = Variable.get("AWS_SECRET_KEY")
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name="us-east-1",
-        )
-        s3_client.upload_file(tmp.name, bucket_name, file_name)
-        print(f"Subido a s3://{bucket_name}/{file_name}")
-    print(f"Total de filas procesadas y subidas: {total_size}")
-    os.remove(tmp.name)  # limpia el .csv local
+    _stream_query_to_s3_multipart(
+        pg_conn=pg_connection,
+        query=select_query,
+        s3_client=s3_client,
+        bucket_name=bucket_name,
+        key=file_name,
+        part_size_bytes=8 * 1024 * 1024,  # 8MB por parte (>=5MB)
+    )
+
+    print(f"Subido a s3://{bucket_name}/{file_name}")
     return
+
 
 def _delete_periodic_data(ts):
 
@@ -96,9 +172,8 @@ def _delete_periodic_data(ts):
     return
 
 def _store_daily_data(ts):
-    from io import StringIO
     import boto3
-    import pandas as pd
+    from datetime import datetime, timedelta
 
     dt_string = ts[:16]
     curr_datetime = dt_string.replace('T',' ')
@@ -114,28 +189,32 @@ def _store_daily_data(ts):
         where pc.fecha_hora < '{ts}'::timestamp - interval '28 days'
     """
     print(select_query)
+
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
-    df = pd.read_sql_query(select_query, pg_connection)
+    with pg_connection.cursor() as c:
+        c.execute("SET statement_timeout = '45min';")
+        pg_connection.commit()
 
-    buffer = StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
-
-    access_key = Variable.get("AWS_ACCESS_KEY")
-    secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
     s3_client = boto3.client(
         "s3",
-        aws_access_key_id=access_key,
-        aws_secret_access_key=secret_key,
-        region_name = "us-east-1"
+        aws_access_key_id=Variable.get("AWS_ACCESS_KEY"),
+        aws_secret_access_key=Variable.get("AWS_SECRET_KEY"),
+        region_name="us-east-1",
     )
-    response = s3_client.put_object(
-        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
-    )
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
 
+    _stream_query_to_s3_multipart(
+        pg_conn=pg_connection,
+        query=select_query,
+        s3_client=s3_client,
+        bucket_name=bucket_name,
+        key=file_name,
+        part_size_bytes=8 * 1024 * 1024,
+    )
+    print(f"Subido a s3://{bucket_name}/{file_name}")
     return
+
 
 def _delete_daily_data(ts, ds):
 
