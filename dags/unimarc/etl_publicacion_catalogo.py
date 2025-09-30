@@ -47,12 +47,7 @@ def _store_periodic_data(ts):
     print(select_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
-    df = pd.read_sql_query(select_query, pg_connection)
-
-    buffer = StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
-
+    ###################################################################################
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
     bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
@@ -62,10 +57,72 @@ def _store_periodic_data(ts):
         aws_secret_access_key=secret_key,
         region_name = "us-east-1"
     )
-    response = s3_client.put_object(
-        Bucket=bucket_name, Key=file_name, Body=buffer.getvalue()
-    )
+    ###################################################################################
+    # Iterador por chunks
+    it = pd.read_sql_query(select_query, pg_connection, chunksize=200000)
 
+    # Multipart a S3 para UN solo archivo final
+    mpu = s3_client.create_multipart_upload(Bucket=bucket_name, Key=file_name, ContentType="text/csv")
+    upload_id = mpu["UploadId"]
+    parts, part_number = [], 1
+    part_size_bytes = 8 * 1024 * 1024  # ~8MB por parte (>=5MB)
+
+    buffer = StringIO()
+    wrote_any = False
+
+    try:
+        for i, chunk in enumerate(it):
+            wrote_any = True
+            # header solo en el primer chunk
+            chunk.to_csv(buffer, header=(i == 0), index=False, encoding="utf-8")
+
+            if buffer.tell() >= part_size_bytes:
+                data = buffer.getvalue().encode("utf-8")
+                resp = s3_client.upload_part(
+                    Bucket=bucket_name,
+                    Key=file_name,
+                    PartNumber=part_number,
+                    UploadId=upload_id,
+                    Body=data,
+                )
+                parts.append({"ETag": resp["ETag"], "PartNumber": part_number})
+                part_number += 1
+                buffer = StringIO()  # reset
+
+        if wrote_any:
+            # sube resto y completa
+            tail = buffer.getvalue().encode("utf-8")
+            if tail:
+                resp = s3_client.upload_part(
+                    Bucket=bucket_name,
+                    Key=file_name,
+                    PartNumber=part_number,
+                    UploadId=upload_id,
+                    Body=tail,
+                )
+                parts.append({"ETag": resp["ETag"], "PartNumber": part_number})
+
+            s3_client.complete_multipart_upload(
+                Bucket=bucket_name,
+                Key=file_name,
+                UploadId=upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+        else:
+            # sin filas: CSV vacío con solo header
+            empty_df = pd.read_sql_query(f"SELECT * FROM ({select_query}) t LIMIT 0", pg_connection)
+            empty_buf = StringIO()
+            empty_df.to_csv(empty_buf, header=True, index=False, encoding="utf-8")
+            s3_client.abort_multipart_upload(Bucket=bucket_name, Key=file_name, UploadId=upload_id)
+            s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=empty_buf.getvalue().encode("utf-8"), ContentType="text/csv")
+    except Exception:
+        # limpieza si falla
+        try:
+            s3_client.abort_multipart_upload(Bucket=bucket_name, Key=file_name, UploadId=upload_id)
+        except Exception:
+            pass
+        raise
+    print(f"Subido a s3://{bucket_name}/{file_name}")
     return
 
 def _delete_periodic_data(ts):
