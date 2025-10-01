@@ -247,7 +247,7 @@ with DAG(
             "where": """ ORGANIZACION_VENTAS = '7500'
                         AND REGISTRO_VALIDO = 'X'
                         AND CANAL_DISTRIBUCION in ('10','70')
-                        AND ID_EVENTO <> '572' """,
+                        AND ID_EVENTO <> 572 """,
             "date_query": "FECHA_FIN_DE_PROMOCION >= DATE('%s') - INTERVAL 7 DAY ",            
             "extra_prefix": "alvi_incremental"
         },
