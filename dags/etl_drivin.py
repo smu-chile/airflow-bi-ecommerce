@@ -1128,147 +1128,93 @@ def drivin_users_to_postgres(ti, ts):
     print("Data loaded to Postgres: ecommdata.drivin_users")
     return
 
-def get_api_entrega_pruebas(exception_cases):
-    from datetime import datetime
-    import requests
-    from airflow.models import Variable  
 
-    current_date = datetime.now().strftime('%Y-%m-%d')
-    url = f"https://external.driv.in/api/external/v2/pods?start_date={current_date}&end_date={current_date}"
-    api_key = Variable.get("API_KEY_DRIVIN")
+########################
+# Entrega pruebas      #
+########################
+
+def get_api_entrega_pruebas(exception_cases, start_date=None, end_date=None, ds=None):
+    import requests
+    import pendulum
+
+    from airflow.models import Variable
+        
+    api_key = Variable.get("API_KEY_DRIVIN")  
+
+    item_keys = [
+        "planned_date", "description", "scenario_token", "vehicle_code", "vehicle_description",
+        "schema_code", "schema_name", "fleet_name", "organization_name", "organization_alt_name",
+        "route_approved_at", "route_started_at", "route_finished_at",
+        "driver_name", "driver_email", "driver_dni", "driver_license_number",
+        "assistant_1_name", "assistant_1_email", "route_code", "route_comment",
+        "employer_code", "employer_name", "address_name", "address_code",
+        "address_address_1", "address_address_2", "address_city", "address_county",
+        "address_state", "address_customer_name", "address_lat", "address_lng",
+        "address_postal_code", "address_country", "planned_service_time", "eta",
+        "eta_approved", "eta_started", "trip_number", "trip_code", "trip_custom_1",
+        "odometer_start", "odometer_end", "position", "start_position",
+        "delivery_position", "time_windows", "distance", "tracked_arrival",
+        "tracked_leave", "tracked_service_time", "rating_1", "rating_2", "rating_3",
+        "customer_comment", "visit_arrival", "visit_leave", "images", "signature",
+        "custom_fields", "comment", "events", "pdf_pod"
+    ]
+
+    order_keys = [
+        "code", "alt_code", "description", "pod_arrival", "pod_distance",
+        "pod_lat", "pod_lng", "delivery_date", "deploy_date", "billing_date",
+        "status", "status_code", "customer_status", "load_status", "reason",
+        "reason_code", "ifd_count", "supplier_code", "supplier_name",
+        "client_code", "client_name", "units_1", "units_2", "units_3",
+        "custom_1", "custom_2", "custom_3", "custom_4", "custom_5", "custom_6",
+        "number_1", "number_2", "number_3"
+    ]
+
+    # Para construir DataFrame después si se necesita
+    columns = item_keys + [f"order_{k}" for k in order_keys]
+        
+    # Fecha actual con timezone Santiago
+    date_aux = pendulum.now(tz='America/Santiago').format("YYYY-MM-DD")
+
+    if ds:
+        start_date = ds
+        end_date = ds
+    elif not (start_date and end_date):
+        # si no viene nada, usar la fecha actual por defecto
+        start_date = date_aux
+        end_date = date_aux
+
+    url = f"https://external.driv.in/api/external/v2/pods?start_date={start_date}&end_date={end_date}"
     headers = {'X-API-Key': api_key}
-    exception_cases = []
+
+    lista = []
 
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+        res = requests.get(url, headers=headers)
+        res.raise_for_status()
+        data = res.json()
 
         if 'response' in data and isinstance(data['response'], list):
-            lista = []
             for item in data['response']:
-                for order in item.get("orders", []):
-                    lista.append({
-                        "planned_date": item.get("planned_date"),
-                        "description": item.get("description"),
-                        "scenario_token": item.get("scenario_token"),
-                        "vehicle_code": item.get("vehicle_code"),
-                        "vehicle_description": item.get("vehicle_description"),
-                        "schema_code": item.get("schema_code"),
-                        "schema_name": item.get("schema_name"),
-                        "fleet_name": item.get("fleet_name"),
-                        "organization_name": item.get("organization_name"),
-                        "organization_alt_name": item.get("organization_alt_name"),
-                        "route_is_approved": item.get("route_is_approved"),
-                        "route_is_started": item.get("route_is_started"),
-                        "route_is_finished": item.get("route_is_finished"),
-                        "route_approved_at": item.get("route_approved_at"),
-                        "route_started_at": item.get("route_started_at"),
-                        "route_finished_at": item.get("route_finished_at"),
-                        "driver_name": item.get("driver_name"),
-                        "driver_email": item.get("driver_email"),
-                        "driver_dni": item.get("driver_dni"),
-                        "driver_license_number": item.get("driver_license_number"),
-                        "assistant_1_name": item.get("assistant_1_name"),
-                        "assistant_1_email": item.get("assistant_1_email"),
-                        "route_code": item.get("route_code"),
-                        "route_comment": item.get("route_comment"),
-                        "employer_code": item.get("employer_code"),
-                        "employer_name": item.get("employer_name"),
-                        "address_name": item.get("address_name"),
-                        "address_code": item.get("address_code"),
-                        "address_address_1": item.get("address_address_1"),
-                        "address_address_2": item.get("address_address_2"),
-                        "address_city": item.get("address_city"),
-                        "address_county": item.get("address_county"),
-                        "address_state": item.get("address_state"),
-                        "address_customer_name": item.get("address_customer_name"),
-                        "address_lat": item.get("address_lat"),
-                        "address_lng": item.get("address_lng"),
-                        "address_postal_code": item.get("address_postal_code"),
-                        "address_country": item.get("address_country"),
-                        "planned_service_time": item.get("planned_service_time"),
-                        "eta": item.get("eta"),
-                        "eta_approved": item.get("eta_approved"),
-                        "eta_started": item.get("eta_started"),
-                        "trip_number": item.get("trip_number"),
-                        "trip_code": item.get("trip_code"),
-                        "trip_custom_1": item.get("trip_custom_1"),
-                        "odometer_start": item.get("odometer_start"),
-                        "odometer_end": item.get("odometer_end"),
-                        "position": item.get("position"),
-                        "start_position": item.get("start_position"),
-                        "delivery_position": item.get("delivery_position"),
-                        "time_windows": item.get("time_windows"),
-                        "distance": item.get("distance"),
-                        "tracked_arrival": item.get("tracked_arrival"),
-                        "tracked_leave": item.get("tracked_leave"),
-                        "tracked_service_time": item.get("tracked_service_time"),
-                        "rating_1": item.get("rating_1"),
-                        "rating_2": item.get("rating_2"),
-                        "rating_3": item.get("rating_3"),
-                        "customer_comment": item.get("customer_comment"),
-                        "visit_arrival": item.get("visit_arrival"),
-                        "visit_leave": item.get("visit_leave"),
-                        "images": item.get("images"),
-                        "signature": item.get("signature"),
-                        "custom_fields": item.get("custom_fields"),
-                        "comment": item.get("comment"),
-                        "events": item.get("events"),
-                        "pdf_pod": item.get("pdf_pod"),
+                # --- Base info de cada item ---
+                base_info = {key: item.get(key) for key in item_keys}
 
-                        # Campos renombrados para coincidir con columnas esperadas
-                        "code": order.get("code"),
-                        "alt_code": order.get("alt_code"),
-                        "description_order": order.get("description"),
-                        "address_type": order.get("address_type"),
-                        "pod_arrival": order.get("pod_arrival"),
-                        "pod_distance": order.get("pod_distance"),
-                        "near_pod": order.get("near_pod"),
-                        "pod_lat": order.get("pod_lat"),
-                        "pod_lng": order.get("pod_lng"),
-                        "delivery_date": order.get("delivery_date"),
-                        "deploy_date": order.get("deploy_date"),
-                        "billing_date": order.get("billing_date"),
-                        "status": order.get("status"),
-                        "status_code": order.get("status_code"),
-                        "customer_status": order.get("customer_status"),
-                        "load_status": order.get("load_status"),
-                        "reason": order.get("reason"),
-                        "reason_code": order.get("reason_code"),
-                        "otif": order.get("otif"),
-                        "ifd_count": order.get("ifd_count"),
-                        "supplier_code": order.get("supplier_code"),
-                        "supplier_name": order.get("supplier_name"),
-                        "client_code": order.get("client_code"),
-                        "client_name": order.get("client_name"),
-                        "units": order.get("units"),
-                        "units_1": order.get("units_1"),
-                        "units_2": order.get("units_2"),
-                        "units_3": order.get("units_3"),
-                        "cusom_1": order.get("custom_1"),
-                        "cusom_2": order.get("custom_2"),
-                        "cusom_3": order.get("custom_3"),
-                        "cusom_4": order.get("custom_4"),
-                        "cusom_5": order.get("custom_5"),
-                        "custom_6": order.get("custom_6"),
-                        "number_1": order.get("number_1"),
-                        "number_2": order.get("number_2"),
-                        "number_3": order.get("number_3"),
-                        "is_otd": order.get("is_otd"),
-                        "items": order.get("items"),
-                        "pickups": order.get("pickups"),
-                        "images": order.get("images"),
-                        "comment": order.get("comment")
-                    })
-            return lista        
+                # --- Info de órdenes ---
+                for order in item.get("orders", []):
+                    order_info = {
+                        f"order_{key}": order.get(key if not key.startswith("custom") else key)
+                        for key in order_keys
+                    }
+                    fila = {**base_info, **order_info}
+                    lista.append(fila)
+
+            return lista
         else:
-            print(f"Formato inesperado en la respuesta de la API: {data}")
+            print(f"⚠️ Formato inesperado en la respuesta de la API: {data}")
             exception_cases.append(url)
             return []
 
     except requests.exceptions.RequestException as req_err:
-        print(f"Request error occurred: {req_err}")
+        print(f"❌ Error en la solicitud: {req_err}")
         exception_cases.append(url)
         return []
 
@@ -1277,6 +1223,7 @@ def drivin_entrega_prueba_to_s3(ts, ds):
     import pandas as pd
     import requests
     import io
+    import os
     from airflow.models import Variable
     from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
@@ -1288,216 +1235,156 @@ def drivin_entrega_prueba_to_s3(ts, ds):
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
+    # Llamada API
     exception_cases = []
-
     lista_usuarios = get_api_entrega_pruebas(exception_cases)
 
-    # Verificar las primeras filas de la lista de datos
+    print(f"📊 Registros obtenidos: {len(lista_usuarios)}")
     if lista_usuarios:
-        print(f"Primer registro de lista_usuarios: {lista_usuarios[0]}")
+        print(f"📝 Primer registro: {lista_usuarios[0]}")
 
-    columns = ["planned_date",
-                    "description",
-                    "scenario_token",
-                    "vehicle_code",
-                    "vehicle_description",
-                    "schema_code",
-                    "schema_name",
-                    "fleet_name",
-                    "organization_name",
-                    "organization_alt_name",
-                    "route_is_approved",
-                    "route_is_started",
-                    "route_is_finished",
-                    "route_approved_at",
-                    "route_started_at",
-                    "route_finished_at",
-                    "driver_name",
-                    "driver_email",
-                    "driver_dni",
-                    "driver_license_number",
-                    "assistant_1_name",
-                    "assistant_1_email",
-                    "route_code",
-                    "route_comment",
-                    "employer_code",
-                    "employer_name",
-                    "address_name",
-                    "address_code",
-                    "address_address_1",
-                    "address_address_2",
-                    "address_city",
-                    "address_county",
-                    "address_state",
-                    "address_customer_name",
-                    "address_lat",
-                    "address_lng",
-                    "address_postal_code",
-                    "address_country",
-                    "planned_service_time",
-                    "eta",
-                    "eta_approved",
-                    "eta_started",
-                    "trip_number",
-                    "trip_code",
-                    "trip_custom_1",
-                    "odometer_start",
-                    "odometer_end",
-                    "position",
-                    "start_position",
-                    "delivery_position",
-                    "time_windows",
-                    "distance",
-                    "tracked_arrival",
-                    "tracked_leave",
-                    "tracked_service_time",
-                    "rating_1",
-                    "rating_2",
-                    "rating_3",
-                    "customer_comment",
-                    "visit_arrival",
-                    "visit_leave",
-                    "images",
-                    "signature",
-                    "custom_fields",
-                    "comment",
-                    "events",
-                    "pdf_pod",
-                    "code",
-                    "alt_code",
-                    "description_order",
-                    "address_type",
-                    "pod_arrival",
-                    "pod_distance",
-                    "near_pod",
-                    "pod_lat",
-                    "pod_lng",
-                    "delivery_date",
-                    "deploy_date",
-                    "billing_date",
-                    "status",
-                    "status_code",
-                    "customer_status",
-                    "load_status",
-                    "reason",
-                    "reason_code",
-                    "otif",
-                    "ifd_count",
-                    "images",
-                    "comment",
-                    "supplier_code",
-                    "supplier_name",
-                    "client_code",
-                    "client_name",
-                    "units",
-                    "units_1",
-                    "units_2",
-                    "units_3",
-                    "cusom_1",
-                    "cusom_2",
-                    "cusom_3",
-                    "cusom_4",
-                    "cusom_5",
-                    "custom_6",
-                    "number_1",
-                    "number_2",
-                    "number_3",
-                    "is_otd",
-                    "items",
-                    "pickups"]
-      
-    df = pd.DataFrame(lista_usuarios, columns=columns)
+        # Definir columnas dentro de la función
+        item_keys = [
+            "planned_date", "description", "scenario_token", "vehicle_code", "vehicle_description",
+            "schema_code", "schema_name", "fleet_name", "organization_name", "organization_alt_name",
+            "route_approved_at", "route_started_at", "route_finished_at",
+            "driver_name", "driver_email", "driver_dni", "driver_license_number",
+            "assistant_1_name", "assistant_1_email", "route_code", "route_comment",
+            "employer_code", "employer_name", "address_name", "address_code",
+            "address_address_1", "address_address_2", "address_city", "address_county", "address_state",
+            "address_customer_name", "address_lat", "address_lng", "address_postal_code", "address_country",
+            "planned_service_time", "eta", "eta_approved", "eta_started", "trip_number", "trip_code",
+            "trip_custom_1", "odometer_start", "odometer_end", "position", "start_position",
+            "delivery_position", "time_windows", "distance", "tracked_arrival", "tracked_leave",
+            "tracked_service_time", "rating_1", "rating_2", "rating_3", "customer_comment",
+            "visit_arrival", "visit_leave", "images", "signature", "custom_fields", "comment",
+            "events", "pdf_pod"
+        ]
 
-    # Guardar CSV
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
+        order_keys = [
+            "code", "alt_code", "description", "pod_arrival", "pod_distance", "pod_lat", "pod_lng",
+            "delivery_date", "deploy_date", "billing_date", "status", "status_code",
+            "customer_status", "load_status", "reason", "reason_code", "ifd_count",
+            "supplier_code", "supplier_name", "client_code", "client_name",
+            "units_1", "units_2", "units_3", "custom_1", "custom_2", "custom_3",
+            "custom_4", "custom_5", "custom_6", "number_1", "number_2", "number_3"
+        ]
 
-    # Construir el nombre del archivo en S3 
-    filename = f"forecast_and_planning/drivin/{exec_date}/entrega_pruebas/entrega_pruebas_{date_aux}.csv"
+        columns = item_keys + [f"order_{k}" for k in order_keys]
 
-    print(f"Con fecha {ds} y nombre de archivo como {filename}")
+        # Generar DataFrame
+        df = pd.DataFrame(lista_usuarios, columns=columns)
 
-    # Cargar el archivo en S3
-    s3_hook.load_string(
-        buffer.getvalue(),
-        key=filename,
-        bucket_name=s3_bucket,
-        replace=True,
-        encrypt=False
-    )
+        # Guardar CSV en buffer
+        buffer = io.StringIO()
+        df.to_csv(buffer, header=True, index=False, encoding="utf-8")
+        buffer.seek(0)
 
-    print("Se logró transformar los datos de entrega pruebas en un archivo .csv")
-    print(f"Archivo cargado en S3: {prefix}")
+        # Construir nombre de archivo en S3
+        filename = f"forecast_and_planning/drivin/{exec_date}/entrega_pruebas/entrega_pruebas_{date_aux}.csv"
 
-    return filename
+        # Subir a S3
+        s3_hook.load_string(
+            buffer.getvalue(),
+            key=filename,
+            bucket_name=s3_bucket,
+            replace=True,
+            encrypt=False
+        )
+
+        print("✅ Archivo cargado en S3")
+        print(f"📂 Ruta en S3: {filename}")
+        return filename
+    else:
+        print("⚠️ No se generó archivo, la lista está vacía.")
+        return None
+
 
 def drivin_entrega_prueba_to_postgres(ti, ts):
     import pandas as pd
-    import sqlalchemy
     import numpy as np
     from airflow.providers.amazon.aws.hooks.s3 import S3Hook
     from airflow.providers.postgres.hooks.postgres import PostgresHook
     from airflow.models import Variable
 
+    # Recuperar nombre del archivo desde XCom (generado en task to_s3)
     filename = ti.xcom_pull(key="return_value", task_ids=["drivin_entrega_prueba_to_s3"])[0]
 
+    # Variables y conexiones de Airflow
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    print("Searching file: " + filename)
+    print(f"🔍 Buscando archivo en S3: {filename}")
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
-        raise Exception(f"Key {filename} does not exist.")
-    
-    # Obtener el archivo desde el S3
+        raise Exception(f"❌ El archivo {filename} no existe en S3.")
+
+    # Descargar archivo desde S3
     hook_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
     df = pd.read_csv(hook_object.get()["Body"])
 
     if df.empty:
-        print("There are no new nor updated records to load. Task will exit as successful.")
+        print("⚠️ No hay registros nuevos ni actualizados. Task exitosa sin carga.")
         return
 
-    print(f"Number of records extracted: {len(df.index)}")
+    print(f"📊 Registros extraídos: {len(df.index)}")
 
+    # Agregar timestamp de ejecución
     df["fecha_hora"] = ts
 
-    # Columnas sin duplicados + order_code
-    columns = [
+    # =========================
+    # Definir columnas esperadas
+    # =========================
+    item_keys = [
         "planned_date", "description", "scenario_token", "vehicle_code", "vehicle_description",
         "schema_code", "schema_name", "fleet_name", "organization_name", "organization_alt_name",
-        "route_is_approved", "route_is_started", "route_is_finished", "route_approved_at",
-        "route_started_at", "route_finished_at", "driver_name", "driver_email", "driver_dni",
-        "driver_license_number", "assistant_1_name", "assistant_1_email", "route_code", "route_comment",
-        "employer_code", "employer_name", "address_name", "address_code", "address_address_1",
-        "address_address_2", "address_city", "address_county", "address_state", "address_customer_name",
-        "address_lat", "address_lng", "address_postal_code", "address_country", "planned_service_time",
-        "eta", "eta_approved", "eta_started", "trip_number", "trip_code", "trip_custom_1",
-        "odometer_start", "odometer_end", "position", "start_position", "delivery_position",
-        "time_windows", "distance", "tracked_arrival", "tracked_leave", "tracked_service_time",
-        "rating_1", "rating_2", "rating_3", "customer_comment", "visit_arrival", "visit_leave",
-        "images", "signature", "custom_fields", "comment", "events", "pdf_pod", "code", "alt_code",
-        "description_order", "address_type", "pod_arrival", "pod_distance", "near_pod", "pod_lat",
-        "pod_lng", "delivery_date", "deploy_date", "billing_date", "status", "status_code",
-        "customer_status", "load_status", "reason", "reason_code", "otif", "ifd_count", 
-        "supplier_code", "supplier_name", "client_code", "client_name", "units", "units_1", "units_2",
-        "units_3", "cusom_1", "cusom_2", "cusom_3", "cusom_4", "cusom_5", "custom_6", "number_1",
-        "number_2", "number_3", "is_otd", "items", "pickups", "fecha_hora", "order_code"
+        "route_approved_at", "route_started_at", "route_finished_at",
+        "driver_name", "driver_email", "driver_dni", "driver_license_number",
+        "assistant_1_name", "assistant_1_email", "route_code", "route_comment",
+        "employer_code", "employer_name", "address_name", "address_code",
+        "address_address_1", "address_address_2", "address_city", "address_county", "address_state",
+        "address_customer_name", "address_lat", "address_lng", "address_postal_code", "address_country",
+        "planned_service_time", "eta", "eta_approved", "eta_started", "trip_number", "trip_code",
+        "trip_custom_1", "odometer_start", "odometer_end", "position", "start_position",
+        "delivery_position", "time_windows", "distance", "tracked_arrival", "tracked_leave",
+        "tracked_service_time", "rating_1", "rating_2", "rating_3", "customer_comment",
+        "visit_arrival", "visit_leave", "images", "signature", "custom_fields", "comment",
+        "events", "pdf_pod"
     ]
 
-    # Asumiendo que 'code' es el nuevo 'order_code'
+    order_keys = [
+        "code", "alt_code", "description", "pod_arrival", "pod_distance", "pod_lat", "pod_lng",
+        "delivery_date", "deploy_date", "billing_date", "status", "status_code",
+        "customer_status", "load_status", "reason", "reason_code", "ifd_count",
+        "supplier_code", "supplier_name", "client_code", "client_name",
+        "units_1", "units_2", "units_3", "custom_1", "custom_2", "custom_3",
+        "custom_4", "custom_5", "custom_6", "number_1", "number_2", "number_3"
+    ]
+
+    columns = item_keys + [f"order_{k}" for k in order_keys] + ["fecha_hora"]
+
+    # =========================
+    # Normalizar DataFrame
+    # =========================
+    # Mapear "code" → "order_code" para usar como PK
     df.rename(columns={"code": "order_code"}, inplace=True)
 
+    # Asegurar columnas requeridas
     required_columns = ["order_code"]
     missing_cols = [col for col in required_columns if col not in df.columns]
     if missing_cols:
-        raise Exception(f"Missing expected columns in DataFrame: {missing_cols}")
+        raise Exception(f"❌ Faltan columnas esperadas en el DataFrame: {missing_cols}")
 
+    # Rellenar nulos con None
+    df = df.where(pd.notnull(df), None)
+
+    # =========================
+    # Construir query de upsert
+    # =========================
     columns_query = ",".join(columns)
     excluded_query = ",".join([f"EXCLUDED.{col}" for col in columns])
     values_query = ",".join(["%s"] * len(columns))
 
-    df = df.fillna("NULL")
-    records = list(df.to_records(index=False))
+    records = list(df[columns].to_records(index=False))
 
     # Convertir a tipos compatibles con psycopg2
     fixed_records = []
@@ -1506,13 +1393,11 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
         for value in record:
             if isinstance(value, np.generic):
                 fixed_record.append(value.item())
-            elif value == "NULL":
-                fixed_record.append(None)
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
 
-    print(f"Number of records to load: {len(fixed_records)}")
+    print(f"📤 Registros a cargar en Postgres: {len(fixed_records)}")
 
     incremental_query = f"""
         INSERT INTO ecommdata.drivin_entrega_prueba ({columns_query}) 
@@ -1521,6 +1406,9 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
         DO UPDATE SET ({columns_query}) = ({excluded_query});
     """
 
+    # =========================
+    # Cargar a Postgres
+    # =========================
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -1529,7 +1417,7 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
     cursor.close()
     pg_connection.close()
 
-    print("Data loaded to Postgres: ecommdata.drivin_entrega_prueba")
+    print("✅ Datos cargados en Postgres: ecommdata.drivin_entrega_prueba")
     return
 
 default_args = {
