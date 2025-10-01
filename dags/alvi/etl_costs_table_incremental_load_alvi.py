@@ -149,7 +149,7 @@ with DAG(
     'etl_costs_table_incremental_load_alvi',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="30 8 * * *",
+    schedule_interval="30 7 * * *",
     start_date=pendulum.datetime(2025, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
