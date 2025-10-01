@@ -31,7 +31,18 @@ def process_categories_table(ti):
 
     df = df0[["id", "ref_id", "name", "ref_parent", "status"]]
 
-    df1 = df[df["ref_parent"].isnull()].rename(columns={"id":"id1", "ref_id":"ref_id1", "name":"name1", "ref_parent":"ref_parent1", "status": "status1"})
+    df1 = df[
+            (df["ref_id"].notnull()) & (df["ref_id"] != 0) &
+            (df["ref_parent"].isnull() | (df["ref_parent"] == 0))
+            ].rename(
+                columns={
+                    "id":"id1",
+                    "ref_id":"ref_id1",
+                    "name":"name1",
+                    "ref_parent":"ref_parent1",
+                    "status": "status1"
+                }
+            )
     df2 = pd.merge(df1, df[df["ref_parent"].notnull()], left_on="ref_id1", right_on="ref_parent", how="inner").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2", "status": "status2"})
     
 
