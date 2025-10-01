@@ -1,4 +1,5 @@
 from airflow import DAG
+from airflow import macros
 from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
@@ -19,6 +20,8 @@ def extract_bq_to_s3(ti, ds, ts):
 
     print("=" * 100)
     print(f"[extract] START | ds={ds} | ts={ts}")
+
+    day_extract = macros.ds_add(ds,1)
 
     # --- SQL ---
     BQ_STOCK_QUERY = f"""
@@ -50,7 +53,7 @@ def extract_bq_to_s3(ti, ds, ts):
         AND S.APLICA_STOCK = 'S'
         AND S.TIPO_STOCK_KEY = MD5('TIPOSTOCK^CL^SMC^')
         AND PART.PARTICULARIDAD_COD = 'A'
-        AND S.DATE_VALUE = '{ds}';
+        AND S.DATE_VALUE = '{day_extract}';
     """
     print("[extract] SQL >>>")
     print("\n".join("  " + ln for ln in BQ_STOCK_QUERY.strip().splitlines()))
