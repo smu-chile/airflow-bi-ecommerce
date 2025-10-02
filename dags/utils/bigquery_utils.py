@@ -19,13 +19,14 @@ def load_custom_bq_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connec
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     
     if base_path:
-        prefix = f"{base_path}{query_name}/{curr_datetime}_"
+        # Guardar en base_path/YYYY/MM/DD/query_name.csv
+        exec_date = ts[:10].replace("-", "/")  # solo fecha, sin hora
+        file_name = f"{base_path}{exec_date}/{query_name}.csv"
     else:
         prefix = f"{BASE_S3_PATH}{query_name}/{curr_datetime}_"
-    
-    if extra_prefix:
-        prefix += f"{extra_prefix}_"
-    file_name = f"{prefix}{query_name}.csv"
+        if extra_prefix:
+            prefix += f"{extra_prefix}_"
+        file_name = f"{prefix}{query_name}.csv"
 
     print("SQL Query:\n" + query)
     print("\nFile to be created: " + file_name)
@@ -79,7 +80,17 @@ def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, 
         prefix = BASE_S3_PATH+table_name+"/"+curr_datetime+"_"
     if extra_prefix is not None:
         prefix = prefix+extra_prefix+"_"
-    file_name = prefix+table_name+".csv"    
+    file_name = prefix+table_name+".csv"
+
+    if base_path:
+        # Guardar en base_path/YYYY/MM/DD/query_name.csv
+        exec_date = ts[:10].replace("-", "/")  # solo fecha, sin hora
+        file_name = f"{base_path}{table_name}/{curr_datetime}.csv"
+    else:
+        prefix = f"{BASE_S3_PATH}{table_name}/{curr_datetime}_"
+        if extra_prefix:
+            prefix += f"{extra_prefix}_"
+        file_name = f"{prefix}{table_name}.csv"
 
     print("File to be created: "+file_name)
 
