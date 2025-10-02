@@ -27,7 +27,8 @@ def _check_time(ts):
         return "load_table_publicacion_catalogo"
 
 def _store_periodic_data(ts):
-    import boto3, tempfile, os
+    from io import StringIO
+    import boto3
     import pandas as pd
 
     dt_string = ts[:16]
@@ -37,44 +38,91 @@ def _store_periodic_data(ts):
     past_datetime = past_dt_object.strftime("%Y/%d/%m/%H%M")
     prefix = "ecommdata/publicacion_catalogo/"+past_datetime
     file_name = prefix+"publicacion_catalogo_periodico.csv"
-    #Obtener datos de la tabla publicacion_catalogo
+
     select_query = f"""
         select *
         from ecommdata.publicacion_catalogo pc
-        where pc.fecha_hora < '{ts}'::timestamp - interval '14 days' and pc.fecha_hora::time <> '12:00:00'
+        where pc.fecha_hora < '{ts}'::timestamp - interval '7 days' and pc.fecha_hora::time <> '12:00:00'
     """
     print(select_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
-    # ── escribimos CSV en “trocitos” dentro de un archivo temporal ────────
-    chunksize = 100000
-    total_size = 0
-    with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".csv") as tmp:
-        for i, chunk in enumerate(
-                pd.read_sql_query(select_query, pg_connection, chunksize=chunksize)
-        ):
+    ###################################################################################
+    access_key = Variable.get("AWS_ACCESS_KEY")
+    secret_key = Variable.get("AWS_SECRET_KEY")
+    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_client = boto3.client(
+        "s3",
+        aws_access_key_id=access_key,
+        aws_secret_access_key=secret_key,
+        region_name = "us-east-1"
+    )
+    ###################################################################################
+    # Iterador por chunks
+    it = pd.read_sql_query(select_query, pg_connection, chunksize=200000)
+
+    # Multipart a S3 para UN solo archivo final
+    mpu = s3_client.create_multipart_upload(Bucket=bucket_name, Key=file_name, ContentType="text/csv")
+    upload_id = mpu["UploadId"]
+    parts, part_number = [], 1
+    part_size_bytes = 8 * 1024 * 1024  # ~8MB por parte (>=5MB)
+
+    buffer = StringIO()
+    wrote_any = False
+
+    try:
+        for i, chunk in enumerate(it):
+            wrote_any = True
             # header solo en el primer chunk
-            total_size += len(chunk)
-            chunk.to_csv(tmp, header=(i == 0), index=False, encoding="utf-8")
-            tmp.flush()                      # fuerza escritura al disco
-            print(f"chunk {i+1}: {len(chunk)} filas")
+            chunk.to_csv(buffer, header=(i == 0), index=False, encoding="utf-8")
 
-        tmp.seek(0)                          # vuelve al inicio pa’ el upload
+            if buffer.tell() >= part_size_bytes:
+                data = buffer.getvalue().encode("utf-8")
+                resp = s3_client.upload_part(
+                    Bucket=bucket_name,
+                    Key=file_name,
+                    PartNumber=part_number,
+                    UploadId=upload_id,
+                    Body=data,
+                )
+                parts.append({"ETag": resp["ETag"], "PartNumber": part_number})
+                part_number += 1
+                buffer = StringIO()  # reset
 
-        # ── upload a S3 (sin re-cargar todo a RAM) ────────────────────────
-        access_key = Variable.get("AWS_ACCESS_KEY")
-        secret_key = Variable.get("AWS_SECRET_KEY")
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_client = boto3.client(
-            "s3",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-            region_name="us-east-1",
-        )
-        s3_client.upload_file(tmp.name, bucket_name, file_name)
-        print(f"Subido a s3://{bucket_name}/{file_name}")
-    print(f"Total de filas procesadas y subidas: {total_size}")
-    os.remove(tmp.name)  # limpia el .csv local
+        if wrote_any:
+            # sube resto y completa
+            tail = buffer.getvalue().encode("utf-8")
+            if tail:
+                resp = s3_client.upload_part(
+                    Bucket=bucket_name,
+                    Key=file_name,
+                    PartNumber=part_number,
+                    UploadId=upload_id,
+                    Body=tail,
+                )
+                parts.append({"ETag": resp["ETag"], "PartNumber": part_number})
+
+            s3_client.complete_multipart_upload(
+                Bucket=bucket_name,
+                Key=file_name,
+                UploadId=upload_id,
+                MultipartUpload={"Parts": parts},
+            )
+        else:
+            # sin filas: CSV vacío con solo header
+            empty_df = pd.read_sql_query(f"SELECT * FROM ({select_query}) t LIMIT 0", pg_connection)
+            empty_buf = StringIO()
+            empty_df.to_csv(empty_buf, header=True, index=False, encoding="utf-8")
+            s3_client.abort_multipart_upload(Bucket=bucket_name, Key=file_name, UploadId=upload_id)
+            s3_client.put_object(Bucket=bucket_name, Key=file_name, Body=empty_buf.getvalue().encode("utf-8"), ContentType="text/csv")
+    except Exception:
+        # limpieza si falla
+        try:
+            s3_client.abort_multipart_upload(Bucket=bucket_name, Key=file_name, UploadId=upload_id)
+        except Exception:
+            pass
+        raise
+    print(f"Subido a s3://{bucket_name}/{file_name}")
     return
 
 def _delete_periodic_data(ts):
@@ -82,7 +130,7 @@ def _delete_periodic_data(ts):
     delete_query = f"""
         delete
         from ecommdata.publicacion_catalogo pc
-        where pc.fecha_hora < '{ts}'::timestamp - interval '14 days' and pc.fecha_hora::time <> '12:00:00'
+        where pc.fecha_hora < '{ts}'::timestamp - interval '7 days' and pc.fecha_hora::time <> '12:00:00'
     """
 
     print(delete_query)
