@@ -42,7 +42,7 @@ def _store_periodic_data(ts):
     select_query = f"""
         select *
         from ecommdata.publicacion_catalogo pc
-        where pc.fecha_hora < '{ts}'::timestamp - interval '14 days' and pc.fecha_hora::time <> '12:00:00'
+        where pc.fecha_hora < '{ts}'::timestamp - interval '7 days' and pc.fecha_hora::time <> '12:00:00'
     """
     print(select_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -130,7 +130,7 @@ def _delete_periodic_data(ts):
     delete_query = f"""
         delete
         from ecommdata.publicacion_catalogo pc
-        where pc.fecha_hora < '{ts}'::timestamp - interval '14 days' and pc.fecha_hora::time <> '12:00:00'
+        where pc.fecha_hora < '{ts}'::timestamp - interval '7 days' and pc.fecha_hora::time <> '12:00:00'
     """
 
     print(delete_query)
