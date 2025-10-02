@@ -8,17 +8,21 @@ from google.cloud import bigquery
 
 BASE_S3_PATH = "data_warehouse/"
 
-def load_custom_bq_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connection", extra_prefix=None):
+def load_custom_bq_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connection", extra_prefix=None, base_path=None):
     """
     Saca la data desde BigQuery, la manda a un CSV en memoria
     y la sube a S3 con la misma estructura de carpetas/archivos
     que Netezza Utils.
     """
-
     # ---------- 1) Armado de nombre ----------
     print("Execution datetime: " + ts)
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    prefix = f"{BASE_S3_PATH}{query_name}/{curr_datetime}_"
+    
+    if base_path:
+        prefix = f"{base_path}{query_name}/{curr_datetime}_"
+    else:
+        prefix = f"{BASE_S3_PATH}{query_name}/{curr_datetime}_"
+    
     if extra_prefix:
         prefix += f"{extra_prefix}_"
     file_name = f"{prefix}{query_name}.csv"
@@ -65,10 +69,14 @@ def load_custom_bq_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connec
     print("✅ Archivo subido a S3:", file_name)
     return file_name
 
-def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, aws_conn_id="aws_s3_connection", extra_prefix=None):
+def bigquery_full_table_load_to_s3(ts, table_name, where=None, date_query=None, aws_conn_id="aws_s3_connection", extra_prefix=None, base_path=None):
     print("Execution datetime: " + ts)
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    prefix = BASE_S3_PATH+table_name+"/"+curr_datetime+"_"
+    
+    if base_path:
+        prefix = f"{base_path}{table_name}/{curr_datetime}_"
+    else:
+        prefix = BASE_S3_PATH+table_name+"/"+curr_datetime+"_"
     if extra_prefix is not None:
         prefix = prefix+extra_prefix+"_"
     file_name = prefix+table_name+".csv"    
