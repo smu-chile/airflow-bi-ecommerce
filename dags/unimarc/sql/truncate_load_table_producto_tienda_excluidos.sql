@@ -1,9 +1,12 @@
 begin transaction;
+
 truncate table ecommdata.producto_tienda_excluidos;
+
 insert into ecommdata.producto_tienda_excluidos
 select material,umv, concat(material,'-',umv) as ref_id, 1 as all_stores,0 as is_mfc,null::varchar as id_tienda,fecha_carga  
 from catalogo.productos_excluidos pe 
 order by fecha_carga desc;
+
 insert into ecommdata.producto_tienda_excluidos
 select split_part(smt.tom_id,'-',1) as material,split_part(smt.tom_id,'-',2) as umv,
 smt.tom_id as ref_id, 0 as all_stores, 1 as is_mfc,'1917' as id_tienda, smt.fecha as fecha_carga
@@ -18,4 +21,9 @@ where _t.contador >1
 and _t.material is not null
 and smt.fecha::date >= '{{ds}}'::date+1
 and smt.quantity_on_hand = 0;
+
+insert into ecommdata.producto_tienda_excluidos
+select material, umv, ref_id, all_stores, is_mfc, id_tienda, fecha_carga
+from catalogo.productos_excluidos_x_tienda pet;
+
 commit;
