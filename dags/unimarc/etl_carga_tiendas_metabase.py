@@ -36,15 +36,18 @@ def lista8():
                             where mfc_is_item_side = 'REG') as ubi
                             on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
                         where ubi.ref_id is null
+                        and (l.bloq_centro <> 2 or l.bloq_formato <> 2)
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
-                        from ecommdata.lista8 l
+                        from ecommdata.lista8 l 
+                        where (l.bloq_centro <> 2 or l.bloq_formato <> 2)
                         union
                         select distinct pc.ref_id, '0053' as id_tienda
                         from ecommdata.publicacion_catalogo pc
                         where pc.mfc is true
                         and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                         and pc.stock_janis > 0
+                        and pc.surtido_ecommerce is true
                         union
                         select distinct pc.ref_id, '0398' as id_tienda
                         from ecommdata.publicacion_catalogo pc
@@ -54,6 +57,7 @@ def lista8():
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
+                        and (l.bloq_centro <> 2 or l.bloq_formato <> 2)
                         """
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
