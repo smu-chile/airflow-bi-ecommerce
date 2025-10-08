@@ -47,7 +47,6 @@ def lista8():
                         where pc.mfc is true
                         and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                         and pc.stock_janis > 0
-                        and pc.surtido_ecommerce is true
                         union
                         select distinct pc.ref_id, '0398' as id_tienda
                         from ecommdata.publicacion_catalogo pc
