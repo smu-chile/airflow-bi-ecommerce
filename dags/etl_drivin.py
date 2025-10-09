@@ -1360,7 +1360,7 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
         "custom_4", "custom_5", "custom_6", "number_1", "number_2", "number_3"
     ]
 
-    columns = item_keys + [f"order_{k}" for k in order_keys] + ["fecha_hora"]
+    columns = item_keys + [f"order_{k}" for k in order_keys]
 
     # =========================
     # Normalizar DataFrame
