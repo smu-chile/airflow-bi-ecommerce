@@ -371,7 +371,7 @@ def _vtex_get_stock_retries(ti, ts):
     print(retries)
     vtex_account_name = {
         "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
-        #"alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
+        "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
         "alvicl008": Variable.get("VTEX_ALVI3089_ACCOUNT_NAME"),
         "alvicl001": Variable.get("VTEX_ALVI3092_ACCOUNT_NAME"),
         "alvicl010": Variable.get("VTEX_ALVI3093_ACCOUNT_NAME"),
