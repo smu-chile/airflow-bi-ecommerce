@@ -35,12 +35,18 @@ def lista8():
                             from ecommdata.ubicacion_mfc um 
                             where mfc_is_item_side = 'REG') as ubi
                             on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
-                        where ubi.ref_id is null
-                        and (l.bloq_centro <> 2 or l.bloq_formato <> 2)
+                        where ubi.ref_id is null 
+                        and not (
+                            coalesce(l.bloq_centro,0) = 2
+                            OR coalesce(l.bloq_formato,0) = 2
+                            )
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
                         from ecommdata.lista8 l 
-                        where (l.bloq_centro <> 2 or l.bloq_formato <> 2)
+                        where not (
+                            coalesce(l.bloq_centro,0) = 2
+                            OR coalesce(l.bloq_formato,0) = 2
+                            )
                         union
                         select distinct pc.ref_id, '0053' as id_tienda
                         from ecommdata.publicacion_catalogo pc
@@ -56,7 +62,10 @@ def lista8():
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
-                        and (l.bloq_centro <> 2 or l.bloq_formato <> 2)
+                        AND NOT (
+                            coalesce(l.bloq_centro,0) = 2
+                            OR coalesce(l.bloq_formato,0) = 2
+                        )
                         """
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -251,7 +260,7 @@ def load_tables_to_s3(ts,ds):
     lista_skus = df_skus['ref_id'].unique()
     df_exclusions = excluidos_x_tiendas_tiendas[excluidos_x_tiendas_tiendas['ref_id'].isin(lista_skus)]
     df_exclusions = df_exclusions[["ref_id"]]
-    print(f"\ncantidad de registros en excluidos con skus validos: {len(df_lista8.index)}\n")
+    print(f"\ncantidad de registros en excluidos con skus validos: {len(df_exclusions.index)}\n")
     ##tiendas activcas
     df_tiendas = df_tiendas[["id_tienda"]]
     series_active_stores = df_tiendas['id_tienda'].unique()
