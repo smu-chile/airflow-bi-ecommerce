@@ -7,6 +7,8 @@ from airflow.models import Variable
 
 import pendulum
 
+from utils.bigquery_utils import bq_query_to_df
+
 def render_netezza_view():
     from io import StringIO
     import os
@@ -47,74 +49,56 @@ def render_netezza_view():
     return df
 
 def render_netezza_view_2():
-    from io import StringIO
-    import os
-    import jaydebeapi
-    import pandas as pd
 
     sql_str = """SELECT
-        J.SPL_RQS_DOC NroDocumento,
-        CAST(SKU_PRODUCT AS NUMERIC(18,0)) PLU_SAP60,
-        j.fecha_pedido FechaDocumento,
-        Z.DATE_VALUE FechaEntrega,
-        cast(I.OU_ID as varchar(4)) CD,
-        cast(D.OU_ID as varchar(4)) Tienda,
+        J.SPL_RQS_DOC AS NroDocumento,
+        CAST(SKU_PRODUCT AS NUMERIC) AS PLU_SAP60,
+        j.fecha_pedido AS FechaDocumento,
+        Z.DATE_VALUE AS FechaEntrega,
+        CAST(I.OU_ID AS STRING) AS CD,
+        CAST(D.OU_ID AS STRING) AS Tienda,
         Posicion,
         Z.DATE_VALUE,
-        sum(J.Pedido_umb) CanpedUMB,
-        sum(J.Pedido_ump) Canped,
-        Sum(J.Recibido_umb) CanrecUMB,
-        Sum(J.Recibido_ump) Canrec,
-        sum(RECIBIDO_A_TIEMPO_UMB) CanRecTiempoUMB,
-        sum(RECIBIDO_A_TIEMPO_UMP) CanRecTiempo
-        FROM DWC_SMU.SMU.VW_FACT_COMPRAS AS J
+        SUM(J.Pedido_umb) AS CanpedUMB,
+        SUM(J.Pedido_ump) AS Canped,
+        SUM(J.Recibido_umb) AS CanrecUMB,
+        SUM(J.Recibido_ump) AS Canrec,
+        SUM(RECIBIDO_A_TIEMPO_UMB) AS CanRecTiempoUMB,
+        SUM(RECIBIDO_A_TIEMPO_UMP) AS CanRecTiempo
+        FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS` AS J
         INNER JOIN (
-            select SPL_RQS_DOC,SKU_KEY,max(DATE_VALUE)DATE_VALUE
-            from DWC_SMU.SMU.VW_FACT_COMPRAS_ESPERADO
-            where cast(DATE_VALUE as date) >= current_date -120
-            AND SKU_KEY NOT IN (4719571)
-            group by SPL_RQS_DOC,SKU_KEY
-            )Z 
-        on J.SPL_RQS_DOC=Z.SPL_RQS_DOC AND J.SKU_KEY=Z.SKU_KEY
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT D ON J.OU_RECEP_KEY=D.OU_KEY --DIM_ORGANIZATION_UNIT
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY E ON J.SKU_KEY=E.SKU_KEY --DIM_SKU_HIERARCHY
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT I ON J.OU_PROV_KEY=I.OU_KEY --DIM_ORGANIZATION_UNIT
-        where D.OU_ID = '1917'
-        AND Z.DATE_VALUE <= CURRENT_DATE 
-        group by J.SPL_RQS_DOC,
-        CAST(SKU_PRODUCT AS NUMERIC(18,0)),
+        SELECT
+            SPL_RQS_DOC,
+            SKU_KEY,
+            MAX(DATE_VALUE) AS DATE_VALUE
+        FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS_ESPERADO`
+        WHERE DATE(DATE_VALUE) >= DATE_SUB(CURRENT_DATE(), INTERVAL 120 DAY)
+            AND SKU_KEY <> MD5('SKU^CL^SMC^000000000000900827')  -- si SKU_KEY es STRING hex, usa TO_HEX(MD5(...))
+        GROUP BY SPL_RQS_DOC, SKU_KEY
+        ) AS Z
+        ON J.SPL_RQS_DOC = Z.SPL_RQS_DOC
+        AND J.SKU_KEY      = Z.SKU_KEY
+        LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` D
+        ON J.OU_RECEP_KEY = D.OU_KEY
+        LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` E
+        ON J.SKU_KEY = E.SKU_KEY
+        LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` I
+        ON J.OU_PROV_KEY = I.OU_KEY
+        WHERE D.OU_ID = '1917'
+        AND DATE(Z.DATE_VALUE) <= CURRENT_DATE()
+        GROUP BY
+        J.SPL_RQS_DOC,
+        CAST(SKU_PRODUCT AS NUMERIC),
         j.fecha_pedido,
         Z.DATE_VALUE,
-        cast(I.OU_ID as varchar(4)) ,
-        cast(D.OU_ID as varchar(4)) ,
+        CAST(I.OU_ID AS STRING),
+        CAST(D.OU_ID AS STRING),
         POSICION
-        HAVING sum(J.Pedido_ump)>0"""
+        HAVING SUM(J.Pedido_ump) > 0;
+        """
     print(sql_str)
 
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
-    
-    conn = jaydebeapi.connect(jdbc_driver_name, 
-                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
-                                jars=jdbc_driver_loc)
-
-    cur = conn.cursor()
-    cur.execute(sql_str)
-    result = cur.fetchall()
-    column_names = [desc[0] for desc in cur.description]
-    df = pd.DataFrame(result, columns=column_names)
-    print(df.columns)
-    df = df[['PLU_SAP60','CD','DATE_VALUE','CANPEDUMB','CANRECUMB']]
-    df.columns = ['material','CD','ultimo_recibido','cant_pedida','cant_recibida']
-    cur.close()
-    conn.close()
+    df = bq_query_to_df(sql_str)
 
     return df
 
@@ -326,7 +310,7 @@ with DAG(
     'etl_maestra_informacion_slotting',
     default_args=default_args,
     description="cargar tabla slotting",
-    schedule_interval= "30 10 * * *",
+    schedule_interval= "30 7 1 * *", #Ahora es ejecución mensual
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_unimarc", "slotting", "MFC", "PATRICIO"],
