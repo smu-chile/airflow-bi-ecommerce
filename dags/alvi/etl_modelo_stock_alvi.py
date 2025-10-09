@@ -220,7 +220,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     print(sku_list)
     vtex_account_name = {
         "alvicl004": Variable.get("VTEX_ALVI3074_ACCOUNT_NAME"),
-        "alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
+        #"alvicl003": Variable.get("VTEX_ALVI3082_ACCOUNT_NAME"),
         "alvicl008": Variable.get("VTEX_ALVI3089_ACCOUNT_NAME"),
         "alvicl001": Variable.get("VTEX_ALVI3092_ACCOUNT_NAME"),
         "alvicl010": Variable.get("VTEX_ALVI3093_ACCOUNT_NAME"),
@@ -240,7 +240,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
 
     x_vtex_api_appkey = {
         "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Appkey"),
-        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Appkey"),
+        #"alvicl003": Variable.get("X_VTEX_ALVI3082_API_Appkey"),
         "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Appkey"),
         "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Appkey"),
         "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Appkey"),
@@ -260,7 +260,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
 
     x_vtex_api_apptoken = {
         "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Apptoken"),
-        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Apptoken"),
+        #"alvicl003": Variable.get("X_VTEX_ALVI3082_API_Apptoken"),
         "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Apptoken"),
         "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Apptoken"),
         "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Apptoken"),
@@ -391,7 +391,7 @@ def _vtex_get_stock_retries(ti, ts):
 
     x_vtex_api_appkey = {
         "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Appkey"),
-        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Appkey"),
+        #"alvicl003": Variable.get("X_VTEX_ALVI3082_API_Appkey"),
         "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Appkey"),
         "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Appkey"),
         "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Appkey"),
@@ -411,7 +411,7 @@ def _vtex_get_stock_retries(ti, ts):
 
     x_vtex_api_apptoken = {
         "alvicl004": Variable.get("X_VTEX_ALVI3074_API_Apptoken"),
-        "alvicl003": Variable.get("X_VTEX_ALVI3082_API_Apptoken"),
+        #"alvicl003": Variable.get("X_VTEX_ALVI3082_API_Apptoken"),
         "alvicl008": Variable.get("X_VTEX_ALVI3089_API_Apptoken"),
         "alvicl001": Variable.get("X_VTEX_ALVI3092_API_Apptoken"),
         "alvicl010": Variable.get("X_VTEX_ALVI3093_API_Apptoken"),
