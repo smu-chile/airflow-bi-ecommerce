@@ -10,42 +10,37 @@ import pendulum
 from utils.bigquery_utils import bq_query_to_df
 
 def render_netezza_view():
-    from io import StringIO
-    import os
-    import jaydebeapi
-    import pandas as pd
-
-    sql_str = "SELECT * FROM DWC_SMU.SMU.VW_DIM_SKU_ATTR"
+    sql_str = """
+        SELECT
+            SKU_HEX as SKU_KEY,
+            ALTURA,
+            ANCHO,
+            BRND_ID,
+            CATEGORIA_MATERIAL_DESC,
+            CONDICION_DE_ALMACENAJE,
+            CONTENIDO_BRUTO,
+            CONTENIDO_NETO,
+            GDS_PD_TP_DSC,
+            GRADO_ACLOHOLICO,
+            LONGITUD,
+            MARCA_PROPIA,
+            NUMERADOR_UMP,
+            PAIS_ORIGEN_ID,
+            PESO_NETO,
+            SKU_PRODUCT,
+            UM_CONTENIDO,
+            UMB,
+            UNIDAD,
+            UNIDAD_DE_MEDIDA_PEDIDO,
+            UNIDAD_DE_VOLUMEN,
+            UNIDAD_LAA,
+            UNIDAD_PESO,
+            VOLUMEN,
+            VIDA_UTIL
+        FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR`
+    """
     print(sql_str)
-
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
-    
-    conn = jaydebeapi.connect(jdbc_driver_name, 
-                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
-                                jars=jdbc_driver_loc)
-
-    cur = conn.cursor()
-    cur.execute(sql_str)
-    result = cur.fetchall()
-    column_names = [desc[0] for desc in cur.description]
-    df = pd.DataFrame(result, columns=column_names)
-    df = df[['SKU_KEY','ALTURA','ANCHO','BRND_ID','CATEGORIA_MATERIAL_DESC',
-             'CONDICION_DE_ALMACENAJE','CONTENIDO_BRUTO','CONTENIDO_NETO',
-             'GDS_PD_TP_DSC','GRADO_ACLOHOLICO','LONGITUD','MARCA_PROPIA',
-             'NUMERADOR_UMP','PAIS_ORIGEN_ID','PESO_NETO',
-             'SKU_PRODUCT','UM_CONTENIDO','UMB','UNIDAD','UNIDAD_DE_MEDIDA_PEDIDO',
-             'UNIDAD_DE_VOLUMEN','UNIDAD_LAA','UNIDAD_PESO','VOLUMEN','VIDA_UTIL']]
-    cur.close()
-    conn.close()
-
+    df = bq_query_to_df(sql_str)
     return df
 
 def render_netezza_view_2():
