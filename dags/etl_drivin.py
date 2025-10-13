@@ -1374,8 +1374,9 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
     if missing_cols:
         raise Exception(f"❌ Faltan columnas esperadas en el DataFrame: {missing_cols}")
 
-    # Rellenar nulos con None
-    df = df.where(pd.notnull(df), None)
+    # Rellenar nulos con None (maneja NaN, NaT, etc.)
+    df = df.replace({np.nan: None, pd.NaT: None, "NaN": None, "nan": None})
+
 
     # =========================
     # Construir query de upsert
