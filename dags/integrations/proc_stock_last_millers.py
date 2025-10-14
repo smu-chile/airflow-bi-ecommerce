@@ -8,6 +8,8 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.models import Variable
 
+from utils.bigquery_utils import load_custom_bq_query_to_s3
+
 import pendulum
 from datetime import timedelta
 
@@ -25,89 +27,42 @@ def _get_last_millers_stores():
     pg_connection.close()
     return results
 
-def _get_stock_from_datawarehouse(ti, ds):
-    import io
-    import jaydebeapi
-    import os
-    import pandas as pd
+def _get_stock_from_bigquery(ti, ds):
 
     ids_tiendas = ti.xcom_pull(key="return_value", task_ids=["get_last_millers_stores"])[0]
     ids_tiendas = [id[0] for id in ids_tiendas]
-    
-    curr_working_directory = os.getcwd()
-    print(os.getcwd())
-    with open(curr_working_directory+"/dags/integrations/sql/stock_datawarehouse.sql", "r") as query_file:
-        base_query = query_file.read()
-
-    exec_date = macros.ds_add(ds, 0)
-    exec_date = exec_date.replace("-", "/")
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string = 'jdbc:netezza://' + dsn_hostname + ':' + dsn_port + '/' + dsn_database
-    conn = jaydebeapi.connect(jdbc_driver_name, connection_string, {'user': dsn_uid, 'password': dsn_pwd},jars=jdbc_driver_loc)
-    cur = conn.cursor()
 
     ids_tiendas_str = str(tuple(ids_tiendas))
-    stock_query = base_query.replace("{store_ids}", ids_tiendas_str).replace("{exec_date}", exec_date.replace("/", "-"))
-    print(stock_query)
-    
-    file_name = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/stock_datawarehouse.csv"
 
-    if s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        print(f"File {file_name} already exists on S3 bucket. Skipping...")
-        return file_name
+    with open("/opt/airflow/dags/integrations/sql/stock_datawarehouse.sql", "r") as query_file:
+        base_query = query_file.read()
 
-    cur.execute(stock_query)
-    results = cur.fetchall()
-    columns = [i[0] for i in cur.description]
-    df = pd.DataFrame(results, columns=columns)
-    print(f"Records found: {len(df.index)}")
+    stock_query = base_query.replace("{store_ids}", ids_tiendas_str).replace("{exec_date}", ds)
 
-    if len(df.index) == 0:
-        raise Exception("ERROR: No records found.")
-
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
-
-    s3_hook.load_string(buffer.getvalue(),
-                key=file_name,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-
-    return file_name
-
+    # usar util que saca el query de BQ y lo sube a S3
+    return load_custom_bq_query_to_s3(
+        ds,
+        stock_query,
+        "stock_datawarehouse",
+        base_path="integraciones/last_millers/stock/datawarehouse/test/"
+    )
 def _load_stock_to_postgres(ti):
     import pandas as pd
     from sqlalchemy import create_engine
 
-    file_name = ti.xcom_pull(key="return_value", task_ids="get_stock_from_datawarehouse")
+    file_name = ti.xcom_pull(key="return_value", task_ids="get_stock_from_bigquery")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        print(f"ERROR: File {file_name} not found on S# bucket: {s3_bucket}")
-        return
+        raise Exception(f"ERROR: File {file_name} not found on S3 bucket: {s3_bucket}")
     
     stock_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
     df = pd.read_csv(stock_object.get()["Body"], dtype="object")
     df.columns = map(str.lower, df.columns)
     print(f"Number of records found: {len(df.index)}")
 
-    print(df.isna().sum())
-
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -116,94 +71,47 @@ def _load_stock_to_postgres(ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = create_engine(conn_url)
 
-    # Save to PostgreSQL:
-    df.to_sql(name="stock",
-                con=engine,         
-                schema="integraciones",
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    df.to_sql(
+        name="stock",
+        con=engine,         
+        schema="integraciones",
+        if_exists='append',         
+        index=False,         
+        chunksize=20000,         
+        method='multi'
+    )
     return
 
-def _get_products_from_datawarehouse(ds):
-    import io
-    import jaydebeapi
-    import os
-    import pandas as pd
-
-    curr_working_directory = os.getcwd()
-    print(os.getcwd())
-    with open(curr_working_directory+"/dags/integrations/sql/productos.sql", "r") as query_file:
+def _get_products_from_bigquery(ds):
+    with open("/opt/airflow/dags/integrations/sql/productos.sql", "r") as query_file:
         products_query = query_file.read()
 
-    exec_date = macros.ds_add(ds, 1)
-    exec_date = exec_date.replace("-", "/")
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string = 'jdbc:netezza://' + dsn_hostname + ':' + dsn_port + '/' + dsn_database
-    conn = jaydebeapi.connect(jdbc_driver_name, connection_string, {'user': dsn_uid, 'password': dsn_pwd},jars=jdbc_driver_loc)
-    cur = conn.cursor()
-
-    file_name = f"integraciones/last_millers/stock/datawarehouse/{exec_date}/productos.csv"
-
-    if s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        print(f"File {file_name} already exists on S3 bucket. Skipping...")
-        return file_name
-
-    cur.execute(products_query)
-    results = cur.fetchall()
-    columns = [i[0] for i in cur.description]
-    df = pd.DataFrame(results, columns=columns)
-    print(f"Records found: {len(df.index)}")
-
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    buffer.seek(0)
-
-    s3_hook.load_string(buffer.getvalue(),
-                key=file_name,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-
-    return file_name
-
+    # se usa util directamente
+    return load_custom_bq_query_to_s3(
+        ds,
+        products_query,
+        "productos",
+        base_path="integraciones/last_millers/stock/datawarehouse/test/"
+    )
 def _load_products_to_postgres(ti):
     import pandas as pd
     from sqlalchemy import create_engine
     import csv
 
-    file_name = ti.xcom_pull(key="return_value", task_ids="get_products_from_datawarehouse")
-    print(file_name)
+    file_name = ti.xcom_pull(key="return_value", task_ids="get_products_from_bigquery")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
-        print(f"ERROR: File {file_name} not found on S3 bucket: {s3_bucket}")
-        return
+        raise Exception(f"ERROR: File {file_name} not found on S3 bucket: {s3_bucket}")
     
     products_object = s3_hook.get_key(file_name, bucket_name=s3_bucket)
-    
-    # Read CSV with custom quoting to handle double quotes within fields
+
     df = pd.read_csv(products_object.get()["Body"], dtype="object", quoting=csv.QUOTE_MINIMAL)
     df.columns = map(str.lower, df.columns)
-    print(df.info())
-    print(f"Number of records found: {len(df.index)}")
     df = df.dropna(subset=df.columns[:3])
-    print(df.info())
-
+    print(f"Number of records found: {len(df.index)}")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -213,14 +121,15 @@ def _load_products_to_postgres(ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = create_engine(conn_url)
 
-    df.to_sql(name="productos",
-                con=engine,         
-                schema="integraciones",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-
+    df.to_sql(
+        name="productos",
+        con=engine,         
+        schema="integraciones",         
+        if_exists='append',         
+        index=False,         
+        chunksize=20000,         
+        method='multi'
+    )
     return
 
 default_args = {
@@ -261,8 +170,8 @@ with DAG(
 
     # Productos
     t1 = PythonOperator(
-        task_id = "get_products_from_datawarehouse",
-        python_callable = _get_products_from_datawarehouse
+        task_id = "get_products_from_bigquery",
+        python_callable = _get_products_from_bigquery
     )
 
     t2 = PostgresOperator(
@@ -280,8 +189,8 @@ with DAG(
 
     # Stock
     t4 = PythonOperator(
-        task_id = "get_stock_from_datawarehouse",
-        python_callable = _get_stock_from_datawarehouse
+        task_id = "get_stock_from_bigquery",
+        python_callable = _get_stock_from_bigquery
     )
 
     t5 = DummyOperator(
