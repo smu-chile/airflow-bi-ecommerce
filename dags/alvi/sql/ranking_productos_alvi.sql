@@ -18,7 +18,7 @@ FROM (
             SUM(venta_neta) AS venta_pesos
         FROM
             ecommdata.ventas_ecommerce_datawarehouse ved
-            LEFT JOIN ecommdata.skus s ON s.ref_id = ved.ref_id_sku
+            LEFT JOIN ecommdata_alvi.skus s ON s.ref_id = ved.ref_id_sku
             left join ecommdata.calendario c on c.fecha=ved.fecha_facturacion::date
         WHERE
             c.mes_relativo = -1
@@ -53,10 +53,10 @@ FROM (
         r.venta_pesos
     FROM
         RankedData r
-        LEFT JOIN ecommdata.skus s ON s.ref_id = r.ref_id_sku
-        left join ecommdata.productos p on p.ref_id  = r.ref_id_sku
-        left join ecommdata.categorias c on p.id_categoria = c.id
-        left join ecommdata.marcas m on m.id = p.id_marca
+        LEFT JOIN ecommdata_alvi.skus s ON s.ref_id = r.ref_id_sku
+        left join ecommdata_alvi.productos p on p.ref_id  = r.ref_id_sku
+        left join ecommdata_alvi.categorias c on p.id_categoria = c.id
+        left join ecommdata_alvi.marcas m on m.id = p.id_marca
     ORDER BY
         ranking
 ) AS Subquery;
