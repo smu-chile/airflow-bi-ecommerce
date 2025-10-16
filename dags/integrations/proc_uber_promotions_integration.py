@@ -104,7 +104,8 @@ def _join_Catalog_from_s3(ds, ti):
             LEFT JOIN ecommdata.lista8 l ON l.material = p.material
             WHERE l.material IS NOT NULL
             AND c.n2 IS NOT NULL
-            AND c.n3 IS NOT null;
+            AND c.n3 IS NOT null
+            and is2.imagen is not null;
                     """
     cursor.execute(uber_catalog_query)
     results = cursor.fetchall()
