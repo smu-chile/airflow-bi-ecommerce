@@ -4,7 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 import pendulum
 
-def extract_and_load_inactive_pickers(**context):
+def extract_and_load_inactive_pickers():
     import mysql.connector
     import pandas as pd
 
@@ -82,7 +82,68 @@ def extract_and_load_inactive_pickers(**context):
     pg_conn.close()
 
     print(f"✅ Cargados {len(records)} registros en Postgres")
-    return len(records)
+    return 
+
+def deactivate_users_in_janis():
+    import requests
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_conn = pg_hook.get_conn()
+    pg_cursor = pg_conn.cursor()
+
+    # 👇 Aquí eliges la lógica: todos los activos o solo los del día actual
+    pg_cursor.execute("""
+        SELECT id_picker, firstname, lastname, username, email, profile, document
+        FROM ecommdata.usuarios_desactivados
+        WHERE inserted_at::date = CURRENT_DATE
+    """)
+    users = pg_cursor.fetchall()
+    cols = [desc[0] for desc in pg_cursor.description]
+    pg_cursor.close()
+    pg_conn.close()
+
+    if not users:
+        print("⚠️ No hay usuarios para desactivar en Janis")
+        return 0
+    print(f"👉 Usuarios a desactivar: {len(users)}")
+
+    updated = 0
+    
+    # 🌐 Config API Janis
+    base_url = Variable.get("JANIS_API_URL")
+
+    api_url = f"{base_url}user"
+    
+    headers = {
+        "janis-api-key": Variable.get("JANIS_API_KEY"),
+        "janis-api-secret": Variable.get("JANIS_API_SECRET"),
+        "janis-client": Variable.get("JANIS_CLIENT"),
+        "Connection": "keep-alive"
+    }
+
+    for u in users:
+        user = dict(zip(cols, u))
+        body = {
+            "firstname": user["firstname"],
+            "lastname": user["lastname"],
+            "username": user["username"],
+            "email": user["email"],
+            "profileId": str(user["profile"]),
+            "documentNumber": user["document"],
+            "status": "inactive"
+        }
+        url = f"{api_url}/{user['id_picker']}"
+        try:
+            r = requests.put(url, json=body, headers=headers, timeout=15)
+            if r.status_code in [200, 201]:
+                print(f"✅ Usuario {user['id_picker']} desactivado en Janis")
+                updated += 1
+            else:
+                print(f"⚠️ Error desactivando {user['id_picker']}: {r.status_code} {r.text}")
+        except Exception as e:
+            print(f"❌ Exception con {user['id_picker']}: {e}")
+
+    print(f"👉 Total desactivados: {updated}")
+    return 
 
 
 # --- Configuración del DAG ---
@@ -98,7 +159,7 @@ with DAG(
     "etl_janis_desactivar_usuarios",
     default_args=default_args,
     description="Carga a Postgres los pickers de Janis con última fecha de picking mayor a 60 días",
-    schedule_interval="0 7 * * *",
+    schedule_interval="0 7 15 * *", #Corre el día 15 de cada mes a las 07:00
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Usuarios", "Pickers", "Kevin"],
@@ -108,5 +169,9 @@ with DAG(
         task_id="export_inactive_pickers",
         python_callable=extract_and_load_inactive_pickers,
     )
+    t1 = PythonOperator(
+        task_id="deactivate_users_in_janis",
+        python_callable=deactivate_users_in_janis,
+    )
 
-    t0
+    t0>>t1
