@@ -5,7 +5,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import netezza_full_table_load_to_s3
+from utils.bigquery_utils import bigquery_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 
@@ -241,14 +241,14 @@ with DAG(
 
     t0 = PythonOperator(
         task_id = "netezza_vw_workflow_incremental_load", 
-        python_callable = netezza_full_table_load_to_s3,
+        python_callable = bigquery_full_table_load_to_s3,
         op_kwargs = {
-            "table_name": "DWC_SMU.SMU.VW_FACT_WORKFLOW",
+            "table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW`",
             "where": """ ORGANIZACION_VENTAS = '7500'
                         AND REGISTRO_VALIDO = 'X'
                         AND CANAL_DISTRIBUCION in ('10','70')
-                        AND ID_EVENTO <> '572' 
-                        AND FECHA_FIN_DE_PROMOCION >= TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days' """,
+                        AND ID_EVENTO <> 572 """,
+            "date_query": "FECHA_FIN_DE_PROMOCION >= DATE('%s') - INTERVAL 7 DAY ",            
             "extra_prefix": "alvi_incremental"
         },
         retries = 2,

@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 
 from utils.calendar import delta_yearweeks
-from utils.netezza_utils import netezza_full_table_load_to_s3
+from utils.bigquery_utils import bigquery_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -16,7 +16,7 @@ def _generate_calendar_table(ti):
     import sqlalchemy
     from sqlalchemy import text
 
-    dw_date_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_date_full_load"])[0]
+    dw_date_file_name = ti.xcom_pull(key="return_value", task_ids=["bigquery_vm_dim_date_full_load"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -32,7 +32,7 @@ def _generate_calendar_table(ti):
     print(df_dw_date.columns)
     print(df_dw_date.head(1))
 
-    df = df_dw_date.drop(["DATE_KEY", "CALENDAR_YEAR_MONTH_KEY", "CALENDAR_YEAR_WEEK_KEY", "CALENDAR_DAY_OF_QUARTER"], axis=1)
+    df = df_dw_date.drop(["DATE_KEY", "DATE_NK", "CALENDAR_YEAR_MONTH_KEY", "CALENDAR_YEAR_WEEK_KEY", "CALENDAR_DAY_OF_QUARTER", "DATE_HEX", "CALENDAR_YEAR_MONTH_HEX", "CALENDAR_YEAR_WEEK_HEX"], axis=1)
     df = df.rename(columns={
         	"DATE_VALUE": "fecha",
 	        "CALENDAR_DAY_OF_MONTH": "dia_mes",
@@ -113,7 +113,7 @@ default_args = {
 with DAG(
     'calendar_table_etl',
     default_args=default_args,
-    description="Netezza vm_dim_date full table load to S3 and transformation-load to Postgres",
+    description="Bigquery vm_dim_date full table load to S3 and transformation-load to Postgres",
     schedule_interval="30 7 * * *",
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
@@ -121,12 +121,13 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Netezza VW_DIM_DATE full table load and relative dates calculation.
+    Bigquery VW_DIM_DATE full table load and relative dates calculation.
     """ 
     t0 = PythonOperator(
-        task_id = "netezza_vm_dim_date_full_load",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_DATE"},
+        task_id = "bigquery_vm_dim_date_full_load",
+        python_callable = bigquery_full_table_load_to_s3,
+        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE`",
+                     "where":" DATE_VALUE >= '2012-01-01'"},
         retries = 3,
         retry_delay = timedelta(minutes=5)
     )

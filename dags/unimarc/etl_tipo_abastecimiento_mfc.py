@@ -6,7 +6,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime
 
@@ -84,7 +84,7 @@ with DAG(
     'etl_tipo_abasticimiento_mfc',
     default_args=default_args,
     description="Carga tipo abasticimiento de los productos del MFC.",
-    schedule_interval="30 9 * * *",
+    schedule_interval="45 9 * * *",
     start_date=pendulum.datetime(2024, 6, 15, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -97,25 +97,25 @@ with DAG(
     
     t0 = PythonOperator(
         task_id = "load_custom_query_to_s3",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """SELECT
-                            ou_id
-                            , sku_product
-                            , fuente_aprov
-                            , FTE_APROV_COD
-                        FROM
-                            dwc_smu.smu.vw_dim_ou_sku
-                        JOIN dwc_smu.smu.vw_dim_sku_hierarchy
-                                USING (sku_key)
-                        JOIN DWC_SMU.SMU.vw_dim_fuente_aprovisionamiento ON
-                            (
-                                fuente_aprov_key = FTE_APROV_KEY
-                            )
-                        JOIN dwc_smu.smu.VW_DIM_OU_HIERARCHY
-                                USING (ou_key)
-                        WHERE
-                            ou_id = '1917'
+                    OU_ID
+                    , SKU_PRODUCT
+                    , FUENTE_APROV
+                    , FTE_APROV_COD
+                FROM
+                    cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_OU_SKU
+                JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY
+                        USING (sku_key)
+                JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_FUENTE_APROVISIONAMIENTO ON
+                    (
+                        fuente_aprov_key = FTE_APROV_KEY
+                    )
+                JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_OU_HIERARCHY
+                        USING (ou_key)
+                WHERE
+                    ou_id = '1917'
             """,
             "query_name": "productos_tipo_abastecimiento",
         }

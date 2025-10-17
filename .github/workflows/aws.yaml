@@ -21,12 +21,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-          BUILD_NUMBER: pr-${{ github.run_number }}
 
   Deploy-Develop:
     name: Deploy-Develop
@@ -39,13 +33,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-          BUILD_NUMBER: dev-${{ github.run_number }}
-          BRANCH_NAME: develop
 
       - name: Build the image
         run: docker build -f Dockerfile.dev -t $IMAGE_NAME .
@@ -82,13 +69,6 @@ jobs:
         uses: actions/checkout@v2
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-          BUILD_NUMBER: stg-${{ github.run_number }}
-          BRANCH_NAME: staging
 
       - name: Build the image
         run: docker build -f Dockerfile.dev -t $IMAGE_NAME .
@@ -124,13 +104,6 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.PAT_GITHUB_TOKEN }}
-          BUILD_NUMBER: prod-${{ github.run_number }}
-          BRANCH_NAME: master
 
       - name: Build the image
         run: docker build -f Dockerfile.prod -t $IMAGE_NAME .

@@ -9,12 +9,14 @@ from utils.janis_utils import load_full_table_to_s3
 
 from datetime import datetime
 
-import numpy as np
-import pandas as pd
-import sqlalchemy
-from sqlalchemy import text
+import pendulum
+
 
 def process_categories_table(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
     file_name = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -80,7 +82,10 @@ def process_categories_table(ti):
 
     columns_query = ",".join(columns)
     values_query = "%s,"+",".join(["%s" for column in columns])
-    df = df.fillna("NULL")
+
+    #Solo obtener categorias con ref_id (Janis genero nuevas categorias )
+    df = df[df["ref_id"].notnull()]          
+
     records = list(df.to_records(index=False))
     
     # Change data types to native python types
@@ -125,8 +130,8 @@ with DAG(
     'categories_table_etl',
     default_args=default_args,
     description="Extracción, transformación y carga de tabla categories desde Janis Replica hasta Workspace.",
-    schedule_interval="0 3 * * *",
-    start_date=datetime(2021, 1, 1),
+    schedule_interval="0 23 * * *",
+    start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "S3", "MATIAS"],
 ) as dag:

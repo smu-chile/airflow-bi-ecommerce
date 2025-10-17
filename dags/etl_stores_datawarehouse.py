@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
-from utils.netezza_utils import netezza_full_table_load_to_s3
+from utils.bigquery_utils import bigquery_full_table_load_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -44,16 +44,16 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "netezza_vm_dim_store_full_load_to_s3",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_STORE"},
+        python_callable = bigquery_full_table_load_to_s3,
+        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE`"},
         retries = 2,
         retry_delay = timedelta(minutes=1)
     )
 
     t1 = PythonOperator(
         task_id = "netezza_vm_dim_store_hierarchy_full_load_to_s3",
-        python_callable = netezza_full_table_load_to_s3,
-        op_kwargs = {"table_name": "DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY"},
+        python_callable = bigquery_full_table_load_to_s3,
+        op_kwargs = {"table_name": "`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE_HIERARCHY`"},
         retries = 2,
         retry_delay = timedelta(minutes=1)
     )

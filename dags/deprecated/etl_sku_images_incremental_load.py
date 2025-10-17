@@ -9,6 +9,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+import pendulum 
+
 def _incremental_unixtime_custom_query_load_to_s3(ti, ts):
     max_date_modified_unixtime = ti.xcom_pull(key="return_value", task_ids=["get_max_updated_at_date"])[0]
     max_date_modified_unixtime = 0 if max_date_modified_unixtime is None else max_date_modified_unixtime
@@ -145,7 +147,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla sku_imagenes desde Janis Alvi Replica hasta Workspace.",
     schedule_interval="0 * * * *",
-    start_date=datetime(2022, 6, 16),
+    start_date=pendulum.datetime(2022, 6, 16, tz="America/Santiago"),
     max_active_runs=1,
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "sku_imagenes", "alvi"],

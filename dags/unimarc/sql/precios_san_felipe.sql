@@ -62,11 +62,11 @@ SELECT
     r.updatePending,
     r.active
 FROM RankedPrices r
-LEFT JOIN ecommdata.precios p 
-    ON p.ref_id = r.skuRefid 
-    AND (p.id_tienda_janis = (SELECT id_janis FROM ecommdata.tiendas WHERE id = '0053')
-     OR p.id_tienda_janis = (SELECT id_janis FROM ecommdata.tiendas WHERE id = '0054')
-     OR p.id_tienda_janis = (SELECT id_janis FROM ecommdata.tiendas WHERE id = '0398'))  
+INNER JOIN ecommdata.precios p
+  ON p.ref_id = r.skuRefid
+ AND p.id_tienda_janis IN (
+     SELECT id_janis FROM ecommdata.tiendas WHERE id IN ('0053', '0054', '0398')
+ ) 
 LEFT JOIN ecommdata.tiendas t 
     ON t.id_janis = p.id_tienda_janis  
 WHERE r.rn = 1;

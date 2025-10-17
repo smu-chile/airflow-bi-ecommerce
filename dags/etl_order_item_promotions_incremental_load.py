@@ -9,6 +9,8 @@ from utils.janis_utils import load_custom_query_to_s3
 
 from datetime import datetime
 
+import pendulum
+
 def _get_new_orders_from_s3(ts):
     import pandas as pd
 
@@ -141,7 +143,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promociones desde Janis Replica hasta Workspace.",
     schedule_interval="*/30 * * * *",
-    start_date=datetime(2022, 2, 1),
+    start_date=pendulum.datetime(2022, 2, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "orden_producto_promociones", "unimarc", "cyber", "MATIAS"],

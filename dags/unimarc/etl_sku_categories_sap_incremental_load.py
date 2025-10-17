@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 
@@ -87,7 +87,7 @@ with DAG(
     'etl_sku_categorias_datawarehouse_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental sku_categories data from datawarehouse.",
-    schedule_interval="30 7 * * *",
+    schedule_interval="45 7 * * *",
     start_date=pendulum.datetime(2022, 8, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -113,7 +113,7 @@ with DAG(
 
     t1 = PythonOperator(
         task_id = "extract_sku_hierarchy_table_from_dw_to_s3",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT SH.SKU_PRODUCT
@@ -123,7 +123,7 @@ with DAG(
                     , SH.SEC_DSC 
                     , SH.NEG_DSC 
                     , SH.LIN_DESC
-                FROM DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` SH
                 WHERE SH.SKU_PRODUCT IS NOT NULL
                 AND SH.SKU_PRODUCT <> 'REF_S210'
                 AND SH.GRUPO_DSC <> 'Sin asignar';

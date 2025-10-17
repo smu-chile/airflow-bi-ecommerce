@@ -5,6 +5,54 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from datetime import datetime, timedelta
 
+import pendulum
+
+# Funcion auxiliar para carga de dataframes con upsert
+def _upsert_records(df, table_name, engine, schema="ecommdata"):
+    import numpy as np
+    import pandas as pd
+
+    if df.empty:
+        print("No records to insert.")
+        return
+
+    # Auto-cast para columnas de fecha (imitando to_sql)
+    for col in df.columns:
+        if col.lower().startswith("fecha"):
+            df[col] = pd.to_datetime(df[col], errors="coerce", utc=True)
+
+    columns = [c for c in df.columns if c != "id"]
+    columns_query = ",".join(columns)
+    excluded_query = ",".join([f"EXCLUDED.{c}" for c in columns])
+    values_query = "%s," + ",".join(["%s" for _ in columns])
+
+    df = df.fillna("NULL")
+    records = list(df.to_records(index=False))
+
+    fixed_records = []
+    for record in records:
+        fixed_record = []
+        for value in record:
+            if isinstance(value, np.generic):
+                fixed_record.append(value.item())
+            elif value == "NULL":
+                fixed_record.append(None)
+            else:
+                fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+
+    incremental_query = f"""
+        INSERT INTO {schema}.{table_name} (id,{columns_query})
+        VALUES ({values_query})
+        ON CONFLICT (id)
+        DO UPDATE SET ({columns_query}) = ({excluded_query});
+    """
+    print(f"Upserting {len(fixed_records)} records into {table_name}...")
+
+    with engine.begin() as conn:
+        conn.execute(incremental_query, fixed_records)
+
+
 def _payments_incremental_load(ts):
     import pandas as pd
     import pymongo
@@ -99,13 +147,7 @@ def _payments_incremental_load(ts):
 
     # Se insertan los datos
     print(f"Insertando {len(df.index)} registros...")
-    df.to_sql(name='mw_pagos', 
-        con=engine, 
-        schema='ecommdata',
-        if_exists='append', 
-        index=False,
-        chunksize=20000,
-        method='multi')
+    _upsert_records(df, "mw_pagos", engine)
 
     return
 
@@ -201,13 +243,7 @@ def _operations_incremental_load(ts, ti):
 
     # Se insertan los datos
     print(f"Insertando {len(df.index)} registros...")
-    df.to_sql(name='mw_operaciones', 
-        con=engine, 
-        schema='ecommdata',
-        if_exists='append', 
-        index=False,
-        chunksize=20000,
-        method='multi')
+    _upsert_records(df, "mw_operaciones", engine)
 
     # Send id lists to S3
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -416,13 +452,7 @@ def _interactions_incremental_load(ti):
 
     # Se insertan los datos
     print(f"Insertando {len(df.index)} registros...")
-    df.to_sql(name='mw_interacciones_tbk', 
-        con=engine, 
-        schema='ecommdata',
-        if_exists='append', 
-        index=False,
-        chunksize=20000,
-        method='multi')
+    _upsert_records(df, "mw_interacciones_tbk", engine)
 
     return
 
@@ -515,13 +545,7 @@ def _inscriptions_incremental_load(ts):
 
     # Se insertan los datos
     print(f"Insertando {len(df.index)} registros...")
-    df.to_sql(name='mw_inscripciones', 
-        con=engine, 
-        schema='ecommdata',
-        if_exists='append', 
-        index=False,
-        chunksize=20000,
-        method='multi')
+    _upsert_records(df, "mw_inscripciones", engine)
 
     return
 
@@ -825,8 +849,8 @@ with DAG(
     'etl_mw_pagos_tablas_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tablas: pagos; operaciones e interacciones desde Middleware de Pagos hasta el Workspace en Postgresql.",
-    schedule_interval="0 8 * * *",
-    start_date=datetime(2022, 4, 1),
+    schedule_interval="0 */3 * * *",
+    start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones", "mw_inscripciones", "MATIAS"],

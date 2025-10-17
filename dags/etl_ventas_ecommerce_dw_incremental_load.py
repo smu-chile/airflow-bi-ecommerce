@@ -8,6 +8,8 @@ from utils.netezza_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
 
+import pendulum
+
 def _ventas_dw_incremental_load(ti):
     import pandas as pd
     import numpy as np
@@ -197,11 +199,11 @@ with DAG(
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VE.PRODUCT_KEY = P.PRODUCT_KEY
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON P.SKU_KEY = S.SKU_KEY 
                 LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON SH.SKU_KEY = S.SKU_KEY
-                LEFT JOIN NZ_BU.ECOMERCE.VW_FACT_MARKET_BASKET_E_COMMERCE FMB ON VE.MARKET_BASKET_KEY = FMB.MARKET_BASKET_KEY 
+                LEFT JOIN DWC_SMU.SMU.VW_FACT_MARKET_BASKET_E_COMMERCE FMB ON VE.MARKET_BASKET_KEY = FMB.MARKET_BASKET_KEY 
                 WHERE FECHA BETWEEN TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days'
                                     AND TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
             """,
-            "query_name": "NZ_BU.ECOMERCE.VW_FACT_VENTA_E_COMMERCE"
+            "query_name": "DWC_SMU.SMU.VW_FACT_VENTA_E_COMMERCE"
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),

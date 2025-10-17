@@ -25,7 +25,7 @@ select
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
 , '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' as ultima_actualizacion
-, l.material is not null and l.excluido is false as surtido_ecommerce
+	, l.material is not null and l.excluido is false and l.bloq_centro is null and l.bloq_formato is null and l.catalogado is true as surtido_ecommerce
 , case
 	when li.material is null then false
 	else true
@@ -39,7 +39,13 @@ left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
 left join ecommdata.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
 left join ecommdata.lista_infaltables li on p.material = li.material
-where t.status = 1 and (b.dock_activo is true);
+where t.status = 1 and (b.dock_activo is true)
+and NOT (
+	(t.id = '0018' AND b.id = '9051') OR
+	(t.id = '0069' AND b.id = '0576') OR
+	(t.id = '0088' AND b.id = '0324')
+)
+;
 DELETE from ecommdata.stock
 WHERE ultima_actualizacion < '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' AND fecha = '{{ds}}'::date;
 COMMIT;

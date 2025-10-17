@@ -9,6 +9,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+import pendulum
+
 def _get_correct_max_transaction_date(ti):
     max_transaction_date = ti.xcom_pull(key="return_value", task_ids="get_max_transaction_date")
     if max_transaction_date is None:
@@ -240,7 +242,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla atributos desde Janis Unimarc Replica hasta Workspace.",
     schedule_interval="*/30 * * * *",
-    start_date=datetime(2023, 3, 27),
+    start_date=pendulum.datetime(2023, 3, 27, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "pagos_janis", "Unimarc", "MATIAS"],
 ) as dag:

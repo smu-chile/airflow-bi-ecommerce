@@ -9,6 +9,8 @@ from utils.postgres_utils import get_max_updated_at_value
 
 from datetime import datetime
 
+import pendulum
+
 def _incremental_load_invoices_table(ti):
     import numpy as np
     import pandas as pd
@@ -182,7 +184,7 @@ with DAG(
     default_args=default_args,
     description="Extracción y carga de tabla facturas desde Janis Unimarc Replica hasta Workspace.",
     schedule_interval="30 * * * *",
-    start_date=datetime(2022, 7, 1),
+    start_date=pendulum.datetime(2022, 7, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "facturas", "Unimarc", "MATIAS"],

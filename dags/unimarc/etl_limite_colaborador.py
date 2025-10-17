@@ -62,7 +62,7 @@ def get_users_for_limit():
         cur.executemany(insert_query, values)
 
     conn.commit()
-    print(f"✅ {len(df_success)} filas insertadas en 'excluidos_colaborador'.")
+    print(f"✅ {len(df_success)} filas revisadas.")
     
     conn.close()
 
@@ -73,10 +73,8 @@ def get_users_for_limit():
 def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
     import requests
     import time
-    """
-    Intenta actualizar el campo xConvenio en VTEX con reintentos en caso de fallo.
-    """
-    API_URL = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL"
+
+    API_URL = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL/search"
     API_KEY = Variable.get("X_VTEX_API_AppKey")
     API_TOKEN = Variable.get("X_VTEX_API_AppToken")
 
@@ -88,7 +86,38 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
         "Connection": "keep-alive"
     }
 
-    update_url = f"{API_URL}/documents"
+    # 1. Obtener valor actual de xConvenio filtrando por userId
+    query_params = {
+        "userId": document_id,
+        "_fields": "xConvenio,userId"
+    }
+
+    print(f"🔹 Revisando - userId: {document_id}")
+
+    response_get = requests.get(API_URL, headers=HEADERS, params=query_params)
+
+    if response_get.status_code != 200:
+        print(f"⚠️ No se pudo obtener xConvenio para {document_id}. Status: {response_get.status_code}")
+        return False
+
+    data = response_get.json()
+
+    if not data:
+        print(f"⚠️ No se encontró ningún documento con userId = {document_id}.")
+        return False
+
+    current_value = data[0].get("xConvenio")
+    current_value = current_value.strip().lower() if current_value else ""
+
+    if current_value == "baja":
+        print(f"⛔ Usuario {document_id} tiene xConvenio='Baja'. No se actualiza.")
+        return False
+    if current_value == "":
+        print(f"⚠️ xConvenio para {document_id} está vacío. No se actualiza.")
+        return False
+
+    # 2. PATCH si pasó validación
+    update_url = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL/documents"
     update_payload = {
         "userId": document_id,
         "xConvenio": xConvenio_value
@@ -98,84 +127,18 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
         response = requests.patch(update_url, json=update_payload, headers=HEADERS)
 
         if response.status_code == 200:
-            print(f"✅ xConvenio actualizado para {document_id} con valor {xConvenio_value} en intento {attempt + 1}")
+            print(f"✅ xConvenio actualizado para {document_id} con valor '{xConvenio_value}' (intento {attempt + 1})")
             return True
         elif response.status_code == 304:
-            print(f"ℹ️ xConvenio para {document_id} ya estaba con el valor {xConvenio_value}, no se necesita actualizar.")
+            print(f"ℹ️ xConvenio para {document_id} ya estaba con el valor '{xConvenio_value}'.")
             return True
         else:
-            print(f"⚠️ Error al actualizar xConvenio ({document_id}), intento {attempt + 1}: {response.status_code}")
-            time.sleep(delay)  # Espera antes de reintentar
+            print(f"⚠️ Error PATCH en {document_id} intento {attempt + 1}: {response.status_code}")
+            time.sleep(delay)
 
     print(f"❌ Fallo definitivo en la actualización de {document_id} tras {max_retries} intentos.")
     return False
 
-#📌 Función Mensual: Reasigna xConvenio
-def reasign_process():
-    import psycopg2
-    import pandas as pd
-    
-    """
-    Proceso mensual que recupera los datos de 'excluidos_colaborador' y reasigna xConvenio en VTEX.
-    """
-    print("🔹 Iniciando proceso de reasignación de xConvenio...")
-
-    conn = psycopg2.connect(
-        host=Variable.get("POSTGRESQL_HOST"),
-        database=Variable.get("POSTGRESQL_DB"),
-        user=Variable.get("POSTGRESQL_USER"),
-        password=Variable.get("POSTGRESQL_PASSWORD"),
-        port="5432"
-    )
-
-    query = """
-        SELECT user_profile_id, descuento_colaborador, descuento_referido 
-        FROM ecommdata.excluidos_colaborador;
-    """
-
-    df_users = pd.read_sql_query(query, conn)
-
-    print(df_users.info())
-
-    conn.close()
-
-    if df_users.empty:
-        print("⚠️ No hay usuarios para reasignar xConvenio este mes.")
-        return
-
-    print(f"🔹 Se encontraron {len(df_users)} usuarios para actualizar.")
-    for _, row in df_users.iterrows():
-        user_id = row["user_profile_id"]
-        
-        # Asigna el valor de xConvenio según las condiciones
-        print(f"Procesando usuario {user_id} - descuento_colaborador: {row['descuento_colaborador']}, descuento_referido: {row['descuento_referido']}")
-        if row["descuento_colaborador"] < 0:
-            xConvenio_value = "Unimarc"
-        elif row["descuento_referido"] < 0:
-            xConvenio_value = "referido2023"
-        else:
-            continue  # Si no cumple ninguna condición, no se actualiza
-        actualizar_xConvenio(user_id, xConvenio_value)
-    
-    # 📌 Truncar la tabla 'excluidos_colaborador' después de reasignar xConvenio
-    conn = psycopg2.connect(
-        host=Variable.get("POSTGRESQL_HOST"),
-        database=Variable.get("POSTGRESQL_DB"),
-        user=Variable.get("POSTGRESQL_USER"),
-        password=Variable.get("POSTGRESQL_PASSWORD"),
-        port="5432"
-    )
-
-    # Ejecutar el comando TRUNCATE para vaciar la tabla
-    with conn.cursor() as cur:
-        truncate_query = "TRUNCATE TABLE ecommdata.excluidos_colaborador;"
-        cur.execute(truncate_query)
-        conn.commit()
-        print("✅ Tabla 'excluidos_colaborador' truncada exitosamente.")
-
-    conn.close()
-    print("✅ Proceso de reasignación de xConvenio finalizado.")
-    return
 
 # 📌 Configuración base
 default_args = {
@@ -190,7 +153,7 @@ with DAG(
     'etl_limite_colaborador',
     default_args=default_args,
     description="Limite de colaboradores y referidos.",
-    schedule_interval="0 4 * * *",  # 🔹 Se ejecuta todos los días a las 4 AM
+    schedule_interval="45 */8 * * *",  # Se ejecuta cada 8 horas
     start_date=pendulum.datetime(2025, 3, 31, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -205,25 +168,3 @@ with DAG(
     )
 
     t0  # 🔹 Ejecuta diariamente
-
-
-# 📌 DAG Mensual (Reasignation Task)
-with DAG(
-    'etl_reasignacion_colaborador',
-    default_args=default_args,
-    description="Proceso mensual de reasignacion de colaboradores excluidos.",
-    schedule_interval="0 0 1 * *",  # 🔹 Se ejecuta el 1 de cada mes a las 00:00
-    start_date=pendulum.datetime(2025, 4, 1, tz="America/Santiago"),
-    catchup=False,
-    max_active_runs=1, 
-    tags=["VTEX","xConvenio","Master Data", "colaborador", "Mensual", "KEVIN"]
-) as dag_mensual:
-
-    dag_mensual.doc_md = "🔹 Proceso de reasignacion que se ejecuta una vez al mes."
-
-    t0 = PythonOperator(
-        task_id="reasign_process",
-        python_callable=reasign_process
-    )
-
-    t0  # 🔹 Ejecuta mensualmente

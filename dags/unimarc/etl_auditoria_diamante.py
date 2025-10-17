@@ -1,0 +1,229 @@
+from airflow import DAG
+from airflow.operators.python import PythonOperator
+from airflow.models import Variable
+import pendulum
+from datetime import datetime
+
+def marcar_colaboradores():
+    import psycopg2
+    import pandas as pd
+    import requests
+    from datetime import datetime
+
+    # 📌 Variables de conexión
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+
+    conn = psycopg2.connect(
+        host=host,
+        port="5432",
+        dbname=database,
+        user=username,
+        password=password,
+    )
+
+    # ✅ Usuarios actuales (query de membresías)
+    query_actuales = """
+    SELECT DISTINCT
+      pu.id_cliente_janis,
+      pu.user_profile_id,
+      mpupi.rut,
+      du.nombre,
+      du.apellido,
+      du.email
+    FROM power_bi.membresias_por_user_profile_id mpupi 
+    LEFT JOIN ecommdata.calendario c 
+      ON mpupi.fecha_inicio <= c.fecha AND mpupi.fecha_fin >= c.fecha 
+    LEFT JOIN analytics_and_growth.perfil_usuario pu 
+      ON mpupi.user_profile_id = pu.user_profile_id 
+    LEFT JOIN analytics_and_growth.detalle_usuario du 
+      ON mpupi.user_profile_id = du.user_profile_id 
+    WHERE c.fecha = current_date
+      AND mpupi.estado IN ('confirmada', 'renovada')
+      AND pu.id_cliente_janis IS NOT NULL
+      AND du.email IS NOT NULL;
+    """
+    df_actuales = pd.read_sql(query_actuales, conn)
+
+    # 📥 Cargar estado anterior desde tabla viva
+    query_anteriores = "SELECT * FROM ecommdata.auditoria_diamante;"
+    df_anteriores = pd.read_sql(query_anteriores, conn)
+
+    # 🧠 Identificar usuarios nuevos y salientes
+    actuales_set = set(df_actuales['rut'].astype(str))
+    anteriores_set = set(df_anteriores['dni'].astype(str))
+
+    nuevos = actuales_set - anteriores_set
+    salientes = anteriores_set - actuales_set
+
+    # 🔐 API Config
+    JANIS_API_KEY = Variable.get("JANIS_API_KEY")
+    JANIS_API_SECRET = Variable.get("JANIS_API_SECRET")
+    JANIS_CLIENT = Variable.get("JANIS_CLIENT")
+
+    HEADERS = {
+        "janis-api-key": JANIS_API_KEY,
+        "janis-api-secret": JANIS_API_SECRET,
+        "janis-client": JANIS_CLIENT,
+        "Connection": "keep-alive",
+        "Content-Type": "application/json"
+    }
+
+    url = "https://janis.in/api/customer/"
+    resultados = []
+
+    # ▶️ Activar usuarios nuevos
+    for _, row in df_actuales[df_actuales['rut'].astype(str).isin(nuevos)].iterrows():
+        usuario = {
+            "documentType": "rutCHL",
+            "dni": row["rut"],
+            "firstname": row["nombre"],
+            "lastname": row["apellido"],
+            "email": row["email"],
+            "active": True,
+            "associate": True,
+            "points_card": "1111111111111111"
+        }
+
+        try:
+            response = requests.post(url, json=[usuario], headers=HEADERS)
+            status_code = response.status_code
+            response_text = response.text
+        except Exception as e:
+            status_code = 500
+            response_text = str(e)
+
+        resultados.append({
+            "dni": usuario["dni"],
+            "email": usuario["email"],
+            "status_code": status_code,
+            "response": response_text,
+            "timestamp": datetime.now()
+        })
+
+        if status_code == 200:
+            print(f"🟢 Activado Associate: {usuario['email']} → {status_code}")
+        else:
+            print(f"❌ Error activando Associate: {usuario['email']} → {status_code} | Respuesta: {response_text}")
+
+
+    # ⛔ Desactivar usuarios que salieron
+    for _, row in df_anteriores[df_anteriores['dni'].astype(str).isin(salientes)].iterrows():
+        usuario = {
+            "documentType": "rutCHL",
+            "dni": row["dni"],
+            "firstname": row["nombre"],
+            "lastname": row["apellido"],
+            "email": row["email"],
+            "active": True,
+            "associate": False,
+            "points_card": "1111111111111111"
+        }
+        try:
+            response = requests.post(url, json=[usuario], headers=HEADERS)
+            status_code = response.status_code
+            response_text = response.text
+        except Exception as e:
+            status_code = 500
+            response_text = str(e)
+
+        resultados.append({
+            "dni": usuario["dni"],
+            "email": usuario["email"],
+            "status_code": status_code,
+            "response": response_text,
+            "timestamp": datetime.now()
+        })
+    
+        if status_code == 200:
+            print(f"🔴 Desactivado Associate: {usuario['email']} → {status_code}")
+        else:
+            print(f"❌ Error desactivando Associate: {usuario['email']} → {status_code} | Respuesta: {response_text}")
+
+
+    # 💾 Actualizar tabla viva SOLO con activaciones exitosas
+    df_resultados = pd.DataFrame(resultados)
+
+    # ✅ Filtrar activaciones exitosas
+    activaciones_exitosas = df_resultados[df_resultados["status_code"] == 200]["dni"].astype(str)
+
+    # ✅ Usuarios nuevos activados exitosamente
+    df_nuevos_activados = df_actuales[df_actuales["rut"].astype(str).isin(activaciones_exitosas)]
+
+    # ✅ Usuarios que ya estaban antes y siguen activos hoy
+    ruts_nuevos = set(activaciones_exitosas)
+    ruts_actuales = set(df_actuales["rut"].astype(str))
+    ruts_anteriores = set(df_anteriores["dni"].astype(str))
+
+    ruts_ya_estaban = ruts_actuales & ruts_anteriores - ruts_nuevos
+
+    df_ya_estaban = df_actuales[df_actuales["rut"].astype(str).isin(ruts_ya_estaban)]
+
+    # ✅ Unión final: todos los activos válidos
+    df_total_activos = pd.concat([df_nuevos_activados, df_ya_estaban])
+
+    # 🔄 Eliminar solo usuarios que ya no están activos
+    with conn.cursor() as cursor:
+        if not df_total_activos.empty:
+            cursor.execute("""
+                DELETE FROM ecommdata.auditoria_diamante
+                WHERE dni NOT IN %s;
+            """, (tuple(df_total_activos['rut'].astype(str)),))
+
+        # Insertar/actualizar activos
+        for _, row in df_total_activos.iterrows():
+            cursor.execute("""
+                INSERT INTO ecommdata.auditoria_diamante (
+                    dni, email, user_profile_id, id_cliente_janis, nombre, apellido, modificado_en
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (dni) DO UPDATE SET
+                    email = EXCLUDED.email,
+                    user_profile_id = EXCLUDED.user_profile_id,
+                    id_cliente_janis = EXCLUDED.id_cliente_janis,
+                    nombre = EXCLUDED.nombre,
+                    apellido = EXCLUDED.apellido,
+                    modificado_en = EXCLUDED.modificado_en;
+            """, (
+                str(row["rut"]),
+                row["email"],
+                str(row["user_profile_id"]),
+                str(row["id_cliente_janis"]),
+                row["nombre"],
+                row["apellido"],
+                datetime.now()
+            ))
+
+    conn.commit()
+    conn.close()
+
+    print(f"🔍 Usuarios activados: {len(nuevos)}")
+    print(f"🔍 Usuarios desactivados: {len(salientes)}")
+
+# DAG
+default_args = {
+    'owner': 'ecommerce_data',
+    'depends_on_past': False,
+    'retries': 0,
+}
+
+with DAG(
+    'etl_auditoria_diamante',
+    default_args=default_args,
+    description='DAG de marcación de colaboradores en Janis para auditorías',
+    schedule_interval="30 7 * * *",  # todos los días a las 7:30 AM
+    start_date=pendulum.datetime(2025, 4, 10, tz="America/Santiago"),
+    catchup=False,
+    tags=["associate", "JANIS", "Clientes", "KEVIN", "Unimarc"],
+) as dag:
+    dag.doc_md = """
+    Gestion de campo associate de clientes en Janis para auditorias.\n
+    """ 
+    t0 = PythonOperator(
+        task_id='marcar_colaboradores_api',
+        python_callable=marcar_colaboradores,
+    )
+
+t0
