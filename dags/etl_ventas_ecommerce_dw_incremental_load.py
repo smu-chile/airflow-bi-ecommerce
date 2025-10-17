@@ -156,7 +156,7 @@ with DAG(
     "etl_ventas_ecommerce_datawarehouse_incremental_load",
     default_args=default_args,
     description="Extracción diaria de ventas ecommerce de DataWarehouse.",
-    schedule_interval="30 11 * * *",
+    schedule_interval="0 5,7 * * *" , # 5:00 y 7:00 am
     start_date=datetime(2020, 8, 1),
     catchup=True,
     max_active_runs=1,
