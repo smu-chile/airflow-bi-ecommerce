@@ -6,9 +6,27 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
+from airflow.operators.python import BranchPythonOperator
+from airflow.operators.dummy import DummyOperator  
+from airflow.operators.python import get_current_context
+
 
 import pendulum
 
+
+def branch_8am():
+    ctx = get_current_context()
+
+    # el "slot" que está corriendo
+    end = ctx["data_interval_end"]  
+    end_cl = end.in_timezone("America/Santiago")
+
+    print(f"[BRANCH] start={ctx['data_interval_start']} end={end} | CL end={end_cl} | hour={end_cl.hour}")
+
+    # si el slot es el de las 08:00 CL → manda alerta
+    return "get_and_send_cargas_csv" if end_cl.hour == 8 else "skip_send"
+
+    
 def lista8():
     import pandas as pd
     promociones_query = """select concat(l.material,'-',l.umv) as ref_id, l.id_tienda
@@ -17,10 +35,18 @@ def lista8():
                             from ecommdata.ubicacion_mfc um 
                             where mfc_is_item_side = 'REG') as ubi
                             on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
-                        where ubi.ref_id is null
+                        where ubi.ref_id is null 
+                        and not (
+                            coalesce(l.bloq_centro,0) = 2
+                            OR coalesce(l.bloq_formato,0) = 2
+                            )
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
-                        from ecommdata.lista8 l
+                        from ecommdata.lista8 l 
+                        where not (
+                            coalesce(l.bloq_centro,0) = 2
+                            OR coalesce(l.bloq_formato,0) = 2
+                            )
                         union
                         select distinct pc.ref_id, '0053' as id_tienda
                         from ecommdata.publicacion_catalogo pc
@@ -36,9 +62,10 @@ def lista8():
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
-                        union
-                        select *
-                        from ecommdata.lista8_extra le 
+                        AND NOT (
+                            coalesce(l.bloq_centro,0) = 2
+                            OR coalesce(l.bloq_formato,0) = 2
+                        )
                         """
     print(promociones_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -76,7 +103,8 @@ def tiendas():
     import pandas as pd
     tiendas_query = """select id, status, nombre_tienda_janis
                     from ecommdata.tiendas t 
-                    where status = 1"""
+                    where status = 1
+                    and t.id not in ('1917')"""
     print(tiendas_query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -232,7 +260,7 @@ def load_tables_to_s3(ts,ds):
     lista_skus = df_skus['ref_id'].unique()
     df_exclusions = excluidos_x_tiendas_tiendas[excluidos_x_tiendas_tiendas['ref_id'].isin(lista_skus)]
     df_exclusions = df_exclusions[["ref_id"]]
-    print(f"\ncantidad de registros en excluidos con skus validos: {len(df_lista8.index)}\n")
+    print(f"\ncantidad de registros en excluidos con skus validos: {len(df_exclusions.index)}\n")
     ##tiendas activcas
     df_tiendas = df_tiendas[["id_tienda"]]
     series_active_stores = df_tiendas['id_tienda'].unique()
@@ -428,6 +456,99 @@ def load_tables_to_postgres(ti):
 
     return
 
+def _upload_to_slack(file_name: str, data_bytes: bytes, channel_id: str, token: str):
+    import requests, json
+    # 1) pedir URL de subida
+    upload_url_resp = requests.post(
+        "https://slack.com/api/files.getUploadURLExternal",
+        data={
+            "filename": file_name,
+            "length": str(len(data_bytes)),
+            "token": token,
+        }
+    ).json()
+    upload_url = upload_url_resp.get("upload_url")
+    file_id    = upload_url_resp.get("file_id")
+    if not upload_url:
+        raise RuntimeError(f"Error getUploadURLExternal: {upload_url_resp}")
+
+    # 2) subir bytes
+    up_resp = requests.post(
+        upload_url,
+        data=data_bytes,
+        headers={"Content-Type": "application/octet-stream"}
+    )
+    if up_resp.status_code != 200:
+        raise RuntimeError(f"Error subiendo {file_name}: {up_resp.text}")
+
+    # 3) completar subida
+    comp = requests.post(
+        "https://slack.com/api/files.completeUploadExternal",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json"
+        },
+        data=json.dumps({
+            "files": [{"id": file_id}],
+            "channel_id": channel_id,
+            "initial_comment": f"📎<!channel> [Unimarc] Ya se puede cargar {file_name}! :cat0:"
+        })
+    ).json()
+    if not comp.get("ok"):
+        raise RuntimeError(f"Error completeUploadExternal {file_name}: {comp}")
+
+
+def get_and_send_cargas_csv():
+    """
+    Ejecuta 2 queries en Postgres (carga_productos y carga_skus)
+    y sube 2 CSV separados a Slack.
+    """
+    import pandas as pd
+    import io
+
+    # conexiones / vars
+    pg_hook   = PostgresHook(postgres_conn_id="postgresql_conn")
+    engine    = pg_hook.get_sqlalchemy_engine()
+    token     = Variable.get("token_slack_bot")
+    channel_id = Variable.get("token_slack_carga_tiendas")  # mismo var que ya usas
+    fecha_str = str(pendulum.now("America/Santiago").date())
+
+    # queries tal cual las pediste
+    SQL_PRODUCTOS = """
+        select CONCAT("refId",';',stores,';',publish,';',"updatePending",';',visible,';',active)
+               as "refId;stores;publish;updatePending;visible;active"
+        from ecommdata.carga_productos
+    """
+    SQL_SKUS = """
+        select CONCAT("refId",';',publish,';',"updatePending",';',active)
+               as "refId;publish;updatePending;active"
+        from ecommdata.carga_skus
+    """
+
+    # ejecutar y exportar a CSV (separador coma; el contenido ya viene con ';' embebido)
+    df_prod = pd.read_sql(SQL_PRODUCTOS, engine)
+    df_skus = pd.read_sql(SQL_SKUS, engine)
+
+    # si no hay filas, igual subimos un CSV con solo cabecera pa que quede trazabilidad
+    buf_prod = io.StringIO()
+    buf_skus = io.StringIO()
+    df_prod.to_csv(buf_prod, index=False)  # header incluido
+    df_skus.to_csv(buf_skus, index=False)
+
+    # a bytes
+    bytes_prod = buf_prod.getvalue().encode("utf-8")
+    bytes_skus = buf_skus.getvalue().encode("utf-8")
+
+    # nombres bonitos
+    file_prod = f"carga_productos_{fecha_str}.csv"
+    file_skus = f"carga_skus_{fecha_str}.csv"
+
+    # subir a Slack
+    _upload_to_slack(file_prod, bytes_prod, channel_id, token)
+    _upload_to_slack(file_skus, bytes_skus, channel_id, token)
+
+    print(f"✅ CSVs enviados: {file_prod}, {file_skus}")
+
 
 default_args = {
     "owner": "ecommerce_data",
@@ -475,6 +596,21 @@ with DAG(
         task_id = "load_tables_to_postgres",
         python_callable = load_tables_to_postgres,
     )
-    
 
-    t0 >> t1 >> t2 >> t3
+    t4 = PythonOperator(
+        task_id = "get_and_send_cargas_csv",
+        python_callable = get_and_send_cargas_csv,
+    )
+
+    t_b = BranchPythonOperator(
+        task_id="branch_check_8am",
+        python_callable=branch_8am,
+    )
+
+    t_end = DummyOperator(
+        task_id="skip_send"
+    )
+
+    t0 >> t1 >> t2 >> t3 >> t_b
+    t_b >> t4
+    t_b >> t_end

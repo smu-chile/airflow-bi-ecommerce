@@ -6,7 +6,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 import pendulum
 
@@ -104,7 +104,7 @@ with DAG(
     'etl_minimos_exhibicion',
     default_args=default_args,
     description="cargar minimos de exhibicion a tabla en postgresql",
-    schedule_interval="30 7 * * *",
+    schedule_interval="0 8 * * *",
     start_date=pendulum.datetime(2024, 2, 19, tz="America/Santiago"),
     catchup=False,
     tags=["DATA","minimos_exhibicion", "unimarc", "DW", "PATRICIO"],
@@ -117,15 +117,15 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT h.SKU_PRODUCT,h.UMB, STORE_H.STORE_ID, STORE_H."STORE", STORE_H.ORG_IP , h.SKU_NM , s.MINIMO_EXHIBICION, s.PLANOGRAMADO_FLG,
+                SELECT h.SKU_PRODUCT,h.UMB, STORE_H.STORE_ID, STORE_H.STORE, STORE_H.ORG_IP , h.SKU_NM , s.MINIMO_EXHIBICION, s.PLANOGRAMADO_FLG,
                 s.STOCK_SEGURIDAD, s.IN_OUT , s.CATALOGADO, s.PLANOGRAMADO_CANTIDAD
-                FROM DWC_SMU.SMU.VW_DIM_ou_sku s
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY h
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_OU_SKU` s
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` h
                 ON s.SKU_KEY = h.SKU_KEY 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE_HIERARCHY` STORE_H
                 ON STORE_H.STORE_KEY = s.STORE_KEY  
                 WHERE STORE_H.ORG_IP ='Unimarc'
                 AND h.SKU_PRODUCT <> '000000000000000000'

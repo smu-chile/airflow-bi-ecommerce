@@ -5,7 +5,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -250,7 +250,7 @@ with DAG(
 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT H.SKU_KEY,H.SKU_PRODUCT, H.GRUPO_KEY, H.GRUPO_ID, H.GRUPO_DSC, H.CATEGORIA_KEY, H.CAT_ID, H.CAT_DSC,
@@ -258,9 +258,9 @@ with DAG(
                 H.SKU_NM, H.PROCEDENCIA,H.BRAND_KEY , H.BRAND_ID, H.BRAND_DESC , H.UMB, H.UMP, H.UMCONT, H.DESC_TIPO_MATERIAL,
                 H.DESC_CATEGORIA_MATERIAL, H.ENVASE, E.DESCRIPCION, H.PESO_NETO, H.PESO_BRUTO, S.SUPPLIER_KEY, S.SUPPLIER_ID, S.SUPPLIER_NM,
                 S.SUPPLIER_TYPE, S.SUPPLIER_RETAIL, S.NUESTRO_100, H.MARCA_PROPIA
-                FROM DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY AS H
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SUPPLIER AS S on H.PROVEEDOR_PPAL_KEY = S.SUPPLIER_KEY
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_ENVASE AS E on E.CODIGO = H.ENVASE
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` AS H
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SUPPLIER` AS S on H.PROVEEDOR_PPAL_KEY = S.SUPPLIER_KEY
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ENVASE` AS E on E.CODIGO = H.ENVASE
             """,
             "query_name": "HIERARCHYxSUPPLIER_query"
         },

@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime
 
@@ -13,6 +13,8 @@ import pendulum
 def _load_stores_table(ti, ds):
     import pandas as pd
     import sqlalchemy
+    from sqlalchemy import Table, MetaData
+    from sqlalchemy.dialects.postgresql import insert
     
     stores_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
 
@@ -33,9 +35,6 @@ def _load_stores_table(ti, ds):
     columns_rename = {
             "STORE_ID" : "id_tienda",
             "STORE_NAME" : "nombre_tienda",
-            "OU_KEY" : "ou_key",
-            "STORE_KEY" : "store_key",
-            "ORG_KEY" : "org_key",
             "CANAL_DIST" : "canal_dist",
             "ORG_COMPRAS" : "org_compras",
             "ORG_VENTAS" : "org_ventas",
@@ -61,14 +60,32 @@ def _load_stores_table(ti, ds):
     engine = sqlalchemy.create_engine(conn_url)
 
     # Save to PostgreSQL:
-    df.to_sql(name="tiendas_dw",
-                con=engine,         
-                schema="ecommdata",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
-    print("Data loaded to Postgres")
+    md = MetaData(schema="ecommdata")
+    tiendas = Table("tiendas_dw", md, autoload_with=engine)
+
+    # Preparar el INSERT…ON CONFLICT
+    records = df.to_dict(orient="records")
+    stmt = insert(tiendas).values(records)
+    # `id_tienda` es PRIMARY KEY
+    stmt = stmt.on_conflict_do_nothing(index_elements=["id_tienda"])
+
+    # Sólo actualizamos las columnas que queremos, excluyendo 'zona' y PK:
+    excluded = stmt.excluded
+    cols_to_upd = {
+        c.name: getattr(excluded, c.name)
+        for c in tiendas.columns
+        if c.name not in ("id_tienda", "zona")
+    }
+
+    stmt = stmt.on_conflict_do_update(
+        index_elements=["id_tienda"],
+        set_=cols_to_upd
+    )
+
+    # Ejecución
+    with engine.begin() as conn:
+        result = conn.execute(stmt)
+        print(f"{result.rowcount} filas nuevas insertadas (el resto se ignoró por conflicto)")
 
     return
 
@@ -91,32 +108,33 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    Extracción y carga de tiendas desde DW hasta Workspace.
+    Extracción y carga de tiendas desde DW hasta Workspace.\n
+    Es un Upsert de la tabla `ecommdata.tiendas_dw` en el Workspace.
     """ 
     
     t0 = PythonOperator(
         task_id = "load_custom_query_to_s3",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
-            "query": """SELECT STORE_ID, STORE_NAME, OU_KEY, STORE_KEY, ORG_KEY, CANAL_DIST, ORG_COMPRAS, ORG_VENTAS, CITY_ID, COUNTY_DESC
-            FROM DWC_SMU.SMU.VW_DIM_STORE
+            "query": """SELECT STORE_ID, STORE_NAME, CANAL_DIST, ORG_COMPRAS, ORG_VENTAS, CITY_ID, COUNTY_DESC
+            FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE`
             WHERE STORE_ID <> '200' AND CANAL_DIST IS NOT NULL;
             """,
             "query_name": "tiendas_dw",
         }
     )
 
-    t1 = PostgresOperator(
-        task_id = "clear_table",
-        postgres_conn_id="postgresql_conn",
-        sql="""
-        truncate ecommdata.tiendas_dw
-        """
-    )
+    #t1 = PostgresOperator(
+    #    task_id = "clear_table",
+    #    postgres_conn_id="postgresql_conn",
+    #    sql="""
+    #    truncate ecommdata.tiendas_dw
+    #    """
+    #)
 
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id = "load_stores_table",
         python_callable = _load_stores_table
     )
 
-    t0 >> t1 >> t2
+    t0 >> t1

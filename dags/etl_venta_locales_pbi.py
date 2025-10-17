@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -116,19 +116,20 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT FECHA.DATE_VALUE,
                 S.STORE_ID,
                 STORE_H.ORG_IP,
                 ROUND(SUM(VENTAC.VENTA_NETA), 0) AS VENTA_NETA
-                FROM (((DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE VENTAC
-                JOIN DWC_SMU.SMU.VW_DIM_DATE FECHA ON ((FECHA.DATE_KEY = VENTAC.DATE_KEY))) 
-                JOIN DWC_SMU.SMU.VW_DIM_STORE S ON ((S.STORE_KEY = VENTAC.STORE_KEY))) 
-                JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H ON ((STORE_H.STORE_KEY = VENTAC.STORE_KEY))) 
-                WHERE FECHA.DATE_VALUE >= '{{ds}}'::DATE - INTERVAL '7 days'
-                GROUP BY FECHA.DATE_VALUE, S.STORE_ID, STORE_H.ORG_IP
+                FROM (((`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_REGISTRO_VENTA_CONTABLE` VENTAC
+                JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE` FECHA ON ((FECHA.DATE_KEY = VENTAC.DATE_KEY))) 
+                JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE` S ON ((S.STORE_KEY = VENTAC.STORE_KEY))) 
+                JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE_HIERARCHY` STORE_H ON ((STORE_H.STORE_KEY = VENTAC.STORE_KEY))) 
+                WHERE FECHA.DATE_VALUE >= DATE_SUB(DATE('{{ds}}'), INTERVAL 2 WEEK)
+                AND VENTAC.DATE_VALUE >= DATE_SUB(DATE('{{ds}}'), INTERVAL 2 WEEK)
+                GROUP BY 1,2,3;
             """,
             "query_name": "venta_locales_pbi"
         },

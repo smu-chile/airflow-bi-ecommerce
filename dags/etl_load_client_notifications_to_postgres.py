@@ -112,11 +112,11 @@ with DAG(
         'etl_load_client_notifications_to_postgres',
         default_args=default_args,
         description="Carga a postgres la notificación de clientes desde el orquestador mongoDB.",
-        schedule_interval="0 3 * * *",
+        schedule_interval="0 3/4 * * *",
         start_date=pendulum.datetime(2023, 3, 19, tz="America/Santiago"),
         catchup=True,
         max_active_runs = 1,
-        tags=["mongo", "postgres", "MATIAS"],
+        tags=["mongo", "postgres", "FRANCISCO"],
     ) as dag:
         dag.doc_md = """
             Carga a postgres la notificación de clientes desde el orquestador mongoDB.

@@ -3,6 +3,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from datetime import datetime
 
+import pendulum
 
 default_args = {
     "owner": "ecommerce_data",
@@ -15,8 +16,8 @@ with DAG(
     'etl_ventas_unimarc_incremental_load',
     default_args=default_args,
     description="Carga de tabla found_rate_productos",
-    schedule_interval="0 11 * * *",
-    start_date=datetime(2021, 10, 1),
+    schedule_interval="0 7 * * *",
+    start_date=pendulum.datetime(2021, 10, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
     tags=["DATA", "ventas", "ventas_unimarc", "unimarc", "MATIAS"],

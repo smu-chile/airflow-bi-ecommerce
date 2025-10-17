@@ -84,60 +84,62 @@ with DAG(
     dag.doc_md = """
     Extracción supply por sku de dw.
     """ 
-    t0 = PythonOperator(
-        task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
-        op_kwargs = {
-            "query": """
-                SELECT
-                J.SPL_RQS_DOC NroDocumento,
-                CAST(SKU_PRODUCT AS NUMERIC(18,0)) PLU_SAP60,
-                j.fecha_pedido FechaDocumento,
-                Z.DATE_VALUE FechaEntrega,
-                cast(I.OU_ID as varchar(4)) CD,
-                cast(D.OU_ID as varchar(4)) Tienda,
-                Posicion,
-                Z.DATE_VALUE,
-                sum(J.Pedido_umb) CanpedUMB,
-                sum(J.Pedido_ump) Canped,
-                Sum(J.Recibido_umb) CanrecUMB,
-                Sum(J.Recibido_ump) Canrec,
-                sum(RECIBIDO_A_TIEMPO_UMB) CanRecTiempoUMB,
-                sum(RECIBIDO_A_TIEMPO_UMP) CanRecTiempo
-                FROM DWC_SMU.SMU.VW_FACT_COMPRAS AS J
-                INNER JOIN (
-                    select SPL_RQS_DOC,SKU_KEY,max(DATE_VALUE)DATE_VALUE
-                    from DWC_SMU.SMU.VW_FACT_COMPRAS_ESPERADO
-                    where cast(DATE_VALUE as date) >= '{{ds}}'::DATE-6
-                    AND SKU_KEY NOT IN (4719571)
-                    group by SPL_RQS_DOC,SKU_KEY
-                    )Z 
-                on J.SPL_RQS_DOC=Z.SPL_RQS_DOC AND J.SKU_KEY=Z.SKU_KEY
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT D ON J.OU_RECEP_KEY=D.OU_KEY --DIM_ORGANIZATION_UNIT
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY E ON J.SKU_KEY=E.SKU_KEY --DIM_SKU_HIERARCHY
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT I ON J.OU_PROV_KEY=I.OU_KEY --DIM_ORGANIZATION_UNIT
-                where D.OU_ID = '0442'
-                AND Z.DATE_VALUE <= '{{ds}}'::DATE+1
-                group by J.SPL_RQS_DOC,
-                CAST(SKU_PRODUCT AS NUMERIC(18,0)),
-                j.fecha_pedido,
-                Z.DATE_VALUE,
-                cast(I.OU_ID as varchar(4)) ,
-                cast(D.OU_ID as varchar(4)) ,
-                POSICION
-                HAVING sum(J.Pedido_ump)>0 
-            """,
-            "query_name": "supply"
-        },
-        retries = 2,
-        retry_delay = timedelta(minutes=1),
-        execution_timeout = timedelta(minutes=60),
-        pool = "backfill_pool"
-    )
+#    t0 = PythonOperator(
+#        task_id = "extract_data_from_dw",
+#        python_callable = load_custom_query_to_s3,
+#        op_kwargs = {
+#            "query": """
+#                SELECT
+#                J.SPL_RQS_DOC                                           AS NroDocumento,
+#                SAFE_CAST(E.SKU_PRODUCT AS INT64)                       AS PLU_SAP60,   -- numérico en BQ (sin (18,0))
+#                J.fecha_pedido                                          AS FechaDocumento,
+#                Z.DATE_VALUE                                            AS FechaEntrega,
+#                SUBSTR(CAST(I.OU_ID AS STRING), 1, 4)                   AS CD,          -- VARCHAR -> STRING
+#                SUBSTR(CAST(D.OU_ID AS STRING), 1, 4)                   AS Tienda,
+#                J.POSICION                                              AS Posicion,
+#                SUM(J.Pedido_umb)                                       AS CanpedUMB,
+#                SUM(J.Pedido_ump)                                       AS Canped,
+#                SUM(J.Recibido_umb)                                     AS CanrecUMB,
+#                SUM(J.Recibido_ump)                                     AS Canrec,
+#                SUM(J.RECIBIDO_A_TIEMPO_UMB)                            AS CanRecTiempoUMB,
+#                SUM(J.RECIBIDO_A_TIEMPO_UMP)                            AS CanRecTiempo
+#                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS` AS J
+#                JOIN (
+#                SELECT
+#                    SPL_RQS_DOC,
+#                    SKU_KEY,
+#                    MAX(DATE_VALUE) AS DATE_VALUE
+#                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS_ESPERADO`
+#                WHERE DATE_VALUE BETWEEN DATE_SUB(DATE '{{ds}}', INTERVAL 6 DAY)
+#                                    AND DATE_ADD (DATE '{{ds}}', INTERVAL 1 DAY)
+#                    AND SKU_KEY != MD5('SKU^CL^SMC^000000000000900827')
+#                GROUP BY SPL_RQS_DOC, SKU_KEY
+#                ) AS Z
+#                ON J.SPL_RQS_DOC = Z.SPL_RQS_DOC
+#                AND J.SKU_KEY     = Z.SKU_KEY
+#                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` AS D
+#                ON J.OU_RECEP_KEY = D.OU_KEY
+#                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY`     AS E
+#                ON J.SKU_KEY      = E.SKU_KEY
+#                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` AS I
+#                ON J.OU_PROV_KEY  = I.OU_KEY
+#                WHERE D.OU_ID = '0442'
+#                GROUP BY
+#                NroDocumento, PLU_SAP60, FechaDocumento, FechaEntrega, CD, Tienda, Posicion
+#                HAVING SUM(J.Pedido_ump) > 0;
+#
+#            """,
+#            "query_name": "supply"
+#        },
+#        retries = 2,
+#        retry_delay = timedelta(minutes=1),
+#        execution_timeout = timedelta(minutes=60),
+#        pool = "backfill_pool"
+#    )
+#
+#    t1= PythonOperator(
+#        task_id = "load_to_postgres",
+#        python_callable = _load_to_postgres
+#    )
 
-    t1= PythonOperator(
-        task_id = "load_to_postgres",
-        python_callable = _load_to_postgres
-    )
-
-t0 >> t1
+#t0 >> t1
