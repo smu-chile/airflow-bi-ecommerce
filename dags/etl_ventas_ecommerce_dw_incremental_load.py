@@ -159,7 +159,7 @@ with DAG(
     default_args=default_args,
     description="Extracción diaria de ventas ecommerce de DataWarehouse.",
     schedule_interval="30 5,7,9,11,13,15,17,19,21 * * *",
-    start_date=datetime(2020, 8, 1),
+    start_date=pendulum.datetime(2020, 8, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
     concurrency=2,
