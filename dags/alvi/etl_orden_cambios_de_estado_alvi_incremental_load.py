@@ -11,6 +11,25 @@ from datetime import datetime
 
 import pendulum
 
+def get_json(x):
+    import json
+    try:
+       return json.loads(x)
+    except Exception as e:
+        return None
+
+def get_old_store_from_json(x):
+    try:
+        return x["old_store"]
+    except Exception as e:
+        return None
+    
+def get_new_store_from_json(x):
+    try:
+        return x["new_store"]
+    except Exception as e:
+        return None
+
 def _incremental_load_order_status_changes(ti):
     import pandas as pd
     import numpy as np
@@ -41,7 +60,8 @@ def _incremental_load_order_status_changes(ti):
             "old_status",
             "new_status",
             "user_created",
-            "date_created"
+            "date_created",
+            "extra"
             ]]
 
     # Rename columns to match workspace schema:
@@ -56,6 +76,23 @@ def _incremental_load_order_status_changes(ti):
 
     # Calculate extra columns:
     df["fecha_creacion"] = pd.to_datetime(df["fecha_creacion_unixtime"], unit="s")
+    temp_extra_jsons = df["extra"].apply(lambda x: get_json(x))
+
+    df["tienda_vieja"] = temp_extra_jsons.apply(lambda x: get_old_store_from_json(x))
+    df["tienda_nueva"] = temp_extra_jsons.apply(lambda x: get_new_store_from_json(x))
+
+    df = df[[
+            "id",
+            "id_orden",
+            "estado_anterior",
+            "estado_nuevo",
+            "creado_por",
+            "fecha_creacion_unixtime",
+            "fecha_creacion",
+            "extra",
+            "tienda_vieja",
+            "tienda_nueva"
+            ]]
 
     df = df.astype({
         "id": "int",
@@ -72,7 +109,10 @@ def _incremental_load_order_status_changes(ti):
         "estado_nuevo",
         "creado_por",
         "fecha_creacion_unixtime",
-        "fecha_creacion"
+        "fecha_creacion",
+        "extra",
+        "tienda_vieja",
+        "tienda_nueva"
     ]
 
     print("Number of records to be loaded: "+str(len(df.index)))
