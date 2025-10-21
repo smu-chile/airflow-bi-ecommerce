@@ -44,7 +44,7 @@ def _get_stock_from_bigquery(ti, ds):
         ds,
         stock_query,
         "stock_datawarehouse",
-        base_path="integraciones/last_millers/stock/datawarehouse/test/"
+        base_path="integraciones/last_millers/stock/datawarehouse/"
     )
 def _load_stock_to_postgres(ti):
     import pandas as pd
@@ -91,7 +91,7 @@ def _get_products_from_bigquery(ds):
         ds,
         products_query,
         "productos",
-        base_path="integraciones/last_millers/stock/datawarehouse/test/"
+        base_path="integraciones/last_millers/stock/datawarehouse/"
     )
 def _load_products_to_postgres(ti):
     import pandas as pd
