@@ -34,6 +34,9 @@ def _get_stock_from_bigquery(ti, ds):
 
     ids_tiendas_str = str(tuple(ids_tiendas))
 
+    exec_date = macros.ds_add(ds, 0)
+    exec_date = exec_date.replace("-", "/")
+
     with open("/opt/airflow/dags/integrations/sql/stock_datawarehouse.sql", "r") as query_file:
         base_query = query_file.read()
 
@@ -41,10 +44,10 @@ def _get_stock_from_bigquery(ti, ds):
 
     # usar util que saca el query de BQ y lo sube a S3
     return load_custom_bq_query_to_s3(
-        ds,
+        exec_date,
         stock_query,
         "stock_datawarehouse",
-        base_path="integraciones/last_millers/stock/datawarehouse/test/"
+        base_path="integraciones/last_millers/stock/datawarehouse/"
     )
 def _load_stock_to_postgres(ti):
     import pandas as pd
@@ -83,15 +86,17 @@ def _load_stock_to_postgres(ti):
     return
 
 def _get_products_from_bigquery(ds):
+    exec_date = macros.ds_add(ds, 1)
+    exec_date = exec_date.replace("-", "/")
     with open("/opt/airflow/dags/integrations/sql/productos.sql", "r") as query_file:
         products_query = query_file.read()
 
     # se usa util directamente
     return load_custom_bq_query_to_s3(
-        ds,
+        exec_date,
         products_query,
         "productos",
-        base_path="integraciones/last_millers/stock/datawarehouse/test/"
+        base_path="integraciones/last_millers/stock/datawarehouse/"
     )
 def _load_products_to_postgres(ti):
     import pandas as pd
