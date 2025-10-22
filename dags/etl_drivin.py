@@ -1303,14 +1303,13 @@ def drivin_entrega_prueba_to_s3(ts, ds):
 def drivin_entrega_prueba_to_postgres(ti, ts):
     import pandas as pd
     import numpy as np
+    import json
     from airflow.providers.amazon.aws.hooks.s3 import S3Hook
     from airflow.providers.postgres.hooks.postgres import PostgresHook
     from airflow.models import Variable
 
-    # Recuperar nombre del archivo desde XCom (generado en task to_s3)
-    filename = ti.xcom_pull(key="return_value", task_ids=["drivin_entrega_prueba_to_s3"])[0]
 
-    # Variables y conexiones de Airflow
+    filename = ti.xcom_pull(key="return_value", task_ids=["drivin_entrega_prueba_to_s3"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -1318,7 +1317,6 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
         raise Exception(f"❌ El archivo {filename} no existe en S3.")
 
-    # Descargar archivo desde S3
     hook_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
     df = pd.read_csv(hook_object.get()["Body"])
 
@@ -1328,11 +1326,10 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
 
     print(f"📊 Registros extraídos: {len(df.index)}")
 
-    # Agregar timestamp de ejecución
     df["fecha_hora"] = ts
 
     # =========================
-    # Definir columnas esperadas
+    # Colummnas
     # =========================
     item_keys = [
         "planned_date", "description", "scenario_token", "vehicle_code", "vehicle_description",
@@ -1363,63 +1360,71 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
     columns = item_keys + [f"order_{k}" for k in order_keys]
 
     # =========================
-    # Normalizar DataFrame
+    # Normalización y limpieza
     # =========================
-    # Mapear "code" → "order_code" para usar como PK
     df.rename(columns={"code": "order_code"}, inplace=True)
 
-    # Asegurar columnas requeridas
     required_columns = ["order_code"]
     missing_cols = [col for col in required_columns if col not in df.columns]
     if missing_cols:
         raise Exception(f"❌ Faltan columnas esperadas en el DataFrame: {missing_cols}")
 
-    # Rellenar nulos con None (maneja NaN, NaT, etc.)
+    # Reemplazar NaN y strings nulos
     df = df.replace({np.nan: None, pd.NaT: None, "NaN": None, "nan": None})
 
+    # =========================
+    # Conversión a tipos válidos
+    # =========================
+    json_columns = {"images", "custom_fields", "events", "pdf_pod", "signature"}
+    records = list(df[columns].to_records(index=False))
+    fixed_records = []
+
+    for record in records:
+        fixed_record = []
+        for col_name, value in zip(columns, record):
+            # Convertir numpy -> Python nativo
+            if isinstance(value, np.generic):
+                value = value.item()
+            # Convertir listas o dicts a JSON válido
+            if col_name in json_columns and value not in (None, "", "null"):
+                try:
+                    # Si ya es string JSON, validar
+                    if isinstance(value, str):
+                        json.loads(value)
+                    else:
+                        value = json.dumps(value)
+                except Exception:
+                    # Forzar conversión segura
+                    value = json.dumps(str(value))
+            fixed_record.append(value)
+        fixed_records.append(tuple(fixed_record))
+
+    print(f"📤 Registros a cargar en Postgres: {len(fixed_records)}")
 
     # =========================
-    # Construir query de upsert
+    # Query de UPSERT
     # =========================
     columns_query = ",".join(columns)
     excluded_query = ",".join([f"EXCLUDED.{col}" for col in columns])
     values_query = ",".join(["%s"] * len(columns))
 
-    records = list(df[columns].to_records(index=False))
-
-    # Convertir a tipos compatibles con psycopg2
-    fixed_records = []
-    for record in records:
-        fixed_record = []
-        for value in record:
-            if isinstance(value, np.generic):
-                fixed_record.append(value.item())
-            else:
-                fixed_record.append(value)
-        fixed_records.append(tuple(fixed_record))
-
-    print(f"📤 Registros a cargar en Postgres: {len(fixed_records)}")
-
     incremental_query = f"""
-        INSERT INTO ecommdata.drivin_entrega_prueba ({columns_query}) 
+        INSERT INTO ecommdata.drivin_entrega_prueba ({columns_query})
         VALUES ({values_query})
         ON CONFLICT (order_code)
         DO UPDATE SET ({columns_query}) = ({excluded_query});
     """
 
     # =========================
-    # Cargar a Postgres
+    # Carga a Postgres
     # =========================
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.executemany(incremental_query, fixed_records)
-    pg_connection.commit()
-    cursor.close()
-    pg_connection.close()
+    with pg_hook.get_conn() as conn:
+        with conn.cursor() as cursor:
+            cursor.executemany(incremental_query, fixed_records)
+            conn.commit()
 
-    print("✅ Datos cargados en Postgres: ecommdata.drivin_entrega_prueba")
-    return
+    print("✅ Datos cargados correctamente en Postgres: ecommdata.drivin_entrega_prueba")
 
 default_args = {
     "owner": "ecommerce_data",
