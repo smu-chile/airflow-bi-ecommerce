@@ -139,7 +139,7 @@ SELECT
 	                    	) THEN ((wp.importe_negociado)*op.unidades_pickeadas)*-1
         ELSE 0 
     END)::int AS desfase_sellout,
-    sustituciones.perdida_sustitucion::int,
+    coalesce(sustituciones.perdida_sustitucion, 0)::int as perdida_sustitucion,
     venta_neta.venta_total_neta_sin_descuentos::int,
     venta_neta.venta_total_neta::int
 FROM 
