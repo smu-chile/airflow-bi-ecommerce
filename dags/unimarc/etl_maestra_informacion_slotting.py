@@ -45,51 +45,34 @@ def render_netezza_view():
 
 def render_netezza_view_2():
 
-    sql_str = """SELECT
-        J.SPL_RQS_DOC AS NroDocumento,
-        CAST(SKU_PRODUCT AS NUMERIC) AS PLU_SAP60,
-        j.fecha_pedido AS FechaDocumento,
-        Z.DATE_VALUE AS FechaEntrega,
-        CAST(I.OU_ID AS STRING) AS CD,
-        CAST(D.OU_ID AS STRING) AS Tienda,
-        Posicion,
-        Z.DATE_VALUE,
-        SUM(J.Pedido_umb) AS CanpedUMB,
-        SUM(J.Pedido_ump) AS Canped,
-        SUM(J.Recibido_umb) AS CanrecUMB,
-        SUM(J.Recibido_ump) AS Canrec,
-        SUM(RECIBIDO_A_TIEMPO_UMB) AS CanRecTiempoUMB,
-        SUM(RECIBIDO_A_TIEMPO_UMP) AS CanRecTiempo
-        FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS` AS J
-        INNER JOIN (
-        SELECT
-            SPL_RQS_DOC,
-            SKU_KEY,
-            MAX(DATE_VALUE) AS DATE_VALUE
-        FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS_ESPERADO`
-        WHERE DATE(DATE_VALUE) >= DATE_SUB(CURRENT_DATE(), INTERVAL 120 DAY)
-            AND SKU_KEY <> MD5('SKU^CL^SMC^000000000000900827')  -- si SKU_KEY es STRING hex, usa TO_HEX(MD5(...))
-        GROUP BY SPL_RQS_DOC, SKU_KEY
-        ) AS Z
-        ON J.SPL_RQS_DOC = Z.SPL_RQS_DOC
-        AND J.SKU_KEY      = Z.SKU_KEY
-        LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` D
-        ON J.OU_RECEP_KEY = D.OU_KEY
-        LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` E
-        ON J.SKU_KEY = E.SKU_KEY
-        LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` I
-        ON J.OU_PROV_KEY = I.OU_KEY
-        WHERE D.OU_ID = '1917'
-        AND DATE(Z.DATE_VALUE) <= CURRENT_DATE()
-        GROUP BY
-        J.SPL_RQS_DOC,
-        CAST(SKU_PRODUCT AS NUMERIC),
-        j.fecha_pedido,
-        Z.DATE_VALUE,
-        CAST(I.OU_ID AS STRING),
-        CAST(D.OU_ID AS STRING),
-        POSICION
-        HAVING SUM(J.Pedido_ump) > 0;
+    sql_str = """SELECT 
+                    CAST(SKU_PRODUCT AS string) AS material,
+                    Z.DATE_VALUE AS ultimo_recibido,
+                    CAST(I.OU_ID AS STRING) AS CD,
+                    SUM(J.Pedido_ump) AS cant_pedida,
+                    SUM(J.Recibido_ump) AS cant_recibida,
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS` AS J
+                    INNER JOIN (
+                        SELECT
+                        SPL_RQS_DOC,
+                        SKU_KEY,
+                        MAX(DATE_VALUE) AS DATE_VALUE
+                        FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_COMPRAS_ESPERADO`
+                        WHERE DATE(DATE_VALUE) >= DATE_SUB(CURRENT_DATE(), INTERVAL 120 DAY)
+                            AND SKU_KEY <> MD5('SKU^CL^SMC^000000000000900827') 
+                        GROUP BY 1,2 ) AS Z
+                            ON J.SPL_RQS_DOC = Z.SPL_RQS_DOC
+                            AND J.SKU_KEY = Z.SKU_KEY
+                    LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` D
+                        ON J.OU_RECEP_KEY = D.OU_KEY
+                    LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` E
+                        ON J.SKU_KEY = E.SKU_KEY
+                    LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ORGANIZATION_UNIT` I
+                        ON J.OU_PROV_KEY = I.OU_KEY
+                WHERE D.OU_ID = '1917'
+                    AND DATE(Z.DATE_VALUE) <= CURRENT_DATE()
+                    AND DATE(Z.DATE_VALUE) >= DATE_SUB(CURRENT_DATE(), INTERVAL 120 day)
+                GROUP BY 1,2,3;
         """
     print(sql_str)
 
