@@ -40,6 +40,7 @@ SELECT DISTINCT
         and wp.nombre_promocion not ilike '%LOC%'
         and wp.nombre_promocion not ilike '%ANDINA%'
         and wp.nombre_promocion not ilike '%EMBONOR%'
+        and wp.nombre_promocion not ilike '%MIGRACION%'
         and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
         and s.vtex_id is not null
         and wp.precio_promocional > 0
