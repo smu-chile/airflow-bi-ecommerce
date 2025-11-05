@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 
@@ -171,40 +171,40 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_last_7_days_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT
-            1 AS MARKET_BASKET_KEY,
-            FRVC.STORE_KEY,
-            FRVC.DATE_KEY,
-            FRVC.PRODUCT_KEY,
-            DS.STORE_ID AS CENTRO,
-            DCF.CLASE_FACT_COD AS TIPO_DOC,
-            FRVC.DATE_VALUE AS FECHA,
-            P.EAN AS PTR_CODPROD,
-            'MercadoLibre' AS CANAL_VENTA,
-            1 AS NUM_TRXN,
-            1 AS POS,
-            '1' AS PEDIDO,
-            FRVC.VENTA_UMV,
-            FRVC.VENTA_BRUTA,
-            FRVC.VENTA_NETA,
-            '1' AS MARKET_BASKET_NK,
-            FRVC.DATE_VALUE AS DS_INSERTION,
-            P.UNIDAD_DE_MEDIDA , S.SKU_PRODUCT, S.BRAND_DESC, SH.GRUPO_DSC, SH.CAT_DSC, SH.LIN_DESC, SH.SEC_DSC, SH.NEG_DSC
-            FROM ((((DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE FRVC
-            JOIN DWC_SMU.SMU.VW_DIM_STORE DS USING (STORE_KEY))
-            JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P USING (PRODUCT_KEY))
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON P.SKU_KEY = S.SKU_KEY 
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON SH.SKU_KEY = S.SKU_KEY
-            JOIN DWC_SMU.SMU.VW_DIM_DATE C USING (DATE_KEY))
-            JOIN DWC_SMU.SMU.VW_DIM_CLASE_FACTURA DCF ON ((DCF.CLASE_FACT_KEY = FRVC.CLASE_FACTURA_KEY)))
-            WHERE FRVC.DATE_VALUE BETWEEN TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days'
-                                    AND TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
-            AND (DS.STORE_ID = '0100'::"VARCHAR")
+                	1 AS MARKET_BASKET_KEY,
+                	FRVC.STORE_KEY,
+                	FRVC.DATE_KEY,
+                	FRVC.PRODUCT_KEY,
+                	DS.STORE_ID AS CENTRO,
+                	DCF.CLASE_FACT_COD AS TIPO_DOC,
+                	FRVC.DATE_VALUE AS FECHA,
+                	P.EAN AS PTR_CODPROD,
+                	'MercadoLibre' AS CANAL_VENTA,
+                	1 AS NUM_TRXN,
+                	1 AS POS,
+                	'1' AS PEDIDO,
+                	FRVC.VENTA_UMV,
+                	FRVC.VENTA_BRUTA,
+                	FRVC.VENTA_NETA,
+                	'1' AS MARKET_BASKET_NK,
+                	FRVC.DATE_VALUE AS DS_INSERTION,
+                	P.UNIDAD_DE_MEDIDA , S.SKU_PRODUCT, S.BRAND_DESC, SH.GRUPO_DSC, SH.CAT_DSC, SH.LIN_DESC, SH.SEC_DSC, SH.NEG_DSC
+                FROM ((((cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_REGISTRO_VENTA_CONTABLE FRVC
+                	JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE DS USING (STORE_KEY))
+                	JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PRODUCT P USING (PRODUCT_KEY))
+                	LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR S ON P.SKU_KEY = S.SKU_KEY 
+                	LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY SH ON SH.SKU_KEY = S.SKU_KEY
+                	JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_DATE C USING (DATE_KEY))
+                	JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_CLASE_FACTURA DCF ON ((DCF.CLASE_FACT_KEY = FRVC.CLASE_FACTURA_KEY)))
+                		WHERE FRVC.DATE_VALUE BETWEEN DATE_SUB(CAST(current_date AS DATE), interval 7 day)
+                                                    AND CAST(current_date AS DATE)
+                AND (DS.STORE_ID = '0100');
             """,
-            "query_name": "NZ_BU.ECOMERCE.VW_FACT_VENTA_MELI"
+            "query_name": "NZ_BU.ECOMERCE.VW_FACT_VENTA_MELI" #Se mantiene nombre para trazabilidad
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
