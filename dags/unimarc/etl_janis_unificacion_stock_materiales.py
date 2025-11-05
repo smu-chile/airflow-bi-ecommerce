@@ -4,117 +4,103 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
+from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime
 import pendulum
 
+def query_to_df(query):
+    import pandas as pd
+
+    print(query)
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+    cursor.execute(query)
+    column_names = [desc[0] for desc in cursor.description]
+    results = cursor.fetchall()
+    results = pd.DataFrame(results, columns=column_names)
+    print(results.head(20))
+    cursor.close()
+    pg_connection.close()
+    return results
 
 def _send_stock_sap_to_janis(ds):
-    import jaydebeapi
-    import os
     import pandas as pd
     import requests
     import json
     from collections import defaultdict
     from airflow.models import Variable
-    from airflow.macros import ds_add
 
-    # 📅 Fecha de ejecución
-    exec_date = ds_add(ds, 0).replace("-", "/")
 
-    # 🔐 Conexión a DW
-    dsn_database = Variable.get("DW_SECRET_DATABASE")
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480"
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver"
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-    conn_str = f"jdbc:netezza://{dsn_hostname}:{dsn_port}/{dsn_database}"
-    conn = jaydebeapi.connect(jdbc_driver_name, conn_str, {'user': dsn_uid, 'password': dsn_pwd}, jars=jdbc_driver_loc)
-    cursor = conn.cursor()
 
     # 📄 Query embebida desde SAP
     query = f"""
-        SELECT SA.SKU_PRODUCT   
-            , OU.OU_ID
-            , S.NBR_ITM AS STOCK
-        FROM DWC_SMU.SMU.VW_FACT_STOCK S
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA ON SA.SKU_KEY  = S.SKU_KEY
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU ON OU.OU_KEY = S.OU_KEY
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION O ON OU.ORG_KEY = O.ORGANIZATION_KEY
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A ON A.ALMACEN_KEY =S.ALMACEN_KEY
-        LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
-        WHERE OU.OU_ID NOT IN ('0053', '0054', '0398')
-        AND OU.OU_ID IN ('0469',
-        '0069',
-        '0472',
-        '0458',
-        '0109',
-        '0465',
-        '0903',
-        '0333',
-        '0347',
-        '0917',
-        '0336',
-        '0332',
-        '0581',
-        '0717',
-        '0017',
-        '0375',
-        '0788',
-        '0959',
-        '0914',
-        '0920',
-        '0034',
-        '0111',
-        '1917',
-        '0445',
-        '0778',
-        '0025',
-        '0686',
-        '0086',
-        '0464',
-        '0681',
-        '0755',
-        '0442',
-        '0736',
-        '0713',
-        '0761',
-        '0345',
-        '0344',
-        '0626',
-        '0021',
-        '0007',
-        '0441',
-        '0600',
-        '0028',
-        '0767',
-        '0916',
-        '0018',
-        '0089',
-        '0362',
-        '0327',
-        '0088')
-        AND O.PRIM_CMRCL_NM IN ('Unimarc') 
-        AND S.DATE_VALUE = current_date
-        AND S.APLICA_STOCK = 'S'
-        AND A.ALMACEN_COD = '0001'
-        AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
-        AND PART.PARTICULARIDAD_COD = 'A'
-        AND S.NBR_ITM > 0
-        AND sa.SKU_PRODUCT IN ('000000000000051712', '000000000000051813',
+        select sdb.sku_product AS SKU_PRODUCT   
+            , sdb.id_tienda as OU_ID
+            , sdb.nbr_item AS STOCK
+        from ecommdata.stock_dw_bq sdb 
+        where sdb.id_tienda in ('0469',
+            '0069',
+            '0472',
+            '0458',
+            '0109',
+            '0465',
+            '0903',
+            '0333',
+            '0347',
+            '0917',
+            '0336',
+            '0332',
+            '0581',
+            '0717',
+            '0017',
+            '0375',
+            '0788',
+            '0959',
+            '0914',
+            '0920',
+            '0034',
+            '0111',
+            '1917',
+            '0445',
+            '0778',
+            '0025',
+            '0686',
+            '0086',
+            '0464',
+            '0681',
+            '0755',
+            '0442',
+            '0736',
+            '0713',
+            '0761',
+            '0345',
+            '0344',
+            '0626',
+            '0021',
+            '0007',
+            '0441',
+            '0600',
+            '0028',
+            '0767',
+            '0916',
+            '0018',
+            '0089',
+            '0362',
+            '0327',
+            '0088'
+        )
+        and sdb.fecha = current_date
+        and sdb.nbr_item > 0
+        and sdb.SKU_PRODUCT IN ('000000000000051712', '000000000000051813',
                 '000000000000051728', '000000000000051845',
                 '000000000000051802', '000000000000668742',
                 '000000000000051806', '000000000000674766',
                 '000000000000038087', '000000000000038088')
-        GROUP BY 1,2,3;
     """
-
-    cursor.execute(query)
-    columns = [i[0] for i in cursor.description]
-    rows = cursor.fetchall()
-    df = pd.DataFrame(rows, columns=columns)
+    
+    df = query_to_df(query)
     print(f"🔍 Filas extraídas desde DW: {len(df)}")
 
     if df.empty:
