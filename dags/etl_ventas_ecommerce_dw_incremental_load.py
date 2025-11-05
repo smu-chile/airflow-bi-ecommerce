@@ -171,7 +171,7 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_last_7_days_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT 
