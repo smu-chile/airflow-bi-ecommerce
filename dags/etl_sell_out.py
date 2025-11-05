@@ -6,45 +6,22 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from utils.bigquery_utils import bq_query_to_df
 
 import pendulum
 
 from datetime import datetime, timedelta
 
 def render_netezza_view(ds):
-    import jaydebeapi
-    import os
-    import pandas as pd
-
-    sql_str= f"""SELECT * FROM DWC_SMU.SELLOUT.VW_FACT_CUBO_ECOMMERCE_PRINCIPAL  
-                WHERE FECHA_CREACION_VTEX >= '{ds}'::date-1
-                AND FECHA_CREACION_VTEX < '{ds}'::date"""
+    
+    sql_str= f"""SELECT * FROM cl-cda-prod.DS_CDA_BI_USR.FACT_CUBO_ECOMMERCE_PRINCIPAL  
+                WHERE CAST(FECHA_CREACION_VTEX AS DATE)>= cast('{ds}' AS DATE)
+                AND FECHA_CREACION_VTEX < CAST('{ds}' AS DATE)"""
     
     print(sql_str)
 
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DWC_SELLOUT_USER")
-    dsn_pwd = Variable.get("DWC_SELLOUT_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
+    df = bq_query_to_df(sql_str)
     
-    conn = jaydebeapi.connect(jdbc_driver_name, 
-                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
-                                jars=jdbc_driver_loc)
-
-    cur = conn.cursor()
-    cur.execute(sql_str)
-    columns = [desc[0] for desc in cur.description]
-    rows = cur.fetchall()
-    df = pd.DataFrame(rows, columns=columns)
-    print(df)
-    cur.close()
-    conn.close()
-
     return df
 
 
