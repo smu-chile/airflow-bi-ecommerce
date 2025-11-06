@@ -5,10 +5,9 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
-from google.cloud import bigquery
-import pandas as pd
-import sqlalchemy
-from sqlalchemy import text
+
+from utils.bigquery import bq_query_to_df
+
 import pendulum
 from datetime import datetime, timedelta
 
@@ -88,16 +87,8 @@ def render_bigquery_data():
     
     print("Iniciando conexión a BigQuery y ejecución de query.")
 
-    # Conexión a BigQuery: Usa Application Default Credentials (ADC) o la 
-    # conexión de Google Cloud configurada en Airflow.
-    client = bigquery.Client() 
-    
-    # Ejecutar la query y cargar los resultados a un DataFrame
-    df = client.query(sql_str).to_dataframe()
-    
-    print("✅ Extracción de datos de BigQuery correcta.")
+    df = bq_query_to_df(sql_str)
 
-    # Filtrar/Ordenar columnas para asegurar consistencia
     column_order = ['N_PROMOCION','NOMBRE_PROMOCION','CANAL_DISTRIBUCION','ID_EVENTO',
                     'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
                     'MATERIAL','DESC_MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
