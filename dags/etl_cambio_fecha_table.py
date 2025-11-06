@@ -1,215 +1,132 @@
 from airflow import DAG
-from airflow import macros
-from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+# Importaciones clave para BigQuery y Pandas
+from google.cloud import bigquery
+import pandas as pd
+
+# Importaciones para PostgreSQL (solo para la carga y truncate)
+import sqlalchemy
+from sqlalchemy import text
 
 import pendulum
-
 from datetime import datetime, timedelta
 
-def render_netezza_view():
-    from io import StringIO
-    import os
-    import jaydebeapi
-    import pandas as pd
+# =================================================================
+# FUNCIONES PYTHON
+# =================================================================
 
-
-    sql_str= f"""WITH DatosConRank AS (
-            SELECT 
-                MATERIAL,
-                N_PROMOCION,
-                NOMBRE_PROMOCION,
-                ID_EVENTO,
-                DESCRIPCION_EVENTO_PROMOCIONAL,
-                ID_MECANICA,
-                DESCRIPCION_MECANICA,
-                DESC_MATERIAL,
-                UN_MEDIDA_VENTA,
-                EAN,
-                PRECIO_MODAL,
-                PRECIO_MODAL_TOTAL,
-                PRECIO_PROMOCIONAL,
-                PRECIO_TOTAL_PROMOCIONAL,
-                CANAL_DISTRIBUCION,
-                FECHA_INICIO_DE_PROMOCION,
-                FECHA_FIN_DE_PROMOCION,
-                ultima_carga,
-                ORGANIZACION_VENTAS,
-                ROW_NUMBER() OVER (PARTITION BY MATERIAL ORDER BY FECHA_INICIO_DE_PROMOCION DESC) AS rn
-            FROM DWC_SMU.SMU.VW_FACT_WORKFLOW
-        )
-        SELECT 
-            actual.N_PROMOCION,
-            actual.NOMBRE_PROMOCION,
-            actual.CANAL_DISTRIBUCION,
-            actual.ID_EVENTO,
-            actual.DESCRIPCION_EVENTO_PROMOCIONAL,
-            actual.ID_MECANICA,
-            actual.DESCRIPCION_MECANICA,
-            actual.MATERIAL,
-            actual.DESC_MATERIAL,
-            actual.UN_MEDIDA_VENTA,
-            actual.EAN,
-            actual.PRECIO_MODAL,
-            actual.PRECIO_MODAL_TOTAL,
-            actual.PRECIO_PROMOCIONAL,
-            actual.PRECIO_TOTAL_PROMOCIONAL,
-            actual.FECHA_INICIO_DE_PROMOCION ,
-            actual.FECHA_FIN_DE_PROMOCION, 
-            anterior.FECHA_INICIO_DE_PROMOCION AS FECHA_INICIO_ANTERIOR, 
-            anterior.FECHA_FIN_DE_PROMOCION AS FECHA_FIN_ANTERIOR,
-            actual.ORGANIZACION_VENTAS
-        FROM DatosConRank actual
-        LEFT JOIN DatosConRank anterior 
-            ON actual.MATERIAL = anterior.MATERIAL 
-            AND actual.rn = 1 
-            AND anterior.rn = 2
-        WHERE actual.ultima_carga = 'X'  
-        AND (actual.FECHA_INICIO_DE_PROMOCION <> anterior.FECHA_INICIO_DE_PROMOCION 
-            OR actual.FECHA_FIN_DE_PROMOCION <> anterior.FECHA_FIN_DE_PROMOCION)
-        AND ACTUAL.ORGANIZACION_VENTAS IN ('1000','7500')"""
+def render_bigquery_data():
+    """
+    Se conecta a BigQuery, ejecuta la query y devuelve los resultados 
+    como un DataFrame de Pandas.
+    """
     
-    print(sql_str)
-
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
+    # Query para BigQuery (ya adaptada con el prefijo de proyecto/dataset/tabla)
+    sql_str = """
+    WITH DatosConRank AS (
+      SELECT
+        MATERIAL,
+        N_PROMOCION,
+        NOMBRE_PROMOCION,
+        ID_EVENTO,
+        DESCRIPCION_EVENTO_PROMOCIONAL,
+        ID_MECANICA,
+        DESCRIPCION_MECANICA,
+        DESC_MATERIAL,
+        UN_MEDIDA_VENTA,
+        EAN,
+        PRECIO_MODAL,
+        PRECIO_MODAL_TOTAL,
+        PRECIO_PROMOCIONAL,
+        PRECIO_TOTAL_PROMOCIONAL,
+        CANAL_DISTRIBUCION,
+        FECHA_INICIO_DE_PROMOCION,
+        FECHA_FIN_DE_PROMOCION,
+        ultima_carga,
+        ORGANIZACION_VENTAS,
+        ROW_NUMBER() OVER (
+          PARTITION BY MATERIAL 
+          ORDER BY FECHA_INICIO_DE_PROMOCION DESC
+        ) AS rn
+      FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW`
+    )
     
-    conn = jaydebeapi.connect(jdbc_driver_name, 
-                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
-                                jars=jdbc_driver_loc)
+    SELECT
+      actual.N_PROMOCION,
+      actual.NOMBRE_PROMOCION,
+      actual.CANAL_DISTRIBUCION,
+      actual.ID_EVENTO,
+      actual.DESCRIPCION_EVENTO_PROMOCIONAL,
+      actual.ID_MECANICA,
+      actual.DESCRIPCION_MECANICA,
+      actual.MATERIAL,
+      actual.DESC_MATERIAL,
+      actual.UN_MEDIDA_VENTA,
+      actual.EAN,
+      actual.PRECIO_MODAL,
+      actual.PRECIO_MODAL_TOTAL,
+      actual.PRECIO_PROMOCIONAL,
+      actual.PRECIO_TOTAL_PROMOCIONAL,
+      actual.FECHA_INICIO_DE_PROMOCION,
+      actual.FECHA_FIN_DE_PROMOCION,
+      anterior.FECHA_INICIO_DE_PROMOCION AS FECHA_INICIO_ANTERIOR,
+      anterior.FECHA_FIN_DE_PROMOCION AS FECHA_FIN_ANTERIOR,
+      actual.ORGANIZACION_VENTAS
+    FROM DatosConRank AS actual
+    LEFT JOIN DatosConRank AS anterior
+      ON actual.MATERIAL = anterior.MATERIAL
+      AND actual.rn = 1
+      AND anterior.rn = 2
+    WHERE actual.ultima_carga = 'X'
+      AND (
+        actual.FECHA_INICIO_DE_PROMOCION <> anterior.FECHA_INICIO_DE_PROMOCION
+        OR actual.FECHA_FIN_DE_PROMOCION <> anterior.FECHA_FIN_DE_PROMOCION
+      )
+      AND actual.ORGANIZACION_VENTAS IN ('1000', '7500');
+    """
+    
+    print("Iniciando conexión a BigQuery y ejecución de query.")
 
-    cur = conn.cursor()
-    cur.execute(sql_str)
-    columns = [desc[0] for desc in cur.description]
-    rows = cur.fetchall()
-    df = pd.DataFrame(rows, columns=columns)
-    df = df[['N_PROMOCION','NOMBRE_PROMOCION','CANAL_DISTRIBUCION','ID_EVENTO',
-             'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
-             'MATERIAL','DESC_MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
-             'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','FECHA_INICIO_DE_PROMOCION',
-             'FECHA_FIN_DE_PROMOCION','FECHA_INICIO_ANTERIOR','FECHA_FIN_ANTERIOR','ORGANIZACION_VENTAS']]
-    print(df)
-    cur.close()
-    conn.close()
+    # Conexión a BigQuery: Usa Application Default Credentials (ADC) o la 
+    # conexión de Google Cloud configurada en Airflow.
+    client = bigquery.Client() 
+    
+    # Ejecutar la query y cargar los resultados a un DataFrame
+    df = client.query(sql_str).to_dataframe()
+    
+    print("✅ Extracción de datos de BigQuery correcta.")
 
+    # Filtrar/Ordenar columnas para asegurar consistencia
+    column_order = ['N_PROMOCION','NOMBRE_PROMOCION','CANAL_DISTRIBUCION','ID_EVENTO',
+                    'DESCRIPCION_EVENTO_PROMOCIONAL','ID_MECANICA','DESCRIPCION_MECANICA',
+                    'MATERIAL','DESC_MATERIAL','UN_MEDIDA_VENTA','EAN','PRECIO_MODAL','PRECIO_MODAL_TOTAL',
+                    'PRECIO_PROMOCIONAL','PRECIO_TOTAL_PROMOCIONAL','FECHA_INICIO_DE_PROMOCION',
+                    'FECHA_FIN_DE_PROMOCION','FECHA_INICIO_ANTERIOR','FECHA_FIN_ANTERIOR','ORGANIZACION_VENTAS']
+                    
+    df = df[column_order]
+    
+    print(f"Total de registros extraídos: {len(df.index)}")
     return df
 
-def promos_out_to_s3(ds):
-    import pandas as pd
-    import numpy as np
-    import io
-    from io import StringIO
 
-    print("Se comienza a ejecutar el S3")
-    exec_date = ds.replace("-", "/")
-    date_aux = ds.replace("-", "_")
-    prefix = f"promociones_comparadas/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+def promos_to_postgresql(ti):
+    """
+    Recibe el DataFrame de XCom desde la tarea anterior y lo carga 
+    directamente a PostgreSQL.
+    """
 
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    df = render_netezza_view()
-
-    print("Correcta extracion de datos de Neeteezaa")
-
-    # Cambiando columnas a minusculas
+    # Obtener el DataFrame desde la tarea 'render_bigquery_data'
+    df = ti.xcom_pull(key="return_value", task_ids=["render_bigquery_data"])[0] 
     
-    df = df[['N_PROMOCION',
-             'NOMBRE_PROMOCION',
-             'CANAL_DISTRIBUCION',
-             'ID_EVENTO',
-             'DESCRIPCION_EVENTO_PROMOCIONAL',
-             'ID_MECANICA',
-             'DESCRIPCION_MECANICA',
-             'MATERIAL',
-             'DESC_MATERIAL',
-             'UN_MEDIDA_VENTA',
-             'EAN',
-             'PRECIO_MODAL',
-             'PRECIO_PROMOCIONAL',
-             'PRECIO_TOTAL_PROMOCIONAL',
-             'FECHA_INICIO_DE_PROMOCION',
-             'FECHA_FIN_DE_PROMOCION',
-             'FECHA_INICIO_ANTERIOR',
-             'FECHA_FIN_ANTERIOR',
-             'ORGANIZACION_VENTAS']]
-    
-    print("\nHasta acá todo bien al filtrar las columnas :D\n")
-    
-    df.columns = ['N_PROMOCION',
-             'NOMBRE_PROMOCION',
-             'CANAL_DISTRIBUCION',
-             'ID_EVENTO',
-             'DESCRIPCION_EVENTO_PROMOCIONAL',
-             'ID_MECANICA',
-             'DESCRIPCION_MECANICA',
-             'MATERIAL',
-             'DESC_MATERIAL',
-             'UN_MEDIDA_VENTA',
-             'EAN',
-             'PRECIO_MODAL',
-             'PRECIO_PROMOCIONAL',
-             'PRECIO_TOTAL_PROMOCIONAL',
-             'FECHA_INICIO_DE_PROMOCION',
-             'FECHA_FIN_DE_PROMOCION',
-             'FECHA_INICIO_ANTERIOR',
-             'FECHA_FIN_ANTERIOR',
-             'ORGANIZACION_VENTAS']
-    print(df.info())
-
-    buffer = io.StringIO()
-    df.to_csv(buffer, header=True, index=False, encoding="utf-8")
-    filename = f"Promociones_comparadas/{exec_date}/promociones_comparadas{date_aux}.csv"
-    buffer.seek(0)
-    print("se transformo el dataframe a un archivo .csv")
-    print(f"con fecha {ds} y nombre de filename como {filename}")
-    s3_hook.load_string(buffer.getvalue(),
-                key=filename,
-                bucket_name=s3_bucket,
-                replace=True,
-                encrypt=False)
-    
-    print(f"File load on S3: {prefix}")
-
-    return filename
-
-def promociones_comparadas_to_postgresql(ti):
-    print("todo bien por acá")
-    import numpy as np
-    import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
-
-    filename = ti.xcom_pull(key="return_value", task_ids=["promos_out_to_s3"])[0]
-
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    print("Searching file: "+filename)
-    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % filename)
-
-    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
-
-    df = pd.read_csv(s_stock_object.get()["Body"])
-    if len(df.index) == 0:
-        print("There are no new nor updated records to load. Task will exit as successfull.")
+    if df.empty:
+        print("No hay registros para cargar. Tarea finalizada.")
         return
     
-    print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
+    print(f"Número de registros a cargar: {len(df.index)}")
 
+    # Obtención de credenciales de PostgreSQL (variables de Airflow)
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -218,6 +135,7 @@ def promociones_comparadas_to_postgresql(ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
+    # Carga a PostgreSQL
     with engine.begin() as conn:
         df.to_sql(name="promociones_comparadas",
                     con=conn,         
@@ -227,16 +145,15 @@ def promociones_comparadas_to_postgresql(ti):
                     chunksize=20000,         
                     method='multi')
 
-    print("Data saved to PostgreSQL.")
+    print("✅ Datos guardados en PostgreSQL.")
 
     return
 
+
 def truncate_table():
-    
-    import numpy as np
-    import pandas as pd
-    import sqlalchemy
-    from sqlalchemy import text
+    """
+    Lógica para truncar la tabla de PostgreSQL.
+    """
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -251,10 +168,9 @@ def truncate_table():
     connection.execute(text(truncate_query))
     connection.close()
 
-    print("Tabla borrada con exito")
+    print("✅ Tabla 'ecommdata.promociones_comparadas' truncada con éxito.")
 
     return
-    
 
 default_args = {
     "owner": "ecommerce_data",
@@ -269,31 +185,43 @@ default_args = {
 with DAG(
     'elt_cargar_promociones_comparadas',
     default_args=default_args,
-    description='Guarda promociones comparadas en S3 y las carga en la base de datos',
+    # Descripcion: Se actualiza para reflejar el uso de BigQuery y la carga directa
+    description='Extrae promociones comparadas desde BigQuery y las carga en la base de datos PostgreSQL.',
     schedule_interval='0 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "S3", "NICOLAS"]
+    # Tags: Se actualiza para reflejar el uso de BigQuery en lugar de S3
+    tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "BIGQUERY"]
 ) as dag:
 
     dag.doc_md = """
-        Carga y actualiza data de API driv.in, Rutas, Escenarios, Vehiculos, Ordene y direcciones\n
-        guardar en S3 y Upsert en postgres.
+        # ELT: Carga de Promociones Comparadas (BigQuery a PostgreSQL)
+        
+        **Flujo:**
+        1. Trunca la tabla 'ecommdata.promociones_comparadas' en PostgreSQL.
+        2. Ejecuta una query compleja en BigQuery para comparar las promociones y extrae los datos modificados.
+        3. Carga los resultados (DataFrame) directamente en la tabla de PostgreSQL.
         """ 
     # Definir las tareas
 
+    # Tarea 0: TRUNCATE (Sin cambios)
     t0 = PythonOperator(
         task_id='truncate_table',
         python_callable=truncate_table
     )
+    
+    # Tarea 1: EXTRACCIÓN de BIGQUERY (Reemplaza a la extracción a S3)
     t1 = PythonOperator(
-        task_id='promos_out_to_s3',
-        python_callable=promos_out_to_s3
+        task_id='render_bigquery_data', # Usamos el nombre de la nueva función
+        python_callable=render_bigquery_data 
     )
+    
+    # Tarea 2: CARGA a POSTGRESQL (Reemplaza a la carga desde S3)
     t2 = PythonOperator(
-        task_id='Promociones_comparadas_to_postgresql',
-        python_callable=promociones_comparadas_to_postgresql
+        task_id='promos_to_postgresql', # Usamos el nombre de la nueva función simplificada
+        python_callable=promos_to_postgresql
     )
 
+    # Definición del flujo: El DataFrame se pasa de t1 a t2 a través de XCom
     t0 >> t1 >> t2
