@@ -49,34 +49,25 @@ def extract_stock_from_dw(ti,ds,ts):
     import pandas as pd
     import io
     from io import StringIO
-    from utils.netezza_utils import load_custom_query_to_s3
+    from utils.postgres_utils import load_custom_query_to_s3
+
 
     ids_tiendas = ti.xcom_pull(key="return_value", task_ids=["get_last_millers_stores"])[0]
     ids_tiendas = [id[0] for id in ids_tiendas]
     ids_tiendas_str = str(tuple(ids_tiendas))
     print(ids_tiendas_str)
-
-    query = f"""SELECT S.NBR_ITM 
-                , S.SKU_KEY
-                , SA.SKU_PRODUCT 
-                , OU.OU_ID 
-            FROM DWC_SMU.SMU.VW_FACT_STOCK S
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA ON SA.SKU_KEY  = S.SKU_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU ON OU.OU_KEY = S.OU_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION O ON O.ORGANIZATION_KEY = OU.ORG_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A ON A.ALMACEN_KEY =S.ALMACEN_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
-            WHERE OU.OU_ID in {ids_tiendas_str}
-            AND O.PRIM_CMRCL_NM IN ('Unimarc')
-            AND S.DATE_VALUE = '{ds}'::date-1
-            AND S.APLICA_STOCK = 'S'
-            AND A.ALMACEN_COD = '0001'
-            AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
-            AND PART.PARTICULARIDAD_COD = 'A'
-            AND S.NBR_ITM > 0
-            ;"""
-    print(query)
-
+    
+    query = f"""
+    SELECT sdb.nbr_item 
+        , sdb.sku_key 
+        , sdb.sku_product 
+        , sdb.id_tienda as ou_id
+    FROM ecommdata.stock_dw_bq sdb 
+        WHERE sdb.id_tienda in {ids_tiendas_str}
+            AND sdb.org_principal IN ('Unimarc')
+            AND sdb.fecha = '{ds}'::date-1
+            AND sdb.nbr_item > 0;
+    """
     try:
         filename = load_custom_query_to_s3(ts,query,"stock_sap_query")
         print("Searching file: "+filename)
@@ -84,13 +75,13 @@ def extract_stock_from_dw(ti,ds,ts):
     except Exception as err:
         print(f"error: {err}")
         return "fallo_dw_stock"
-    
+
 def extract_product_from_dw(ts):
     import os
     import pandas as pd
     import io
     from io import StringIO
-    from utils.netezza_utils import load_custom_query_to_s3
+    from utils.bigquery_utils import load_custom_bq_query_to_s3
 
     query = f"""SELECT P.SKU_KEY
                     , P.EAN 
@@ -98,13 +89,13 @@ def extract_product_from_dw(ts):
                     , P.NM
                     , P.BRAND_DESC
                     , P.UNIDAD_DE_MEDIDA
-                FROM DWC_SMU.SMU.VW_DIM_PRODUCT P
+                FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PRODUCT P
                 WHERE p.indic_ean_ppal = 'X';
             """
     print(query)
 
     try:
-        filename = load_custom_query_to_s3(ts,query,"product_dw")
+        filename = load_custom_bq_query_to_s3(ts,query,"product_dw")
         print("Searching file: "+filename)
         return "product_to_postgresql"
     except Exception as err:
