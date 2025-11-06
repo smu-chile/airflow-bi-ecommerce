@@ -1,15 +1,14 @@
 from airflow import DAG
+from airflow import macros
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
-
-# Importaciones clave para BigQuery y Pandas
 from google.cloud import bigquery
 import pandas as pd
-
-# Importaciones para PostgreSQL (solo para la carga y truncate)
 import sqlalchemy
 from sqlalchemy import text
-
 import pendulum
 from datetime import datetime, timedelta
 
@@ -211,17 +210,14 @@ with DAG(
         python_callable=truncate_table
     )
     
-    # Tarea 1: EXTRACCIÓN de BIGQUERY (Reemplaza a la extracción a S3)
     t1 = PythonOperator(
         task_id='render_bigquery_data', # Usamos el nombre de la nueva función
         python_callable=render_bigquery_data 
     )
     
-    # Tarea 2: CARGA a POSTGRESQL (Reemplaza a la carga desde S3)
     t2 = PythonOperator(
         task_id='promos_to_postgresql', # Usamos el nombre de la nueva función simplificada
         python_callable=promos_to_postgresql
     )
 
-    # Definición del flujo: El DataFrame se pasa de t1 a t2 a través de XCom
     t0 >> t1 >> t2
