@@ -5,7 +5,7 @@ from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 
@@ -298,40 +298,40 @@ with DAG(
 
     t3 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 WITH venta_skus AS (
-                    SELECT (S.SKU_PRODUCT || '-' || CASE 
-                            WHEN S.UMB = 'ST' THEN 'UN'
-                            ELSE S.UMB
-                        END) AS ref_id,
-                        STORE_H.STORE_ID AS id_tienda,
-                        SUM(COALESCE (VENTAC.VENTA_BRUTA::float,0)) AS total_venta_bruta,
-                        SUM(COALESCE (VENTAC.VENTA_NETA::float,0)) AS total_venta_neta,
-                        SUM(COALESCE (VENTAC.VENTA_UMV::float,0)) AS total_unidades_vendidas
-                        FROM DWC_SMU.SMU.VW_FACT_REGISTRO_VENTA_CONTABLE VENTAC
-                            LEFT JOIN DWC_SMU.SMU.VW_DIM_STORE_HIERARCHY STORE_H 
-                                ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
-                            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S 
-                                ON VENTAC.SKU_KEY = S.SKU_KEY
-                            LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P 
-                                ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
-                            LEFT JOIN DWC_SMU.SMU.VW_DIM_UOM U 
-                                ON P.UOM_VTA_KEY = U.UOM_KEY
-                            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH 
-                                ON VENTAC.SKU_KEY = SH.SKU_KEY
-                        WHERE VENTAC.DATE_VALUE::timestamp >= current_date::date - INTERVAL '15 days'
-                            AND STORE_H.ORG_IP_ID IN ('01')
-                            AND VENTAC.CANAL_DISTRIB IN ('10')
-                        GROUP BY 1,2
-                        HAVING
-                        COALESCE(SUM(VENTAC.VENTA_UMV::float), 0) > 0
-                        OR COALESCE(SUM(VENTAC.VENTA_NETA::float), 0) > 0
-                        OR COALESCE(SUM(VENTAC.VENTA_BRUTA::float), 0) > 0
-                )
-            SELECT DISTINCT ref_id, id_tienda 
-            FROM venta_skus;
+                SELECT (S.SKU_PRODUCT || '-' || CASE 
+                        WHEN S.UMB = 'ST' THEN 'UN'
+                        ELSE S.UMB
+                    END) AS ref_id,
+                    STORE_H.STORE_ID AS id_tienda,
+                    SUM(COALESCE (CAST(VENTAC.VENTA_BRUTA as FLOAT64))) AS total_venta_bruta,
+                    SUM(COALESCE (CAST(VENTAC.VENTA_NETA AS FLOAT64))) AS total_venta_neta,
+                    SUM(COALESCE (CAST(VENTAC.VENTA_UMV AS FLOAT64))) AS total_unidades_vendidas
+                    FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_REGISTRO_VENTA_CONTABLE VENTAC
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE_HIERARCHY STORE_H 
+                            ON STORE_H.STORE_KEY = VENTAC.STORE_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR S 
+                            ON VENTAC.SKU_KEY = S.SKU_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PRODUCT P 
+                            ON VENTAC.PRODUCT_KEY = P.PRODUCT_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_UOM U 
+                            ON P.UOM_VTA_KEY = U.UOM_KEY
+                        LEFT JOIN cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY SH 
+                            ON VENTAC.SKU_KEY = SH.SKU_KEY
+                    WHERE VENTAC.DATE_VALUE >= date_sub(current_date, INTERVAL 15 day)
+                        AND STORE_H.ORG_IP_ID IN ('01')
+                        AND VENTAC.CANAL_DISTRIB IN ('10')
+                    GROUP BY 1,2
+                    HAVING
+                    COALESCE(SUM(CAST(VENTAC.VENTA_UMV AS FLOAT64))) > 0
+                    OR COALESCE(SUM(CAST(VENTAC.VENTA_NETA AS FLOAT64))) > 0
+                    OR COALESCE(SUM(CAST(VENTAC.VENTA_BRUTA AS FLOAT64))) > 0
+                  )
+                  SELECT DISTINCT ref_id, id_tienda 
+                  FROM venta_skus;
             """,
             "query_name": "ecommdata/lista8_productos_con_ventas"
         },

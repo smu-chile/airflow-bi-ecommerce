@@ -76,26 +76,20 @@ def _load_dw_stock_to_s3(ds,ts):
         print(f"Products in store {store[0]}: {products}")
         
         query_stock_dw = f"""
-            SELECT  sa.SKU_PRODUCT AS material
-                    , NBR_ITM AS stock
-                    , ou.ou_id AS id_tienda
-                    , SA.NM AS nombre
-                    , DATE_VALUE as fecha 
-            FROM DWC_SMU.SMU.VW_FACT_STOCK S
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR SA ON SA.SKU_KEY  = S.SKU_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_ORGANIZATION_UNIT OU ON OU.OU_KEY = S.OU_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_ALMACEN A ON A.ALMACEN_KEY =S.ALMACEN_KEY
-            LEFT JOIN DWC_SMU.SMU.VW_DIM_PARTICULARIDAD PART ON S.PARTICULARIDAD_KEY =PART.PARTICULARIDAD_KEY
-            WHERE A.ALMACEN_COD = '0001'
-            AND S.APLICA_STOCK = 'S'
-            AND DATE_VALUE = '{ds}'
-            AND OU.OU_ID = '{str(store[0])}'
-            AND PART.PARTICULARIDAD_COD = 'A'
-            AND S.TIPO_STOCK_KEY IN (9161419180, 9145314683)
-            AND sa.SKU_PRODUCT in {products};
+            select sdb.sku_product as MATERIAL
+            , sdb.nbr_item as STOCK
+            , sdb.id_tienda as ID_TIENDA
+            , sdb.nombre as NOMBRE
+            , sdb.fecha as FECHA
+            from ecommdata.stock_dw_bq sdb
+                where sdb.fecha = {ds}
+            and sdb.id_tienda = '{str(store[0])}'
+            and sdb.sku_product in {products}
         """
-
-        stock_dw = pd.read_sql(query_stock_dw, con=dw_conn)
+        cursor = pg_connection.cursor()
+        cursor.execute(query_stock_dw)
+        stock_dw = cursor.fetchall()
+        cursor.close()
         df_list.append(stock_dw)
     df_full = pd.concat(df_list, ignore_index=True)
 

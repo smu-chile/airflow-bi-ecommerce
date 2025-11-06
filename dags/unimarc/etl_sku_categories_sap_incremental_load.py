@@ -96,7 +96,7 @@ with DAG(
 
     dag.doc_md = """
     El proceso inicia limpiando la tabla staging.sku_categorias_datawarehouse_unimarc. \n
-    Extracción de vista DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY desde DataWarehouse, filtrando aquellos registros con material (SKU_PRODUCT) nulo. \n
+    Extracción de vista cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY desde DataWarehouse, filtrando aquellos registros con material (SKU_PRODUCT) nulo. \n
     Se filtra también un SKU_PRODUCT duplicado: REF_S210. \n
     Solo se extraen columnas referentes al material, umv, negocio, sección, linea, categoría y grupo. \n
     La extracción de esta vista es almacenada en una tabla temporal en el esquema staging. \n
