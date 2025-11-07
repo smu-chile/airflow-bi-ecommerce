@@ -6,7 +6,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 
-from bigquery_utils import bq_query_to_df
+from utils.bigquery_utils import bq_query_to_df
 
 import pendulum
 from datetime import datetime, timedelta
