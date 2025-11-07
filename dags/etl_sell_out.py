@@ -14,10 +14,12 @@ from datetime import datetime, timedelta
 
 def render_netezza_view(ds):
     
-    sql_str= f"""SELECT * FROM cl-cda-prod.DS_CDA_BI_USR.FACT_CUBO_ECOMMERCE_PRINCIPAL  
-                WHERE CAST(FECHA_CREACION_VTEX AS DATE) >= CAST('{ds}' AS DATE)
-                AND CAST(FECHA_CREACION_VTEX AS DATE) < CAST('{ds}' AS DATE)"""
-    
+    sql_str= f"""
+    select *
+        from `cl-cda-prod.DS_CDA_BI_USR.FACT_CUBO_ECOMMERCE_PRINCIPAL` 
+        where DATE(SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', FECHA_CREACION_VTEX)) >= date_sub(cast('{ds}' as date), interval 1 day)
+        and DATE(SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', FECHA_CREACION_VTEX)) < cast('{ds}' as date)
+        """
     print(sql_str)
 
     df = bq_query_to_df(sql_str)
