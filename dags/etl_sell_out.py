@@ -15,8 +15,8 @@ from datetime import datetime, timedelta
 def render_netezza_view(ds):
     
     sql_str= f"""SELECT * FROM cl-cda-prod.DS_CDA_BI_USR.FACT_CUBO_ECOMMERCE_PRINCIPAL  
-                WHERE CAST(FECHA_CREACION_VTEX AS DATE)>= cast('{ds}' AS DATE)
-                AND FECHA_CREACION_VTEX < CAST('{ds}' AS DATE)"""
+                WHERE CAST(FECHA_CREACION_VTEX AS DATE) >= CAST('{ds}' AS DATE)
+                AND CAST(FECHA_CREACION_VTEX AS DATE) < CAST('{ds}' AS DATE)"""
     
     print(sql_str)
 

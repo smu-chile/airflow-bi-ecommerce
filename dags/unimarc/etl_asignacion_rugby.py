@@ -3,8 +3,8 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 import pendulum
 
-# 📌 Función auxiliar: Actualizar xCluster en VTEX con reintentos
-def actualizar_xCluster(document_id, xCluster_value, max_retries=3, delay=10):
+# 📌 Función auxiliar: Actualizar xConvenio en VTEX con reintentos
+def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
     import requests
     import time
 
@@ -20,10 +20,10 @@ def actualizar_xCluster(document_id, xCluster_value, max_retries=3, delay=10):
         "Connection": "keep-alive"
     }
 
-    # 1. Obtener valor actual de xCluster filtrando por userId
+    # 1. Obtener valor actual de xConvenio filtrando por userId
     query_params = {
-        "userId": document_id,
-        "_fields": "xCluster,userId"
+        "document": document_id,
+        "_fields": "xConvenio,userId"
     }
 
     print(f"🔹 Revisando - userId: {document_id}")
@@ -31,37 +31,39 @@ def actualizar_xCluster(document_id, xCluster_value, max_retries=3, delay=10):
     response_get = requests.get(API_URL, headers=HEADERS, params=query_params)
 
     if response_get.status_code != 200:
-        print(f"⚠️ No se pudo obtener xCluster para {document_id}. Status: {response_get.status_code}")
+        print(f"⚠️ No se pudo obtener xConvenio para {document_id}. Status: {response_get.status_code}")
         return False
 
     data = response_get.json()
 
     if not data:
-        print(f"⚠️ No se encontró ningún documento con userId = {document_id}.")
+        print(f"⚠️ No se encontró ningún documento con documentId = {document_id}.")
         return False
 
-    current_value = data[0].get("xCluster")
+    current_value = data[0].get("xConvenio")
     current_value = current_value.strip().lower() if current_value else ""
 
+    user_id = data[0].get("userId")
+
     if current_value == "rugby2024":
-        print(f"⛔ Usuario {document_id} tiene xCluster='Rugby2024'. No se actualiza.")
+        print(f"⛔ Usuario {document_id} tiene xConvenio='Rugby2024'. No se actualiza.")
         return False
 
     # 2. PATCH si pasó validación
     update_url = "https://unimarc.vtexcommercestable.com.br/api/dataentities/CL/documents"
     update_payload = {
-        "userId": document_id,
-        "xCluster": xCluster_value
+        "userId": user_id,
+        "xConvenio": xConvenio_value
     }
 
     for attempt in range(max_retries):
         response = requests.patch(update_url, json=update_payload, headers=HEADERS)
 
         if response.status_code == 200:
-            print(f"✅ xCluster actualizado para {document_id} con valor '{xCluster_value}' (intento {attempt + 1})")
+            print(f"✅ xConvenio actualizado para {document_id} con valor '{xConvenio_value}' (intento {attempt + 1})")
             return True
         elif response.status_code == 304:
-            print(f"ℹ️ xCluster para {document_id} ya estaba con el valor '{xCluster_value}'.")
+            print(f"ℹ️ xConvenio para {document_id} ya estaba con el valor '{xConvenio_value}'.")
             return True
         else:
             print(f"⚠️ Error PATCH en {document_id} intento {attempt + 1}: {response.status_code}")
@@ -77,7 +79,7 @@ def get_users_for_limit():
     import psycopg2
 
     """
-    Extrae datos desde PostgreSQL y actualiza su xCluster en VTEX si corresponde.
+    Extrae datos desde PostgreSQL y actualiza su xConvenio en VTEX si corresponde.
     """
     query_path = os.path.join(os.getcwd(), "dags/unimarc/sql/colaboradores_rugby.sql")
 
@@ -103,9 +105,9 @@ def get_users_for_limit():
         print("⚠️ No hay datos para actualizar en 'Rugby 2024'.")
         return
 
-    xCluster_value = "Rugby2024"
+    xConvenio_value = "Rugby2024"
     for _, row in df_limite.iterrows():
-        if actualizar_xCluster(row["user_profile_id"], xCluster_value):
+        if actualizar_xConvenio(row["user_profile_id"], xConvenio_value):
             print(f"🔹 Usuario actualizado: {row['user_profile_id']}")
     return
 
@@ -120,16 +122,16 @@ default_args = {
 with DAG(
     'etl_asignacion_rugby_semanal',
     default_args=default_args,
-    description="Asignar xCluster a usuarios con convenio Rugby.",
+    description="Asignar xConvenio a usuarios con convenio Rugby.",
     schedule_interval="0 7 * * 1", # Ejecuta cada lunes a las 07:00 AM
     start_date=pendulum.datetime(2025, 10, 31, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["VTEX", "xCluster", "Master Data", "Rugby", "FRANCISCO"]
+    tags=["VTEX", "xConvenio", "Master Data", "Rugby", "FRANCISCO"]
 ) as dag:
     
     dag.doc_md = f"""
-    Proceso semanal para asignar xCluster='Rugby2024' a usuarios con convenio Rugby.
+    Proceso semanal para asignar xConvenio='Rugby2024' a usuarios con convenio Rugby.
     """
 
     t0 = PythonOperator(
