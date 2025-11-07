@@ -106,6 +106,7 @@ def promos_to_postgresql(ti):
     Recibe el DataFrame de XCom desde la tarea anterior y lo carga 
     directamente a PostgreSQL.
     """
+    import sqlalchemy
 
     # Obtener el DataFrame desde la tarea 'render_bigquery_data'
     df = ti.xcom_pull(key="return_value", task_ids=["render_bigquery_data"])[0] 
@@ -141,6 +142,7 @@ def promos_to_postgresql(ti):
 
 
 def truncate_table():
+    import sqlalchemy
     """
     Lógica para truncar la tabla de PostgreSQL.
     """
@@ -155,7 +157,7 @@ def truncate_table():
 
     connection = engine.connect()
     truncate_query = "TRUNCATE TABLE ecommdata.promociones_comparadas"
-    connection.execute(text(truncate_query))
+    connection.execute(truncate_query)
     connection.close()
 
     print("✅ Tabla 'ecommdata.promociones_comparadas' truncada con éxito.")
@@ -170,19 +172,15 @@ default_args = {
     "retries": 0,
 }
 
-# Definir el DAG
-
 with DAG(
     'elt_cargar_promociones_comparadas',
     default_args=default_args,
-    # Descripcion: Se actualiza para reflejar el uso de BigQuery y la carga directa
     description='Extrae promociones comparadas desde BigQuery y las carga en la base de datos PostgreSQL.',
     schedule_interval='0 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    # Tags: Se actualiza para reflejar el uso de BigQuery en lugar de S3
-    tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "BIGQUERY"]
+    tags=["DATA", "postgres", "ecommdata", "Promociones_comparadas", "BIGQUERY","NICOLAS"]
 ) as dag:
 
     dag.doc_md = """
@@ -193,21 +191,19 @@ with DAG(
         2. Ejecuta una query compleja en BigQuery para comparar las promociones y extrae los datos modificados.
         3. Carga los resultados (DataFrame) directamente en la tabla de PostgreSQL.
         """ 
-    # Definir las tareas
-
-    # Tarea 0: TRUNCATE (Sin cambios)
+    
     t0 = PythonOperator(
         task_id='truncate_table',
         python_callable=truncate_table
     )
     
     t1 = PythonOperator(
-        task_id='render_bigquery_data', # Usamos el nombre de la nueva función
+        task_id='render_bigquery_data', 
         python_callable=render_bigquery_data 
     )
     
     t2 = PythonOperator(
-        task_id='promos_to_postgresql', # Usamos el nombre de la nueva función simplificada
+        task_id='promos_to_postgresql', 
         python_callable=promos_to_postgresql
     )
 
