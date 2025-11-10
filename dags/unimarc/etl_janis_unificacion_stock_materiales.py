@@ -17,7 +17,7 @@ def query_to_df(query):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
-    column_names = [desc[0] for desc in cursor.description]
+    column_names = [desc[0].upper() for desc in cursor.description]
     results = cursor.fetchall()
     results = pd.DataFrame(results, columns=column_names)
     print(results.head(20))
