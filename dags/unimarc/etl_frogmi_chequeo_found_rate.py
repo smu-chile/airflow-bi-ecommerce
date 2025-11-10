@@ -72,9 +72,20 @@ def _load_dw_stock_to_s3(ds,ts):
         """
         cursor = pg_connection.cursor()
         cursor.execute(query_stock_dw)
-        stock_dw = cursor.fetchall()
+        rows = cursor.fetchall()
+        column_names = [desc[0] for desc in cursor.description]
         cursor.close()
-        df_list.append(stock_dw)
+
+        if len(rows) == 0:
+            print(f"No DW stock data for store {store[0]}")
+            continue
+
+        df = pd.DataFrame(rows, columns=column_names)
+        df_list.append(df)
+
+    if not df_list:
+        print("⚠️ No se encontraron registros de stock en ningún local.")
+        return None
     df_full = pd.concat(df_list, ignore_index=True)
 
     column_names = {
