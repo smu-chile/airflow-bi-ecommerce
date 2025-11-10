@@ -82,7 +82,7 @@ def _load_dw_stock_to_s3(ds,ts):
             , sdb.nombre as NOMBRE
             , sdb.fecha as FECHA
             from ecommdata.stock_dw_bq sdb
-                where sdb.fecha = {ds}
+                where sdb.fecha = '{ds}'
             and sdb.id_tienda = '{str(store[0])}'
             and sdb.sku_product in {products}
         """
