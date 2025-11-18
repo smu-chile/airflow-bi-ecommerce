@@ -57,7 +57,7 @@ def render_netezza_view_2():
     )
     select 
         fact_compras.SPL_RQS_DOC as NroDocumento,
-        CAST(sku_hier.SKU_PRODUCT AS string) as PLU_SAP60,
+        CAST(sku_hier.SKU_PRODUCT AS NUMERIC) as PLU_SAP60,
         fact_compras.FECHA_PEDIDO as FechaDocumento,
         e.DATE_VALUE as FechaEntrega,
         cast(org_prov.OU_ID as string) as CD,
