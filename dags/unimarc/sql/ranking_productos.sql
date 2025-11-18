@@ -20,6 +20,7 @@ FROM (
             ecommdata.ventas_ecommerce_datawarehouse ved
             LEFT JOIN ecommdata.skus s ON s.ref_id = ved.ref_id_sku
             left join ecommdata.calendario c on c.fecha=ved.fecha_facturacion::date
+            inner join ecommdata.lista8 l on concat(l.material,'-',l.umv) = ved.ref_id_sku
         WHERE
             c.mes_relativo = -1
             AND ved.ref_id_sku <> '000000000000630792-UN'
