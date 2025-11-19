@@ -200,6 +200,7 @@ def master_sku_to_postgresq(ti):
     df['material'] = df['material'].apply(lambda x: str(int(x)).zfill(18))
 
     df = df.dropna(subset=['sku_key'], how='all')
+    df = df.drop_duplicates(subset=['material'])
 
     df.info()
 
@@ -253,14 +254,49 @@ with DAG(
         python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT H.SKU_KEY,H.SKU_PRODUCT, H.GRUPO_KEY, H.GRUPO_ID, H.GRUPO_DSC, H.CATEGORIA_KEY, H.CAT_ID, H.CAT_DSC,
-                H.LINEA_KEY, H.LIN_ID, H.LIN_DESC, H.SECCION_KEY, H.SEC_ID, H.SEC_DSC, H.NEGOCIO_KEY, H.NEG_ID, H.NEG_DSC,
-                H.SKU_NM, H.PROCEDENCIA,H.BRAND_KEY , H.BRAND_ID, H.BRAND_DESC , H.UMB, H.UMP, H.UMCONT, H.DESC_TIPO_MATERIAL,
-                H.DESC_CATEGORIA_MATERIAL, H.ENVASE, E.DESCRIPCION, H.PESO_NETO, H.PESO_BRUTO, S.SUPPLIER_KEY, S.SUPPLIER_ID, S.SUPPLIER_NM,
-                S.SUPPLIER_TYPE, S.SUPPLIER_RETAIL, S.NUESTRO_100, H.MARCA_PROPIA
+                SELECT H.SKU_HEX as SKU_KEY
+                , H.SKU_PRODUCT
+                , H.GRUPO_HEX as GRUPO_KEY
+                , H.GRUPO_ID
+                , H.GRUPO_DSC
+                , H.CATEGORIA_HEX as CATEGORIA_KEY
+                , H.CAT_ID
+                , H.CAT_DSC
+                , H.LINEA_HEX as LINEA_KEY
+                , H.LIN_ID
+                , H.LIN_DESC
+                , H.SECCION_HEX as SECCION_KEY
+                , H.SEC_ID
+                , H.SEC_DSC
+                , H.NEGOCIO_HEX as NEGOCIO_KEY
+                , H.NEG_ID
+                , H.NEG_DSC
+                , H.SKU_NM
+                , H.PROCEDENCIA
+                , H.BRAND_HEX as BRAND_KEY
+                , H.BRAND_ID
+                , H.BRAND_DESC
+                , H.UMB
+                , H.UMP
+                , H.UMCONT
+                , H.DESC_TIPO_MATERIAL
+                , H.DESC_CATEGORIA_MATERIAL
+                , H.ENVASE
+                , E.DESCRIPCION
+                , H.PESO_NETO
+                , H.PESO_BRUTO
+                , S.SUPPLIER_KEY
+                , S.SUPPLIER_ID
+                , S.SUPPLIER_NM
+                , S.SUPPLIER_TYPE
+                , S.SUPPLIER_RETAIL
+                , S.NUESTRO_100
+                , H.MARCA_PROPIA
                 FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` AS H
-                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SUPPLIER` AS S on H.PROVEEDOR_PPAL_KEY = S.SUPPLIER_KEY
-                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ENVASE` AS E on E.CODIGO = H.ENVASE
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SUPPLIER` AS S 
+                    on H.PROVEEDOR_PPAL_KEY = S.SUPPLIER_KEY
+                LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ENVASE` 
+                    AS E on E.CODIGO = H.ENVASE
             """,
             "query_name": "HIERARCHYxSUPPLIER_query"
         },
