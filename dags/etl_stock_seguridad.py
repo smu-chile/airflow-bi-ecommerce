@@ -258,17 +258,22 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
-
+    # Solo considerar mínimos > 0
     condlist_1 = [
-            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
-            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
-            ]
+        (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
+        (df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
+    ]
     choicelist_1 = [
-                df_final["minimo_exhibicion"],
-                df_final["nuevo_stock_seguridad"]
-                ]
-    
-    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+        df_final["minimo_exhibicion"],
+        df_final["nuevo_stock_seguridad"],
+    ]
+
+    # Si no se cumple ninguna condición (mínimo = 0, o NaN), deja el valor original
+    df_final["nuevo_stock_seguridad"] = np.select(
+        condlist_1,
+        choicelist_1,
+        default=df_final["nuevo_stock_seguridad"],
+    )
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -426,20 +431,26 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
     df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
-    df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
     print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
-
-    condlist_1 = [
-            df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"],
-            df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]
-            ]
-    choicelist_1 = [
-                df_final["minimo_exhibicion"],
-                df_final["nuevo_stock_seguridad"]
-                ]
     
-    df_final["nuevo_stock_seguridad"] = np.select(np.array(condlist_1).astype(bool), choicelist_1)
+    # Solo considerar mínimos > 0
+    condlist_1 = [
+        (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
+        (df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
+    ]
+    choicelist_1 = [
+        df_final["minimo_exhibicion"],
+        df_final["nuevo_stock_seguridad"],
+    ]
+
+    # Si no se cumple ninguna condición (mínimo = 0, o NaN), deja el valor original
+    df_final["nuevo_stock_seguridad"] = np.select(
+        condlist_1,
+        choicelist_1,
+        default=df_final["nuevo_stock_seguridad"],
+    )
+
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
     #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2) #Caution
 
