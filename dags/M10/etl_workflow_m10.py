@@ -152,8 +152,9 @@ with DAG(
         python_callable = load_custom_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT *
-                FROM NZ_SMU_BI_DEV.BI.VW_FACT_WORKFLOW_M10
+                SELECT * 
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW` wf
+                where  wf.ORGANIZACION_VENTAS = '3000'
             """,
             "query_name": "workflow_M10"
         },
