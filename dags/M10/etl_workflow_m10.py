@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -123,7 +123,6 @@ def _load_to_postgres(ti):
 
     return
 
-    
 
 default_args = {
     "owner": "ecommerce_data",
@@ -137,11 +136,11 @@ with DAG(
     'etl_workflow_M10',
     default_args=default_args,
     description="Extracción de workflow de M10 desde dw",
-    schedule_interval="15 8 * * *",
+    schedule_interval="15 8 1,15 * *",
     start_date=pendulum.datetime(2023, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["M10", "DW", "S3", "workflow", "MATIAS", "TEST"],
+    tags=["M10", "BQ", "S3", "workflow", "NICOLAS"],
 ) as dag:
 
     dag.doc_md = """
@@ -149,11 +148,12 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT *
-                FROM NZ_SMU_BI_DEV.BI.VW_FACT_WORKFLOW_M10
+                SELECT * 
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW` wf
+                where wf.ORGANIZACION_VENTAS = '3000'
             """,
             "query_name": "workflow_M10"
         },
