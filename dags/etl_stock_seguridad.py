@@ -10,6 +10,8 @@ import pendulum
 
 from datetime import datetime, timedelta
 
+from utils.postgres_utils import query_to_df
+
 def _check_time(ts):
     
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
@@ -28,7 +30,6 @@ def _check_time(ts):
         return "stock_ventas_tiendas_to_s3_pm"
 
 def stock(ds):
-    import pandas as pd
     stock_tiendas_query = f"""select distinct c.*, date_part('dow','{ds}'::date) as dia, date_part('week','{ds}'::date) as semana, s.erp_id
                     from(select pt.ref_id, pt.id_tienda
                             from ecommdata.productos_tienda pt
@@ -43,40 +44,16 @@ def stock(ds):
                             left join ecommdata.skus s on c.ref_id = s.ref_id
                             where c.id_tienda not in ('9212', '1917');
                             """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    print(stock_tiendas_query)
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(stock_tiendas_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    results.columns = ["ref_id","id_tienda","dia","semana", "erp_id"]
-    results.info()
-    results = results[["ref_id","id_tienda","erp_id"]]
-    results.info()
-    cursor.close()
-    pg_connection.close()
+    results = query_to_df(stock_tiendas_query)
     return results
 
 def matriz_ss():
-    import pandas as pd
     matriz_query = """select *
                     from catalogo.matriz_ss ms """
-    print(matriz_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(matriz_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    results.columns = ["id_tienda","peso"]
-    cursor.close()
-    pg_connection.close()
-    results.info()
+    results = query_to_df(matriz_query)
     return results
 
 def venta_tienda(ds):
-    import pandas as pd
     ventas_skus_tienda_query = f"""select LPAD(v.id_tienda , 4, '0') as id_tienda,
                     CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
                     v.venta_umv as cantidad,
@@ -89,21 +66,10 @@ def venta_tienda(ds):
                     and v.organizacion = 'Unimarc'
                     and v.id_tienda <>'1917'
                     """
-    print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(ventas_skus_tienda_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    results.columns = ["id_tienda","ref_id","cantidad","dia","semana"]
-    results.info()
-    cursor.close()
-    pg_connection.close()
+    results = query_to_df(ventas_skus_tienda_query)
     return results
 
 def minimos_exhibicion():
-    import pandas as pd
     query = """select concat(meio.material,'-',meio.umv) as ref_id, meio.id_tienda, meio.minimo_exhibicion
                 from ecommdata.minimos_exhibicion_in_out meio
                 left join ecommdata.tiendas t 
@@ -117,21 +83,10 @@ def minimos_exhibicion():
                 and l.umv  is not null
                 and t.id is not null
                 and meio.minimo_exhibicion > 1"""
-    print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(query)
-    column_names = [desc[0] for desc in cursor.description]
-    results = cursor.fetchall()
-    results = pd.DataFrame(results, columns=column_names)
-    print(results.head(20))
-    cursor.close()
-    pg_connection.close()
+    results = query_to_df(query)
     return results
 
 def excluidos_ss():
-    import pandas as pd
     query = """select id_tienda, ref_id
                 from ecommdata.productos_excluidos_ss
             union
@@ -148,17 +103,21 @@ def excluidos_ss():
                 where l.id_tienda in ('0581','0333','0347','0917','0089')
                 and c.id in (11370562, 48312585,48312606,48312608,48312610,48312612) -- (n3) Fruta; Fruta Orgánica; Verduras; Verduras Orgánicas; Pechugas y filetitos; Trutro
         ;"""
-    print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(query)
-    column_names = [desc[0] for desc in cursor.description]
-    results = cursor.fetchall()
-    results = pd.DataFrame(results, columns=column_names)
-    print(results.head(20))
-    cursor.close()
-    pg_connection.close()
+    results = query_to_df(query)
+    return results
+
+def minimos_exhibicion_pesables():
+    query = """
+    select distinct p.ref_id, meio.minimo_exhibicion, meio.id_tienda 
+    from ecommdata.productos p 
+    left join ecommdata.categorias c 
+        on p.id_categoria = c.id
+    left join ecommdata.minimos_exhibicion_in_out meio 
+        on concat(meio.material, '-', meio.umv) = p.ref_id 
+    where c.n2 = 'Pollo'
+    and p.ref_id ilike '%KG%';
+    """
+    results = query_to_df(query)
     return results
 
 def stock_ventas_tiendas_to_s3_am(ds):
@@ -255,25 +214,50 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
+
+    # Llenar nulos de la tabla general con 0
     df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
-    df_final.info()
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
-    # Solo considerar mínimos > 0
-    condlist_1 = [
-        (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
-        (df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
-    ]
-    choicelist_1 = [
-        df_final["minimo_exhibicion"],
-        df_final["nuevo_stock_seguridad"],
+
+    # Mínimos especiales para pesables (pollo KG)
+    df_minimos_pesables = minimos_exhibicion_pesables().rename(
+        columns={"minimo_exhibicion": "minimo_exhibicion_pesable"}
+    )
+
+    df_final = df_final.merge(
+        df_minimos_pesables,
+        how="left",
+        on=["id_tienda", "ref_id"]
+    )
+
+    df_final["minimo_exhibicion_pesable"] = pd.to_numeric(
+        df_final["minimo_exhibicion_pesable"], errors="coerce"
+    )
+
+    # Pesable = aparece en minimos_exhibicion_pesables()
+    mask_pesable = df_final["minimo_exhibicion_pesable"].notna()
+    # Pesable con mínimo > 0 (usa mínimo pesable)
+    mask_pesable_con_min = mask_pesable & (df_final["minimo_exhibicion_pesable"] > 0)
+
+    # Para pesables con mínimo > 0, sobrescribimos el mínimo general
+    df_final.loc[mask_pesable_con_min, "minimo_exhibicion"] = df_final.loc[
+        mask_pesable_con_min, "minimo_exhibicion_pesable"
     ]
 
-    # Si no se cumple ninguna condición (mínimo = 0, o NaN), deja el valor original
-    df_final["nuevo_stock_seguridad"] = np.select(
-        condlist_1,
-        choicelist_1,
-        default=df_final["nuevo_stock_seguridad"],
+    # Aplica lógica de mínimos solo a:
+    #  - no pesables
+    #  - pesables con mínimo > 0
+    mask_aplica_minimo = (~mask_pesable) | mask_pesable_con_min
+
+    idx = df_final.index[mask_aplica_minimo]
+
+    df_final.loc[idx, "nuevo_stock_seguridad"] = np.where(
+        df_final.loc[idx, "nuevo_stock_seguridad"] > df_final.loc[idx, "minimo_exhibicion"],
+        df_final.loc[idx, "minimo_exhibicion"],
+        df_final.loc[idx, "nuevo_stock_seguridad"],
     )
+
+    # Pesables con mínimo = 0 quedan fuera de mask_aplica_minimo, por lo tanto NO se les toca el nuevo_stock_seguridad (usan solo stock de seguridad).
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -430,29 +414,50 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
     print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
     df_final.info()
+
+    # Llenar nulos de la tabla general con 0
     df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
     df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
-    print(df_final[['nuevo_stock_seguridad', 'minimo_exhibicion']].dtypes)
-    
-    # Solo considerar mínimos > 0
-    condlist_1 = [
-        (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
-        (df_final["nuevo_stock_seguridad"] <= df_final["minimo_exhibicion"]) & (df_final["minimo_exhibicion"] > 0),
-    ]
-    choicelist_1 = [
-        df_final["minimo_exhibicion"],
-        df_final["nuevo_stock_seguridad"],
-    ]
 
-    # Si no se cumple ninguna condición (mínimo = 0, o NaN), deja el valor original
-    df_final["nuevo_stock_seguridad"] = np.select(
-        condlist_1,
-        choicelist_1,
-        default=df_final["nuevo_stock_seguridad"],
+    # Mínimos especiales para pesables (pollo KG)
+    df_minimos_pesables = minimos_exhibicion_pesables().rename(
+        columns={"minimo_exhibicion": "minimo_exhibicion_pesable"}
     )
 
-    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
-    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2) #Caution
+    df_final = df_final.merge(
+        df_minimos_pesables,
+        how="left",
+        on=["id_tienda", "ref_id"]
+    )
+
+    df_final["minimo_exhibicion_pesable"] = pd.to_numeric(
+        df_final["minimo_exhibicion_pesable"], errors="coerce"
+    )
+
+    # Pesable = aparece en minimos_exhibicion_pesables()
+    mask_pesable = df_final["minimo_exhibicion_pesable"].notna()
+    # Pesable con mínimo > 0 (usa mínimo pesable)
+    mask_pesable_con_min = mask_pesable & (df_final["minimo_exhibicion_pesable"] > 0)
+
+    # Para pesables con mínimo > 0, sobrescribimos el mínimo general
+    df_final.loc[mask_pesable_con_min, "minimo_exhibicion"] = df_final.loc[
+        mask_pesable_con_min, "minimo_exhibicion_pesable"
+    ]
+
+    # Aplica lógica de mínimos solo a:
+    #  - no pesables
+    #  - pesables con mínimo > 0
+    mask_aplica_minimo = (~mask_pesable) | mask_pesable_con_min
+
+    idx = df_final.index[mask_aplica_minimo]
+
+    df_final.loc[idx, "nuevo_stock_seguridad"] = np.where(
+        df_final.loc[idx, "nuevo_stock_seguridad"] > df_final.loc[idx, "minimo_exhibicion"],
+        df_final.loc[idx, "minimo_exhibicion"],
+        df_final.loc[idx, "nuevo_stock_seguridad"],
+    )
+
+    # Pesables con mínimo = 0 quedan fuera de mask_aplica_minimo, por lo tanto NO se les toca el nuevo_stock_seguridad (usan solo stock de seguridad).
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
