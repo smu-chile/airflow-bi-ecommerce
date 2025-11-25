@@ -45,6 +45,7 @@ def stock(ds):
                             where c.id_tienda not in ('9212', '1917');
                             """
     results = query_to_df(stock_tiendas_query)
+    results = results[["ref_id", "id_tienda", "erp_id"]] 
     return results
 
 def matriz_ss():
