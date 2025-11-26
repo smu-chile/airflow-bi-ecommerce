@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.bigquery_utils import load_custom_bq_query_to_s3
+from utils.bigquery_utils import load_custom_query_to_s3
 
 from datetime import datetime, timedelta
 import pendulum
@@ -153,7 +153,8 @@ with DAG(
             "query": """
                 SELECT * 
                 FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW` wf
-                where wf.ORGANIZACION_VENTAS = '3000'
+                where  wf.ORGANIZACION_VENTAS = '3000'
+                and wf.REGISTRO_VALIDO = 'X'
             """,
             "query_name": "workflow_M10"
         },
