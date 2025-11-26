@@ -153,7 +153,8 @@ with DAG(
             "query": """
                 SELECT * 
                 FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW` wf
-                where wf.ORGANIZACION_VENTAS = '3000'
+                where  wf.ORGANIZACION_VENTAS = '3000'
+                and wf.REGISTRO_VALIDO = 'X'
             """,
             "query_name": "workflow_M10"
         },
