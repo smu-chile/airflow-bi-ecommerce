@@ -56,7 +56,7 @@ def _ventas_dw_incremental_load(ti):
         return
 
     df["UNIDAD_DE_MEDIDA"] = np.where(df["UNIDAD_DE_MEDIDA"] == "ST", "UN", df["UNIDAD_DE_MEDIDA"])
-    df["id"] = df["FECHA"] + df["CENTRO"] + df["NUM_TRXN"] + df["PEDIDO"] + df["SKU_PRODUCT"] + df["PTR_CODPROD"]
+    df["id"] = df["FECHA"] + df["CENTRO"] + df["NUM_TRXN"] + df["PTR_CODPROD"] # Fecha + id_tienda + num_trxn + ean
     df["ref_id_sku"] = np.where((df["SKU_PRODUCT"].isnull()) | (df["UNIDAD_DE_MEDIDA"].isnull()), 
                                         "NULL", 
                                         df["SKU_PRODUCT"] + "-" + df["UNIDAD_DE_MEDIDA"])
@@ -132,7 +132,7 @@ def _ventas_dw_incremental_load(ti):
     incremental_query = """
         INSERT INTO ecommdata.ventas_ecommerce_datawarehouse (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (fecha_facturacion,id_tienda,num_trxn,id_orden,ref_id_sku,ean)
+        ON CONFLICT (fecha_facturacion,id_tienda,num_trxn,ean)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
