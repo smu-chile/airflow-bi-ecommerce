@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 
 from datetime import datetime, timedelta
 
@@ -56,7 +56,7 @@ def _ventas_dw_incremental_load(ti):
         return
 
     df["UNIDAD_DE_MEDIDA"] = np.where(df["UNIDAD_DE_MEDIDA"] == "ST", "UN", df["UNIDAD_DE_MEDIDA"])
-    df["id"] = df["DATE_KEY"] + df["CENTRO"] + df["NUM_TRXN"] + df["PRODUCT_KEY"]
+    df["id"] = df["FECHA"] + df["CENTRO"] + df["NUM_TRXN"] + df["PTR_CODPROD"] # Fecha + id_tienda + num_trxn + ean
     df["ref_id_sku"] = np.where((df["SKU_PRODUCT"].isnull()) | (df["UNIDAD_DE_MEDIDA"].isnull()), 
                                         "NULL", 
                                         df["SKU_PRODUCT"] + "-" + df["UNIDAD_DE_MEDIDA"])
@@ -132,7 +132,7 @@ def _ventas_dw_incremental_load(ti):
     incremental_query = """
         INSERT INTO ecommdata.ventas_ecommerce_datawarehouse (id,"""+columns_query+""") 
         VALUES ("""+values_query+""")
-        ON CONFLICT (id)
+        ON CONFLICT (fecha_facturacion,id_tienda,num_trxn,ean)
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
@@ -171,39 +171,57 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_last_7_days_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
-                SELECT VE.MARKET_BASKET_KEY,
-            VE.STORE_KEY,
-            VE.DATE_KEY,
-            VE.PRODUCT_KEY,
-            VE.CENTRO,
-            VE.TIPO_DOC,
-            VE.FECHA,
-            VE.PTR_CODPROD,
-            VE.CANAL_VENTA,
-            VE.NUM_TRXN,
-            VE.POS,
-            CASE 
-                WHEN VE.TIPO_DOC = 'NE' THEN CAST(FMB.VTX_SEQUENCE AS VARCHAR(14))
-                ELSE VE.PEDIDO
-            END AS PEDIDO,
-            VE.VENTA_UMV,
-            VE.VENTA_BRUTA,
-            VE.VENTA_NETA,
-            VE.MARKET_BASKET_NK,
-            DS_INSERTION,
-            P.UNIDAD_DE_MEDIDA , S.SKU_PRODUCT, S.BRAND_DESC, SH.GRUPO_DSC, SH.CAT_DSC, SH.LIN_DESC, SH.SEC_DSC, SH.NEG_DSC 
-                FROM DWC_SMU.SMU.VW_FACT_VENTA_E_COMMERCE VE
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_PRODUCT P ON VE.PRODUCT_KEY = P.PRODUCT_KEY
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_ATTR S ON P.SKU_KEY = S.SKU_KEY 
-                LEFT JOIN DWC_SMU.SMU.VW_DIM_SKU_HIERARCHY SH ON SH.SKU_KEY = S.SKU_KEY
-                LEFT JOIN DWC_SMU.SMU.VW_FACT_MARKET_BASKET_E_COMMERCE FMB ON VE.MARKET_BASKET_KEY = FMB.MARKET_BASKET_KEY 
-                WHERE FECHA BETWEEN TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') - INTERVAL '7 days'
-                                    AND TO_DATE('{{execution_date.strftime('%Y-%m-%d')}}', 'YYYY-MM-DD') 
+                SELECT 
+                  VE.MARKET_BASKET_KEY,
+                  VE.STORE_KEY,
+                  VE.DATE_KEY,
+                  VE.PRODUCT_KEY,
+                  VE.CENTRO,
+                  VE.TIPO_DOC,
+                  VE.FECHA,
+                  VE.PTR_CODPROD,
+                  VE.CANAL_VENTA,
+                  VE.NUM_TRXN,
+                  VE.POS,
+                  CASE 
+                    WHEN VE.TIPO_DOC = 'NE' THEN CAST(FMB.VTX_SEQUENCE AS STRING)
+                    ELSE VE.PEDIDO
+                  END AS PEDIDO,
+                  VE.VENTA_UMV,
+                  VE.VENTA_BRUTA,
+                  VE.VENTA_NETA,
+                  VE.MARKET_BASKET_NK,
+                  VE.DS_INSERTION,
+                  P.UNIDAD_DE_MEDIDA,
+                  S.SKU_PRODUCT,
+                  S.BRAND_DESC,
+                  SH.GRUPO_DSC,
+                  SH.CAT_DSC,
+                  SH.LIN_DESC,
+                  SH.SEC_DSC,
+                  SH.NEG_DSC
+                FROM 
+                  `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_VENTA_E_COMMERCE` AS VE
+                LEFT JOIN 
+                  `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_PRODUCT` AS P
+                  ON VE.PRODUCT_KEY = P.PRODUCT_KEY
+                LEFT JOIN 
+                  `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR` AS S
+                  ON P.SKU_KEY = S.SKU_KEY
+                LEFT JOIN 
+                  `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` AS SH
+                  ON SH.SKU_KEY = S.SKU_KEY
+                LEFT JOIN 
+                  `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_MARKET_BASKET_E_COMMERCE` AS FMB
+                  ON VE.MARKET_BASKET_KEY = FMB.MARKET_BASKET_KEY
+                WHERE 
+                  DATE(VE.FECHA) BETWEEN DATE_SUB(DATE('{{ execution_date.strftime("%Y-%m-%d") }}'), INTERVAL 7 DAY)
+                  AND DATE('{{ execution_date.strftime("%Y-%m-%d") }}')
             """,
-            "query_name": "DWC_SMU.SMU.VW_FACT_VENTA_E_COMMERCE"
+            "query_name": "DWC_SMU.SMU.VW_FACT_VENTA_E_COMMERCE" #Ahora es de bigquery, no se modifica el name para no perder el historial en la ruta del s3
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
