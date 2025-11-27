@@ -43,6 +43,9 @@ def _load_stores_table(ti, ds):
     }
     df = df.rename(columns=columns_rename)
 
+    # Normalizar county_desc cuando venga como "SANTIAGO DE CHILE"
+    df["county_desc"] = df["county_desc"].replace({"SANTIAGO DE CHILE": "SANTIAGO"})
+
 
     # Cast numeric values to int
 
