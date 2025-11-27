@@ -9,7 +9,6 @@ from airflow.operators.dummy import DummyOperator
 import pendulum
 
 from datetime import datetime, timedelta
-
 from utils.postgres_utils import query_to_df
 
 def _check_time(ts):
@@ -45,7 +44,8 @@ def stock(ds):
                             where c.id_tienda not in ('9212', '1917');
                             """
     results = query_to_df(stock_tiendas_query)
-    results = results[["ref_id", "id_tienda", "erp_id"]] 
+    results = results[["ref_id","id_tienda","erp_id"]]
+    results.info()
     return results
 
 def matriz_ss():
@@ -76,7 +76,7 @@ def minimos_exhibicion():
                 left join ecommdata.tiendas t 
                 on t.id = meio.id_tienda
                 left join ecommdata.lista8 l 
-                on l.material = meio.material and l.umv = meio.umv  and l.id_tienda = meio.id_tienda 
+                on l.material = meio.material and l.umv = meio.umv and l.id_tienda = meio.id_tienda 
                 where t.status = 1
                 and l.material  is not null
                 and l.id_tienda <> '1917'
@@ -102,21 +102,28 @@ def excluidos_ss():
                 join ecommdata.tiendas t
                 on t.id = l.id_tienda
                 where l.id_tienda in ('0581','0333','0347','0917','0089')
-                and c.id in (11370562, 48312585,48312606,48312608,48312610,48312612) -- (n3) Fruta; Fruta Orgánica; Verduras; Verduras Orgánicas; Pechugas y filetitos; Trutro
+                and c.id in (11279384,48312575,11279387,48312578) --Frutas y Verduras, Granel y Orgánico, no filtra frutos secos o congelados.
         ;"""
     results = query_to_df(query)
     return results
 
-def minimos_exhibicion_pesables():
-    query = """
-    select distinct p.ref_id, meio.minimo_exhibicion, meio.id_tienda 
-    from ecommdata.productos p 
-    left join ecommdata.categorias c 
-        on p.id_categoria = c.id
-    left join ecommdata.minimos_exhibicion_in_out meio 
-        on concat(meio.material, '-', meio.umv) = p.ref_id 
-    where c.n2 = 'Pollo'
-    and p.ref_id ilike '%KG%';
+def productos_pesables_excluidos_meios():
+    query = """select distinct p.ref_id
+        , lpad(meio.id_tienda,4,'0') as id_tienda
+        from ecommdata.minimos_exhibicion_in_out meio 
+        left join ecommdata.tiendas t 
+            on t.id = meio.id_tienda 
+        inner join ecommdata.lista8 l 
+            on meio.material = l.material 
+            and meio.umv = l.umv 
+            and meio.id_tienda = l.id_tienda 
+        left join ecommdata.productos p
+            on p.ref_id = concat(l.material, '-', l.umv)
+        left join ecommdata.categorias c 
+            on p.id_categoria = c.id 
+        where c.n2 = 'Pollo'
+        and (p.ref_id ilike '%KG%' or p.ref_id ilike '%KGV%')
+        and meio.minimo_exhibicion < 1
     """
     results = query_to_df(query)
     return results
@@ -200,7 +207,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
-    #df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
     df_stock_seguridad_aux.info()
 
     df_final = df_stock_seguridad_aux
@@ -209,56 +215,45 @@ def stock_ventas_tiendas_to_s3_am(ds):
 
     df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
 
-    #Agregar logica minimos exhibicion
+    # ============================
+    #  Lógica de mínimos (base + excepción pollo KG/KGV min<1)
+    # ============================
     df_minimos = minimos_exhibicion()
-    print(f"\nCantidad de registros antes del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_minimos_ignorar = productos_pesables_excluidos_meios()
+
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
-    print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
-    df_final.info()
 
-    # Llenar nulos de la tabla general con 0
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
-    df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
-
-    # Mínimos especiales para pesables (pollo KG)
-    df_minimos_pesables = minimos_exhibicion_pesables().rename(
-        columns={"minimo_exhibicion": "minimo_exhibicion_pesable"}
-    )
-
+    df_minimos_ignorar["ignorar_minimo"] = 1
     df_final = df_final.merge(
-        df_minimos_pesables,
+        df_minimos_ignorar[["id_tienda", "ref_id", "ignorar_minimo"]],
         how="left",
         on=["id_tienda", "ref_id"]
     )
 
-    df_final["minimo_exhibicion_pesable"] = pd.to_numeric(
-        df_final["minimo_exhibicion_pesable"], errors="coerce"
-    )
+    df_final["ignorar_minimo"] = df_final["ignorar_minimo"].fillna(0).astype(int)
+    df_final["minimo_exhibicion"] = df_final["minimo_exhibicion"].fillna(0)
+    df_final["minimo_exhibicion"] = pd.to_numeric(
+        df_final["minimo_exhibicion"], errors="coerce"
+    ).fillna(0).astype(int)
 
-    # Pesable = aparece en minimos_exhibicion_pesables()
-    mask_pesable = df_final["minimo_exhibicion_pesable"].notna()
-    # Pesable con mínimo > 0 (usa mínimo pesable)
-    mask_pesable_con_min = mask_pesable & (df_final["minimo_exhibicion_pesable"] > 0)
-
-    # Para pesables con mínimo > 0, sobrescribimos el mínimo general
-    df_final.loc[mask_pesable_con_min, "minimo_exhibicion"] = df_final.loc[
-        mask_pesable_con_min, "minimo_exhibicion_pesable"
+    # Reglas de aplicación del mínimo:
+    condlist_1 = [
+        df_final["ignorar_minimo"] == 1,
+        (df_final["ignorar_minimo"] == 0) & (df_final["minimo_exhibicion"] > 0)
+        & (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]),
     ]
+    choicelist_1 = [
+        df_final["nuevo_stock_seguridad"],     # ignora mínimo (pollo KG/KGV min<1)
+        df_final["minimo_exhibicion"],         # aplica mínimo normal
+    ]
+    
+    condlist_1 = [c.to_numpy(dtype=bool) for c in condlist_1]
 
-    # Aplica lógica de mínimos solo a:
-    #  - no pesables
-    #  - pesables con mínimo > 0
-    mask_aplica_minimo = (~mask_pesable) | mask_pesable_con_min
-
-    idx = df_final.index[mask_aplica_minimo]
-
-    df_final.loc[idx, "nuevo_stock_seguridad"] = np.where(
-        df_final.loc[idx, "nuevo_stock_seguridad"] > df_final.loc[idx, "minimo_exhibicion"],
-        df_final.loc[idx, "minimo_exhibicion"],
-        df_final.loc[idx, "nuevo_stock_seguridad"],
+    df_final["nuevo_stock_seguridad"] = np.select(
+        condlist_1,
+        choicelist_1,
+        default=df_final["nuevo_stock_seguridad"].to_numpy()
     )
-
-    # Pesables con mínimo = 0 quedan fuera de mask_aplica_minimo, por lo tanto NO se les toca el nuevo_stock_seguridad (usan solo stock de seguridad).
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -276,8 +271,6 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_final["peso"] = df_final["peso"].fillna(1)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
-
-    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
     df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
     df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
@@ -399,7 +392,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print(f"\ndia: {dia}\n")
     df_stock_seguridad_aux.info()
     df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
-    #df_stock_seguridad_aux = df_stock_seguridad_aux[df_stock_seguridad_aux["dia"] == dia]
     df_stock_seguridad_aux.info()
 
     df_final = df_stock_seguridad_aux
@@ -409,56 +401,45 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
     print(df_final)
 
-    #Agregar logica minimos exhibicion
+    # ============================
+    #  Lógica de mínimos (base + excepción pollo KG/KGV min<1)
+    # ============================
     df_minimos = minimos_exhibicion()
-    print(f"\nCantidad de registros antes del merge con minimos de exhibicion: {len(df_final.index)}")
+    df_minimos_ignorar = productos_pesables_excluidos_meios()
+
     df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
-    print(f"\nCantidad de registros despues del merge con minimos de exhibicion: {len(df_final.index)}")
-    df_final.info()
 
-    # Llenar nulos de la tabla general con 0
-    df_final['minimo_exhibicion'] = df_final['minimo_exhibicion'].fillna(0)
-    df_final['minimo_exhibicion'] = pd.to_numeric(df_final['minimo_exhibicion'], errors='coerce').astype('Int64')
-
-    # Mínimos especiales para pesables (pollo KG)
-    df_minimos_pesables = minimos_exhibicion_pesables().rename(
-        columns={"minimo_exhibicion": "minimo_exhibicion_pesable"}
-    )
-
+    df_minimos_ignorar["ignorar_minimo"] = 1
     df_final = df_final.merge(
-        df_minimos_pesables,
+        df_minimos_ignorar[["id_tienda", "ref_id", "ignorar_minimo"]],
         how="left",
         on=["id_tienda", "ref_id"]
     )
 
-    df_final["minimo_exhibicion_pesable"] = pd.to_numeric(
-        df_final["minimo_exhibicion_pesable"], errors="coerce"
-    )
+    df_final["ignorar_minimo"] = df_final["ignorar_minimo"].fillna(0).astype(int)
+    df_final["minimo_exhibicion"] = df_final["minimo_exhibicion"].fillna(0)
+    df_final["minimo_exhibicion"] = pd.to_numeric(
+        df_final["minimo_exhibicion"], errors="coerce"
+    ).fillna(0).astype(int)
 
-    # Pesable = aparece en minimos_exhibicion_pesables()
-    mask_pesable = df_final["minimo_exhibicion_pesable"].notna()
-    # Pesable con mínimo > 0 (usa mínimo pesable)
-    mask_pesable_con_min = mask_pesable & (df_final["minimo_exhibicion_pesable"] > 0)
-
-    # Para pesables con mínimo > 0, sobrescribimos el mínimo general
-    df_final.loc[mask_pesable_con_min, "minimo_exhibicion"] = df_final.loc[
-        mask_pesable_con_min, "minimo_exhibicion_pesable"
+    # Reglas de aplicación del mínimo:
+    condlist_1 = [
+        df_final["ignorar_minimo"] == 1,
+        (df_final["ignorar_minimo"] == 0) & (df_final["minimo_exhibicion"] > 0)
+        & (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]),
+    ]
+    choicelist_1 = [
+        df_final["nuevo_stock_seguridad"],     # ignora mínimo (pollo KG/KGV min<1)
+        df_final["minimo_exhibicion"],         # aplica mínimo normal
     ]
 
-    # Aplica lógica de mínimos solo a:
-    #  - no pesables
-    #  - pesables con mínimo > 0
-    mask_aplica_minimo = (~mask_pesable) | mask_pesable_con_min
+    condlist_1 = [c.to_numpy(dtype=bool) for c in condlist_1]
 
-    idx = df_final.index[mask_aplica_minimo]
-
-    df_final.loc[idx, "nuevo_stock_seguridad"] = np.where(
-        df_final.loc[idx, "nuevo_stock_seguridad"] > df_final.loc[idx, "minimo_exhibicion"],
-        df_final.loc[idx, "minimo_exhibicion"],
-        df_final.loc[idx, "nuevo_stock_seguridad"],
+    df_final["nuevo_stock_seguridad"] = np.select(
+        condlist_1,
+        choicelist_1,
+        default=df_final["nuevo_stock_seguridad"].to_numpy()
     )
-
-    # Pesables con mínimo = 0 quedan fuera de mask_aplica_minimo, por lo tanto NO se les toca el nuevo_stock_seguridad (usan solo stock de seguridad).
 
     df_final["dia"] = df_final["dia"].astype(int)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
@@ -480,7 +461,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     print(df_final)
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
-    #df_final = df_final[["id_tienda","ref_id","dia","nuevo_stock_seguridad"]]
     #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
     df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
     df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
@@ -496,7 +476,6 @@ def stock_ventas_tiendas_to_s3_pm(ds):
 
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
-    #df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
 
     condlist = [df_final["nuevo_stock_seguridad"]>=50,
                 df_final["nuevo_stock_seguridad"]<50]
@@ -505,8 +484,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
     df_final = df_final[df_final['id_tienda'] != '1917']
     df_final = df_final[df_final['id_tienda'] != '9212']
-
     print(df_final)
+
     # Aplicar lógica de excluidos
     df_excluidos = excluidos_ss()
     df_excluidos["id_tienda"] = df_excluidos["id_tienda"].astype(str).str.zfill(4)
@@ -926,7 +905,7 @@ with DAG(
         task_id = "carga_stock_seguridad_janis_am",
         python_callable = carga_stock_seguridad_janis_am
     )
-
+    
     t3_pm = PythonOperator(
         task_id = "carga_stock_seguridad_janis_pm",
         python_callable = carga_stock_seguridad_janis_pm
