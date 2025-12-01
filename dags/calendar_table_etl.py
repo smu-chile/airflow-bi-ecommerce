@@ -114,7 +114,7 @@ with DAG(
     'calendar_table_etl',
     default_args=default_args,
     description="Bigquery vm_dim_date full table load to S3 and transformation-load to Postgres",
-    schedule_interval="30 7 * * *",
+    schedule_interval="30 6 * * *",
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "DW", "S3", "MATIAS"],
