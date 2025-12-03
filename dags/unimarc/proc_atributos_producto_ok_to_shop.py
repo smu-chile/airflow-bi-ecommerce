@@ -7,128 +7,6 @@ from airflow.operators.python import PythonOperator
 from datetime import datetime
 import pendulum
 
-
-def last_file_ok_to_shop(ti):
-    import io
-    import ftplib
-    import pandas as pd
-    import zipfile
-    import numpy as np
-    from sqlalchemy import text
-
-    date_dir = datetime.now().strftime("/%Y/%m/")
-    date_name = datetime.now().strftime("%Y%m%d")
-    file_dir = date_dir+date_name+"_ok_to_shop.zip"
-    print(f"Checking file: {file_dir}")
-    df = pd.DataFrame()
-    # Establecer la conexión FTP
-    ip_ftp_ok_to_shop = Variable.get(
-        "OK_TO_SHOP_IP_FTP")
-    user_ftp_ok_to_shop = Variable.get(
-        "OK_TO_SHOP_USER_FTP")
-    password_ftp_ok_to_shop = Variable.get(
-        "OK_TO_SHOP_PASSWORD_FTP")
-    with ftplib.FTP(ip_ftp_ok_to_shop) as ftp:
-        ftp.login(user=user_ftp_ok_to_shop, passwd=password_ftp_ok_to_shop)
-        print("Adentro de FTP")
-        if file_dir in ftp.nlst(date_dir):
-            with io.BytesIO() as zip_buffer:  # file_dir = '/2023/02/20230209_ok_to_shop.zip'
-                ftp.retrbinary('RETR ' + file_dir, zip_buffer.write)
-                zip_buffer.seek(0)
-                print("en bytesIO")
-                if zipfile.is_zipfile(zip_buffer):
-                    print(f"Dentro del archivo {file_dir}")
-                    with zipfile.ZipFile(zip_buffer, mode='r') as myzip:
-                        if len(myzip.namelist()) != 0:  # la lista está vacía dentro de .zip
-                            csv_file_name = myzip.namelist()[0]
-                            with myzip.open(csv_file_name, 'r') as f:
-                                df = pd.read_csv(
-                                    f, encoding='utf-8', engine='python', sep=';', on_bad_lines='skip')  # warn
-                        else:
-                            print(file_dir, ": El archivo zip está vacio")
-                else:
-                    print(file_dir, ": No es archivo ZIP")
-        else:
-            print("Archivo no existe en el directorio")
-        ftp.quit()
-    print("Out of ftp server")
-    if not df.empty:
-        columns = ['product_ean', 'timestamp_in', 'date_in',
-                   'last_update', 'date_last_update', 'brand_name', 'description',
-                   'flavor', 'size_value', 'drained_size_value', 'size_unit',
-                   'ingredients', 'allergens', 'traces', 'has_nutritional_table',
-                   'portion_text', 'portion_value', 'portion_unit', 'num_portions',
-                   'basic_unit', 'energy_value', 'energy_unit', 'protein_value',
-                   'protein_unit', 'fat_total_value', 'fat_total_unit', 'fat_sat_value',
-                   'fat_sat_unit', 'fat_mono_value', 'fat_mono_unit', 'fat_poli_value',
-                   'fat_poli_unit', 'fat_trans_value', 'fat_trans_unit',
-                   'fat_cholesterol_value', 'fat_cholesterol_unit', 'carb_value',
-                   'carb_unit', 'sugars_value', 'sugars_unit', 'fiber_value', 'fiber_unit',
-                   'sodium_value', 'sodium_unit', 'minsal_cl_high_sugar',
-                   'minsal_cl_high_saturated_fat', 'minsal_cl_high_sodium',
-                   'minsal_cl_high_calories', 'aplv_suitable', 'gluten_free',
-                   'lactose_free', 'vegan', 'vegetarian', 'diabetes_suitable', 'soy_free',
-                   'egg_free', 'fish_free', 'seafood_free', 'peanut_free', 'nuts_free',
-                   'walnuts_free', 'sulphite_free', 'wheat_free']
-
-        df = df[columns]
-        df = df.fillna(value=np.nan)
-        int_cols = ['product_ean', 'timestamp_in', 'last_update', 'size_value', 'drained_size_value',
-                    'has_nutritional_table', 'portion_value', 'num_portions',
-                    'energy_value', 'protein_value', 'fat_total_value', 'fat_sat_value',
-                    'fat_mono_value', 'fat_poli_value', 'fat_trans_value', 'fat_cholesterol_value',
-                    'carb_value', 'sugars_value', 'fiber_value', 'sodium_value',
-                    'minsal_cl_high_sugar', 'minsal_cl_high_saturated_fat', 'minsal_cl_high_sodium',
-                    'minsal_cl_high_calories', 'aplv_suitable', 'gluten_free', 'lactose_free', 'vegan',
-                    'vegetarian', 'diabetes_suitable', 'soy_free', 'egg_free', 'fish_free', 'seafood_free',
-                    'peanut_free', 'nuts_free', 'walnuts_free', 'sulphite_free', 'wheat_free']
-        time_cols = ['date_in', 'date_last_update']
-        types = {x: 'float' for x in int_cols}
-        type_str = {x: 'str' for x in columns if x not in int_cols+time_cols}
-        types.update(type_str)
-        df = df.astype(types)
-        df = df.replace("nan", "NULL")
-
-        columns.remove("product_ean")
-
-        columns_query = ",".join(columns)
-        excluded_query = ",".join(["EXCLUDED."+column for column in columns])
-        values_query = "%s,"+",".join(["%s" for column in columns])
-        records = list(df.to_records(index=False))
-
-        # Change data types to native python types
-        fixed_records = []
-        print(records)
-        for record in records:
-            fixed_record = []
-            for value in record:
-                if isinstance(value, np.generic):
-                    fixed_record.append(value.item())
-                elif value == "NULL" or value == np.nan:
-                    fixed_record.append(None)
-                else:
-                    fixed_record.append(value)
-            fixed_records.append(tuple(fixed_record))
-        print(f"Number of records to load: {str(len(fixed_records))}")
-        incremental_query = """
-            INSERT INTO catalogo.ok_to_shop (product_ean,"""+columns_query+""") 
-            VALUES ("""+values_query+""")
-            ON CONFLICT (product_ean)
-            DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
-        """
-        print(incremental_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-        pg_connection = pg_hook.get_conn()
-        cursor = pg_connection.cursor()
-        cursor.executemany(incremental_query, fixed_records)
-        pg_connection.commit()
-        cursor.close()
-        pg_connection.close()
-        print("Data loaded to Postgres")
-    else:
-        print("Finalizado sin obtener data")
-
-
 def check_update_attributes_products(ti):
     import time
     import pandas as pd
@@ -158,7 +36,7 @@ def check_update_attributes_products(ti):
             CASE when ok.diabetes_suitable = 1 then 'Apto para Diabéticos' ELSE NULL END,
             CASE when ok.aplv_suitable = 1 then 'Apto para APLV' ELSE NULL END
             ) as Alergias 
-        from catalogo.ok_to_shop oK
+        from catalogo.ok_to_shop_v2 oK
         left join ecommdata.sku_ean se on ok.product_ean::text = se.ean 
         left join ecommdata.skus s on s.ref_id = se.ref_id
         where (ok.aplv_suitable = 1
@@ -184,7 +62,7 @@ def check_update_attributes_products(ti):
             CASE when ok.minsal_cl_high_calories = 1 then 'Alto en Calorías' ELSE NULL END,
             CASE when ok.minsal_cl_high_sugar = 1 then 'Alto en Azúcares' ELSE NULL END
             ) as sellos 
-        from catalogo.ok_to_shop oK
+        from catalogo.ok_to_shop_v2 oK
         left join ecommdata.sku_ean se on ok.product_ean::text = se.ean 
         left join ecommdata.skus s on s.ref_id = se.ref_id
         where (ok.minsal_cl_high_sugar = 1 
@@ -217,10 +95,10 @@ def check_update_attributes_products(ti):
         pg_connection.close()
         return df
 
-    print("Iniciando obtencion de ok_to_shop_alergias")
+    print("Iniciando obtencion de ok_to_shop_v2_alergias")
     df_alergias = get_atributos(query_alergias)
     print(df_alergias)
-    print("Iniciando obtencion de ok_to_shop_sellos")
+    print("Iniciando obtencion de ok_to_shop_v2_sellos")
     df_sellos = get_atributos(query_sellos)
     print(df_sellos)
     print("Iniciando obtencion de atributos_producto_alergias")
@@ -335,33 +213,29 @@ with DAG(
     'proc_janis_attributes_product_ok_to_shop',
     default_args=default_args,
     description=""" With the extractions of .csv files from ftp connection, it's been made
-    an update of catalogo.ok_to_shop table, and an insert of attributes of products that match EAN's 
+    an update of catalogo.ok_to_shop_v2 table, and an insert of attributes of products that match EAN's 
     of sku_ean and skus using the API of Janis attribute_value. After this, we hope to observe
     atributos_producto table updated.""",
 
     schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2023, 5, 21, tz="America/Santiago"),
     catchup=False,
-    tags=["API", "Janis", "ok_to_shop", 'atributos', 'atributos_producto', "SERGIO"],
+    tags=["API", "Janis", "ok_to_shop_v2", 'atributos', 'atributos_producto', "SERGIO"],
 ) as dag:
 
     dag.doc_md = """
-    Extraction and insert of attributes from ftp:ok_to_shop to Janis.
+    Extraction and insert of attributes from ftp:ok_to_shop_v2 to Janis.
     """
 
     t0 = PythonOperator(
-        task_id="last_file_ok_to_shop",
-        python_callable=last_file_ok_to_shop,
-    )
-    t1 = PythonOperator(
         task_id="check_update_attributes_products",
         python_callable=check_update_attributes_products,
     )
-    t2 = PythonOperator(
+    t1 = PythonOperator(
         task_id="set_janis_atributos",
         python_callable=set_janis_atributos,
     )
 
-t0 >> t1 >> t2
+t0 >> t1
 
 
