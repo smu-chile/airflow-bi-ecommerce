@@ -82,7 +82,7 @@ def last_millers_m10_to_s3(ds):
             left join ecommdata.marcas m 
             on p2.id_marca = m.id 
             where s2.ean_primario is not null
-            and s.fecha_carga = current_date-1
+            and s.fecha_carga = (select max(fecha_carga) from ecommdata_m10.stock)
             and pm.precio is not null
             and s.stock > 0
             and s.bloqueos is not true
