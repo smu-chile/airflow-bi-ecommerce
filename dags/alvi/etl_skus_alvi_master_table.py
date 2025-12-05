@@ -6,6 +6,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3
+from utils.postgres_utils import query_to_df
 
 from datetime import datetime, timedelta
 import pendulum
@@ -14,18 +15,9 @@ import pendulum
 def materiales_lista8():
     import pandas as pd
     stock_carnes_padre_hijo = """select distinct material 
-                            from ecommdata.productos p ;"""
-    print(stock_carnes_padre_hijo)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(stock_carnes_padre_hijo)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    print(results)
+                            from ecommdata_alvi.productos p;"""
+    results = query_to_df(stock_carnes_padre_hijo)
     results.columns = ["material"] 
-    cursor.close()
-    pg_connection.close()
     return results
 
 def master_sku_to_s3(ds,ti):
@@ -213,10 +205,10 @@ def master_sku_to_postgresq(ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata.maestra_sku_proveedor")
+        conn.execute("TRUNCATE ecommdata_alvi.maestra_sku_proveedor")
         df.to_sql(name="maestra_sku_proveedor",
                     con=conn,         
-                    schema="ecommdata",         
+                    schema="ecommdata_alvi",         
                     if_exists='append',         
                     index=False,         
                     chunksize=20000,         
@@ -234,13 +226,13 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    'etl_skus_master_table',
+    'etl_skus_alvi_master_table',
     default_args=default_args,
     description="cargar maestra skus",
     schedule_interval= "0 9 * * 1",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
-    tags=["DATA", "postgres", "ecommdata", "maestra_skus", "proveedores", "PATRICIO"],
+    tags=["DATA", "postgres", "ecommdata_alvi", "maestra_skus", "proveedores", "PATRICIO"],
 ) as dag:
     
 
@@ -298,7 +290,7 @@ with DAG(
                 LEFT JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_ENVASE` 
                     AS E on E.CODIGO = H.ENVASE
             """,
-            "query_name": "HIERARCHYxSUPPLIER_query"
+            "query_name": "HIERARCHYxSUPPLIER_query_alvi"
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),
