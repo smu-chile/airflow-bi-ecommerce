@@ -2,6 +2,9 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+
+
 from utils.postgres_utils import is_empty_table
 import pendulum
 
@@ -19,12 +22,13 @@ def db_get_ref_id_atributos_producto():
         if i == 4:
             raise Exception("No se encuentra disponible la tabla ecommdata.atributos_producto")
 
-    query = f""" select p.ref_id from ecommdata.productos p
-                left join ecommdata.atributos_producto att on att.ref_id = p.ref_id 
-                where (att.id_atributo = {id_atributo_limite_compra} 
-                    and att.valor is null ) 
-                or att.ref_id is null;"""
-
+    query = f"""select distinct p.ref_id from ecommdata.productos p
+            inner join ecommdata.lista8 l on concat(l.material, '-', l.umv) = p.ref_id 
+            where length(split_part(p.ref_id, '-', 1)) = 18 
+            and length(split_part(p.ref_id,'-',2)) >= 2
+            and split_part(p.ref_id,'-',2) not in ('KG', 'KGV')
+            order by p.ref_id desc;
+            """
     print(query)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -127,4 +131,10 @@ with DAG(
         python_callable=set_lim_compra
     )
 
-    t0 >> t1
+    t2 = TriggerDagRunOperator(
+        task_id="trigger_limite_promociones",
+        trigger_dag_id="etl_limite_promociones",
+        wait_for_completion=False
+    )
+
+    t0 >> t1 >> t2
