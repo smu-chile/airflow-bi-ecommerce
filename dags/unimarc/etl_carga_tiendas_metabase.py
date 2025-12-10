@@ -368,8 +368,8 @@ def load_tables_to_s3(ts,ds):
     df_final_skus.to_csv(buffer_2, header=True, index=False, encoding="utf-8")
     buffer_2.seek(0)
 
-    filename_productos = f"carga_tiendas_test/{exec_date}/productos_{date_aux}.csv"
-    filename_skus = f"carga_tiendas_test/{exec_date}/skus_{date_aux}.csv"
+    filename_productos = f"carga_tiendas/{exec_date}/productos_{date_aux}.csv"
+    filename_skus = f"carga_tiendas/{exec_date}/skus_{date_aux}.csv"
 
     print(f"con fecha {ds} y nombre de filename como {filename_productos}")
     s3_hook.load_string(buffer_1.getvalue(),
