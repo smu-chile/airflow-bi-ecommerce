@@ -10,6 +10,7 @@ from airflow.operators.python import BranchPythonOperator
 from airflow.operators.dummy import DummyOperator  
 from airflow.operators.python import get_current_context
 
+from utils.postgres_utils import query_to_df
 
 import pendulum
 
@@ -28,7 +29,6 @@ def branch_8am():
 
     
 def lista8():
-    import pandas as pd
     promociones_query = """select concat(l.material,'-',l.umv) as ref_id, l.id_tienda
                         from ecommdata.lista8 l
                         left join (select concat(sap_code,'-',measurement_unit) as ref_id, store as id_tienda 
@@ -67,36 +67,17 @@ def lista8():
                             OR coalesce(l.bloq_formato,0) = 2
                         )
                         """
-    print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(promociones_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(promociones_query)
     results.columns = ["ref_id","id_tienda"]
     print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def productos():
-    import pandas as pd
     productos_query = """select ref_id, nombre 
                     from ecommdata.productos"""
-    print(productos_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(productos_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(productos_query)
     results.columns = ["ref_id","nombre_producto"]
     print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def tiendas():
@@ -105,74 +86,33 @@ def tiendas():
                     from ecommdata.tiendas t 
                     where status = 1
                     and t.id not in ('1917')"""
-    print(tiendas_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(tiendas_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(tiendas_query)
     results.columns = ["id_tienda","status","nombre_tienda_janis"]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def skus():
-    import pandas as pd
     skus_query = """select ref_id, nombre_sku
                     from ecommdata.skus"""
-    print(skus_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(skus_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(skus_query)
     results.columns = ["ref_id","nombre_sku"]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def producto_tienda_janis():
-    import pandas as pd
     productos_tienda_query = """select ref_id, id_tienda, activo
                         from ecommdata.productos_tienda"""
-    print(productos_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(productos_tienda_query)
-    results = cursor.fetchall()
-    results = pd.DataFrame(results)
+    results = query_to_df(productos_tienda_query)
     results.columns = ["ref_id","id_tienda","activo"]
     results = results[["ref_id","id_tienda"]]
     print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def excluidos_x_tiendas():
-    import pandas as pd
     excluidos_query = """select ref_id,id_tienda,is_mfc,all_stores,fecha_carga
                     from ecommdata.producto_tienda_excluidos"""
-    print(excluidos_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(excluidos_query)
-    results = cursor.fetchall()
-    results = pd.DataFrame(results)
+    results = query_to_df(excluidos_query)
     results.columns = ["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]
     results = results[["ref_id","id_tienda","is_mfc","all_stores","fecha_carga"]]
     print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def publicacion_1917_today(ts):
@@ -184,25 +124,79 @@ def publicacion_1917_today(ts):
                     and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                     and pc.stock_janis > 0
                     ;"""
-
-    print(mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(mfc_query)
-    results = cursor.fetchall()
-    if not results:
+    results = query_to_df(mfc_query)
+    if results.empty:
         print("There are no new nor updated records to load from MFC. Task will return an empty df.")
         return pd.DataFrame(columns=["ref_id", "id_tienda", "fecha"])
     results = pd.DataFrame(results)
     results.columns = ["ref_id","id_tienda","fecha",]
     results = results[["ref_id","id_tienda","fecha"]]
     print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
+def aplicar_exclusiones_mfc(df_final_productos):
+    import pandas as pd
+
+    excl_query = """
+        select ref_id as refId, id_tienda
+        from catalogo.excluidos_carga_por_tienda
+    """
+    df_excl = query_to_df(excl_query)
+    df_excl.columns = ["refId", "id_tienda"]
+
+    if df_excl.empty:
+        print("⚠️ aplicar_exclusiones_mfc: no hay filas en excluidos_carga_por_tienda")
+        return df_final_productos
+
+    df = df_final_productos.copy()
+
+    # Solo nos preocupamos de los activos = 1
+    df_activos = df[df["active"] == 1].copy()
+    df_otros   = df[df["active"] != 1].copy()
+
+    if df_activos.empty:
+        print("⚠️ aplicar_exclusiones_mfc: no hay productos activos, no se aplica nada")
+        return df
+
+    df_activos["stores"] = df_activos["stores"].fillna("").astype(str)
+
+    # separar stores en filas
+    df_exp = df_activos.assign(store=df_activos["stores"].str.split(",")).explode("store")
+    df_exp["store"] = df_exp["store"].str.strip()
+
+    # cruzar con exclusiones
+    df_exp = df_exp.merge(
+        df_excl,
+        how="left",
+        left_on=["refId", "store"],
+        right_on=["refId", "id_tienda"]
+    )
+
+    # nos quedamos SOLO con las combinaciones que NO están en la tabla de exclusión
+    df_exp = df_exp[df_exp["id_tienda"].isna()]
+
+    # rearmar la lista de tiendas
+    df_group = (
+        df_exp.groupby("refId")["store"]
+        .apply(lambda x: ",".join([s for s in x if s]))  # sacar vacíos
+        .reset_index()
+    )
+
+    # unir de vuelta con el resto de columnas de activos
+    df_activos = df_activos.drop(columns=["stores"]).merge(df_group, on="refId", how="left")
+
+    # si algún refId quedó sin tiendas → lo sacamos
+    df_activos = df_activos[df_activos["store"].notna() & (df_activos["store"] != "")]
+    df_activos = df_activos.rename(columns={"store": "stores"})
+
+    # recomponer todo (activos filtrados + otros)
+    df_final = pd.concat([df_activos, df_otros], axis=0).reset_index(drop=True)
+
+    cols_order = ["refId", "stores", "publish", "updatePending", "visible", "active"]
+    df_final = df_final[cols_order]
+
+    print(f"aplicar_exclusiones_mfc: df_final_productos quedó con {len(df_final.index)} filas")
+    return df_final
 
 def load_tables_to_s3(ts,ds):
     import pandas as pd
@@ -361,6 +355,10 @@ def load_tables_to_s3(ts,ds):
     df_final_productos = pd.concat([df_changes_final,df_desactivados_productos], axis=0)
     df_final_skus = pd.concat([df_final_skus,df_desactivados_sku], axis=0)
     df_final_skus = df_final_skus[~df_final_skus['refId'].isin(lista_skus_sin_producto)]
+
+    #lógica de excluir por tienda en carga_productos
+    df_final_productos = aplicar_exclusiones_mfc(df_final_productos)
+
 
     buffer_1 = io.StringIO()
     df_final_productos.to_csv(buffer_1, header=True, index=False, encoding="utf-8")
@@ -591,26 +589,26 @@ with DAG(
         task_id = 'load_tables_to_s3',
         python_callable=load_tables_to_s3,
     )
-
+    
     t3 = PythonOperator(
         task_id = "load_tables_to_postgres",
         python_callable = load_tables_to_postgres,
     )
-
+    
     t4 = PythonOperator(
         task_id = "get_and_send_cargas_csv",
         python_callable = get_and_send_cargas_csv,
     )
-
+    
     t_b = BranchPythonOperator(
         task_id="branch_check_8am",
         python_callable=branch_8am,
     )
-
+    
     t_end = DummyOperator(
         task_id="skip_send"
     )
-
+    
     t0 >> t1 >> t2 >> t3 >> t_b
     t_b >> t4
     t_b >> t_end
