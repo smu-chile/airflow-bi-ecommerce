@@ -84,8 +84,7 @@ def tiendas():
     import pandas as pd
     tiendas_query = """select id, status, nombre_tienda_janis
                     from ecommdata.tiendas t 
-                    where status = 1
-                    and t.id not in ('1917')"""
+                    where status = 1"""
     results = query_to_df(tiendas_query)
     results.columns = ["id_tienda","status","nombre_tienda_janis"]
     return results
