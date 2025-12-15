@@ -7,6 +7,8 @@ from airflow.sensors.external_task import ExternalTaskSensor
 
 import pendulum
 
+from utils.slack_utils import upload_df_as_excel, send_text_message, dag_success_slack, dag_failure_slack
+
 def get_and_send_audits_daily():
     """
     Consulta las auditorías del día (según ds) 
@@ -69,69 +71,22 @@ def get_and_send_audits_daily():
     df = pd.read_sql(q.statement, engine)
     session.close()
 
-    # Si no hay datos, avisar y salir
-    token      = Variable.get("token_slack_bot")
-    channel_id = Variable.get("tocken_slack_channel_sac_audits")
-    client     = WebClient(token=token)
+    channel_var = "tocken_slack_channel_sac_audits"  # tal como ya la usas
 
     if df.empty:
-        client.chat_postMessage(
-            channel=channel_id,
-            text=f"<!channel> 🔍 No se encontraron auditorías para {fecha_consulta}"
+        send_text_message(
+            channel_var_name=channel_var,
+            text=f"<!channel> 🔍 No se encontraron auditorías para {fecha_consulta}",
         )
         return
 
-    # Crear Excel en memoria
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
-        df.to_excel(writer, index=False, sheet_name="Auditorias")
-    buffer.seek(0)
-
-    # Subir a Slack
-    file_name = f"auditorias_{fecha_consulta}.xlsx"
-    file_size = buffer.getbuffer().nbytes
-
-    # obtener URL de subida
-    upload_url_resp = requests.post(
-        "https://slack.com/api/files.getUploadURLExternal",
-        data={
-            "filename": file_name,
-            "length": str(file_size),
-            "token": token
-        }
-    ).json()
-
-    upload_url = upload_url_resp.get("upload_url")
-    file_id    = upload_url_resp.get("file_id")
-
-    if not upload_url:
-        raise RuntimeError(f"Error getUploadURLExternal: {upload_url_resp}")
-
-    # subir bytes
-    up_resp = requests.post(
-        upload_url,
-        data=buffer,
-        headers={"Content-Type":"application/octet-stream"}
+    upload_df_as_excel(
+        df=df,
+        base_name="auditorias",
+        channel_var_name=channel_var,
+        initial_comment=f"<!channel> 🕵️ Auditorías para {fecha_consulta}",
+        sheet_name="Auditorias",
     )
-    if up_resp.status_code != 200:
-        raise RuntimeError(f"Error subiendo archivo: {up_resp.text}")
-
-    # completar subida
-    complete_payload = {
-        "files": [{"id": file_id}],
-        "channel_id": channel_id,
-        "initial_comment": f"<!channel> 🕵️ Auditorías para {fecha_consulta}"
-    }
-    comp = requests.post(
-        "https://slack.com/api/files.completeUploadExternal",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        },
-        data=json.dumps(complete_payload)
-    ).json()
-    if not comp.get("ok"):
-        raise RuntimeError(f"Error completeUploadExternal: {comp}")
 
     print(f"✅ Auditorías de {fecha_consulta} enviadas correctamente.")
 
@@ -152,7 +107,9 @@ with DAG(
     start_date=pendulum.datetime(2025, 3, 30, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["Alertas", "SAC", "Pedidos", "Auditoría", "FRANCISCO"]
+    tags=["Alertas", "SAC", "Pedidos", "Auditoría", "FRANCISCO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
     dag.doc_md = """
