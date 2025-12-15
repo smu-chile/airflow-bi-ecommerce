@@ -11,6 +11,9 @@ from airflow.operators.dummy import DummyOperator
 
 import pendulum
 
+from utils.postgres_utils import query_to_df
+from utils.slack_utils import upload_bytes_to_slack, dag_success_slack, dag_failure_slack
+
 def branch_8am(ts):
     exec_date = pendulum.parse(ts, tz="America/Santiago")
     hora = exec_date.hour
@@ -21,7 +24,6 @@ def branch_8am(ts):
         return "skip_send"
 
 def lista8(ds):
-    import pandas as pd
     promociones_query = f"""select distinct concat(material,'-',umv) as ref_id, id_tienda, fecha
                 from ecommdata_alvi.lista8 l
                 union
@@ -58,111 +60,50 @@ def lista8(ds):
                         '000000000000008511-UN', '000000000000999999-UN', '000000000000999998-UN',
                         '000000000000999997-UN', '000000000000999996-UN', '000000000000999995-UN'
                     );"""
-    print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(promociones_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(promociones_query)
     results.columns = ["ref_id","id_tienda","fecha"]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def productos():
-    import pandas as pd
     productos_query = """select ref_id, nombre 
                     from ecommdata_alvi.productos"""
-    print(productos_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(productos_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(productos_query)
     results.columns = ["ref_id","nombre_producto"]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
-
     return results
 
 def tiendas():
-    import pandas as pd
     tiendas_query = """select id, status, nombre_tienda_janis
                     from ecommdata_alvi.tiendas t 
                     where status = 1"""
-    print(tiendas_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(tiendas_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(tiendas_query)
     results.columns = ["id_tienda","status","nombre_tienda_janis"]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
 
     return results
 
 def skus():
-    import pandas as pd
     skus_query = """select ref_id, nombre_sku
                     from ecommdata_alvi.skus"""
-    print(skus_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(skus_query)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
+    results = query_to_df(skus_query)
     results.columns = ["ref_id","nombre_sku"]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
 
     return results
 
 def producto_tienda_janis():
-    import pandas as pd
     productos_tienda_query = """select ref_id, id_tienda, activo
                         from ecommdata_alvi.productos_tienda
                         where activo is true"""
-    print(productos_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(productos_tienda_query)
-    results = cursor.fetchall()
-    results = pd.DataFrame(results)
+    results = query_to_df(productos_tienda_query)
     results.columns = ["ref_id","id_tienda","activo"]
     results = results[["ref_id","id_tienda"]]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
 
     return results
 
 def excluidos_x_tiendas():
-    import pandas as pd
     excluidos_query = """select concat(material,'-',umv) as ref_id
                     from catalogo.productos_excluidos_alvi"""
-    print(excluidos_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(excluidos_query)
-    results = cursor.fetchall()
-    results = pd.DataFrame(results)
+    results = query_to_df(excluidos_query)
     results.columns = ["ref_id"]
     results = results[["ref_id"]]
-    print(results.head())
-    cursor.close()
-    pg_connection.close()
 
     return results
 
@@ -419,48 +360,6 @@ def load_tables_to_postgres(ti):
 
     return
 
-def _upload_to_slack(file_name: str, data_bytes: bytes, channel_id: str, token: str):
-    import requests, json
-    # 1) pedir URL de subida
-    upload_url_resp = requests.post(
-        "https://slack.com/api/files.getUploadURLExternal",
-        data={
-            "filename": file_name,
-            "length": str(len(data_bytes)),
-            "token": token,
-        }
-    ).json()
-    upload_url = upload_url_resp.get("upload_url")
-    file_id    = upload_url_resp.get("file_id")
-    if not upload_url:
-        raise RuntimeError(f"Error getUploadURLExternal: {upload_url_resp}")
-
-    # 2) subir bytes
-    up_resp = requests.post(
-        upload_url,
-        data=data_bytes,
-        headers={"Content-Type": "application/octet-stream"}
-    )
-    if up_resp.status_code != 200:
-        raise RuntimeError(f"Error subiendo {file_name}: {up_resp.text}")
-
-    # 3) completar subida
-    comp = requests.post(
-        "https://slack.com/api/files.completeUploadExternal",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        },
-        data=json.dumps({
-            "files": [{"id": file_id}],
-            "channel_id": channel_id,
-            "initial_comment": f"📎<!channel> [Alvi] Ya se puede cargar {file_name}! :cat0:"
-        })
-    ).json()
-    if not comp.get("ok"):
-        raise RuntimeError(f"Error completeUploadExternal {file_name}: {comp}")
-
-
 def get_and_send_cargas_csv():
     """
     Ejecuta 2 queries en Postgres (carga_productos y carga_skus)
@@ -472,8 +371,6 @@ def get_and_send_cargas_csv():
     # conexiones / vars
     pg_hook   = PostgresHook(postgres_conn_id="postgresql_conn")
     engine    = pg_hook.get_sqlalchemy_engine()
-    token     = Variable.get("token_slack_bot")
-    channel_id = Variable.get("token_slack_carga_tiendas") 
     fecha_str = str(pendulum.now("America/Santiago").date())
 
     SQL_PRODUCTOS = """
@@ -504,10 +401,22 @@ def get_and_send_cargas_csv():
     # nombres bonitos
     file_prod = f"carga_productos_{fecha_str}.csv"
     file_skus = f"carga_skus_{fecha_str}.csv"
+    
+    comment = "📎<!channel> [Unimarc] Ya se puede cargar {name}! :cat0:"
 
-    # subir a Slack
-    _upload_to_slack(file_prod, bytes_prod, channel_id, token)
-    _upload_to_slack(file_skus, bytes_skus, channel_id, token)
+    upload_bytes_to_slack(
+        file_name=file_prod,
+        data_bytes=bytes_prod,
+        channel_var_name="token_slack_carga_tiendas",
+        initial_comment=comment.format(name=file_prod),
+    )
+
+    upload_bytes_to_slack(
+        file_name=file_skus,
+        data_bytes=bytes_skus,
+        channel_var_name="token_slack_carga_tiendas",
+        initial_comment=comment.format(name=file_skus),
+    )
 
     print(f"✅ CSVs enviados: {file_prod}, {file_skus}")
 
@@ -527,6 +436,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "tiendas", "ecommdata", "metabase", "alvi", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

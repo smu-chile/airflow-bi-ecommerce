@@ -11,6 +11,7 @@ from airflow.operators.dummy import DummyOperator
 from airflow.operators.python import get_current_context
 
 from utils.postgres_utils import query_to_df
+from utils.slack_utils import upload_bytes_to_slack, dag_failure_slack, dag_success_slack
 
 import pendulum
 
@@ -453,48 +454,6 @@ def load_tables_to_postgres(ti):
 
     return
 
-def _upload_to_slack(file_name: str, data_bytes: bytes, channel_id: str, token: str):
-    import requests, json
-    # 1) pedir URL de subida
-    upload_url_resp = requests.post(
-        "https://slack.com/api/files.getUploadURLExternal",
-        data={
-            "filename": file_name,
-            "length": str(len(data_bytes)),
-            "token": token,
-        }
-    ).json()
-    upload_url = upload_url_resp.get("upload_url")
-    file_id    = upload_url_resp.get("file_id")
-    if not upload_url:
-        raise RuntimeError(f"Error getUploadURLExternal: {upload_url_resp}")
-
-    # 2) subir bytes
-    up_resp = requests.post(
-        upload_url,
-        data=data_bytes,
-        headers={"Content-Type": "application/octet-stream"}
-    )
-    if up_resp.status_code != 200:
-        raise RuntimeError(f"Error subiendo {file_name}: {up_resp.text}")
-
-    # 3) completar subida
-    comp = requests.post(
-        "https://slack.com/api/files.completeUploadExternal",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json"
-        },
-        data=json.dumps({
-            "files": [{"id": file_id}],
-            "channel_id": channel_id,
-            "initial_comment": f"📎<!channel> [Unimarc] Ya se puede cargar {file_name}! :cat0:"
-        })
-    ).json()
-    if not comp.get("ok"):
-        raise RuntimeError(f"Error completeUploadExternal {file_name}: {comp}")
-
-
 def get_and_send_cargas_csv():
     """
     Ejecuta 2 queries en Postgres (carga_productos y carga_skus)
@@ -506,8 +465,6 @@ def get_and_send_cargas_csv():
     # conexiones / vars
     pg_hook   = PostgresHook(postgres_conn_id="postgresql_conn")
     engine    = pg_hook.get_sqlalchemy_engine()
-    token     = Variable.get("token_slack_bot")
-    channel_id = Variable.get("token_slack_carga_tiendas")  # mismo var que ya usas
     fecha_str = str(pendulum.now("America/Santiago").date())
 
     # queries tal cual las pediste
@@ -540,9 +497,21 @@ def get_and_send_cargas_csv():
     file_prod = f"carga_productos_{fecha_str}.csv"
     file_skus = f"carga_skus_{fecha_str}.csv"
 
-    # subir a Slack
-    _upload_to_slack(file_prod, bytes_prod, channel_id, token)
-    _upload_to_slack(file_skus, bytes_skus, channel_id, token)
+    comment = "📎<!channel> [Unimarc] Ya se puede cargar {name}! :cat0:"
+
+    upload_bytes_to_slack(
+        file_name=file_prod,
+        data_bytes=bytes_prod,
+        channel_var_name="token_slack_carga_tiendas",
+        initial_comment=comment.format(name=file_prod),
+    )
+
+    upload_bytes_to_slack(
+        file_name=file_skus,
+        data_bytes=bytes_skus,
+        channel_var_name="token_slack_carga_tiendas",
+        initial_comment=comment.format(name=file_skus),
+    )
 
     print(f"✅ CSVs enviados: {file_prod}, {file_skus}")
 
@@ -562,6 +531,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "tiendas", "ecommdata", "metabase", "unimarc", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 
