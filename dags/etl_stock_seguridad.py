@@ -10,6 +10,7 @@ import pendulum
 
 from datetime import datetime, timedelta
 from utils.postgres_utils import query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 def _check_time(ts):
     
@@ -124,6 +125,16 @@ def productos_pesables_excluidos_meios():
         where c.n2 = 'Pollo'
         and (p.ref_id ilike '%KG%' or p.ref_id ilike '%KGV%')
         and meio.minimo_exhibicion < 1
+    """
+    results = query_to_df(query)
+    return results
+
+def listado_slotting_mfc():
+    query = f"""
+        select distinct msm.ref_id 
+        from ecommdata.maestra_slotting_mfc msm
+        where msm.candidato_merma ilike '%no%'
+        or msm.restriccion_merma_00 ilike '%no%'
     """
     results = query_to_df(query)
     return results
@@ -750,6 +761,113 @@ def carga_stock_seguridad_janis_am(ds,ti):
 
     return
 
+def carga_stock_seguridad_oms_1917(ti, source_task_id):
+    import requests
+    import pandas as pd
+    import time
+
+    # 1) Traer filename desde XCom del task AM o PM
+    filename = ti.xcom_pull(key="return_value", task_ids=[source_task_id])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception(f"Key {filename} does not exist.")
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"ref_id": str, "id_tienda": str, "erp_id": str})
+
+    # 2) Solo tienda 0917
+    df["id_tienda"] = df["id_tienda"].astype(str).str.zfill(4)
+    df = df[df["id_tienda"] == "0917"].copy()
+
+    if df.empty:
+        print("No hay registros para 0917.")
+        return
+    # 2.1) Aplicar regla: si está en slotting_mfc => stock seguridad = 0
+    mfc_df = listado_slotting_mfc()
+    mfc_set = set(mfc_df["ref_id"].dropna().astype(str).str.strip().unique())
+
+    df["ref_id"] = df["ref_id"].astype(str).str.strip()
+    df.loc[df["ref_id"].isin(mfc_set), "nuevo_stock_seguridad"] = 0
+
+    # log pa cachar cuántos quedaron en 0 por esta regla
+    print(f"[OMS 1917] Forzados a 0 por slotting MFC: {(df['ref_id'].isin(mfc_set)).sum()} / {len(df)}")
+
+    # 3) Se asigna ref_id a sku, y se asegura tipo int en stock seguridad
+    df["sku"] = df["ref_id"].astype(str)
+    df["nuevo_stock_seguridad"] = (
+            df["nuevo_stock_seguridad"]
+            .fillna(0)
+            .astype(int)
+    )
+
+    # 4) Config endpoint + headers
+    url = "https://ms-integrations-publisher.smu-labs.cl/oms/security-stock"
+    token = Variable.get("security_stock_token_publisher")  
+    channel = "unimarc"
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "channel": channel
+    }
+
+    session = requests.Session()
+
+    ok = 0
+    fail = 0
+    errores = []
+
+    # 5) Post 1 a 1
+    for _, row in df.iterrows():
+        payload = [{
+            "sku": str(row["sku"]),
+            "idWarehouse": "0917",
+            "securityStock": int(row["nuevo_stock_seguridad"])
+        }]
+
+        try:
+            resp = session.post(url, json=payload, headers=headers, timeout=10)
+            if 200 <= resp.status_code < 300:
+                ok += 1
+            else:
+                fail += 1
+                errores.append({
+                    "sku": row["sku"],
+                    "status": resp.status_code,
+                    "body": resp.text[:500]
+                })
+        except Exception as e:
+            fail += 1
+            errores.append({
+                "sku": row["sku"],
+                "status": "EXCEPTION",
+                "body": str(e)[:500]
+            })
+
+        #Evaluar time.sleep en caso de pegarle mucho al endpoint
+
+    print(f"✅ OMS MFC listo. OK={ok} FAIL={fail}")
+    if errores:
+        print("❌ Ejemplos de errores (top 20):")
+        print(errores[:20])
+
+    total = ok + fail
+    fail_rate = (fail / total) if total else 0
+
+    MAX_FAIL_RATE = 0.2   # 20%
+    MAX_FAIL_COUNT = 500  # o 500 filas
+
+    if fail > 0 and (fail_rate > MAX_FAIL_RATE or fail > MAX_FAIL_COUNT):
+        raise Exception(
+            f"OMS security-stock fallando: FAIL={fail}/{total} ({fail_rate:.1%}). "
+            f"Top errors: {errores[:10]}"
+        )
+
+    return
+
+
 def stock_ventas_tiendas_to_postgresql_am(ti):
     import numpy as np
     import pandas as pd
@@ -865,6 +983,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 
@@ -911,6 +1031,22 @@ with DAG(
         python_callable = carga_stock_seguridad_janis_pm
     )
 
+    t4_am = PythonOperator(
+        task_id="carga_stock_seguridad_publisher_1917_am",
+        python_callable=carga_stock_seguridad_oms_1917,
+        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_am"},
+    )
+
+    t4_pm = PythonOperator(
+        task_id="carga_stock_seguridad_publisher_1917_pm",
+        python_callable=carga_stock_seguridad_oms_1917,
+        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_pm"},
+    )
+
     t0 >> t1_am >> t2_am >> t3_am
+    t2_am >> t4_am
+
     t0 >> t1_pm >> t2_pm >> t3_pm
+    t2_pm >> t4_pm
+
     t0 >> t_dummy

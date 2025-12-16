@@ -7,6 +7,7 @@ from airflow.models import Variable
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3
 from utils.postgres_utils import query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime, timedelta
 import pendulum
@@ -14,9 +15,10 @@ import pendulum
 
 def materiales_lista8():
     import pandas as pd
-    stock_carnes_padre_hijo = """select distinct material 
-                            from ecommdata_alvi.productos p;"""
-    results = query_to_df(stock_carnes_padre_hijo)
+    query = """select distinct left(p.ref_id,18) as material
+                            from ecommdata_alvi.productos p
+                            where p.ref_id is not null;"""
+    results = query_to_df(query)
     results.columns = ["material"] 
     return results
 
@@ -233,6 +235,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_alvi", "maestra_skus", "proveedores", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

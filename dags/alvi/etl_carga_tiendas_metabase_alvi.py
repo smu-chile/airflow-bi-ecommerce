@@ -402,7 +402,7 @@ def get_and_send_cargas_csv():
     file_prod = f"carga_productos_{fecha_str}.csv"
     file_skus = f"carga_skus_{fecha_str}.csv"
     
-    comment = "📎<!channel> [Unimarc] Ya se puede cargar {name}! :cat0:"
+    comment = "📎<!channel> [Alvi] Ya se puede cargar {name}! :cat0:"
 
     upload_bytes_to_slack(
         file_name=file_prod,
