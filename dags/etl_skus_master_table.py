@@ -6,26 +6,19 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3
+from utils.postgres_utils import query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime, timedelta
 import pendulum
 
 
 def materiales_lista8():
-    import pandas as pd
-    stock_carnes_padre_hijo = """select distinct material 
-                            from ecommdata.productos p ;"""
-    print(stock_carnes_padre_hijo)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(stock_carnes_padre_hijo)
-    results = cursor.fetchall()
-    results=pd.DataFrame(results)
-    print(results)
+    query = """select distinct left(ref_id, 18) as material 
+                from ecommdata.productos p
+                where p.ref_id is not null;"""
+    results=query_to_df(query)
     results.columns = ["material"] 
-    cursor.close()
-    pg_connection.close()
     return results
 
 def master_sku_to_s3(ds,ti):
@@ -241,6 +234,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "maestra_skus", "proveedores", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 
