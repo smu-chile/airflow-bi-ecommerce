@@ -802,9 +802,10 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
             .fillna(0)
             .astype(int)
     )
+    df.head(10)
 
     # 4) Config endpoint + headers
-    url = "https://ms-integrations-publisher.smu-labs.cl/oms/security-stock"
+    url = Variable.get("endpoint_security_stock_publisher")
     token = Variable.get("security_stock_token_publisher")  
     channel = "unimarc"
 
