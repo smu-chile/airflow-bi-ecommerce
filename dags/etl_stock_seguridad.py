@@ -764,7 +764,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
 def carga_stock_seguridad_oms_1917(ti, source_task_id):
     import requests
     import pandas as pd
-    import time
+    import json
 
     # 1) Traer filename desde XCom del task AM o PM
     filename = ti.xcom_pull(key="return_value", task_ids=[source_task_id])[0]
@@ -792,21 +792,16 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
     df["ref_id"] = df["ref_id"].astype(str).str.strip()
     df.loc[df["ref_id"].isin(mfc_set), "nuevo_stock_seguridad"] = 0
 
-    # log pa cachar cuántos quedaron en 0 por esta regla
     print(f"[OMS 1917] Forzados a 0 por slotting MFC: {(df['ref_id'].isin(mfc_set)).sum()} / {len(df)}")
 
     # 3) Se asigna ref_id a sku, y se asegura tipo int en stock seguridad
     df["sku"] = df["ref_id"].astype(str)
-    df["nuevo_stock_seguridad"] = (
-            df["nuevo_stock_seguridad"]
-            .fillna(0)
-            .astype(int)
-    )
+    df["nuevo_stock_seguridad"] = df["nuevo_stock_seguridad"].fillna(0).astype(int)
     df.head(10)
 
     # 4) Config endpoint + headers
     url = Variable.get("endpoint_security_stock_publisher")
-    token = Variable.get("security_stock_token_publisher")  
+    token = Variable.get("security_stock_token_publisher")
     channel = "unimarc"
 
     headers = {
@@ -816,40 +811,61 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
 
     session = requests.Session()
 
+    # 5) Payload masivo (lista de objetos)
+    payload = [
+        {
+            "sku": str(row["sku"]),
+            "idWarehouse": "0917",
+            "securityStock": int(row["nuevo_stock_seguridad"])
+        }
+        for _, row in df.iterrows()
+    ]
+    
+    print(json.dumps(payload[:10], indent=2, ensure_ascii=False))
+
+    # 6) Intento BULK
+    try:
+        resp = session.post(url, json=payload, headers=headers, timeout=60)
+        if 200 <= resp.status_code < 300:
+            print(f"✅ OMS MFC BULK listo. OK={len(payload)} FAIL=0")
+            return
+        else:
+            print(f"⚠️ BULK falló status={resp.status_code} body={resp.text[:500]}")
+    except Exception as e:
+        print(f"⚠️ BULK tiró excepción: {str(e)[:500]}")
+
+    # 7) Fallback a CHUNKS
+    CHUNK_SIZE = 2000  
+
     ok = 0
     fail = 0
     errores = []
 
-    # 5) Post 1 a 1
-    for _, row in df.iterrows():
-        payload = [{
-            "sku": str(row["sku"]),
-            "idWarehouse": "0917",
-            "securityStock": int(row["nuevo_stock_seguridad"])
-        }]
+    for i in range(0, len(payload), CHUNK_SIZE):
+        chunk = payload[i:i + CHUNK_SIZE]
 
         try:
-            resp = session.post(url, json=payload, headers=headers, timeout=10)
+            resp = session.post(url, json=chunk, headers=headers, timeout=60)
             if 200 <= resp.status_code < 300:
-                ok += 1
+                ok += len(chunk)
             else:
-                fail += 1
+                fail += len(chunk)
                 errores.append({
-                    "sku": row["sku"],
+                    "chunk_start": i,
+                    "chunk_size": len(chunk),
                     "status": resp.status_code,
                     "body": resp.text[:500]
                 })
         except Exception as e:
-            fail += 1
+            fail += len(chunk)
             errores.append({
-                "sku": row["sku"],
+                "chunk_start": i,
+                "chunk_size": len(chunk),
                 "status": "EXCEPTION",
                 "body": str(e)[:500]
             })
 
-        #Evaluar time.sleep en caso de pegarle mucho al endpoint
-
-    print(f"✅ OMS MFC listo. OK={ok} FAIL={fail}")
+    print(f"✅ OMS MFC por CHUNKS listo. OK={ok} FAIL={fail}")
     if errores:
         print("❌ Ejemplos de errores (top 20):")
         print(errores[:20])
