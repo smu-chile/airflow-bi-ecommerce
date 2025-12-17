@@ -36,7 +36,7 @@ def lista8():
                             from ecommdata.ubicacion_mfc um 
                             where mfc_is_item_side = 'REG') as ubi
                             on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
-                        where ubi.ref_id is null 
+                        where (l.id_tienda = '1917' OR ubi.ref_id is null) 
                         and not (
                             coalesce(l.bloq_centro,0) = 2
                             OR coalesce(l.bloq_formato,0) = 2
@@ -548,7 +548,7 @@ with DAG(
         allowed_states=['success'],
         failed_states=['failed']
     )
-
+    
     t1 = PostgresOperator(
         task_id = "truncate_and_load_table_producto_tienda_excluidos",
         postgres_conn_id="postgresql_conn",
