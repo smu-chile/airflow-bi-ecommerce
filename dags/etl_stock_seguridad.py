@@ -835,7 +835,7 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
         print(f"⚠️ BULK tiró excepción: {str(e)[:500]}")
 
     # 7) Fallback a CHUNKS
-    CHUNK_SIZE = Variable.get("OMS_SECURITY_STOCK_CHUNK_SIZE", default_var=500)
+    CHUNK_SIZE = int(Variable.get("OMS_SECURITY_STOCK_CHUNK_SIZE", default_var=500))
 
     ok = 0
     fail = 0
