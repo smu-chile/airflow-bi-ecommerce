@@ -4,6 +4,8 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 from datetime import timedelta
 import pendulum
 
@@ -196,7 +198,9 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     default_args=default_args,
-    tags=["clientes", "daily", "datos", "direcciones", "FRANCISCO", "VTEX"]
+    tags=["clientes", "daily", "datos", "direcciones", "FRANCISCO", "VTEX"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

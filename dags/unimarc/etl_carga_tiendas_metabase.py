@@ -41,6 +41,7 @@ def lista8():
                             coalesce(l.bloq_centro,0) = 2
                             OR coalesce(l.bloq_formato,0) = 2
                             )
+                        and concat(l.material,'-',l.umv) not in ('000000000000669485-UN','000000000000669484-UN')
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
                         from ecommdata.lista8 l 
@@ -48,18 +49,21 @@ def lista8():
                             coalesce(l.bloq_centro,0) = 2
                             OR coalesce(l.bloq_formato,0) = 2
                             )
+                        and concat(l.material,'-',l.umv) not in ('000000000000669485-UN','000000000000669484-UN')
                         union
                         select distinct pc.ref_id, '0053' as id_tienda
                         from ecommdata.publicacion_catalogo pc
                         where pc.mfc is true
                         and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                         and pc.stock_janis > 0
+                        and pc.ref_id not in ('000000000000669485-UN','000000000000669484-UN')
                         union
                         select distinct pc.ref_id, '0398' as id_tienda
                         from ecommdata.publicacion_catalogo pc
                         where pc.mfc is true
                         and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                         and pc.stock_janis > 0
+                        and pc.ref_id not in ('000000000000669485-UN','000000000000669484-UN')
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
@@ -67,6 +71,7 @@ def lista8():
                             coalesce(l.bloq_centro,0) = 2
                             OR coalesce(l.bloq_formato,0) = 2
                         )
+                        and concat(l.material,'-',l.umv) not in ('000000000000669485-UN','000000000000669484-UN')
                         """
     results = query_to_df(promociones_query)
     results.columns = ["ref_id","id_tienda"]
@@ -384,7 +389,6 @@ def load_tables_to_s3(ts,ds):
                 bucket_name=s3_bucket,
                 replace=True,
                 encrypt=False)
-
 
     print("se logro transformar los dataframes a archivos .csv")
     print(f"File load on S3: {prefix}")

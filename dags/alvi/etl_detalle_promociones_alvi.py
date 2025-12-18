@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 import pendulum
 
+from utils.slack_utils import dag_failure_slack, dag_success_slack
 
 from datetime import datetime, timedelta
 
@@ -21,6 +22,8 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     tags=["detalle_promociones", "venta", "unimarc", "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

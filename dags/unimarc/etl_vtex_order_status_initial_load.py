@@ -6,6 +6,8 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 from datetime import datetime
 
 import pendulum
@@ -221,8 +223,6 @@ def _upload_order_status(ts, ti, ds):
                 method='multi')
         conn.close
 
-
-    
     return
 
 
@@ -243,6 +243,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["vtex", "orders", "status", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

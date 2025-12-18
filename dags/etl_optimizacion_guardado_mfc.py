@@ -6,6 +6,8 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 from datetime import datetime, timedelta
@@ -103,6 +105,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 9, 27, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "MFC", "s3", "stock", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

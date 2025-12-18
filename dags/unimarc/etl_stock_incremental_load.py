@@ -7,6 +7,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from utils.janis_utils import load_full_table_to_s3
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime
 
@@ -298,7 +299,6 @@ def _vtex_get_stock_retries(ti, ts):
     _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
 
 
-
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -316,6 +316,8 @@ with DAG(
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "vtex", "janis", "staging", "unimarc", "vtex_stock", "janis_stock", "stock", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

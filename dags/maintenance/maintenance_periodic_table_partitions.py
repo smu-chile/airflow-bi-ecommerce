@@ -5,6 +5,8 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 PARTITION_PERIODS = {
@@ -100,6 +102,8 @@ with DAG(
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["MAINTENANCE", "partitions", "DB", "PostgreSQL", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

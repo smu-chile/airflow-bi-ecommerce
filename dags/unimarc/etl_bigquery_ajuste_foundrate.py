@@ -1,8 +1,10 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.models import Variable
+
 from utils.postgres_utils import is_empty_table
 from utils.bigquery_utils import bq_query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from google.cloud import bigquery
 from psycopg2.extras import execute_values
@@ -131,6 +133,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "ajuste_foundrate", "BigQuery", "KEVIN"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

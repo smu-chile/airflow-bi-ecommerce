@@ -3,6 +3,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from datetime import timedelta
 import pendulum
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 defaul_args = {
     "owner": "ecommerce_data",
@@ -21,7 +22,9 @@ with DAG(
     start_date=pendulum.datetime(2025, 2, 26, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["logistica", "costos", "unimarc", "KEVIN"]
+    tags=["logistica", "costos", "unimarc", "KEVIN"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     t0 = PostgresOperator(

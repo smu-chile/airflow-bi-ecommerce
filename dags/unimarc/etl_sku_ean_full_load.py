@@ -5,6 +5,8 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 
 from utils.janis_utils import load_custom_query_to_s3
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def _full_load_table_to_workspace(ts, ti):
@@ -70,6 +72,8 @@ with DAG(
     max_active_runs=1,
     concurrency=2,
     tags=["DATA", "Janis", "ecommdata", "sku_ean", "unimarc", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

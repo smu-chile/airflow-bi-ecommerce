@@ -6,6 +6,7 @@ from airflow.hooks.S3_hook import S3Hook
 
 from utils.calendar import delta_yearweeks
 from utils.bigquery_utils import bigquery_full_table_load_to_s3
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime, timedelta
 import pendulum
@@ -118,6 +119,8 @@ with DAG(
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "DW", "S3", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

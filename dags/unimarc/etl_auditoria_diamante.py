@@ -4,6 +4,8 @@ from airflow.models import Variable
 import pendulum
 from datetime import datetime
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 def marcar_colaboradores():
     import psycopg2
     import pandas as pd
@@ -217,6 +219,8 @@ with DAG(
     start_date=pendulum.datetime(2025, 4, 10, tz="America/Santiago"),
     catchup=False,
     tags=["associate", "JANIS", "Clientes", "KEVIN", "Unimarc"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     dag.doc_md = """
     Gestion de campo associate de clientes en Janis para auditorias.\n
