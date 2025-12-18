@@ -5,8 +5,9 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-import pendulum
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
+import pendulum
 
 def stock_x_l8(ds):
     #esta funcion se consulta las tablas stock y lista8
@@ -366,6 +367,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["catalogo", "cuadratura", "MFC", "unimarc", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
     dag.doc_md = """

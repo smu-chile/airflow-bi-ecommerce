@@ -4,6 +4,8 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 from datetime import datetime, timedelta
 import pendulum
 
@@ -217,7 +219,9 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     default_args=default_args,
-    tags=["venta", "comunas", "incremental", "Janis", "FRANCISCO", "postgres"]
+    tags=["venta", "comunas", "incremental", "Janis", "FRANCISCO", "postgres"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     dag.doc_md = """
     Incremental load de ordenes por comuna, cruce entre polígonos de comunas y órdenes de venta.

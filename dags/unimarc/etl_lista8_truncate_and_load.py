@@ -6,6 +6,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime, timedelta
 
@@ -268,6 +269,8 @@ with DAG(
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "SAP", "ecommdata", "lista8", "FRANCISCO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

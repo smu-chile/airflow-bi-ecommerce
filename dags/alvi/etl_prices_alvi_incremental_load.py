@@ -4,8 +4,10 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+
 from utils.postgres_utils import get_max_updated_at_value
 from utils.janis_alvi_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3
+from utils.slack_utils import dag_failure_slack, dag_success_slack
 
 from datetime import datetime, timezone
 
@@ -230,6 +232,8 @@ with DAG(
     start_date=pendulum.datetime(2022, 6, 16, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "precios", "alvi", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

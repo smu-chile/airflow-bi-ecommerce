@@ -6,6 +6,8 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 from datetime import datetime
 import pendulum
 
@@ -181,6 +183,8 @@ with DAG(
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Pollos", "Stock", "ecommdata","KEVIN"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     t0 = PythonOperator(

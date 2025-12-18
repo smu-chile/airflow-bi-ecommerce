@@ -8,6 +8,7 @@ from airflow.models import Variable
 import pendulum
 
 from utils.bigquery_utils import bq_query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 def render_netezza_view():
     sql_str = """
@@ -303,6 +304,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_unimarc", "slotting", "MFC", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

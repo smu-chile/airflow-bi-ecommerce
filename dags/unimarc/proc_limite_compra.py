@@ -4,6 +4,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from utils.postgres_utils import is_empty_table
 import pendulum
@@ -114,6 +115,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["janis", "limite_compra", "ecommdata_unimarc", "atributos_producto", "API", "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

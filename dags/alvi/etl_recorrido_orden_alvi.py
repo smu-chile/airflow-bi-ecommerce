@@ -9,6 +9,8 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from utils.janis_utils import load_custom_query_to_s3
 from utils.postgres_utils import is_empty_table
 
+from utils.slack_utils import dag_failure_slack, dag_success_slack
+
 from datetime import datetime, timedelta,time
 import pendulum
 
@@ -46,7 +48,7 @@ def _calculate_routes(ds):
                 AND oj.fecha_facturacion < '"""+ds+"""'::date
                 AND ocde.estado_nuevo = 70
                 AND d2.tipo_despacho != 'pickup';"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn") #cambiar antes de pasar a prod
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -161,6 +163,8 @@ with DAG(
     catchup=True,
     max_active_runs = 1,
     tags=["DATA", "ecommdata", "recorrido_orden","km", "ALVI", "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

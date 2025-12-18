@@ -7,6 +7,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import bq_query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
 
@@ -189,7 +190,6 @@ def sell_out_to_postgresql(ti):
     return
     
 
-
 default_args = {
     "owner": "ecommerce_data",
     "depends_on_past": False,
@@ -205,6 +205,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 10, 9, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "sell_out", "S3", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

@@ -6,6 +6,7 @@ from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_utils import load_custom_query_to_s3
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime
 
@@ -204,6 +205,8 @@ with DAG(
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "Janis", "ecommdata", "orden_producto_pesables", "unimarc", "cyber", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

@@ -4,6 +4,8 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def get_all_collections(ti):
@@ -180,6 +182,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["vtex", "promociones", "colecciones", "workflow_promociones", "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

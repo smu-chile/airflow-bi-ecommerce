@@ -3,6 +3,8 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 import pendulum
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 # 📌 Función auxiliar: Actualizar xConvenio en VTEX con reintentos
 def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
     import requests
@@ -157,7 +159,9 @@ with DAG(
     start_date=pendulum.datetime(2025, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1, 
-    tags=["VTEX","xConvenio","Master Data", "colaborador", "Mensual", "KEVIN"]
+    tags=["VTEX","xConvenio","Master Data", "colaborador", "Mensual", "KEVIN"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag_mensual:
 
     dag_mensual.doc_md = "🔹 Proceso de reasignacion que se ejecuta una vez al mes."
