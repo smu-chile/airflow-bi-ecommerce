@@ -6,12 +6,11 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.sensors.external_task import ExternalTaskSensor
 
 from utils.bigquery_utils import bigquery_full_table_load_to_s3
+from utils.slack_utils import dag_failure_slack, dag_success_slack
 
 from datetime import datetime, timedelta
 
 import pendulum
-
-
 
 def _get_store_list_alvi():
     query = "SELECT id FROM ecommdata_alvi.tiendas"
@@ -154,6 +153,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["DATA", "DW", "S3", "workspace", "costos", "ALVI", "KEVIN"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

@@ -4,6 +4,8 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 import pendulum
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 def extract_and_load_inactive_pickers():
     import mysql.connector
     import pandas as pd
@@ -146,7 +148,6 @@ def deactivate_users_in_janis():
     return 
 
 
-# --- Configuración del DAG ---
 default_args = {
     "owner": "ecommerce_ops",
     "depends_on_past": False,
@@ -163,6 +164,8 @@ with DAG(
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Usuarios", "Pickers", "Kevin"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     t0 = PythonOperator(

@@ -5,6 +5,8 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from utils.slack_utils import dag_failure_slack, dag_success_slack
+
 import pendulum
 
 def create_and_load_s3(ds):
@@ -567,6 +569,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["ecommdata", "VTEX", "promociones", "unimarc", "workflow", "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
     dag.doc_md = """

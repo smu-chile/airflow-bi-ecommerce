@@ -3,7 +3,8 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 import pendulum
 
-# 📌 Función auxiliar: Actualizar xConvenio en VTEX con reintentos
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
     import requests
     import time
@@ -72,7 +73,6 @@ def actualizar_xConvenio(document_id, xConvenio_value, max_retries=3, delay=10):
     print(f"❌ Fallo definitivo en la actualización de {document_id} tras {max_retries} intentos.")
     return False
 
-# 📌 Función principal: Extrae datos de PostgreSQL y los inserta en la tabla 'excluidos_colaborador'
 def get_users_for_limit():
     import pandas as pd
     import os
@@ -127,7 +127,9 @@ with DAG(
     start_date=pendulum.datetime(2025, 10, 31, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["VTEX", "xConvenio", "Master Data", "Rugby", "FRANCISCO"]
+    tags=["VTEX", "xConvenio", "Master Data", "Rugby", "FRANCISCO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
     dag.doc_md = f"""

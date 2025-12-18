@@ -4,6 +4,8 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
+from utils.slack_utils import dag_failure_slack, dag_success_slack
+
 import pendulum
 
 def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken, sku_id):
@@ -186,6 +188,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["vtex", "promociones", "listas_precios", "workflow_promociones", "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

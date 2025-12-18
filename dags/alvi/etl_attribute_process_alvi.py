@@ -7,6 +7,7 @@ from airflow.sensors.external_task import ExternalTaskSensor
 
 from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime
 import pendulum
@@ -435,6 +436,8 @@ with DAG(
     start_date=pendulum.datetime(2022, 8, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "atributos", "valores_atributo", "atributos_producto", "alvi", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

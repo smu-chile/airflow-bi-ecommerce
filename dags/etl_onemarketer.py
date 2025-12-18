@@ -6,10 +6,11 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 from datetime import datetime, timedelta
-
 
 def _api_onemarketer(ts):
     import requests
@@ -161,6 +162,8 @@ with DAG(
     catchup=True,
     max_active_runs = 1,
     tags=["onemarketer", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

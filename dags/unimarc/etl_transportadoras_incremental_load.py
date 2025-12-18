@@ -4,9 +4,9 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
-
 from utils.janis_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3
 from utils.postgres_utils import get_max_updated_at_value
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime
 
@@ -176,6 +176,8 @@ with DAG(
     start_date=pendulum.datetime(2022, 7, 19, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "janis", "ecommdata", "transportadoras", "unimarc", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

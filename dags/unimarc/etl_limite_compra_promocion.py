@@ -6,6 +6,8 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def _load_limite_compra_promocion_table(ti,ds):
@@ -149,6 +151,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["ecommdata", "promociones", "limite_compra", "unimarc", "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
     dag.doc_md = """

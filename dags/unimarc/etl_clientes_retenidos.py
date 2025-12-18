@@ -6,9 +6,10 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow import macros
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 from datetime import datetime
-
 
 # Función para limpiar clientes
 def limpiar_clientes(ti, ds):
@@ -308,6 +309,8 @@ with DAG(
     start_date =pendulum.datetime(2025, 2, 5, tz="America/Santiago"),
     catchup=False,
     tags = ["xCluster", "VTEX", "Clientes", "KEVIN", "Unimarc"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag: 
     dag.doc_md = """
     Gestion de campo xCluster para cliente con 40 dias de recencia. \n

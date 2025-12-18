@@ -6,6 +6,8 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.dummy import DummyOperator
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def venta_mfc_semana():
@@ -143,6 +145,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 7, 11, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "MFC", "ventas", "unimarc", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

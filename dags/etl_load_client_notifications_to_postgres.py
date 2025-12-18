@@ -3,6 +3,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
 
@@ -117,6 +118,8 @@ with DAG(
         catchup=True,
         max_active_runs = 1,
         tags=["mongo", "postgres", "FRANCISCO"],
+        on_success_callback=dag_success_slack,
+        on_failure_callback=dag_failure_slack,
     ) as dag:
         dag.doc_md = """
             Carga a postgres la notificación de clientes desde el orquestador mongoDB.

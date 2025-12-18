@@ -6,6 +6,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 from utils.netezza_utils import load_custom_query_to_s3
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime, timedelta
 import pendulum
@@ -79,6 +80,8 @@ with DAG(
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "DW", "S3", "supply", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

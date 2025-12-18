@@ -6,6 +6,7 @@ from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_alvi_utils import load_custom_query_to_s3
+from utils.slack_utils import dag_failure_slack, dag_success_slack
 
 from datetime import datetime, timedelta
 
@@ -343,6 +344,8 @@ with DAG(
     start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "orden_productos", "Alvi", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """
