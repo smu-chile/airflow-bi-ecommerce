@@ -6,6 +6,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
 
@@ -216,8 +217,6 @@ default_args = {
     "retries": 0,
 }
 
-# Definir el DAG
-
 with DAG(
     'cargar_Peso_volumen_alvi',
     default_args=default_args,
@@ -226,13 +225,14 @@ with DAG(
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "postgres", "ecommdata_alvi", "Promociones_comparadas", "S3", "NICOLAS" ,"Capacity"]
+    tags=["DATA", "postgres", "ecommdata_alvi", "Promociones_comparadas", "S3", "NICOLAS" ,"Capacity"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """
         carga de datos peso y volumen alvi , solicitado por el equipo de capacity
         """ 
-    # Definir las tareas
 
     t0 = PythonOperator(
         task_id='truncate_table',

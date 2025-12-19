@@ -5,6 +5,8 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 from datetime import datetime, timedelta
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 # Funcion auxiliar para carga de dataframes con upsert
@@ -854,6 +856,8 @@ with DAG(
     catchup=False,
     max_active_runs = 1,
     tags=["DATA", "middleware_pagos", "ecommdata", "mw_pagos", "mw_operaciones", "mw_interacciones", "mw_inscripciones", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

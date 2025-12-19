@@ -7,6 +7,7 @@ import pendulum
 
 from utils.janis_alvi_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
+from utils.slack_utils import dag_failure_slack, dag_success_slack
 
 from datetime import datetime
 
@@ -154,6 +155,8 @@ with DAG(
     start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "administradores", "Alvi", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

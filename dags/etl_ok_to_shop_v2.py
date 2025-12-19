@@ -6,6 +6,7 @@ from airflow.operators.python import PythonOperator
 from airflow.hooks.S3_hook import S3Hook
 
 from utils.postgres_utils import get_max_updated_at_value
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime
 import pendulum
@@ -338,6 +339,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 5, 21, tz="America/Santiago"),
     catchup=False,
     tags=["API", "ok_to_shop", "PATRICIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

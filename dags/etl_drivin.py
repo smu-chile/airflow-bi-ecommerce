@@ -7,6 +7,8 @@ from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def query_to_df(query):
@@ -1442,6 +1444,8 @@ with DAG(
     catchup=True,
     max_active_runs=1,
     tags=["DATA", "S3", "Postgres", "Driv.in", "Capacity", "PATRICIO" , "NICOLAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

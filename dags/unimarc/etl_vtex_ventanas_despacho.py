@@ -8,6 +8,8 @@ import requests
 import psycopg2
 from psycopg2.extras import execute_values
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 
 def obtener_y_cargar_ventanas():
     # Cargar variables
@@ -137,7 +139,9 @@ with DAG(
     schedule_interval="30 8 * * *",
     start_date=pendulum.datetime(2025, 2, 5, tz="America/Santiago"),
     catchup=False,
-    tags=["VTEX", "ventanas", "despacho", "historico"]
+    tags=["VTEX", "ventanas", "despacho", "historico"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     t0 = PythonOperator(
         task_id="cargar_ventanas_despacho_vtex",

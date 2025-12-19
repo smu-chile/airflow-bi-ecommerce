@@ -8,6 +8,7 @@ from airflow.operators.dummy import DummyOperator
 from airflow.utils.trigger_rule import TriggerRule
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
 
@@ -879,6 +880,8 @@ with DAG(
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO","NICOLAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     
 

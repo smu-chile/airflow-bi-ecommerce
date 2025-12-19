@@ -7,6 +7,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import bq_query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
 
@@ -262,7 +263,9 @@ with DAG(
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "postgres", "BigQuery", "ecommdata", "Promociones_comparadas", "S3", "NICOLAS"]
+    tags=["DATA", "postgres", "BigQuery", "ecommdata", "Promociones_comparadas", "S3", "NICOLAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

@@ -8,6 +8,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from utils.janis_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime
 
@@ -189,6 +190,8 @@ with DAG(
     start_date=pendulum.datetime(2022, 7, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "atributos_producto", "Unimarc", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

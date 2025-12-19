@@ -7,6 +7,7 @@ from airflow.models import Variable
 
 from utils.janis_alvi_utils import incremental_unixtime_load_table_s3, load_full_table_to_s3
 from utils.postgres_utils import get_max_updated_at_value, is_empty_table
+from utils.slack_utils import dag_failure_slack, dag_success_slack
 
 from datetime import datetime
 
@@ -150,6 +151,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["DATA", "janis", "ecommdata_alvi", "monitor_despacho", "alvi", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

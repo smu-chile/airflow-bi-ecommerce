@@ -4,9 +4,10 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.python import PythonOperator
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 from datetime import datetime, timedelta
 import pendulum
-
 
 def load_last_zippedi_session(ds):
     import requests
@@ -153,6 +154,8 @@ with DAG(
     start_date=pendulum.datetime(2024, 9, 1, tz="America/Santiago"),
     catchup=False,
     tags=["API", "Janis", "zippedi", 'localizacion', "SERGIO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

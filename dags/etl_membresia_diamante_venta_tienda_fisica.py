@@ -8,6 +8,8 @@ from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from datetime import datetime
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def from_s3_to_postgress(ti):
@@ -91,7 +93,9 @@ with DAG(
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "postgres", "ecommdata", "Membresia", "S3", "NICOLAS"]
+    tags=["DATA", "postgres", "ecommdata", "Membresia", "S3", "NICOLAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

@@ -231,11 +231,18 @@ def dag_failure_slack(context):
     dag_run = context["dag_run"]
     ti = context.get("task_instance")
 
+    log_url = ti.log_url if ti else "n/a"
+    if log_url != "n/a":
+        log_url = log_url.replace(
+            "http://localhost:8080",
+            "https://airflow-bi-ecommerce-test.smu-service.cl"
+        )
+
     text = (
         f":red_circle: DAG *{dag_id}* FALLÓ\n"
         f"*Run*: `{dag_run.run_id}`\n"
         f"*Último task*: `{ti.task_id if ti else 'n/a'}`\n"
-        f"*Log*: {ti.log_url if ti else 'n/a'}"
+        f"*Log*: {log_url}"
     )
     send_text_message("token_slack_failed_channel", text)
 

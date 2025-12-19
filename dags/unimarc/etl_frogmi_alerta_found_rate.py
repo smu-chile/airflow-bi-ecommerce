@@ -5,6 +5,8 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 from datetime import datetime
 
 import pendulum
@@ -188,9 +190,6 @@ def _save_table_alerta_found_rate(ts, ti, ds):
             WHERE id_tienda is NULL
         """)
         conn.close
-
-
-    
     return
 
 
@@ -211,6 +210,8 @@ with DAG(
     catchup=False,
     max_active_runs = 1,
     tags=["frogmi", "found_rate", "MATIAS"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

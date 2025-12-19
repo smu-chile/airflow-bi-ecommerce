@@ -6,6 +6,8 @@ from datetime import datetime
 import pandas as pd
 import sqlalchemy
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def load_offsets_to_postgres():
@@ -85,6 +87,8 @@ with DAG(
     schedule_interval="30 8 * * *", # Ejecutar diariamente a las 08:30 AM
     catchup=False,
     tags=["janis", "logistica", "offsets", "forecast_and_planning", "KEVIN"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
     dag.doc_md = """
     Extracción de offsets de Janis y carga a PostgreSQL. \n 

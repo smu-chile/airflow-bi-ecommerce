@@ -6,6 +6,7 @@ from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.janis_utils import incremental_unixtime_load_table_s3
 from utils.postgres_utils import get_max_updated_at_value
+from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
 
@@ -39,9 +40,7 @@ def _proc_mfc_sustitucion(ts,ds):
 
         headers = {
              "Content-Type": "application/json"
-        }
-
-                
+        }                
 
         for row in results:
             order = row[0]
@@ -105,6 +104,8 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     tags=["MFC", "API", "sustitucion", "foundrate", "Unimarc"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """

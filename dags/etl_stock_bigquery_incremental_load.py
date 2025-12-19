@@ -5,6 +5,8 @@ from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
 import pendulum
 
 def extract_bq_to_s3(ti, ds, ts):
@@ -291,6 +293,8 @@ with DAG(
     max_active_runs=1,
     default_args=default_args,
     tags=["stock", "BQ", "DW", "incremental", "postgres", "FRANCISCO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
 ) as dag:
 
     dag.doc_md = """
