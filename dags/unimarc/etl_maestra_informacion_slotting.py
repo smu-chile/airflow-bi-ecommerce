@@ -294,7 +294,6 @@ with DAG(
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_unimarc", "slotting", "MFC", "PATRICIO"],
 ) as dag:
-    
 
     dag.doc_md = """
     Desde postgres carga la base de la tabla de productos mfc con venta promedio y carga desde DW atributos de los skus \n
