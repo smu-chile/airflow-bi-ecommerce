@@ -8,6 +8,7 @@ from airflow.models import Variable
 import pendulum
 
 from utils.bigquery_utils import bq_query_to_df
+from utils.postgres_utils import query_to_df
 
 def render_netezza_view():
     sql_str = """
@@ -76,7 +77,7 @@ def render_netezza_view_2():
         on fact_compras.OU_PROV_KEY = org_prov.OU_KEY --DIM_ORGANIZATION_UNIT
     left join cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY sku_hier 
         on fact_compras.SKU_KEY = sku_hier.SKU_KEY --DIM_SKU_HIER
-    where org_rec.OU_ID = '1917'
+    where org_rec.OU_ID = '0917'
         AND e.DATE_VALUE <= current_date
         AND e.date_value >= date_sub(current_date, interval 90 day)
     group by 1,2,3,4,5,6,7
@@ -126,33 +127,22 @@ def productos_mfc(ds):
                 on venta_dia.ref_id = pt.ref_id
                 where pt.id_tienda in ('1917', '0917')
                 and pt.activo is true"""
-    print(productos_mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(productos_mfc_query)
-    results = cursor.fetchall()
-    results = pd.DataFrame(results)
+    results = query_to_df(productos_mfc_query)
     results.columns = ["ref_id","material","descripcion","categoria_1","categoria_2","categoria_3",
                        "marca","proveedor","id_proveer","umv","ump","peso_bruto","venta_diaria_90d"]
-    cursor.close()
-    pg_connection.close()
     return results
 
 def sku_atributos_mfc():
     import pandas as pd
-    productos_mfc_query = f"""select split_part(tom_id,'-',1) as material, *
-from ecommdata.sku_atributos_mfc sam """
-    print(productos_mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(productos_mfc_query)
-    results = cursor.fetchall()
-    results = pd.DataFrame(results)
+    productos_mfc_query = f"""select 
+    um.sap_code as material,
+    (um.sap_code||'-'||um.measurement_unit) as ref_id,
+    um.mfc_is_safety as food_safety,
+    um.temperature_zone ,
+    um.mfc_is_hazardous 
+    from ecommdata.ubicacion_mfc um """
+    results = query_to_df(productos_mfc_query)
     results.columns = ["material","ref_id","food_safety","temperature_zone","is_hazardous"]
-    cursor.close()
-    pg_connection.close()
     return results
 
 
