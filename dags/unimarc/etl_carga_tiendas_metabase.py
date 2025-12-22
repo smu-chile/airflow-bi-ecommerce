@@ -15,7 +15,6 @@ from utils.slack_utils import upload_bytes_to_slack, dag_failure_slack, dag_succ
 
 import pendulum
 
-
 def branch_8am():
     ctx = get_current_context()
 
@@ -27,7 +26,6 @@ def branch_8am():
 
     # si el slot es el de las 08:00 CL → manda alerta
     return "get_and_send_cargas_csv" if end_cl.hour == 8 else "skip_send"
-
     
 def lista8():
     promociones_query = """select concat(l.material,'-',l.umv) as ref_id, l.id_tienda
@@ -41,7 +39,6 @@ def lista8():
                             coalesce(l.bloq_centro,0) = 2
                             OR coalesce(l.bloq_formato,0) = 2
                             )
-                        and concat(l.material,'-',l.umv) not in ('000000000000669485-UN','000000000000669484-UN')
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
                         from ecommdata.lista8 l 
@@ -49,21 +46,18 @@ def lista8():
                             coalesce(l.bloq_centro,0) = 2
                             OR coalesce(l.bloq_formato,0) = 2
                             )
-                        and concat(l.material,'-',l.umv) not in ('000000000000669485-UN','000000000000669484-UN')
                         union
                         select distinct pc.ref_id, '0053' as id_tienda
                         from ecommdata.publicacion_catalogo pc
                         where pc.mfc is true
                         and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                         and pc.stock_janis > 0
-                        and pc.ref_id not in ('000000000000669485-UN','000000000000669484-UN')
                         union
                         select distinct pc.ref_id, '0398' as id_tienda
                         from ecommdata.publicacion_catalogo pc
                         where pc.mfc is true
                         and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
                         and pc.stock_janis > 0
-                        and pc.ref_id not in ('000000000000669485-UN','000000000000669484-UN')
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
@@ -71,7 +65,6 @@ def lista8():
                             coalesce(l.bloq_centro,0) = 2
                             OR coalesce(l.bloq_formato,0) = 2
                         )
-                        and concat(l.material,'-',l.umv) not in ('000000000000669485-UN','000000000000669484-UN')
                         """
     results = query_to_df(promociones_query)
     results.columns = ["ref_id","id_tienda"]
@@ -453,6 +446,13 @@ def load_tables_to_postgres(ti):
                         index=False,         
                         chunksize=20000,         
                         method='multi')
+            conn.execute(f"""delete 
+                            from ecommdata.{names[i]} 
+                                where \"refId\" in (
+                                    select ref_id 
+                                    from catalogo.eliminados_carga_tiendas
+                                    )
+                            """)
 
         print("Data saved to PostgreSQL.")
 
@@ -466,12 +466,10 @@ def get_and_send_cargas_csv():
     import pandas as pd
     import io
 
-    # conexiones / vars
     pg_hook   = PostgresHook(postgres_conn_id="postgresql_conn")
     engine    = pg_hook.get_sqlalchemy_engine()
     fecha_str = str(pendulum.now("America/Santiago").date())
 
-    # queries tal cual las pediste
     SQL_PRODUCTOS = """
         select CONCAT("refId",';',stores,';',publish,';',"updatePending",';',visible,';',active)
                as "refId;stores;publish;updatePending;visible;active"
@@ -487,10 +485,10 @@ def get_and_send_cargas_csv():
     df_prod = pd.read_sql(SQL_PRODUCTOS, engine)
     df_skus = pd.read_sql(SQL_SKUS, engine)
 
-    # si no hay filas, igual subimos un CSV con solo cabecera pa que quede trazabilidad
+    # si no hay filas, igual subimos un CSV con solo cabecera pa trazabilidad
     buf_prod = io.StringIO()
     buf_skus = io.StringIO()
-    df_prod.to_csv(buf_prod, index=False)  # header incluido
+    df_prod.to_csv(buf_prod, index=False)
     df_skus.to_csv(buf_skus, index=False)
 
     # a bytes

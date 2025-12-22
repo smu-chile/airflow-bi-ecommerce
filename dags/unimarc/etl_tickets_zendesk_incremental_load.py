@@ -285,6 +285,30 @@ def _save_tickets_zendesk_in_postgres(ti):
 
 }, errors="ignore")
 
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    conn = pg_hook.get_conn()
+    cur = conn.cursor()
+
+    cur.execute("""
+        select column_name, character_maximum_length
+        from information_schema.columns
+        where table_schema = 'analytics_and_growth'
+          and table_name = 'tickets_zendesk'
+          and data_type = 'character varying'
+          and character_maximum_length is not null;
+    """)
+    varchar_limits = dict(cur.fetchall())
+
+    # aplica slice a toda columna que exista en df y tenga limite
+    for col, maxlen in varchar_limits.items():
+        if col in df.columns:
+            # conserva nulls; slice solo strings
+            s = df[col].astype("string")
+            df[col] = s.where(s.isna(), s.str.slice(0, int(maxlen)))
+
+    cur.close()
+    conn.close()
+
     columns = [
         'estado',
         'fecha_actualizacion',
