@@ -9,23 +9,9 @@ from airflow.utils.trigger_rule import TriggerRule
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
+from utils.postgres_utils import query_to_df
 
 import pendulum
-
-def query_to_df(query):
-    import pandas as pd
-    print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
-    cursor.execute(query)
-    column_names = [desc[0] for desc in cursor.description]
-    results = cursor.fetchall()
-    results = pd.DataFrame(results, columns=column_names)
-    print(results.head(20))
-    cursor.close()
-    pg_connection.close()
-    return results
 
 def last_millers_m10_to_s3(ds):
     import pandas as pd
@@ -88,7 +74,7 @@ def last_millers_m10_to_s3(ds):
             and s.stock > 0
             and s.bloqueos is not true
             and m.nombre is not null
-            and s.id_tienda in ('3512','3552','3540','3227','3580','3546','3547','3564','3579','3570','3036');
+            and s.id_tienda in ('3512','3552','3540','3227','3580','3546','3547','3564','3579','3570','3036','3164','3506', '3508', '3541', '3503', '3501', '3502', '3530', '3517', '3538', '3515', '3544', '3509', '3545', '3504', '3548', '3040', '3520', '3535', '3554');
             """
         df = query_to_df(query)
         print(f"informacion obtenida de la Query: {df.info()}")
@@ -188,7 +174,6 @@ with DAG(
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
-    
 
     dag.doc_md = """
     cargar stock,precios y promos a la tabla lss_millers_promos de M10\n
