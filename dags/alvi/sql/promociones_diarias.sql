@@ -33,7 +33,7 @@ SELECT DISTINCT
                     on pdvd.id_vtex = s.vtex_id and split_part(pdvd.nombre_promocion_vtex,' ', 1)::text = wp.n_promocion::text
         WHERE wp.tipo_promocion IN (10,9,4)
         and wp.id_mecanica in (18,83,40,26)
-        and wp.n_promocion not in (9920092021, 9960782024)--Promociones excluidas y la XXXXX
+        and wp.n_promocion not in (9920092021, 9960782024,9961572025,9961562025,9961542025,9961552025,9961532025)--Promociones excluidas y la XXXXX
         and wp.nombre_promocion not ilike '%LOCAL%'
         and wp.nombre_promocion not ilike '%LIQUIDACION%' 
         and wp.nombre_promocion not ilike '%TERMINAL%' 
