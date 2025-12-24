@@ -6,6 +6,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
+from utils.postgres_utils import query_to_df
 
 import pendulum
 
@@ -13,17 +14,19 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     import json
     import pandas as pd
 
-    rappi_store_ids = ['3512','3552','3540','3227','3580','3546','3547','3564','3579','3564','3570','3036'] #cambiar por lista
+    rappi_store_ids = ['3512','3552','3540','3227','3580',
+                       '3546','3547','3564','3579','3570',
+                       '3036','3164','3506','3508','3541',
+                       '3503','3501','3502','3530','3517',
+                       '3538','3515','3544','3509','3545',
+                       '3504','3548','3040','3520','3535',
+                       '3554'] #cambiar por lista
     print(rappi_store_ids)
 
     exec_date = ds.replace("-", "/")
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    pg_connection = pg_hook.get_conn()
-    cursor = pg_connection.cursor()
 
     for store_id in rappi_store_ids:
         print(f"Store id: {store_id}")
@@ -55,16 +58,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 from integraciones.lm_stock_precio_promo_10 lspp
                 where lspp.id_tienda = '{store_id}';
         """
-
-        cursor.execute(peya_stock_query)
-        results = cursor.fetchall()
-        columns = [i[0] for i in cursor.description]
-
-        if len(results) == 0:
-            print(f"No records found for Store Id: {store_id}. Skipping...")
-            continue
-
-        df = pd.DataFrame(results, columns=columns)
+        df = query_to_df(peya_stock_query)
         print(f"Number of records found on stock: {len(df.index)}")
 
         df.columns = map(str.lower, df.columns)
@@ -80,8 +74,6 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                     encrypt=False)
         print(f"Tienda: {store_id} lista y se guarda en {join_file_name}")
 
-    cursor.close()
-    pg_connection.close()
     return
 
 def _send_joined_data_to_api(ds):
