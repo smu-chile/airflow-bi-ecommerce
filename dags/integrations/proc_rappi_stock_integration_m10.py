@@ -59,6 +59,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 where lspp.id_tienda = '{store_id}';
         """
         df = query_to_df(peya_stock_query)
+        if len(df) == 0:
+            print(f"No records found for Store Id: {store_id}. Skipping...")
+            continue
         print(f"Number of records found on stock: {len(df.index)}")
 
         df.columns = map(str.lower, df.columns)
