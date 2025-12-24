@@ -34,7 +34,7 @@ def last_millers_m10_to_s3(ds):
             s2.ean_primario::varchar as ean,
             s.material, 
             s.umv as unidad_de_medida, 
-            s2.multiplicador_unidad_medida  as multiplicador_unidad,
+            s2.multiplicador_unidad_medida as multiplicador_unidad,
             s.descripcion_producto as nombre,
             m.nombre as marca,
             s.stock as stock_unitario,
@@ -129,9 +129,13 @@ def last_millers_m10_to_postgres(ds):
     print(f"Number of records extracted: {len(df.index)}")
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
-    df = df[df['ean'].astype(str).str.isnumeric()]
+    # Handle EAN as String to prevent overflow and float precision issues
+    df['ean'] = df['ean'].astype(str).str.split('.').str[0]
+    # Filter out empty or null-like strings
+    df = df[~df['ean'].isin(['nan', 'None', ''])]
+    #df.info()
     # Convertir a int
-    df['ean'] = df['ean'].astype(int)
+    #df['ean'] = pd.to_numeric(df['ean'], errors='coerce').astype('Int64')
     df.info()
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
