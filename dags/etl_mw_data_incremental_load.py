@@ -70,14 +70,13 @@ def _payments_incremental_load(ts):
     mydb = myclient[mongo_db]
     mycollection = mydb["payments"]
 
-    execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
-    local_tz = pytz.timezone("America/Santiago")
-    date_init = local_tz.localize(execution_date).astimezone(pytz.utc)
-    date_from = date_init - timedelta(hours=24)
-    date_to = date_init
-
-    print(date_from)
-    print(date_to)
+    now = pendulum.now('UTC')
+    date_from = now.subtract(hours=24)
+    date_to = now
+    
+    print(f"Ejecutando carga incremental (Ventana 24h)")
+    print(f"Desde (UTC): {date_from}")
+    print(f"Hasta (UTC): {date_to}")
 
     x = mycollection.find({"createdAt": {"$gte": date_from, "$lt": date_to}})
     documents = list(x)
@@ -169,14 +168,13 @@ def _operations_incremental_load(ts, ti):
     mydb = myclient[mongo_db]
     mycollection = mydb["operations"]
 
-    execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
-    local_tz = pytz.timezone("America/Santiago")
-    date_init = local_tz.localize(execution_date).astimezone(pytz.utc)
-    date_from = date_init - timedelta(hours=24)
-    date_to = date_init
-
-    print(date_from)
-    print(date_to)
+    now = pendulum.now('UTC')
+    date_from = now.subtract(hours=24)
+    date_to = now
+    
+    print(f"Ejecutando carga incremental (Ventana 24h)")
+    print(f"Desde (UTC): {date_from}")
+    print(f"Hasta (UTC): {date_to}")
 
     x = mycollection.find({"createdAt": {"$gte": date_from, "$lt": date_to}})
     documents = list(x)
@@ -475,14 +473,13 @@ def _inscriptions_incremental_load(ts):
     mydb = myclient[mongo_db]
     mycollection = mydb["inscriptions"]
 
-    execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
-    local_tz = pytz.timezone("America/Santiago")
-    date_init = local_tz.localize(execution_date).astimezone(pytz.utc)
-    date_from = date_init - timedelta(hours=24)
-    date_to = date_init
-
-    print(date_from)
-    print(date_to)
+    now = pendulum.now('UTC')
+    date_from = now.subtract(hours=24)
+    date_to = now
+    
+    print(f"Ejecutando carga incremental (Ventana 24h)")
+    print(f"Desde (UTC): {date_from}")
+    print(f"Hasta (UTC): {date_to}")
 
     x = mycollection.find({"createdAt": {"$gte": date_from, "$lt": date_to}})
     documents = list(x)
