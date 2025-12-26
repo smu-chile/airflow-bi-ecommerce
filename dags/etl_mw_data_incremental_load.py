@@ -72,8 +72,9 @@ def _payments_incremental_load(ts):
 
     execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
     local_tz = pytz.timezone("America/Santiago")
-    date_from = local_tz.localize(execution_date).astimezone(pytz.utc)
-    date_to = date_from + timedelta(days=1)
+    date_init = local_tz.localize(execution_date).astimezone(pytz.utc)
+    date_from = date_init - timedelta(hours=24)
+    date_to = date_init
 
     print(date_from)
     print(date_to)
@@ -170,8 +171,9 @@ def _operations_incremental_load(ts, ti):
 
     execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
     local_tz = pytz.timezone("America/Santiago")
-    date_from = local_tz.localize(execution_date).astimezone(pytz.utc)
-    date_to = date_from + timedelta(days=1)
+    date_init = local_tz.localize(execution_date).astimezone(pytz.utc)
+    date_from = date_init - timedelta(hours=24)
+    date_to = date_init
 
     print(date_from)
     print(date_to)
@@ -475,8 +477,9 @@ def _inscriptions_incremental_load(ts):
 
     execution_date = datetime.strptime(ts[:10], "%Y-%m-%d")
     local_tz = pytz.timezone("America/Santiago")
-    date_from = local_tz.localize(execution_date).astimezone(pytz.utc)
-    date_to = date_from + timedelta(days=1)
+    date_init = local_tz.localize(execution_date).astimezone(pytz.utc)
+    date_from = date_init - timedelta(hours=24)
+    date_to = date_init
 
     print(date_from)
     print(date_to)
