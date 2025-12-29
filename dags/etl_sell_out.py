@@ -140,54 +140,102 @@ def sell_out_to_s3(ds):
     return filename
 
 def sell_out_to_postgresql(ti):
-    print("todo bien por acá")
-    import numpy as np
     import pandas as pd
     import sqlalchemy
     from sqlalchemy import text
 
     filename = ti.xcom_pull(key="return_value", task_ids=["sell_out_to_s3"])[0]
-
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
     if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
-        raise Exception("Key %s does not exist." % filename)
+        raise Exception(f"Key {filename} does not exist.")
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
-
     df = pd.read_csv(s_stock_object.get()["Body"])
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
+
+    print(f"Filas extraídas: {len(df)}")
+
+    df["umv_cnt"] = df.apply(lambda r: r["umv_cnt"]/1000 if r["umv"] in ["KG","KGV"] else r["umv_cnt"], axis=1)
+    df["material"] = df["material"].apply(lambda x: str(x).zfill(18))
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
+
+    key_cols = [
+        "numtrx_vta", 
+        "id_tienda", 
+        "material", 
+        "ean", 
+        "nro_cotiza",
+        "id_wf",
+        "desc_promo_wf",
+        "tipo_promo",
+        "tipo_doc"
+    ]
     
-    print(f"Number of records extracted: {len(df.index)}")
-    print(df.info())
-    df['umv_cnt'] = df.apply(lambda row: row['umv_cnt'] / 1000 if row['umv'] in ["KG", "KGV"] else row['umv_cnt'], axis=1)
-    df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
-    df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
+    # Nos aseguramos de no tener duplicados internos en el CSV (nos quedamos con el último reproceso)
+    df = df.drop_duplicates(subset=key_cols, keep="last")
+    print(f"Filas a insertar tras limpieza interna: {len(df)}")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
     password = Variable.get("POSTGRESQL_PASSWORD")
+    engine = sqlalchemy.create_engine(f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}")
+
+    # Preparar strings para SQL dinámico
+    all_cols = [f'"{c}"' for c in df.columns]
+    cols_csv_str = ", ".join(all_cols)
     
-    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
-    engine = sqlalchemy.create_engine(conn_url)
+    cols_con_nulls = ["nro_cotiza", "id_wf", "desc_promo_wf", "tipo_promo"]
 
+    where_parts = []
+    for c in key_cols:
+        if c in cols_con_nulls:
+            # Para manejar los [NULL]
+            where_parts.append(f't."{c}" IS NOT DISTINCT FROM s."{c}"')
+        else:
+            # Esto permite que Postgres use el INDEX SCAN de forma directa
+            where_parts.append(f't."{c}" = s."{c}"')
+    
+    where_key = " AND ".join(where_parts)
+
+    #Upsert (Stage -> Merge)
     with engine.begin() as conn:
-        df.to_sql(name="sell_out",
-                    con=conn,         
-                    schema="catalogo",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
+        # Tabla temporal
+        conn.execute(text('CREATE TEMP TABLE staging_sell_out (LIKE catalogo.sell_out) ON COMMIT DROP;'))
 
-    print("Data saved to PostgreSQL.")
+        # Insertar datos nuevos a temporal
+        df.to_sql(
+            name="staging_sell_out",
+            con=conn,
+            if_exists="append",
+            index=False,
+            method="multi",
+            chunksize=10000
+        )
 
-    return
+        # BORRAR POR LLAVE: Elimina cualquier versión vieja de estas mismas transacciones
+        del_sql = f"""
+            DELETE FROM catalogo.sell_out t
+            USING staging_sell_out s
+            WHERE {where_key};
+        """
+        res = conn.execute(text(del_sql))
+        print(f"Registros actualizados/reemplazados en DB: {res.rowcount}")
+
+        # INSERTAR la versión nueva
+        ins_sql = f"""
+            INSERT INTO catalogo.sell_out ({cols_csv_str})
+            SELECT {cols_csv_str}
+            FROM staging_sell_out;
+        """
+        conn.execute(text(ins_sql))
+
+    print("Carga final OK.")
     
 
 default_args = {
@@ -204,6 +252,7 @@ with DAG(
     schedule_interval= "0 11 * * *",
     start_date=pendulum.datetime(2023, 10, 9, tz="America/Santiago"),
     catchup=False,
+    max_active_runs=1,
     tags=["DATA", "postgres", "ecommdata", "sell_out", "S3", "PATRICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
@@ -211,7 +260,7 @@ with DAG(
     
 
     dag.doc_md = """
-    Extrae tabla sell_out de dwC, lo carga a S3 y postgresql en un intervalo de 30 dias por fecha creacion. \n
+    Extrae tabla sell_out de dwC, lo carga a S3 y postgresql en un intervalo de 1 dias por fecha creacion. \n
     Insert diario 11 am.
     """ 
 
