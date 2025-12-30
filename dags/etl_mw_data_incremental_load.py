@@ -70,7 +70,7 @@ def _payments_incremental_load(ts):
     mydb = myclient[mongo_db]
     mycollection = mydb["payments"]
 
-    now = pendulum.now('UTC')
+    now = pendulum.parse(ts).in_timezone("UTC")   
     date_from = now.subtract(hours=24)
     date_to = now
     
@@ -168,7 +168,7 @@ def _operations_incremental_load(ts, ti):
     mydb = myclient[mongo_db]
     mycollection = mydb["operations"]
 
-    now = pendulum.now('UTC')
+    now = pendulum.parse(ts).in_timezone("UTC")   
     date_from = now.subtract(hours=24)
     date_to = now
     
@@ -473,7 +473,7 @@ def _inscriptions_incremental_load(ts):
     mydb = myclient[mongo_db]
     mycollection = mydb["inscriptions"]
 
-    now = pendulum.now('UTC')
+    now = pendulum.parse(ts).in_timezone("UTC")   
     date_from = now.subtract(hours=24)
     date_to = now
     
