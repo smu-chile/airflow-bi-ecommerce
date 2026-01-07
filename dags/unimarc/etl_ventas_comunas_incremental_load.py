@@ -159,6 +159,8 @@ def upsert_venta_comunas(ti, ds):
     obj       = s3_hook.get_key(key, bucket_name=s3_bucket)
     df        = pd.read_csv(obj.get()['Body'])
 
+    df = df.drop_duplicates(subset=['id_orden'], keep='last')
+
     # tipifica
     df = df.astype({
         "id_orden":          "string",
