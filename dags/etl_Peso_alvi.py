@@ -32,7 +32,7 @@ def render_netezza_view():
         unidad_laa, 
         unidad, 
         nm
-    FROM DWC_SMU.SMU.VW_DIM_SKU_ATTR
+    FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR
     """
 
     print(sql_str)
