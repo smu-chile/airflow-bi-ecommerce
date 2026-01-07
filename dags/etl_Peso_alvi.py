@@ -6,6 +6,7 @@ from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 
+from utils.bigquery_utils import bq_query_to_df
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
@@ -15,7 +16,6 @@ from datetime import datetime, timedelta
 def render_netezza_view():
     from io import StringIO
     import os
-    import jaydebeapi
     import pandas as pd
 
     sql_str= f""" 
@@ -37,31 +37,9 @@ def render_netezza_view():
 
     print(sql_str)
 
-    dsn_database = Variable.get("DW_SECRET_DATABASE") 
-    dsn_hostname = Variable.get("DW_SECRET_HOSTNAME")
-    dsn_port = "5480" 
-    dsn_uid = Variable.get("DW_SECRET_USER")
-    dsn_pwd = Variable.get("DW_PASSWORD")
-    jdbc_driver_name = "org.netezza.Driver" 
-    jdbc_driver_loc = os.path.join('/opt/airflow/include/jdbcdriver/nzjdbc.jar')
-
-    connection_string='jdbc:netezza://'+dsn_hostname+':'+dsn_port+'/'+dsn_database
-    
-    conn = jaydebeapi.connect(jdbc_driver_name, 
-                                connection_string, {'user': dsn_uid, 'password': dsn_pwd},
-                                jars=jdbc_driver_loc)
-
-    cur = conn.cursor()
-    cur.execute(sql_str)
-    columns = [desc[0] for desc in cur.description]
-    rows = cur.fetchall()
-    df = pd.DataFrame(rows, columns=columns)
     df = df[['SKU_KEY','ALTURA','ANCHO','ENVASE','LONGITUD','PESO_BRUTO','PESO_NETO','SKU_PRODUCT',
              'VOLUMEN','UNIDAD_DE_VOLUMEN','UNIDAD_PESO','UNIDAD_LAA','UNIDAD','NM']]
     print(df)
-    cur.close()
-    conn.close()
-
     return df
 
 def data_out_to_s3(ds):

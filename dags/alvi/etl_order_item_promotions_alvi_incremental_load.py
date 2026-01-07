@@ -4,6 +4,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.exceptions import AirflowSkipException
 
 import pendulum
 
@@ -34,6 +35,8 @@ def _get_new_orders_from_s3(ts):
 def _get_order_item_promotions_from_janis(ts):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
+    if df.empty:
+        raise AirflowSkipException(f"No se encontraron órdenes en S3 para el periodo {ts}. Saltando extracción de promociones.")
     order_ids = df["id"].tolist()
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
