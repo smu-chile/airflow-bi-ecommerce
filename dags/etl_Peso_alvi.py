@@ -35,7 +35,7 @@ def render_netezza_view():
     FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR
     """
 
-    print(sql_str)
+    df = bq_query_to_df(sql_str)
 
     df = df[['SKU_KEY','ALTURA','ANCHO','ENVASE','LONGITUD','PESO_BRUTO','PESO_NETO','SKU_PRODUCT',
              'VOLUMEN','UNIDAD_DE_VOLUMEN','UNIDAD_PESO','UNIDAD_LAA','UNIDAD','NM']]
