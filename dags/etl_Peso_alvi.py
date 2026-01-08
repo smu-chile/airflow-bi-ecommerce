@@ -20,18 +20,18 @@ def render_netezza_view():
 
     sql_str= f""" 
     SELECT 
-        sku_key, 
-        altura, ancho, 
-        envase, longitud, 
-        peso_bruto,
-        peso_neto ,
-        SKU_PRODUCT ,
-        volumen, 
-        unidad_de_volumen, 
-        unidad_peso, 
-        unidad_laa, 
-        unidad, 
-        nm
+        sku_hex as SKU_KEY, 
+        ALTURA, ANCHO, 
+        ENVASE, LONGITUD, 
+        PESO_BRUTO,
+        PESO_NETO,
+        SKU_PRODUCT,
+        VOLUMEN, 
+        UNIDAD_DE_VOLUMEN, 
+        UNIDAD_PESO, 
+        UNIDAD_LAA, 
+        UNIDAD, 
+        NM
     FROM cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_ATTR
     """
 
