@@ -499,8 +499,30 @@ def _inscriptions_incremental_load(ts):
         new_document["canal"] = record.get("channel", None)
         new_document["fecha_creacion"] = record.get("createdAt", None)
         new_document["fecha_borrado"] = record.get("deletedAt", None)
-        new_document["procesador"] = record.get("gateway", {}).get("name", None)
-        new_document["cod_autorizacion"] = record.get("gateway", {}).get("data", {}).get("authorizationCode", None)
+        #new_document["procesador"] = record.get("gateway", {}).get("name", None)
+        #new_document["cod_autorizacion"] = record.get("gateway", {}).get("data", {}).get("authorizationCode", None)
+        gateway = record.get("gateway", None)
+        procesador = None
+        cod_autorizacion = None
+        if isinstance(gateway, dict):
+            procesador = gateway.get("name", None)
+
+            data = gateway.get("data", None)
+            if isinstance(data, dict):
+                cod_autorizacion = data.get("authorizationCode", None)
+
+            elif isinstance(gateway, str):
+                # a veces viene tipo "transbank" o "webpay" como string
+                procesador = gateway
+                print(f"[WARN] gateway es string en id={inscription_id}: {gateway}")
+
+        else:
+            # None / raro
+            if gateway is not None:
+                print(f"[WARN] gateway tipo {type(gateway)} en id={inscription_id}: {gateway}")
+
+        new_document["procesador"] = procesador
+        new_document["cod_autorizacion"] = cod_autorizacion
         new_document["tipo"] = record.get("type", None)
         new_document["secuencia"] = record.get("sequence", None)
         new_documents.append(new_document)
