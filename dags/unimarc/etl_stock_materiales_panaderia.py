@@ -44,8 +44,7 @@ def _send_stock_999_to_janis_pan(ds):
         LEFT JOIN ecommdata.productos p ON p.ref_id = s.ref_id 
         LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id 
         WHERE 
-            (c.n3 ILIKE '%pan corriente%')
-            AND c.n2 = 'Pan'
+            c.n2 = 'Pan'
     """
 
     result = conn.execute(text(query))
