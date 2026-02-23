@@ -24,3 +24,5 @@ Polygon
 Point
 slack_sdk
 xlsxwriter
+pyOpenSSL>=23.2.0
+cryptography<42.0.0
