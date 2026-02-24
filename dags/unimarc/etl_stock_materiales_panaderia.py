@@ -34,7 +34,7 @@ def _send_stock_999_to_janis_pan(ds):
     engine = sqlalchemy.create_engine(conn_url)
     conn = engine.connect()
 
-    # 📦 Consulta materiales por tienda
+    # 📦 Consulta materiales por tienda.
     query = """
         SELECT DISTINCT 
             COALESCE(s.erp_id, l.material) AS material,
