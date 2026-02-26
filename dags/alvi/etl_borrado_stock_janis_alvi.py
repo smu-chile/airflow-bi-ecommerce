@@ -231,7 +231,7 @@ with DAG(
     """ 
     t0 = S3KeySensor(
         task_id = "wait_for_lista8_flag_file",
-        bucket_key = "datastage/L8_alvi/{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}/LISTA_8.TRG",
+        bucket_key = "datastage/L8_alvi/{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}/LISTA_8A.TRG",
         bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*60,
