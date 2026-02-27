@@ -38,6 +38,12 @@ AND wp.nombre_promocion::text !~~ '%0743%'::text
 and wp.nombre_promocion::text !~~ '% LOC%'::text
 and wp.nombre_promocion::text !~~ '%L65%'::text
 and wp.nombre_promocion::text !~~ '%L0089%'::text
+AND ((wp.material::text || '-'::text) ||
+     CASE
+         WHEN wp.umv::text = 'ST' THEN 'UN'
+         WHEN wp.umv::text = 'CS' THEN 'CJ'
+         ELSE wp.umv
+     END) NOT IN ('000000000000691170-UN')  -- <-- SKU(s) a excluir
 AND (
         wp.id_evento IN (402, 565, 566, 553, 404)
         OR (abs(wp.precio_promocional - wp.precio_modal) >= 5000 or wp.porcentaje_descuento_final >= 0.25)
