@@ -68,6 +68,13 @@ def _set_lim_compra(ts):
     cursor.execute(query_lista8)
     results = cursor.fetchall()
     results=pd.DataFrame(results)
+    
+    # Excluir SKU problemático (Doble Filtro: SQL + Python)
+    excluded_sku = '000000000000691170-UN'
+    if not results.empty:
+        results = results[results[0] != excluded_sku]
+        print(f"SKU {excluded_sku} excluido preventivamente en Python.")
+
     print(results)
     results.columns = ["ref_id","n_promocion","nombre_promocion","descuento_pesos",
                        "porcentaje_descuento","fecha_inicio_de_promocion","fecha_fin_de_promocion"]
