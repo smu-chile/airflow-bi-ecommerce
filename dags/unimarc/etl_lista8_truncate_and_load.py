@@ -180,11 +180,35 @@ def _load_lista8(ts):
                     index=False,         
                     chunksize=20000,         
                     method='multi')
+        # Log exception cases where a globally excluded product will NOT be excluded for a specific store
+        exceptions = conn.execute("""
+            SELECT l.material, l.umv, l.id_tienda 
+            FROM ecommdata.lista8 l
+            JOIN catalogo.productos_excluidos pe ON l.material = pe.material AND l.umv = pe.umv
+            JOIN catalogo.productos_excluidos_excepciones ex 
+                ON l.material = ex.material 
+                AND l.umv = ex.umv 
+                AND l.id_tienda = ex.id_tienda
+        """).fetchall()
+
+        if exceptions:
+            print(f"⚠️ Se detectaron {len(exceptions)} excepciones de exclusión:")
+            for e in exceptions:
+                print(f"   - Material: {e[0]}, UMV: {e[1]}, Tienda: {e[2]} (NO será excluido)")
+
         conn.execute("""
             UPDATE ecommdata.lista8 l
             SET excluido = True
             FROM catalogo.productos_excluidos pe
-            WHERE l.material = pe.material and l.umv = pe.umv
+            WHERE l.material = pe.material 
+              AND l.umv = pe.umv
+              AND NOT EXISTS (
+                  SELECT 1 
+                  FROM catalogo.productos_excluidos_excepciones ex
+                  WHERE ex.material = l.material 
+                    AND ex.umv = l.umv 
+                    AND ex.id_tienda = l.id_tienda
+              )
         """)
         conn.execute("""
             DELETE FROM ecommdata.lista8 l
