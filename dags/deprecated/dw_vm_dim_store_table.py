@@ -17,7 +17,7 @@ with DAG(
     'Netezza_vm_dim_store',
     default_args=default_args,
     description="Netezza vm_dim_store full table load",
-    schedule_interval="30 10 * * *",
+    schedule="30 10 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "DW", "S3"],

@@ -160,7 +160,7 @@ def _load_customers_to_pg(ti):
         return
 
     # --- Upsert a Postgres ---
-    hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    hook = PostgresHook(conn_id="postgresql_conn")
     engine = hook.get_sqlalchemy_engine()
     md = MetaData(schema="clientes")
     direcciones = Table("direcciones_clientes_vtex", md, autoload_with=engine)
@@ -193,7 +193,7 @@ default_args = {
 with DAG(
     dag_id="etl_clientes_vtex_diario",
     description="Carga diaria (ds-1) de clientes VTEX a Postgres.",
-    schedule_interval="0 17 * * *",
+    schedule="0 17 * * *",
     start_date=pendulum.datetime(2025, 7, 28, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,

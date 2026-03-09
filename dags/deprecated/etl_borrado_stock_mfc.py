@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
@@ -16,7 +16,7 @@ def ubicaciones_mfc():
                     from ecommdata.ubicacion_mfc
                     where mfc_is_item_side = 'FLO'"""
     print(ubi_mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ubi_mfc_query)
@@ -34,7 +34,7 @@ def lista8_0917():
                     from ecommdata.lista8_lite
                     where id_tienda = '0917'"""
     print(lista8_0917_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(lista8_0917_query)
@@ -53,7 +53,7 @@ def load_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"borrado_stock_mfc/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -103,7 +103,7 @@ def load_to_janis(ds,ti):
     print(prefix)
     filename = ti.xcom_pull(key="return_value", task_ids=["load_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -170,7 +170,7 @@ with DAG(
     'etl_borrado_stock_mfc',
     default_args=default_args,
     description="Borrado de stock janis mfc para productos FLO que no se encuentren en surtido 0917.",
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=pendulum.datetime(2023, 7, 4, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

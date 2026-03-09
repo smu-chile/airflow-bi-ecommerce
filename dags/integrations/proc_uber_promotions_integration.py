@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from datetime import datetime
 
@@ -25,10 +25,10 @@ def _join_Catalog_from_s3(ds, ti):
 
     exec_date = ds.replace("-", "/")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
@@ -161,10 +161,10 @@ def _join_stock_from_s3(ds, ti):
 
     exec_date = ds.replace("-", "/")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
@@ -1738,7 +1738,7 @@ def _send_joined_data_to_sftp(ds):
     prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/" #Prefis para el catologo enviado a uber
     prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/" #Prefix para actualizacion de stock
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     #Envio de productos 
@@ -1815,11 +1815,11 @@ with DAG(
     "proc_uber_promotions_integration",
     default_args=default_args,
     description="Cruce de precios y precios promocionales simples para integracion Uber",
-    schedule_interval=None, 
+    schedule=None, 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS","UBER"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,

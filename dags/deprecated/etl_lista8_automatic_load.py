@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
@@ -14,7 +14,7 @@ def _load_lista8(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"sap/lista8/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -100,7 +100,7 @@ with DAG(
     'etl_lista8_incremental_load',
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
-    schedule_interval="0 12 * * *",
+    schedule="0 12 * * *",
     start_date=datetime(2022, 2, 20),
     catchup=True,
     max_active_runs = 1,
@@ -114,7 +114,7 @@ with DAG(
     t0 = S3KeySensor(
         task_id = "wait_for_lista8_flag_file",
         bucket_key = "sap/lista8/{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}/flag.txt",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*60*3
     )

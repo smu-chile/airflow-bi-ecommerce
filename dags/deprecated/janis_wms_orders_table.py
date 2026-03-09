@@ -16,7 +16,7 @@ def load_wms_ordes_from_s3_to_postgres(ti):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
     bucket = s3_resource.Bucket(bucket_name)
     csv_file = bucket.Object(file_name)
@@ -166,7 +166,7 @@ with DAG(
     'janis_wms_orders_full_table_load',
     default_args=default_args,
     description="""Extracción y carga historica de tabla wms_orders desde Janis Replica.""",
-    schedule_interval=None,
+    schedule=None,
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "Janis", "S3", "Workspace"],

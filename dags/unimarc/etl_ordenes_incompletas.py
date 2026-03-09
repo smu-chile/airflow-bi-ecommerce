@@ -1,10 +1,10 @@
 from airflow import DAG
 from airflow import macros
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow import macros
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -220,7 +220,7 @@ def _load_json_to_s3(ts, ds):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -237,7 +237,7 @@ def _get_table_oi_from_S3(ti):
     import pandas as pd
 
     ordenes_file = ti.xcom_pull(key="return_value", task_ids=["load_json_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+ordenes_file)
@@ -390,7 +390,7 @@ with DAG(
     'etl_ordenes_incompletas_vtex',
     default_args=default_args,
     description="Extracción y carga de tablas ordenes_incompletas desde API.",
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=pendulum.datetime(2024, 11, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,

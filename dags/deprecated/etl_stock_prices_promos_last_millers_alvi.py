@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.utils.trigger_rule import TriggerRule
 
 
@@ -13,7 +13,7 @@ import pendulum
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -35,7 +35,7 @@ def last_millers_alvi_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"last_millers_alvi/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -119,7 +119,7 @@ def last_millers_alvi_to_postgres(ds):
 
     filename = f"{prefix}last_millers_alvi_{curr_datetime}.csv"
     print(filename)
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -172,7 +172,7 @@ with DAG(
     'etl_stock_prices_promos_last_millers_alvi',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos",
-    schedule_interval="30 9,13,17,21 * * *",
+    schedule="30 9,13,17,21 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO"],
@@ -183,7 +183,7 @@ with DAG(
     cargar stock,precios y promos a la tabla lss_millers_promos de Alvi\n
     guardar en S3 y postgresql.
     """ 
-    t_dummy = DummyOperator(
+    t_dummy = EmptyOperator(
         task_id='fallo_last_millers_alvi_to_s3',
     )
 

@@ -1,7 +1,7 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 
@@ -26,7 +26,7 @@ def _check_if_dag_ran_today(ds):
     exec_date_string = ds.replace("-", "/")
     response_files_path = f"rappi/api/stock/post/full/responses/{exec_date_string}/"
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching prefix: "+response_files_path)
@@ -90,14 +90,14 @@ def _calculate_delta_request_body(ds, ts):
 
     store_body_file_paths = []
     exec_datetime_string = exec_datetime[:16].replace("-", "/").replace("T", "/").replace(":", "")
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     for store_id in store_id_list:
         body_file_path = f"rappi/api/stock/post/delta/requests/{exec_datetime_string}_{store_id}"
 
         # Check if file is already loaded
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
         s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
         if s3_hook.check_for_key(body_file_path, bucket_name=s3_bucket):
             print(f"File {body_file_path} already exists on S3 bucket. Skipping...")
@@ -158,7 +158,7 @@ def _calculate_full_request_body(ts):
         "0926",
     ]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     dsn_database = Variable.get("DW_SECRET_DATABASE") 
@@ -298,7 +298,7 @@ def _stock_and_prices_delta_post_request(ds):
     exec_datetime_string = ds.replace("-", "/")
     prefix = f"rappi/api/stock/post/delta/requests/{exec_datetime_string}/"
     responses_prefix = f"rappi/api/stock/post/delta/responses/{exec_datetime_string}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -355,7 +355,7 @@ def _stock_and_prices_full_post_request(ti, ds):
     exec_datetime_string = ds.replace("-", "/")
     prefix = f"rappi/api/stock/post/full/requests/{exec_datetime_string}/"
     responses_prefix = f"rappi/api/stock/post/full/responses/{exec_datetime_string}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -413,11 +413,11 @@ with DAG(
     "proc_rappi_post_stock_precio",
     default_args=default_args,
     description="Carga de stock y precios regulares a través de la API de Rappi.",
-    schedule_interval=None, 
+    schedule=None, 
     start_date=pendulum.datetime(2022, 11, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["OPS", "Rappi", "API", "POST", "delta", "stock", "precios"],
 ) as dag:
 
@@ -460,7 +460,7 @@ with DAG(
         python_callable = _stock_and_prices_delta_post_request,
     )
 
-    td = DummyOperator(
+    td = EmptyOperator(
         task_id = "skip_dag_run"
     )
 

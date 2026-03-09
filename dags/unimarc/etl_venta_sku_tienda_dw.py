@@ -1,9 +1,9 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -18,7 +18,7 @@ def _incremental_load_sales_table_unimarc(ti, ds):
     
     sales_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+sales_file)
@@ -166,7 +166,7 @@ def _incremental_load_sales_table_unimarc(ti, ds):
         DELETE FROM ecommdata.venta_sku_tienda
         where fecha < '{ds}'::date - interval '75 days'
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(query, fixed_records)
@@ -184,7 +184,7 @@ def _incremental_load_sales_table_alvi(ti, ds):
     
     sales_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+sales_file)
@@ -328,7 +328,7 @@ def _incremental_load_sales_table_alvi(ti, ds):
         DELETE FROM ecommdata_alvi.venta_sku_tienda
         where fecha < '{ds}'::date - interval '29 days'
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(query, fixed_records)
@@ -351,7 +351,7 @@ with DAG(
     'etl_venta_sku_tienda_dw_load_and_truncate',
     default_args=default_args,
     description="Extracción y carga de vistas de venta por sku desde DW hasta Workspace.",
-    schedule_interval="30 8 * * *",
+    schedule="30 8 * * *",
     start_date=pendulum.datetime(2023, 8, 15, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,
@@ -403,7 +403,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "clean_day_unimarc",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         delete from ecommdata.venta_sku_tienda
         where fecha = '{{ds}}'
@@ -412,7 +412,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "clean_day_alvi",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         delete from ecommdata_alvi.venta_sku_tienda
         where fecha = '{{ds}}'

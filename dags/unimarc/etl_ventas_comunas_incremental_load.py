@@ -136,7 +136,7 @@ def transform_data(ti, ds):
     s3_hook  = S3Hook(aws_conn_id="aws_s3_connection")
     key      = f"forecast_and_planning/venta_comunas/{ds}/venta_comunas.csv"
     
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook.load_string(
         string_data=csv_data,
         key=key,
@@ -153,7 +153,7 @@ def upsert_venta_comunas(ti, ds):
     from sqlalchemy.dialects.postgresql import insert as pg_insert
 
     # ---------- S3 → DataFrame ----------
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     key       = f"forecast_and_planning/venta_comunas/{ds}/venta_comunas.csv"
     s3_hook   = S3Hook(aws_conn_id="aws_s3_connection")
     obj       = s3_hook.get_key(key, bucket_name=s3_bucket)
@@ -216,7 +216,7 @@ default_args = {
 with DAG(
     dag_id="etl_venta_por_comuna_incremental_load",
     description="Carga diaria de venta por comuna.",
-    schedule_interval="0 5 * * *",
+    schedule="0 5 * * *",
     start_date=pendulum.datetime(2025, 7, 28, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

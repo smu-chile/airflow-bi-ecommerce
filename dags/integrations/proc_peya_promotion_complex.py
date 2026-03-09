@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -18,7 +18,7 @@ def _get_peya_active_stores():
         FROM integraciones.tiendas_last_millers
         WHERE id_peya = '512089';
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(peya_stores_query)
@@ -41,10 +41,10 @@ def _join_promo_prices_from_s3(ds, ti):
     peya_store_ids = dict([(peya_store_id[0], peya_store_id[1]) for peya_store_id in peya_stores])
     print(peya_store_ids)
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     for n in range(2, 11):  # Iterar desde 2 hasta 10
@@ -356,7 +356,7 @@ def _send_joined_data_to_stfp(ds):
         
     
         
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -443,11 +443,11 @@ with DAG(
     "proc_peya_promotion_complex",
     default_args=default_args,
     description="Cruce de stock, precios y precios promocionales simples para integracion Pedidos Ya",
-    schedule_interval=None, 
+    schedule=None, 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,

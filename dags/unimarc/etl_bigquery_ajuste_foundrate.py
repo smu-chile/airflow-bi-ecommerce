@@ -78,7 +78,7 @@ def upsert_to_pg(df):
         print("⚠️ No hay datos para cargar.")
         return
 
-    pg = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg = PostgresHook(conn_id="postgresql_conn")
     conn = pg.get_conn()
     cur = conn.cursor()
 
@@ -129,7 +129,7 @@ with DAG(
     'etl_bigquery_ajuste_foundrate',
     default_args=default_args,
     description="Extracción y carga del ajuste de foundrate de productos desde BigQuery a Postgres.",
-    schedule_interval= "0 9 * * *", # Diario a las 09:00 AM
+    schedule= "0 9 * * *", # Diario a las 09:00 AM
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "ajuste_foundrate", "BigQuery", "KEVIN"],

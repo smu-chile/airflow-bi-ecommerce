@@ -1,11 +1,11 @@
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -17,9 +17,9 @@ def query_to_df(query):
     pg_connection.close()
     return results
 
-def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn_id="postgresql_conn", is_unixtime=False):
+def get_max_updated_at_value(schema, table_name, updated_at_field, conn_id="postgresql_conn", is_unixtime=False):
     query = f"SELECT MAX({updated_at_field}) FROM {schema}.{table_name};"
-    pg_hook = PostgresHook(postgres_conn_id=postgres_conn_id)
+    pg_hook = PostgresHook(conn_id=postgres_conn_id)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -34,13 +34,13 @@ def get_max_updated_at_value(schema, table_name, updated_at_field, postgres_conn
         return updated_at_date
     return updated_at_date.strftime("%Y-%m-%d %H:%M:%S")
 
-def is_empty_table(schema, table_name, postgres_conn_id="postgresql_conn"):
+def is_empty_table(schema, table_name, conn_id="postgresql_conn"):
     query = f"""
         SELECT COUNT(1)
         FROM {schema}.{table_name};
     """
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id=postgres_conn_id)
+    pg_hook = PostgresHook(conn_id=postgres_conn_id)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -72,7 +72,7 @@ def load_custom_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connectio
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id=aws_conn_id)
     s3_hook.load_string(buffer.getvalue(),
                   key=file_name,

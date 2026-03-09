@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -157,7 +157,7 @@ with DAG(
     'etl_onemarketer',
     default_args=default_args,
     description="utiliza la API de onemarketer para extraer el historial de conversaciones",
-    schedule_interval= "0,30 * * * *",
+    schedule= "0,30 * * * *",
     start_date=pendulum.datetime(2024, 8, 26, tz="America/Santiago"),
     catchup=True,
     max_active_runs = 1,

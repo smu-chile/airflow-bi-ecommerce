@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -128,7 +128,7 @@ def load_last_zippedi_session(ds):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+"""); 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -150,7 +150,7 @@ with DAG(
     'proc_localizacion_zippedi',
     default_args=default_args,
     description="""Extraction and insert of attributes from Zippedi API to Janis.""",
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=pendulum.datetime(2024, 9, 1, tz="America/Santiago"),
     catchup=False,
     tags=["API", "Janis", "zippedi", 'localizacion', "SERGIO"],

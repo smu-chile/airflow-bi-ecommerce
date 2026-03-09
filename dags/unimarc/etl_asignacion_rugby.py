@@ -123,7 +123,7 @@ with DAG(
     'etl_asignacion_rugby_semanal',
     default_args=default_args,
     description="Asignar xConvenio a usuarios con convenio Rugby.",
-    schedule_interval="0 7 * * 1", # Ejecuta cada lunes a las 07:00 AM
+    schedule="0 7 * * 1", # Ejecuta cada lunes a las 07:00 AM
     start_date=pendulum.datetime(2025, 10, 31, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

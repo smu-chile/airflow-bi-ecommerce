@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -20,7 +20,7 @@ def _create_final_store_table(ti):
     import numpy as np
     import pandas as pd
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     dw_stores_files_s3_object = s3_hook.get_key("data_warehouse/flags/etl_stores_datawarehouse_raw_load.txt", bucket_name=s3_bucket)
     dw_stores_files_string = dw_stores_files_s3_object.get()["Body"].read().decode("utf-8").split(',')
@@ -164,7 +164,7 @@ def _create_final_store_table(ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -186,7 +186,7 @@ with DAG(
     'etl_tiendas_alvi_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of store data alvi.",
-    schedule_interval=None,
+    schedule=None,
     start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "S3", "Janis", "Workspace", "Tiendas", "Alvi", "MATIAS"],

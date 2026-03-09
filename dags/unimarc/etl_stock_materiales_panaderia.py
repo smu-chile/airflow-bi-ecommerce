@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -105,7 +105,7 @@ with DAG(
     'etl_stock_materiales_panaderia',
     default_args=default_args,
     description="Se agrega stock 999 de materiales de panaderia a tiendas que correspondan",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2024, 7, 3, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Panaderia", "KEVIN", "ecommdata", "catalogo", "stock"],

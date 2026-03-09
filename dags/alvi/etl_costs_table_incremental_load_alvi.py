@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -14,7 +14,7 @@ import pendulum
 
 def _get_store_list_alvi():
     query = "SELECT id FROM ecommdata_alvi.tiendas"
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -32,7 +32,7 @@ def _get_ou_key_list_alvi(ti, ts):
     execution_datetime = ts[:10].replace("-", "/")
     prefix = "data_warehouse/`cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_STORE`/"+execution_datetime+"/"
     print("Searching prefix: "+prefix)
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     store_object_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=prefix)
@@ -61,7 +61,7 @@ def _create_final_costs_table_alvi(ti, ts):
 
     print("Searching prefix: " + dw_sku_attr_file)
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     dw_sku_attr_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=dw_sku_attr_file)
@@ -148,7 +148,7 @@ with DAG(
     'etl_costs_table_incremental_load_alvi',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="30 7 * * *",
+    schedule="30 7 * * *",
     start_date=pendulum.datetime(2025, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

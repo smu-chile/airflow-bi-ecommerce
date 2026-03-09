@@ -37,7 +37,7 @@ with DAG(
     'optimizador_de_rutas_cabify',
     default_args=default_args,
     description="Generación y optimización de rutas.",
-    schedule_interval="0 12,15,18,21 * * *", # 8, 11, 14, 17 (-4)
+    schedule="0 12,15,18,21 * * *", # 8, 11, 14, 17 (-4)
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["OPS", "Janis", "S3", "Cabify"],
@@ -55,7 +55,7 @@ with DAG(
             "janis_api_key": Variable.get("JANIS_API_KEY"), 
             "aws_access_key": Variable.get("AWS_ACCESS_KEY"), 
             "aws_secret_key": Variable.get("AWS_SECRET_KEY"), 
-            "aws_bucket_name": Variable.get("AWS_S3_BUCKET_NAME")
+            "aws_bucket_name": Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
         }
     )
 
@@ -70,7 +70,7 @@ with DAG(
         op_kwargs = { 
             "aws_access_key": Variable.get("AWS_ACCESS_KEY"), 
             "aws_secret_key": Variable.get("AWS_SECRET_KEY"), 
-            "aws_bucket_name": Variable.get("AWS_S3_BUCKET_NAME")
+            "aws_bucket_name": Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
         }
     )
 
@@ -88,7 +88,7 @@ with DAG(
             "janis_api_key": Variable.get("JANIS_API_KEY"), 
             "aws_access_key": Variable.get("AWS_ACCESS_KEY"), 
             "aws_secret_key": Variable.get("AWS_SECRET_KEY"), 
-            "aws_bucket_name": Variable.get("AWS_S3_BUCKET_NAME"),
+            "aws_bucket_name": Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
             "mongo_user": Variable.get("MONGODB_USER"), 
             "mongo_pass": Variable.get("MONGODB_PASSWORD"), 
             "cluster_name": Variable.get("MONGODB_CLUSTER"), 

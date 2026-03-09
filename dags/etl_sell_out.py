@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import bq_query_to_df
@@ -38,7 +38,7 @@ def sell_out_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"sell_out_/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -145,7 +145,7 @@ def sell_out_to_postgresql(ti):
     from sqlalchemy import text
 
     filename = ti.xcom_pull(key="return_value", task_ids=["sell_out_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -249,7 +249,7 @@ with DAG(
     'etl_sell_out',
     default_args=default_args,
     description="cargar tabla sell_out",
-    schedule_interval= "0 11 * * *",
+    schedule= "0 11 * * *",
     start_date=pendulum.datetime(2023, 10, 9, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

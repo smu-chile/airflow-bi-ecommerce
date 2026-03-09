@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow import macros
@@ -162,7 +162,7 @@ def _sessions_to_s3(ds):
     df_merged.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     s3_hook.load_string(buffer.getvalue(),
                   key=file_name,
@@ -180,7 +180,7 @@ def _load_sessions_table(ti):
     
     sessions_file = ti.xcom_pull(key="return_value", task_ids=["sessions_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+sessions_file)
@@ -282,7 +282,7 @@ def _load_sessions_table(ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -304,7 +304,7 @@ with DAG(
     'etl_sesiones',
     default_args=default_args,
     description="Extracción y carga de sesiones desde Google Drive de Analytics hasta Workspace.",
-    schedule_interval="30 8 * * *",
+    schedule="30 8 * * *",
     start_date=pendulum.datetime(2023, 7, 10, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -21,7 +21,7 @@ def _sku_categorias_datawarehouse_unimarc_incremental_load(ti, ts):
     curr_datetime = ts[:10].replace("-", "/")
     dw_categories_file = ti.xcom_pull(key="return_value", task_ids=["extract_sku_hierarchy_table_from_dw_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+dw_categories_file)
@@ -88,7 +88,7 @@ with DAG(
     'etl_sku_categorias_datawarehouse_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of incremental sku_categories data from datawarehouse.",
-    schedule_interval="45 7 * * *",
+    schedule="45 7 * * *",
     start_date=pendulum.datetime(2022, 8, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -108,7 +108,7 @@ with DAG(
 
     t0 = PostgresOperator(
         task_id = "truncate_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         truncate staging.sku_categorias_datawarehouse_unimarc
         """
@@ -145,7 +145,7 @@ with DAG(
 
     t3 = PostgresOperator(
         task_id = "upsert_sku_categoria_datawarehouse",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/upsert_sku_categorias_datawarehouse.sql"
     )
 

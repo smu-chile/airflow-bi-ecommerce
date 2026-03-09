@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -129,7 +129,7 @@ def _post_request_to_publish_task_endpoint(ts):
     """
     print(query)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     df = pd.read_sql(query, pg_connection)
@@ -173,7 +173,7 @@ def _post_request_to_publish_task_endpoint(ts):
 
     # Send payloads to S3
     print(payloads)
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     json_payloads_string = json.dumps(payloads)
@@ -220,11 +220,11 @@ with DAG(
     "proc_frogmi_post_alerta_foundrate",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate a Frogmi",
-    schedule_interval="0 13,17 * * *",
+    schedule="0 13,17 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["OPS", "Frogmi", "API", "POST", "foundrate", "MATIAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,

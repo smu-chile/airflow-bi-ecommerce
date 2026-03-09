@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -19,7 +19,7 @@ def coordenadas_poligonos(ds):
                     and coordenadas is not null 
                     and  p."deliveryChannel" ='delivery'
                     and fecha = '{ds}'::date """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(coordenadas_poligonos_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -43,7 +43,7 @@ def ordenes_janis(ds):
                 where d.lat is not null 
                 and oj.fecha_facturacion::date >= '{ds}'::date - interval '13 month' 
                 and  d.tipo_despacho ='delivery'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(ordenes_janis_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -68,7 +68,7 @@ def poligonos_ordenes_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"ordenes_poligonos/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -146,7 +146,7 @@ def poligonos_ordenes_to_postgres(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["poligonos_ordenes_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -212,7 +212,7 @@ with DAG(
     'etl_poligonos_ordenes',
     default_args=default_args,
     description="cargar tabla poligonos ordenes",
-    schedule_interval="20 8 * * *",
+    schedule="20 8 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "ordenes", "forcast_and_plannig", "polygons", "unimarc", "PATRICIO"],

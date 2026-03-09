@@ -57,7 +57,7 @@ with DAG(
     max_active_runs=1,
     tags=["TEST", "Francisco"],
     default_args=default_args,
-    schedule_interval=None,   # sólo lo disparas manual
+    schedule=None,   # sólo lo disparas manual
 ) as dag:
 
     t1 = PythonOperator(

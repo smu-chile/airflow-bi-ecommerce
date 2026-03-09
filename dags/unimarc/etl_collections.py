@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -78,7 +78,7 @@ def get_products_from_collection(ti):
 
     query = f"SELECT * FROM catalogo.vtex_collections;"
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -177,7 +177,7 @@ with DAG(
     'etl_collections',
     default_args=default_args,
     description="Extracción y carga de las tablas vtex_collections y vtex_products_collections desde API.",
-    schedule_interval="0 3 * * *",
+    schedule="0 3 * * *",
     start_date=pendulum.datetime(2023, 6, 26, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

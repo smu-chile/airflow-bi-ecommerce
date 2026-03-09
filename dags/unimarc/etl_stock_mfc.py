@@ -1,10 +1,10 @@
 from airflow import DAG
 from airflow import macros
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -16,7 +16,7 @@ def _check_for_s3_file_with_date(ds):
     exec_date = datetime.strptime(ds, "%Y-%m-%d") + timedelta(days=1)
     exec_date = f"{exec_date.year}/{exec_date.month}/{exec_date.day}"
     prefix = f"datastage/stock_mfc/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     flag_key = prefix + "stock.trg"
 
@@ -34,7 +34,7 @@ def _load_stock_mfc(ds):
     exec_date = datetime.strptime(ds, "%Y-%m-%d") + timedelta(days=1)
     exec_date = f"{exec_date.year}/{exec_date.month}/{exec_date.day}"
     prefix = f"datastage/stock_mfc/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -118,7 +118,7 @@ with DAG(
     'etl_stock_mfc',
     default_args=default_args,
     description="Carga de datos de Stock MFC desde bucket de S3 al workspace de Postgresql.",
-    schedule_interval="0 4 * * *",
+    schedule="0 4 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -145,7 +145,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "delete_old_data",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         DELETE FROM ecommdata.stock_mfc
         WHERE fecha_carga < '{{ds}}'::date - interval '30 days';

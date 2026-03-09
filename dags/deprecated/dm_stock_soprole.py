@@ -128,7 +128,7 @@ with DAG(
     'dm_stock_soprole',
     default_args=default_args,
     description="Carga de stock de soprole en datamind",
-    schedule_interval="0 0/4 * * *",
+    schedule="0 0/4 * * *",
     start_date=pendulum.datetime(2022, 7, 14, tz="America/Santiago"),
     catchup=False,
     tags=["data", "datamind", "stock", "soprole"],

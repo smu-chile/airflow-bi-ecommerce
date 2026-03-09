@@ -31,7 +31,7 @@ def db_get_ref_id_atributos_producto():
             order by p.ref_id desc;
             """
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -110,7 +110,7 @@ with DAG(
     default_args=default_args,
     description=""" Busca en tabla ecommdata.atributos_producto productos que tengan su atributo 'Limite de Compra'  \n
     con valor = NULL, a estos productos se les rescata su ref_id para setear su valor a 12 mediante la API de Janis """,
-    schedule_interval="55 8 * * *",
+    schedule="55 8 * * *",
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

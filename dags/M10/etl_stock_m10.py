@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -17,7 +17,7 @@ def _load_to_postgres(ti):
     from sqlalchemy import text
 
     stock_M10_file = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+stock_M10_file)
@@ -93,7 +93,7 @@ with DAG(
     'etl_stock_M10',
     default_args=default_args,
     description="Extracción de stock de M10 desde dw",
-    schedule_interval="15 8 * * *",
+    schedule="15 8 * * *",
     start_date=pendulum.datetime(2024, 5, 28, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

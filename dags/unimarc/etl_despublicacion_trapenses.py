@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -12,7 +12,7 @@ from utils.slack_utils import dag_failure_slack, dag_success_slack
 from utils.postgres_utils import query_to_df
 
 def get_vtex_category_id(janis_id: int):
-    pg = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg = PostgresHook(conn_id="postgresql_conn")
     sql = """
         SELECT ref_id
         FROM ecommdata.categorias
@@ -31,7 +31,7 @@ def validar_y_despublicar(**kwargs):
     hoy_str = hoy.to_date_string()
     hora_str = hoy.to_time_string() # Para la columna hora_proceso
 
-    pg_hook = PostgresHook(postgres_conn_id='postgresql_conn')
+    pg_hook = PostgresHook(conn_id='postgresql_conn')
     conf = kwargs['dag_run'].conf
     refs = conf.get('refs', [])
     usuario = conf.get('requested_by', 'unknown')
@@ -159,7 +159,7 @@ with DAG(
     Se ejecuta mediante POST desde backend de SAC con comando despublicar desde Slack.\n 
     Solo existe un grupo de usuarios quienes pueden ejecutar esta acción.\n
     Este grupo está dentro del control de SAC.""",
-    schedule_interval=None,
+    schedule=None,
     start_date=pendulum.datetime(2023, 7, 11, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

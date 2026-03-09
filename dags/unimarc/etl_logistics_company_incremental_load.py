@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -18,7 +18,7 @@ def _create_final_logistic_company_table(ti):
     import numpy as np
     import pandas as pd
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     janis_file_name = ti.xcom_pull(key="return_value", task_ids=["janis_logistic_companies_full_load_to_s3"])[0]
 
@@ -87,7 +87,7 @@ def _create_final_logistic_company_table(ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print("incremental_query:\n"+incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -109,7 +109,7 @@ with DAG(
     'etl_compania_logistica_unimarc_incremental_load',
     default_args=default_args,
     description="Extraction and transformation of logistic_company data unimarc.",
-    schedule_interval="30 8 * * *",
+    schedule="30 8 * * *",
     start_date=pendulum.datetime(2023, 7, 28, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "S3", "Janis", "Workspace", "compañia_logistica", "Unimarc", "SERGIO"],

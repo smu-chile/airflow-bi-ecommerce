@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3
@@ -22,7 +22,7 @@ def minimos_exhibicion_to_postgresql(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -105,7 +105,7 @@ with DAG(
     'etl_minimos_exhibicion',
     default_args=default_args,
     description="cargar minimos de exhibicion a tabla en postgresql",
-    schedule_interval="0 8 * * *",
+    schedule="0 8 * * *",
     start_date=pendulum.datetime(2024, 2, 19, tz="America/Santiago"),
     catchup=False,
     tags=["DATA","minimos_exhibicion", "unimarc", "DW", "PATRICIO"],

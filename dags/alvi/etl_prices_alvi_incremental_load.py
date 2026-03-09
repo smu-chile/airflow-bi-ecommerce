@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.postgres_utils import get_max_updated_at_value
@@ -17,7 +17,7 @@ def _get_table_price_from_S3(ts, ti):
     import pandas as pd
 
     price_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_load_table_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+price_file)
@@ -205,7 +205,7 @@ def _save_table_price(ts, ti):
                     ON CONFLICT ON CONSTRAINT precios_pk
                     DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""")
                     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(upsert_query, fixed_records)
@@ -228,7 +228,7 @@ with DAG(
     'etl_precios_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla precios desde Janis Alvi a S3 y ecommdata_alvi.",
-    schedule_interval="0 4 * * *",
+    schedule="0 4 * * *",
     start_date=pendulum.datetime(2022, 6, 16, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "precios", "alvi", "MATIAS"],

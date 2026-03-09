@@ -1,9 +1,9 @@
 from airflow import DAG
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.postgres_utils import get_max_updated_at_value
@@ -29,7 +29,7 @@ def _get_stock_nrt_documents(ds, ts):
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     file_name = "stock_nrt/mongodb/BD_STOCK_NRT/"+curr_datetime+".json"
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     s3_hook.load_string(json_order_documents,
                   key=file_name,
@@ -45,7 +45,7 @@ def _load_stock_nrt_to_workspace(ti, ts):
     import pandas as pd
     json_stock_nrt_documents_key = ti.xcom_pull(key="return_value", task_ids=["get_stock_nrt_documents"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+json_stock_nrt_documents_key)
@@ -107,7 +107,7 @@ def _load_stock_nrt_to_workspace(ti, ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -129,11 +129,11 @@ with DAG(
     "etl_stock_nrt_incremental_load",
     default_args=default_args,
     description="Extracción periodica de Stock NRT.",
-    schedule_interval="0 * * * *",
+    schedule="0 * * * *",
     start_date=pendulum.datetime(2022, 9, 20, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["DATA", "mongodb", "ecommdata", "stock_nrt", "MATIAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
@@ -161,7 +161,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "delete_old_data",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         delete from ecommdata.stock_nrt
         where fecha_hora::date < '{{ds}}'::date - interval '21 days'

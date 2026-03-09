@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -31,7 +31,7 @@ def _sku_images_incremental_load(ti):
     
     sku_images_file = ti.xcom_pull(key="return_value", task_ids=["incremental_unixtime_custom_query_load_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+sku_images_file)
@@ -123,7 +123,7 @@ def _sku_images_incremental_load(ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -146,7 +146,7 @@ with DAG(
     'etl_sku_imagenes_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla sku_imagenes desde Janis Alvi Replica hasta Workspace.",
-    schedule_interval="0 * * * *",
+    schedule="0 * * * *",
     start_date=pendulum.datetime(2022, 6, 16, tz="America/Santiago"),
     max_active_runs=1,
     catchup=False,

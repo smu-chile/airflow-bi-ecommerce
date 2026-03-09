@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from datetime import datetime, timedelta
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -248,7 +248,7 @@ def _operations_incremental_load(ts, ti):
     _upsert_records(df, "mw_operaciones", engine)
 
     # Send id lists to S3
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     date_path = ts[:10].replace("-","/")
@@ -281,7 +281,7 @@ def _interactions_incremental_load(ti):
     charges_file = ti.xcom_pull(key="charges_list_file", task_ids=["operations_incremental_load"])[0]
     refunds_file = ti.xcom_pull(key="refunds_list_file", task_ids=["operations_incremental_load"])[0]
     
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+charges_file)
@@ -584,7 +584,7 @@ def _transfers_incremental_load(ts):
         FROM ecommdata.mw_transferencias
     """
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(max_dates_query)
@@ -706,7 +706,7 @@ def _transfers_incremental_load(ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -729,7 +729,7 @@ def _vtex_payments_incremental_load():
         FROM ecommdata.mw_pagos_vtex
     """
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(max_dates_query)
@@ -851,7 +851,7 @@ def _vtex_payments_incremental_load():
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -873,7 +873,7 @@ with DAG(
     'etl_mw_pagos_tablas_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tablas: pagos; operaciones e interacciones desde Middleware de Pagos hasta el Workspace en Postgresql.",
-    schedule_interval="0 */3 * * *",
+    schedule="0 */3 * * *",
     start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

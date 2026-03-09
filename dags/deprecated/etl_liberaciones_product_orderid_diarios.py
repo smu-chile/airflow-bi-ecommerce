@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime, timedelta
@@ -160,7 +160,7 @@ def _liberacion_diara(ts):
 """
 
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -229,7 +229,7 @@ def _orderid_packid_table():
     """
 
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -252,7 +252,7 @@ with DAG(
     'etl_liberaciones_ids_diarios_MELI',
     default_args=default_args,
     description="Automatización de obtención de liberaciones MELI, y de tabla intermedia pack_id y order_id",
-    schedule_interval="0 4 * * *",
+    schedule="0 4 * * *",
     start_date=pendulum.datetime(2023, 1, 27, tz="America/Santiago"),
     catchup=False,
     tags=["MELI", "liberaciones", "conciliacion","MongoDB"],

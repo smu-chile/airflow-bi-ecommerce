@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.janis_utils import load_full_table_to_s3
 
@@ -13,7 +13,7 @@ def _get_table_stock_from_S3(ts, ti):
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+stock_file)
@@ -61,7 +61,7 @@ with DAG(
     'etl_stock_staging_unimarc',
     default_args=default_args,
     description="Extracción y carga de tabla stock desde Janis Unimarc a S3 y staging.",
-    schedule_interval="0 */4 * * *",
+    schedule="0 */4 * * *",
     start_date=datetime(2022, 6, 16),
     catchup=False,
     tags=["DATA", "Janis", "stock", "unimarc"],
@@ -78,7 +78,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "truncate_staging_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         TRUNCATE staging.stock_unimarc
         """,

@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -16,7 +16,7 @@ def _get_query_order_ids_from_s3(ts):
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     orders_file = f"janis/replica/wms_orders/{curr_datetime}_wms_orders.csv"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+orders_file)
@@ -45,7 +45,7 @@ with DAG(
     'etl_found_rate_productos_unimarc',
     default_args=default_args,
     description="Carga de tabla found_rate_productos",
-    schedule_interval="*/30 * * * *",
+    schedule="*/30 * * * *",
     start_date=pendulum.datetime(2021, 9, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -80,13 +80,13 @@ with DAG(
     
     t4 = PostgresOperator(
         task_id = "load_table_foundrate",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/found_rate_productos.sql",
     )
 
     t5 = PostgresOperator(
         task_id = "delete_old_data",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         DELETE from operaciones_unimarc.found_rate_productos
         WHERE fecha_facturacion <= to_date('{{execution_date.strftime('%Y-%m-%d')}}', '%YYYY-%mm-%dd') - interval '24 months'

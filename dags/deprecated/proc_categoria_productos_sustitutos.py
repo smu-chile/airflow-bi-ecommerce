@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.operators.postgres_operator import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 
 from datetime import datetime
@@ -17,7 +17,7 @@ def get_in_sustitutos():
     curr_working_directory = os.getcwd()
     with open(curr_working_directory+f"/dags/unimarc/sql/proc_categoria_in_sustituto.sql", "r") as query_file:
         query_in_sustitutos = query_file.read()
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     id_category_sustituto = Variable.get(
@@ -88,7 +88,7 @@ def check_if_update_att_category(ti):
             raise Exception(
                 "No se encuentra disponible la tabla ecommdata.atributos_producto")
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query_check)
@@ -188,7 +188,7 @@ def get_out_sustitutos():
     curr_working_directory = os.getcwd()
     with open(curr_working_directory+f"/dags/unimarc/sql/proc_categoria_out_sustituto.sql", "r") as query_file:
         query_out_sustitutos = query_file.read()
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     id_atributo_idcategory = Variable.get(
@@ -281,7 +281,7 @@ with DAG(
     by using the 'lista8' and 'productos' tables from the 'ecommdata'. 
     Then, the category of the products listed in 'lista8' is updated using Janis API."
     """,
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=pendulum.datetime(2023, 3, 28, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -320,7 +320,7 @@ with DAG(
 
     t4 = PostgresOperator(
         task_id='truncate_catalogo_sustitutos',
-        postgres_conn_id='postgresql_conn',
+        conn_id='postgresql_conn',
         sql='TRUNCATE TABLE catalogo.sustitutos;'
     )
 

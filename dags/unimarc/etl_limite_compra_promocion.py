@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -27,7 +27,7 @@ def _load_limite_compra_promocion_table(ti,ds):
     print("Base query:")
     print(limite_promocion_query)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     df_limite = pd.read_sql_query(limite_promocion_query, pg_connection)
@@ -62,7 +62,7 @@ def _set_lim_compra(ts):
     query_lista8 = """select * from ecommdata.limite_compra_promocion lcp;
     """
     print(query_lista8)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query_lista8)
@@ -154,7 +154,7 @@ with DAG(
     'etl_limite_promociones',
     default_args=default_args,
     description="Extraer productos con promociones vigentes y setear limite de compra estatico",
-    schedule_interval=None,
+    schedule=None,
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["ecommdata", "promociones", "limite_compra", "unimarc", "SERGIO"],

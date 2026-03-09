@@ -1,6 +1,6 @@
 from airflow import DAG
 from airflow import macros
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
@@ -169,7 +169,7 @@ def _load_json_to_s3(ts, ds):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -186,7 +186,7 @@ def _get_table_alerta_reposicion_from_S3(ti):
     import pandas as pd
 
     alerta_reposicion_file = ti.xcom_pull(key="return_value", task_ids=["load_json_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+alerta_reposicion_file)
@@ -265,7 +265,7 @@ with DAG(
     'etl_frogmi_alerta_reposicion',
     default_args=default_args,
     description="Extracción y carga de tabla alerta reposicion desde API.",
-    schedule_interval="30 12,16,18 * * *",
+    schedule="30 12,16,18 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

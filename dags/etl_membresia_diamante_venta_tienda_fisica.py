@@ -1,9 +1,9 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from datetime import datetime
@@ -28,7 +28,7 @@ def from_s3_to_postgress(ti):
     filename = f"membresia_diamante_venta_tienda_fisica/discount_data/discount_data_{fecha_ayer}"
     
     # Variables y conexión S3
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: " + filename)
@@ -89,7 +89,7 @@ with DAG(
     'elt_carga_membresia_diamante_venta_tienda_fisica',
     default_args=default_args,
     description='guarda los datos de venta tienda fisica membresia',
-    schedule_interval='0 9 * * *',
+    schedule='0 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

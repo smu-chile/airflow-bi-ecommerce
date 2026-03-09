@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -19,7 +19,7 @@ def load_pedidos_prefactura_unimarc_to_postgres(ds):
     import sqlalchemy
     from io import StringIO
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     curr_working_directory = os.getcwd()
@@ -68,7 +68,7 @@ def load_estimacion_costo_armado_to_postgres(ds):
     import sqlalchemy
     from io import StringIO
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     curr_working_directory = os.getcwd()
@@ -117,7 +117,7 @@ def load_estimacion_costo_asegurado_to_postgres(ds):
     import sqlalchemy
     from io import StringIO
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     curr_working_directory = os.getcwd()
@@ -166,7 +166,7 @@ def load_estimacion_gastos_adicionales_to_postgres(ds):
     import sqlalchemy
     from io import StringIO
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     curr_working_directory = os.getcwd()
@@ -216,7 +216,7 @@ with DAG(
     'etl_estimacion_costos_logisticos',
     default_args=default_args,
     description="carga diaria de tablas para calcular costos logisticos",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2024, 12, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

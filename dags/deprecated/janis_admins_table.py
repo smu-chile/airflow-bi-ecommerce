@@ -25,7 +25,7 @@ with DAG(
     'janis_admins_full_table_load',
     default_args=default_args,
     description="Extracción y carga de tabla admins desde Janis Replica.",
-    schedule_interval="0 3 * * *",
+    schedule="0 3 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "Janis", "S3"],

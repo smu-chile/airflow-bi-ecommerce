@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -24,7 +24,7 @@ def _load_to_postgres(ti,ds):
     print("Base query:")
     print(perdidas_margen_query)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     df_margen = pd.read_sql_query(perdidas_margen_query, pg_connection)
@@ -101,7 +101,7 @@ def _load_to_postgres(ti,ds):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -124,7 +124,7 @@ with DAG(
     'elt_perdidas_margen',
     default_args=default_args,
     description="Calculo de costos de margen a nivel ordenes",
-    schedule_interval="0 4 * * *",
+    schedule="0 4 * * *",
     start_date=pendulum.datetime(2023, 6, 6, tz="America/Santiago"),
     catchup=False,
     tags=["JANIS", "ordenes", "margen", "promocion", "SERGIO"],

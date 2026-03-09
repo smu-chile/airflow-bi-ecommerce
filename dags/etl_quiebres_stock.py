@@ -1,8 +1,8 @@
 from airflow import DAG
 from airflow import macros
-from airflow.sensors.s3_key_sensor import S3KeySensor
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
@@ -20,7 +20,7 @@ def publicacion_catalogo(ds):
                         and stock_janis is null
                         and EXTRACT(HOUR FROM fecha_hora) = 12"""
     print(publicacion_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(publicacion_query)
@@ -38,7 +38,7 @@ def extraccion_s3_publicacion_catalogo(ds):
     date_aux = ds.replace("-", "_")
     prefix = f"quiebres_inventario/{exec_date}/"
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     hoy = datetime.now().date() - timedelta(days=15)
@@ -131,7 +131,7 @@ def quiebres_to_postgres(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["extraccion_s3_publicacion_catalogo"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -181,7 +181,7 @@ with DAG(
     'etl_quiebre_stock',
     default_args=default_args,
     description="Carga de datos de quiebres stock 60 dias S3.",
-    schedule_interval="0 5 1/15 * *",
+    schedule="0 5 1/15 * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

@@ -136,7 +136,7 @@ with DAG(
     'etl_vtex_ventanas_despacho',
     default_args=default_args,
     description='DAG para cargar ventanas de despacho VTEX desde ubicaciones',
-    schedule_interval="30 8 * * *",
+    schedule="30 8 * * *",
     start_date=pendulum.datetime(2025, 2, 5, tz="America/Santiago"),
     catchup=False,
     tags=["VTEX", "ventanas", "despacho", "historico"],

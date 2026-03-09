@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.postgres_utils import get_max_updated_at_value
@@ -31,7 +31,7 @@ def _get_orders_meli_documents(ti, ts):
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     file_name = "meli/mongodb/orders/"+curr_datetime+".json"
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     s3_hook.load_string(json_order_documents,
                   key=file_name,
@@ -47,7 +47,7 @@ def _load_meli_orders_to_workspace(ti, ts):
     import pandas as pd
     json_order_documents_key = ti.xcom_pull(key="return_value", task_ids=["extract_orders_from_mongodb"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+json_order_documents_key)
@@ -133,7 +133,7 @@ def _load_meli_orders_to_workspace(ti, ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -155,11 +155,11 @@ with DAG(
     "etl_ordenes_mercado_libre_incremental_load",
     default_args=default_args,
     description="Extracción periodica de ordenes de Unimarc a través de MercadoLibre.",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2022, 6, 29, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["DATA", "mongodb", "workspace", "ecommdata_meli", "ordenes", "mercadolibre", "MATIAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,

@@ -2,7 +2,7 @@ from sqlalchemy.engine import create_engine
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from utils.calendar import delta_yearweeks
 from utils.bigquery_utils import bigquery_full_table_load_to_s3
@@ -18,7 +18,7 @@ def _generate_calendar_table(ti):
     from sqlalchemy import text
 
     dw_date_file_name = ti.xcom_pull(key="return_value", task_ids=["bigquery_vm_dim_date_full_load"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(dw_date_file_name, bucket_name=s3_bucket):
@@ -115,7 +115,7 @@ with DAG(
     'calendar_table_etl',
     default_args=default_args,
     description="Bigquery vm_dim_date full table load to S3 and transformation-load to Postgres",
-    schedule_interval="30 6 * * *",
+    schedule="30 6 * * *",
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "DW", "S3", "MATIAS"],

@@ -84,7 +84,7 @@ with DAG(
     dag_id="etl_janis_offsets_to_postgres",
     default_args=default_args,
     start_date=pendulum.datetime(2022, 7, 10, tz="America/Santiago"),
-    schedule_interval="30 8 * * *", # Ejecutar diariamente a las 08:30 AM
+    schedule="30 8 * * *", # Ejecutar diariamente a las 08:30 AM
     catchup=False,
     tags=["janis", "logistica", "offsets", "forecast_and_planning", "KEVIN"],
     on_success_callback=dag_success_slack,

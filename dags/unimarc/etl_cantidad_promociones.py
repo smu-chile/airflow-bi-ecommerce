@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -19,11 +19,11 @@ def load_cantidad_promociones_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"cantidad_promociones/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     df_promos = pd.DataFrame()
@@ -83,7 +83,7 @@ def load_cantidad_promociones_to_postgres(ti):
 
     cantidad_promociones_file = ti.xcom_pull(key="return_value", task_ids=["load_cantidad_promociones_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+cantidad_promociones_file)
@@ -121,7 +121,7 @@ def load_cantidad_promociones_to_postgres(ti):
         DO NOTHING; 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -143,7 +143,7 @@ with DAG(
     'etl_cantidad_promociones',
     default_args=default_args,
     description="Extracción de datos de tabla workflow_promociones y posterior carga de cantidad de promociones diarias segmentadas por mecanica",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2022, 8, 11, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "ecommdata", "cantidad_promociones", "Unimarc", "workflow_promociones"],

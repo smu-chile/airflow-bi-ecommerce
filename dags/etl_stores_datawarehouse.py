@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from utils.bigquery_utils import bigquery_full_table_load_to_s3
@@ -17,7 +17,7 @@ def write_s3_file(ti):
     s3_string = f"{dw_stores_file_name},{dw_hierarchy_file_name}"
     prefix = "data_warehouse/flags/"
     filename = "etl_stores_datawarehouse_raw_load.txt"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     s3_hook.load_string(str(s3_string),prefix + filename,bucket_name=s3_bucket,replace=True)
     return
@@ -34,7 +34,7 @@ with DAG(
     'etl_stores_datawarehouse_raw_load',
     default_args=default_args,
     description="Extraction of raw data from data warehouse.",
-    schedule_interval="15 7 * * *",
+    schedule="15 7 * * *",
     start_date=pendulum.datetime(2022, 5, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "DW", "S3", "Tiendas", "MATIAS"],

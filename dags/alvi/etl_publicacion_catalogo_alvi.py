@@ -3,9 +3,9 @@ from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 from datetime import datetime, timedelta
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -46,7 +46,7 @@ def _store_periodic_data(ts):
         where pc.fecha_hora < '{ts}'::timestamp - interval '14 days' and pc.fecha_hora::time <> '12:00:00'
     """
     print(select_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     df = pd.read_sql_query(select_query, pg_connection)
 
@@ -56,7 +56,7 @@ def _store_periodic_data(ts):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -78,7 +78,7 @@ def _delete_periodic_data(ts):
     """
 
     print(delete_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(delete_query)
@@ -106,7 +106,7 @@ def _store_daily_data(ts):
         where pc.fecha_hora < '{ts}'::timestamp - interval '28 days'
     """
     print(select_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     df = pd.read_sql_query(select_query, pg_connection)
 
@@ -116,7 +116,7 @@ def _store_daily_data(ts):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -140,7 +140,7 @@ def _delete_daily_data(ts, ds):
     part_day = delete_date_split[2]
     partition_name = f"publicacion_catalogo_y{part_year}m{part_month}d{part_day}"
     
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
@@ -188,7 +188,7 @@ with DAG(
     'etl_publicacion_catalogo_alvi',
     default_args=default_args,
     description="Carga de tabla publicacion catalogo alvi",
-    schedule_interval="0 1/4 * * *",
+    schedule="0 1/4 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -213,25 +213,25 @@ with DAG(
         python_callable=_check_time,
     )
     
-    t_dummy = DummyOperator(
+    t_dummy = EmptyOperator(
             task_id='task_skip',
         )
 
     t2 = PostgresOperator(
         task_id = "load_table_publicacion_catalogo",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/publicacion_catalogo_alvi.sql",
     )
 
     t3 = PostgresOperator(
         task_id = "load_table_publicacion_dia_tienda_surtido",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/publicacion_dia_tienda_surtido_alvi.sql",
     )
 
     t4 = PostgresOperator(
         task_id = "load_table_publicacion_dia_tienda_surtido_y_con_marca",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/publicacion_dia_tienda_surtido_y_con_marca_alvi.sql",
     )
 

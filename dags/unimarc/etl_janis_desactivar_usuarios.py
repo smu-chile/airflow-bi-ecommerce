@@ -74,7 +74,7 @@ def extract_and_load_inactive_pickers():
     records = df.to_records(index=False).tolist()
 
     # --- Conexión Postgres ---
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_conn = pg_hook.get_conn()
     pg_cursor = pg_conn.cursor()
 
@@ -88,7 +88,7 @@ def extract_and_load_inactive_pickers():
 
 def deactivate_users_in_janis():
     import requests
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_conn = pg_hook.get_conn()
     pg_cursor = pg_conn.cursor()
 
@@ -160,7 +160,7 @@ with DAG(
     "etl_janis_desactivar_usuarios",
     default_args=default_args,
     description="Carga a Postgres los pickers de Janis con última fecha de picking mayor a 60 días",
-    schedule_interval="0 7 15 * *", #Corre el día 15 de cada mes a las 07:00
+    schedule="0 7 15 * *", #Corre el día 15 de cada mes a las 07:00
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Usuarios", "Pickers", "Kevin"],

@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -32,7 +32,7 @@ def stock_x_l8(ds):
                     and pt.activo is true
                     and s.fecha = '{ds}'::date+1"""
     print(stock_l8_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_l8_query)
@@ -64,7 +64,7 @@ def sku_erp_padre():
                     or c.n1 = 'Carnes'
                     or p.material <> s.erp_id;"""
     print(sku_erp_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(sku_erp_query)
@@ -86,7 +86,7 @@ def stock_mfc(ds):
                     where fecha_carga = '"""+ds+"""'::date  +1
                     and id_tienda = '1917'"""
     print(stock_mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(stock_mfc_query)
@@ -106,7 +106,7 @@ def l8_0917(ds):
                     where fecha = '"""+ds+"""'::date +1
                     and id_tienda = '0917'"""
     print(l8_0917_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(l8_0917_query)
@@ -123,7 +123,7 @@ def ubicaciones_mfc(ds):
     import pandas as pd
     ubi_mfc_query = """select "_id",sap_code,ean_code,store,measurement_unit,mfc_is_item_side,created_date,update_date from ecommdata.ubicacion_mfc"""
     print(ubi_mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ubi_mfc_query)
@@ -201,7 +201,7 @@ def create_and_load_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"cuadratura_mfc/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -312,7 +312,7 @@ def truncate_and_load_postgres(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["create_and_load_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -363,7 +363,7 @@ with DAG(
     'etl_cuadratura_mfc',
     default_args=default_args,
     description="crear y cargar cuadratura del dia para MFC",
-    schedule_interval="30 9 * * *",
+    schedule="30 9 * * *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["catalogo", "cuadratura", "MFC", "unimarc", "PATRICIO"],

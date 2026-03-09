@@ -2,12 +2,12 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import BranchPythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 import pendulum
 
@@ -115,7 +115,7 @@ def load_tables_to_s3(ts,ds):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"carga_tiendas_alvi/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -306,7 +306,7 @@ def load_tables_to_postgres(ti):
 
     filename_productos,filename_skus = ti.xcom_pull(key="return_value", task_ids=["load_tables_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     #productos
@@ -369,7 +369,7 @@ def get_and_send_cargas_csv():
     import io
 
     # conexiones / vars
-    pg_hook   = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook   = PostgresHook(conn_id="postgresql_conn")
     engine    = pg_hook.get_sqlalchemy_engine()
     fecha_str = str(pendulum.now("America/Santiago").date())
 
@@ -432,7 +432,7 @@ with DAG(
     'etl_carga_tiendas_metabase_alvi',
     default_args=default_args,
     description="cargar tabla de productos y skus de carga tiendas",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "tiendas", "ecommdata", "metabase", "alvi", "PATRICIO"],

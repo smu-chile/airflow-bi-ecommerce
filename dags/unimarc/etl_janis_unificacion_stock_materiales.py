@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
@@ -15,7 +15,7 @@ def query_to_df(query):
     import pandas as pd
 
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -179,7 +179,7 @@ default_args = {
 with DAG(
     'etl_janis_unificacion_stock_materiales',
     default_args=default_args,
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2025, 6, 4, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "Pollos", "Stock", "ecommdata","KEVIN"],

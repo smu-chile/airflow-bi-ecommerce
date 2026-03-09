@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -84,7 +84,7 @@ with DAG(
     'etl_borrado_stock_inmovilizados',
     default_args=default_args,
     description="Borrado de Stock Janis en base a historia de ventas en dw y parametros entregados en tabla catalogo.categoria_tienda_inmovilizada.",
-    schedule_interval="0 9 * * *",
+    schedule="0 9 * * *",
     start_date=pendulum.datetime(2023, 1, 30, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "ecommdata", "catalogo", "inmovilizados", "stock", "OPS"],
@@ -98,7 +98,7 @@ with DAG(
     
     t0 = PostgresOperator(
         task_id = "truncate_table_sales_history",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
             truncate ecommdata.historia_venta_dw
         """
@@ -106,7 +106,7 @@ with DAG(
     
     t1 = PostgresOperator(
         task_id = "load_table_sales_history",
-        postgres_conn_id= "postgresql_conn",
+        conn_id= "postgresql_conn",
         sql= "sql/load_table_sales_history.sql"
     )
 

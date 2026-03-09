@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -21,7 +21,7 @@ def _create_final_store_table(ti):
     dw_stores_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_full_load_to_s3"])[0]
     dw_hierarchy_file_name = ti.xcom_pull(key="return_value", task_ids=["netezza_vm_dim_store_hierarchy_full_load_to_s3"])[0]
     janis_file_name = ti.xcom_pull(key="return_value", task_ids=["janis_stores_full_load_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(dw_stores_file_name, bucket_name=s3_bucket):
@@ -157,7 +157,7 @@ def _create_final_store_table(ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -179,7 +179,7 @@ with DAG(
     'stores_table_etl',
     default_args=default_args,
     description="Extraction and transformation of store data.",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "DW", "S3", "Janis", "Workspace", "Tiendas"],

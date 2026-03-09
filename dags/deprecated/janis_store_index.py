@@ -19,7 +19,7 @@ def check_process_run():
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
     bucket = s3_resource.Bucket(bucket_name)
     try:
@@ -109,7 +109,7 @@ def get_janis_store_list():
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -127,7 +127,7 @@ def load_janis_store_list(ti):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
     bucket = s3_resource.Bucket(bucket_name)
     csv_file = bucket.Object(file_name)
@@ -168,7 +168,7 @@ with DAG(
     'janis_wms_stores',
     default_args=default_args,
     description="Extracción y carga de tabla wms_stores desde Janis Replica.",
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "Janis"],

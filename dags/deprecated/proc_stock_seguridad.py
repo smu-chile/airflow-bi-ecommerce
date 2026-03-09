@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from utils.netezza_utils import load_custom_query_to_s3
@@ -13,7 +13,7 @@ def _load_sales_analysis_to_workspace(ti):
     from sqlalchemy import text
 
     dw_file_name = ti.xcom_pull(key="return_value", task_ids=["load_sales_analysis_from_dw"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(dw_file_name, bucket_name=s3_bucket):
@@ -84,7 +84,7 @@ with DAG(
     'proc_stock_seguridad',
     default_args=default_args,
     description="Calculo y carga de stock de seguridad en Janis.",
-    schedule_interval="0 12 * * *",
+    schedule="0 12 * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     tags=["OPS", "Janis", "stock_seguridad"],

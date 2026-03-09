@@ -1,6 +1,6 @@
 from airflow import DAG
 from airflow import macros
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -19,7 +19,7 @@ def _load_dw_stock_to_s3(ds,ts):
     from io import StringIO
     import boto3
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     query_stores = """
@@ -130,7 +130,7 @@ def _load_dw_stock_to_s3(ds,ts):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -147,7 +147,7 @@ def _get_table_chequeo_found_rate_from_S3(ti):
     import pandas as pd
 
     chequeo_found_rate_file = ti.xcom_pull(key="return_value", task_ids=["load_dw_stock_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+chequeo_found_rate_file)
@@ -209,7 +209,7 @@ with DAG(
     'etl_frogmi_chequeo_found_rate_alvi',
     default_args=default_args,
     description="Extracción y carga de stock DW para chequear foundrate de productos.",
-    schedule_interval="0 8 * * *",
+    schedule="0 8 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

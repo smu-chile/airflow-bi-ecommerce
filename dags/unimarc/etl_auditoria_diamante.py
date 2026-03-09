@@ -215,7 +215,7 @@ with DAG(
     'etl_auditoria_diamante',
     default_args=default_args,
     description='DAG de marcación de colaboradores en Janis para auditorías',
-    schedule_interval="30 7 * * *",  # todos los días a las 7:30 AM
+    schedule="30 7 * * *",  # todos los días a las 7:30 AM
     start_date=pendulum.datetime(2025, 4, 10, tz="America/Santiago"),
     catchup=False,
     tags=["associate", "JANIS", "Clientes", "KEVIN", "Unimarc"],

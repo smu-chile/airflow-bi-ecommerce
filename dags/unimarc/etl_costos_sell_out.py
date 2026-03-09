@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.netezza_utils import load_custom_query_to_s3
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -19,7 +19,7 @@ def _load_to_postgres(ti,ds):
     from sqlalchemy import text
 
     file = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+ file)
@@ -150,7 +150,7 @@ def _load_to_postgres(ti,ds):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -172,7 +172,7 @@ with DAG(
     'etl_ventas_costos',
     default_args=default_args,
     description="Extracción de ventas y costos por sku, tienda y canal de ventas",
-    schedule_interval="15 7 * * *",
+    schedule="15 7 * * *",
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -243,7 +243,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "p_and_l",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/p_and_l.sql",
     )
 

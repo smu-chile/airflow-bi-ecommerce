@@ -154,7 +154,7 @@ with DAG(
     'etl_limite_colaborador',
     default_args=default_args,
     description="Limite de colaboradores y referidos.",
-    schedule_interval="45 */8 * * *",  # Se ejecuta cada 8 horas
+    schedule="45 */8 * * *",  # Se ejecuta cada 8 horas
     start_date=pendulum.datetime(2025, 3, 31, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

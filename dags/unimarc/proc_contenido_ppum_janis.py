@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from utils.janis_utils import _execute_mariadb_query
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -17,7 +17,7 @@ def get_ppum_data_from_janis(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"atributos_janis/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -163,7 +163,7 @@ def set_atributo_contenido(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["get_ppum_data_from_janis"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -236,7 +236,7 @@ with DAG(
     'proc_contenido_ppum_janis.py',
     default_args=default_args,
     description="""""",
-    schedule_interval="0 7 * * MON",
+    schedule="0 7 * * MON",
     start_date = pendulum.datetime(2023, 3, 8, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

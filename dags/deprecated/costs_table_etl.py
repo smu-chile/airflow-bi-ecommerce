@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 def _get_store_list():
     query = "SELECT id FROM ecommdata.tiendas"
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -28,7 +28,7 @@ def _get_ou_key_list(ti, ts):
     execution_datetime = ts[:10].replace("-", "/")
     prefix = "data_warehouse/DWC_SMU.SMU.VW_DIM_STORE/"+execution_datetime+"/"
     print("Searching prefix: "+prefix)
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     store_object_list = s3_hook.list_keys(bucket_name=s3_bucket, prefix=prefix)
@@ -58,7 +58,7 @@ def _create_final_costs_table(ti):
     store_ou_key_list = ti.xcom_pull(key="return_value", task_ids=["get_ou_key_list_from_datawarehouse"])[0]
     df_store_ou_key = pd.DataFrame(store_ou_key_list, columns=["OU_KEY", "STORE_ID"])
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(dw_fact_ou_logt_file, bucket_name=s3_bucket):
@@ -123,7 +123,7 @@ with DAG(
     'costs_table_etl',
     default_args=default_args,
     description="Extraction and transformation of costs data.",
-    schedule_interval="0 12 * * *",
+    schedule="0 12 * * *",
     start_date=datetime(2022, 1, 1),
     catchup=True,
     max_active_runs=1,

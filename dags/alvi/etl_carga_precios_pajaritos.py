@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 import pendulum
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -17,7 +17,7 @@ with DAG(
     'etl_carga_precios_pajaritos',
     default_args=default_args,
     description="Carga de tabla de precios para Alvi desde Pajaritos.",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2022, 12, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -31,7 +31,7 @@ with DAG(
     """
     t0 = PostgresOperator(
         task_id = "truncate_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         truncate ecommdata_alvi.precios_pajaritos
         """,
@@ -39,7 +39,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "load_table_precios_pajaritos",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/precios_pajaritos.sql",
     )
     

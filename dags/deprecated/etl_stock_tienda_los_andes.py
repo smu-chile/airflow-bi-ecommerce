@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from datetime import datetime
 
@@ -79,7 +79,7 @@ with DAG(
     'etl_stock_tienda_los_andes',
     default_args=default_args,
     description="Se agrega stock a tienda de prueba Los Andes para emular ordenes en Janis Picking",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     start_date=pendulum.datetime(2024, 7, 3, tz="America/Santiago"),
     catchup=False,
     tags=["Janis", "ecommdata", "catalogo", "Los Andes", "stock", "SERGIO"],

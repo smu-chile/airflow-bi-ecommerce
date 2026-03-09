@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.slack_utils import dag_failure_slack, dag_success_slack
@@ -19,7 +19,7 @@ def load_ranking_productos_alvi_to_postgres(ds):
     import sqlalchemy
     from io import StringIO
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     curr_working_directory = os.getcwd()
@@ -70,7 +70,7 @@ with DAG(
     'etl_ranking_productos_alvi',
     default_args=default_args,
     description="Extracción de datos de tabla ventas_ecommerce_dw y posterior carga de ranking de SKUs de ultimos 30 dias segmentados por tienda",
-    schedule_interval="0 7 1 * *",
+    schedule="0 7 1 * *",
     start_date=pendulum.datetime(2022, 8, 11, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "ecommdata_alvi", "stock", "Alvi", "ventas_ecommerce_dw", "SERGIO"],
@@ -84,7 +84,7 @@ with DAG(
 
     t0 = PostgresOperator(
         task_id = "truncate_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         truncate ecommdata_alvi.ranking_productos_alvi
         """,

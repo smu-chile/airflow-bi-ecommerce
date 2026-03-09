@@ -3,7 +3,7 @@ from airflow import macros
 from airflow.operators.python import PythonOperator
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -81,7 +81,7 @@ def extract_bq_to_s3(ti, ds, ts):
         bqstorage_client = None
 
     # --- Paths S3 / tmp ---
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3 = S3Hook(aws_conn_id="aws_s3_connection")
 
     exec_date = ds.replace("-", "/")
@@ -183,7 +183,7 @@ def upsert_stock_postgres(ti):
     print("=" * 100)
     print("[upsert] START (COPY + single upsert)")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     key = ti.xcom_pull(key="snapshot_key")
     print(f"[upsert] snapshot: s3://{s3_bucket}/{key}")
 
@@ -287,7 +287,7 @@ default_args = {
 with DAG(
     dag_id="etl_stock_disponible_bq_incremental_load",
     description="BQ → S3 snapshots → Postgres UPSERT.",
-    schedule_interval="0 6 * * *", # daily at 06:00 AM
+    schedule="0 6 * * *", # daily at 06:00 AM
     start_date=pendulum.datetime(2025, 8, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -317,7 +317,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "delete_old_data",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         delete from ecommdata.stock_dw_bq
         where fecha < current_date - interval '3 days';

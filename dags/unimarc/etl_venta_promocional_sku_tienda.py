@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -63,7 +63,7 @@ def fecha_promos_skus(ds):
                                         order by concat(wp.material, '-',case when wp.umv = 'ST' then 'UN'else wp.umv end)) as _t
                                     GROUP BY _t.fecha_inicio, _t.fecha_fin;"""
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -89,7 +89,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and vst.venta_umv >= 0
             group by vst.id_tienda, concat(lpad(vst.material,18,'0'),'-',vst.umv)"""
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -109,7 +109,7 @@ def venta_promocional_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"venta_promocional/{exec_date}"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -156,7 +156,7 @@ def venta_promocional_to_postgresql(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["venta_promocional_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -210,7 +210,7 @@ with DAG(
     'etl_venta_promocional_sku_tienda',
     default_args=default_args,
     description="cargar venta promocional por sku tiendas",
-    schedule_interval="0 8 * * *",
+    schedule="0 8 * * *",
     start_date=pendulum.datetime(2024, 2, 19, tz="America/Santiago"),
     catchup=False,
     tags=["DATA","ventas", "unimarc", "apoteosicos", "PATRICIO"],

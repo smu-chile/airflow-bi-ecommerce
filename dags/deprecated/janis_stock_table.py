@@ -25,7 +25,7 @@ with DAG(
     'janis_stock',
     default_args=default_args,
     description="Extracción y carga de tabla stock desde Janis Replica.",
-    schedule_interval="0 */4 * * *",
+    schedule="0 */4 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "Janis"],

@@ -26,7 +26,7 @@ def _get_daily_partitioned_tables(ti, ds):
         AND (pp.updated_at <> '{exec_date}'
             OR pp.updated_at IS NULL);
     """ 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -44,7 +44,7 @@ def _create_new_daily_partitions(ti, ds):
     exec_date = macros.ds_add(ds, 1)
     print(exec_date)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
@@ -98,7 +98,7 @@ with DAG(
     'maintenance_periodic_table_partitions',
     default_args=default_args,
     description="Creación de particiones periodicas.",
-    schedule_interval="0 23 * * *",
+    schedule="0 23 * * *",
     start_date=pendulum.datetime(2021, 1, 1, tz="America/Santiago"),
     catchup=False,
     tags=["MAINTENANCE", "partitions", "DB", "PostgreSQL", "MATIAS"],

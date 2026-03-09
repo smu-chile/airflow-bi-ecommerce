@@ -1,9 +1,9 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -24,10 +24,10 @@ def _join_stock_from_s3(ds, ti):
 
     exec_date = ds.replace("-", "/")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
 
@@ -94,7 +94,7 @@ def _get_ref_ids_from_s3_today(ds, ti):
     exec_date = ds.replace("-", "/")
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     
     file_key = f"Membresia/score/{exec_date}/{exec_date_formatted}.csv"
@@ -130,7 +130,7 @@ def _get_ref_ids_from_s3_yesterday(ds, ti):
     exec_date = execution_date.strftime("%Y/%m/%d")
     exec_date_formatted = execution_date.strftime("%Y%m%d")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     
     file_key = f"Membresia/score/{exec_date}/{exec_date_formatted}.csv"
@@ -361,7 +361,7 @@ with DAG(
     'etl_score_membresia',
     default_args=default_args,
     description='Guarda promociones comparadas en S3 y las carga en la base de datos',
-    schedule_interval='0 9 * * *',
+    schedule='0 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

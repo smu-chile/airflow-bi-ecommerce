@@ -174,7 +174,7 @@ def mongo_to_postgres(ts):
         from mlp
         where lp.id_orden = mlp.id_orden and lp.fecha_modificacion = mlp.fecha_modificacion
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -196,7 +196,7 @@ with DAG(
         'etl_load_lm_planning',
         default_args=default_args,
         description="Carga a postgres el planning de last millers desde mongoDB.",
-        schedule_interval="0 3 * * *",
+        schedule="0 3 * * *",
         start_date=pendulum.datetime(2024, 7, 1, tz="America/Santiago"),
         max_active_runs = 1,
         tags=["mongo", "postgres", "MATIAS", "last_millers"],

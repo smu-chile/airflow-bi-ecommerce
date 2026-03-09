@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -24,7 +24,7 @@ def materiales_dentro_ventas(list_material,ds):
                     and id_evento not in (551)
                     group by material 
                     order by max( fecha_fin_de_promocion)"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -52,7 +52,7 @@ def venta_maxima(list_material,ds):
                                     and lpad(vst.id_tienda,4,'0') in ('1917')
                                     group by id_tienda, material,date_part('dow',vst.fecha),date_part('week',vst.fecha)) as _t
                                 group by _t.id_tienda,_t.material,_t.dia"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -76,7 +76,7 @@ def promociones(ds):
                     and wp.id_evento not in (551)
                     and l.material is not null"""
     print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
@@ -108,7 +108,7 @@ def ventas(list_material,fecha_inicio,fecha_fin):
             and t.status = 1
             and lpad(vst.id_tienda,4,'0') in ('1917')"""
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -133,7 +133,7 @@ def forecast_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"mfc_forcast_suply/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -211,7 +211,7 @@ def forecast_to_postgresql(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["forecast_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -276,7 +276,7 @@ with DAG(
     'etl_forecast_supply',
     default_args=default_args,
     description="cargar venta promedio apos en postgresql",
-    schedule_interval="0 12 * * 0",
+    schedule="0 12 * * 0",
     start_date=pendulum.datetime(2023, 9, 21, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "ecommdata_unimarc", "MFC", "stock_seguridad", "ventas", "unimarc", "apoteosicos", "PATRICIO"],

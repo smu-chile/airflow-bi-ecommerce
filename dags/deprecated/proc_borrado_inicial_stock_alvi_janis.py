@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
@@ -18,7 +18,7 @@ def no_lista8():
                     where l.material is null
                     and pt.id_tienda is not null"""
     print(ubi_mfc_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_prod_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_prod_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ubi_mfc_query)
@@ -87,7 +87,7 @@ with DAG(
     'proc_borrado_stock_MFC_skus_en_especificos',
     default_args=default_args,
     description="Borrado de stock janis alvi inicial.",
-    schedule_interval=None,
+    schedule=None,
     start_date=pendulum.datetime(2023, 7, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

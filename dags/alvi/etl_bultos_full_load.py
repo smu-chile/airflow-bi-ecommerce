@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
@@ -17,7 +17,7 @@ def _full_load_bultos(ti):
     
     packages_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+packages_file)
@@ -76,7 +76,7 @@ with DAG(
     'etl_bultos_alvi_full_load',
     default_args=default_args,
     description="Extracción y carga tabla bultos y su relación con la tabla ordenes desde Janis Replica hasta Workspace.",
-    schedule_interval="0 9 * * *",
+    schedule="0 9 * * *",
     start_date=pendulum.datetime(2022, 3, 15, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "bultos", "MATIAS"],

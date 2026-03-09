@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from datetime import timedelta
 import pendulum
 
@@ -18,7 +18,7 @@ with DAG(
     dag_id="etl_costos_logisticos_unimarc",
     description="Carga diaria de pedidos prefactura, armado y asegurado de Unimarc",
     default_args=defaul_args,
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2025, 2, 26, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -29,19 +29,19 @@ with DAG(
 
     t0 = PostgresOperator(
         task_id="pedidos_prefactura_unimarc",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/pedidos_prefactura_unimarc.sql",
     )
 
     t1 = PostgresOperator(
         task_id="estimacion_costo_armado",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/estimacion_costo_armado.sql",
     )
 
     t2 = PostgresOperator(
         task_id="estimacion_costo_asegurado",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/estimacion_costo_asegurado.sql",
     )
 

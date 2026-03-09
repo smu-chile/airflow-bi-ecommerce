@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from datetime import datetime
 
@@ -81,7 +81,7 @@ def _send_report_to_sftp(ds):
         exec_date = exec_date.replace("-", "/")
         aws_conn_id="aws_s3_connection"
         file_name = f"peya/out/stock/{exec_date}/{dic_tiendas[tiendapeya]}.csv"
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
         s3_hook = S3Hook(aws_conn_id=aws_conn_id)
 
         # Check if file is already loaded
@@ -210,7 +210,7 @@ with DAG(
     'proc_pedidosya_reporte_diario',
     default_args=default_args,
     description="Reporte diario de precios a SFTP de Pedidos Ya",
-    schedule_interval="0 12 * * *",
+    schedule="0 12 * * *",
     start_date=datetime(2022, 2, 1),
     catchup=False,
     tags=["DW", "OPS", "SFTP", "PedidosYa"],

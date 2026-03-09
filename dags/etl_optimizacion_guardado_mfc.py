@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -101,7 +101,7 @@ with DAG(
     'etl_optimicacion_guardado_mfc',
     default_args=default_args,
     description="Calculo de optimizacion de guardado de productos por zonas en el MFC",
-    schedule_interval= "0 9 * * *",
+    schedule= "0 9 * * *",
     start_date=pendulum.datetime(2023, 9, 27, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "MFC", "s3", "stock", "PATRICIO"],

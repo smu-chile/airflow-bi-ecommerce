@@ -1,8 +1,8 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.netezza_utils import load_custom_query_to_s3
@@ -19,7 +19,7 @@ def _delete_fixed_prices_from_vtex(ti, ds):
     
     price_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: " + price_file)
@@ -44,7 +44,7 @@ def _delete_fixed_prices_from_vtex(ti, ds):
 
     list_ref_id = tuple(df_precios_fijos['ref_id'].tolist())
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     print("Getting vtex_ids of products in WP with Fixed Price")
@@ -92,7 +92,7 @@ with DAG(
     'etl_borrado_precios_fijos_dw',
     default_args=default_args,
     description="Extracción y carga de tiendas desde DW hasta Workspace.",
-    schedule_interval="30 9 * * *",
+    schedule="30 9 * * *",
     start_date=pendulum.datetime(2022, 2, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

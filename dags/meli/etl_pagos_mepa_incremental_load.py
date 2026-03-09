@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
-from airflow.sensors.s3_key_sensor import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -48,7 +48,7 @@ def _get_pagos_from_mepa_api(ti, ts):
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     file_name = "meli/mongodb/orders/"+curr_datetime+".json"
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+file_name)
@@ -128,7 +128,7 @@ def _retry_get_request(ti, ts):
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     file_name = ti.xcom_pull(key="failed_requests_s3_path", task_ids=["get_pagos_from_mercadopago_api"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+file_name)
@@ -187,7 +187,7 @@ def _load_mepa_pagos_to_workspace(ti):
     json_pagos_documents_key = ti.xcom_pull(key="pagos_json_s3_path", task_ids=["get_pagos_from_mercadopago_api"])[0]
     json_pagos_retires_documents_key = ti.xcom_pull(key="retries_json_s3_path", task_ids=["retry_failed_get_requests"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+json_pagos_documents_key)
@@ -315,7 +315,7 @@ def _load_mepa_pagos_to_workspace(ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -337,11 +337,11 @@ with DAG(
     "etl_pagos_mercadopago_incremental_load",
     default_args=default_args,
     description="Extracción periodica de pagos de MercadoPago a SMU a través de API Rest.",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2022, 7, 20, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["DATA", "api", "workspace", "ecommdata_meli", "pagos", "MATIAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
@@ -357,7 +357,7 @@ with DAG(
     t0 = S3KeySensor(
         task_id = "wait_for_ordenes_meli_file",
         bucket_key = "meli/mongodb/orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}.json",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
         aws_conn_id = "aws_s3_connection",
         timeout = 60,
         retries = 3,

@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 
@@ -15,7 +15,7 @@ def _create_initial_order_items_table(ti, xcom_name, truncate=True):
     
     order_items_file = ti.xcom_pull(key="return_value", task_ids=[xcom_name])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+order_items_file)
@@ -132,7 +132,7 @@ with DAG(
     'etl_orden_productos_initial_load',
     default_args=default_args,
     description="Extracción y carga inicial de tabla orden_productos desde Janis Replica hasta Workspace.",
-    schedule_interval=None,
+    schedule=None,
     start_date=datetime(2022, 1, 1),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "orden_productos"],

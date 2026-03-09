@@ -1,9 +1,9 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
 from utils.janis_utils import load_full_table_to_s3
@@ -18,7 +18,7 @@ def _get_table_stock_janis_from_S3(ts, ti):
 
     stock_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     print(stock_file)
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+stock_file)
@@ -80,7 +80,7 @@ def load_full_table_from_staging_to_s3(table_name, df, ts):
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -123,7 +123,7 @@ def _load_vtex_id_list():
         inner join ecommdata.skus s on s.id = sa.item_id
         where sa.stock > 0 and s.vtex_id is not null;
         """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -241,7 +241,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     
     _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     date_path = ts[:10].replace("-","/")
@@ -257,7 +257,7 @@ def _vtex_get_stock_retries(ti, ts):
     import requests
 
     retries_file = ti.xcom_pull(key="vtex_retries", task_ids=["save_vtex_stock_in_ecommdata"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+retries_file)
@@ -311,7 +311,7 @@ with DAG(
     'etl_stock_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla stock desde Vtex y Janis.",
-    schedule_interval="0 1,4/4 * * *",
+    schedule="0 1,4/4 * * *",
     start_date=pendulum.datetime(2022, 7, 11, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -326,7 +326,7 @@ with DAG(
 
     t0 = PostgresOperator(
         task_id = "truncate_janis_staging_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         TRUNCATE staging.stock_unimarc
         """,
@@ -334,7 +334,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "truncate_vtex_staging_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         TRUNCATE staging.stock_vtex_unimarc
         """,
@@ -363,13 +363,13 @@ with DAG(
 
     t6 = PostgresOperator(
         task_id = "save_stock_final",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = "sql/stock_final.sql"
     )
 
     t7 = PostgresOperator(
         task_id = "delete_old_stock",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = """DELETE
             FROM ecommdata.stock
             WHERE fecha = '{{ds}}'::date - interval '21 days' """

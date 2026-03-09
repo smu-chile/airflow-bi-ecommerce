@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow import macros
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
@@ -74,7 +74,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lp_query)
@@ -100,7 +100,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes' and c.n1 = 'Carnes';
                         """
         print(lpc_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lpc_query)
@@ -126,7 +126,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes' and c.n1 = 'Quesos y Fiambres';
                         """
         print(lpq_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lpq_query)
@@ -150,7 +150,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and d.inicio_ventana between '{v_time}'::timestamp - interval '5 minutes' and '{v_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query_FULL)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lp_query_FULL)
@@ -180,7 +180,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lp_query)
@@ -206,7 +206,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes' and c.n1 = 'Carnes';
                         """
         print(lpc_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lpc_query)
@@ -232,7 +232,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and um.mfc_is_item_side = 'FLO' and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes' and c.n1 = 'Quesos y Fiambres';
                         """
         print(lpq_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lpq_query)
@@ -256,7 +256,7 @@ def listado_productos_sala_mfc(ts, ds):
                         where oj.id_tienda_janis = 25 and d.inicio_ventana between '{v2_time}'::timestamp - interval '5 minutes' and '{v2_time}'::timestamp + interval '5 minutes';
                         """
         print(lp_query_FULL)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(lp_query_FULL)
@@ -469,7 +469,7 @@ with DAG(
     'slack_productos_sala_mfc',
     default_args=default_args,
     description="Envio de productos sala MFC a Slack",
-    schedule_interval="0,15,30 7-18,19 * * *",
+    schedule="0,15,30 7-18,19 * * *",
     start_date=pendulum.datetime(2024, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

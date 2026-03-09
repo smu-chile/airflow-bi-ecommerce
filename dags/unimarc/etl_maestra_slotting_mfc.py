@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -34,7 +34,7 @@ def maestra_slotting_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux_filename = ds.replace("-","_")
     prefix = f"maestra_slotting/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -72,7 +72,7 @@ with DAG(
     'etl_maestra_informacion_slotting_mfc',
     default_args=default_args,
     description="carga tabla maestra info slotting mfc",
-    schedule_interval= "0 14 * * 3",
+    schedule= "0 14 * * 3",
     start_date=pendulum.datetime(2024, 7, 3, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "MFC","slotting", "S3","venta_regular", "PATRICIO"],
@@ -87,12 +87,12 @@ with DAG(
 
     t0 = PostgresOperator(
         task_id = "venta_regular",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/venta_regular.sql",
     )
     t1 = PostgresOperator(
         task_id = "maestra_sloting",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/maestra_slotting.sql",
     )
     t2 = PythonOperator(

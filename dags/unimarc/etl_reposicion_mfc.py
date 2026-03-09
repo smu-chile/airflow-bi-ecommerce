@@ -1,10 +1,10 @@
 from airflow import DAG
 from airflow import macros
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.operators.postgres_operator import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -45,7 +45,7 @@ def venta_mfc_semana():
         where m.multiplicador_unidad_medida is not null
                     """
     print(ventas_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_query)
@@ -90,7 +90,7 @@ def reposicion():
                 and msr.reponer is true;
                     """
     print(ventas_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_query)
@@ -120,7 +120,7 @@ def reposicion_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"mfc_reposicion/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -210,7 +210,7 @@ def reposicion_to_postgres(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["reposicion_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -316,7 +316,7 @@ def picking_order_janis(ds):
                     grouped_skus;
                 """
     print(ordenes_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ordenes_query)
@@ -478,7 +478,7 @@ with DAG(
     'etl_reposicion_mfc',
     default_args=default_args,
     description="consulta de datos de Stock MFC, maestra reposicion desde postgres para logica de reposicion.",
-    schedule_interval="0 7,19 * * *",
+    schedule="0 7,19 * * *",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -509,7 +509,7 @@ with DAG(
     )
     t4 = PostgresOperator(
         task_id = "update_contador",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = """BEGIN;
             UPDATE ecommdata.maestra_reposicion_mfc
             SET contador = contador - 0.5;

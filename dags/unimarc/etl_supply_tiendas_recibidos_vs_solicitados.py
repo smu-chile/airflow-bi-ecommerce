@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.netezza_utils import load_custom_query_to_s3
@@ -18,7 +18,7 @@ def _load_to_postgres(ti):
     from sqlalchemy import text
 
     filename = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+ filename)
@@ -75,7 +75,7 @@ with DAG(
     'etl_supply_recibidos_vs_solicitados',
     default_args=default_args,
     description="Extracción de costos por sku de dw",
-    schedule_interval="0 12 * * *",
+    schedule="0 12 * * *",
     start_date=pendulum.datetime(2024, 11, 26, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

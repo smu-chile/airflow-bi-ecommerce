@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from utils.janis_alvi_utils import load_full_table_to_s3
 from utils.slack_utils import dag_failure_slack, dag_success_slack
@@ -16,7 +16,7 @@ def _generate_ff_profiles_table(ti):
     from sqlalchemy import text
 
     ff_profiles_file_name = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(ff_profiles_file_name, bucket_name=s3_bucket):
@@ -101,7 +101,7 @@ with DAG(
     'etl_ff_perfiles_alvi_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla ff_perfiles desde Janis Alvi Replica hasta Workspace.",
-    schedule_interval="0 4 * * *",
+    schedule="0 4 * * *",
     start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "ff_perfiles", "Alvi", "MATIAS"],

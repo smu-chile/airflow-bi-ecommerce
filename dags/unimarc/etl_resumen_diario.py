@@ -3,9 +3,9 @@ from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -24,7 +24,7 @@ with DAG(
     'etl_resumen_diario',
     default_args=default_args,
     description="Carga de tabla resumen diario",
-    schedule_interval="30 8 * * *",
+    schedule="30 8 * * *",
     start_date=pendulum.datetime(2023, 10, 23, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
@@ -39,7 +39,7 @@ with DAG(
 
     t0 = PostgresOperator(
         task_id = "load_table_resumen_diario",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="sql/resumen_diario.sql",
     )
 

@@ -1,6 +1,6 @@
 from decimal import ExtendedContext
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -22,7 +22,7 @@ def _promotions_table_incremental_load(ti, ts):
     curr_datetime = ts[:10].replace("-", "/")
     dw_promotion_file = ti.xcom_pull(key="return_value", task_ids=["netezza_vw_workflow_incremental_load"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+dw_promotion_file)
@@ -227,7 +227,7 @@ with DAG(
     'etl_workflow_promotions_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de datos incrementales de workflow_promociones de Alvi desde Datawarehouse",
-    schedule_interval="30 8,15 * * *",
+    schedule="30 8,15 * * *",
     start_date=pendulum.datetime(2022, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

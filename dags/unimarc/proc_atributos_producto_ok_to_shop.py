@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -14,7 +14,7 @@ def check_update_attributes_products(ti):
     import pandas as pd
     from utils.postgres_utils import is_empty_table
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
 
     id_atributo_alergias = Variable.get(
         'JANIS_ATRIBUTOS_PRODUCTO_ID_ATT_ALERGIAS')
@@ -219,7 +219,7 @@ with DAG(
     of sku_ean and skus using the API of Janis attribute_value. After this, we hope to observe
     atributos_producto table updated.""",
 
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=pendulum.datetime(2023, 5, 21, tz="America/Santiago"),
     catchup=False,
     tags=["API", "Janis", "ok_to_shop_v2", 'atributos', 'atributos_producto', "SERGIO"],

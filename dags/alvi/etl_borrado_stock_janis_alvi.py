@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
@@ -15,7 +15,7 @@ def _stopper_lista8(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"datastage/L8_alvi/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -28,7 +28,7 @@ def _stopper_lista8(ts):
         where t.status = 1 and t.id != '1';
     """
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -48,7 +48,7 @@ def _yesterday_stopper_lista8(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d")
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"datastage/L8_alvi/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -61,7 +61,7 @@ def _yesterday_stopper_lista8(ts):
         where t.status = 1 and t.id != '1';
     """
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -83,7 +83,7 @@ def _save_lista8_exclusions_in_s3(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"datastage/L8_alvi/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -147,7 +147,7 @@ def _save_lista8_exclusions_in_s3(ts):
         df.to_csv(buffer, header=True, index=False, encoding="utf-8")
         buffer.seek(0)
 
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+        s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
         s3_hook = S3Hook(aws_conn_id=aws_conn_id)
         s3_hook.load_string(buffer.getvalue(),
                   key=file_name,
@@ -165,7 +165,7 @@ def _send_stock_0_to_janis(ts):
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"borrado_stock_alvi/{exec_date}/"
     print(prefix)
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -217,7 +217,7 @@ with DAG(
     'etl_borrado_stock_janis_alvi',
     default_args=default_args,
     description="Borrado de stock janis alvi en base a productos removidos de lista8.",
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=pendulum.datetime(2023, 3, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -232,7 +232,7 @@ with DAG(
     t0 = S3KeySensor(
         task_id = "wait_for_lista8_flag_file",
         bucket_key = "datastage/L8_alvi/{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}/LISTA_8A.TRG",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*60,
         retries = 3,

@@ -1,9 +1,9 @@
 from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.operators.postgres_operator import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -183,7 +183,7 @@ def poligonos_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"poligonos/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -241,7 +241,7 @@ def poligonos_to_postgres(ti,ds):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["poligonos_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -292,7 +292,7 @@ with DAG(
     'etl_poligonos',
     default_args=default_args,
     description="cargar tabla poligonos tiendas",
-    schedule_interval="0 8 * * *",
+    schedule="0 8 * * *",
     start_date=pendulum.datetime(2023, 12, 6, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "forcast_and_plannig", "polygons", "unimarc", "PATRICIO"],
@@ -315,7 +315,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "delete_old_poligons",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = """DELETE
             FROM forecast_and_planning.poligonos
             WHERE fecha = '{{ds}}'::date - interval '360 days' """

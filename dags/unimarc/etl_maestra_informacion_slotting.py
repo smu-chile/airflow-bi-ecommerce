@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 import pendulum
@@ -155,7 +155,7 @@ def load_slotting_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"slotting/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     print("Empezando carga de fill_rate\n")
@@ -218,7 +218,7 @@ def load_slotting_to_postgres(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["load_slotting_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -290,7 +290,7 @@ with DAG(
     'etl_maestra_informacion_slotting',
     default_args=default_args,
     description="cargar tabla slotting",
-    schedule_interval= "30 7 1 * *", #Ahora es ejecución mensual
+    schedule= "30 7 1 * *", #Ahora es ejecución mensual
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata_unimarc", "slotting", "MFC", "PATRICIO"],

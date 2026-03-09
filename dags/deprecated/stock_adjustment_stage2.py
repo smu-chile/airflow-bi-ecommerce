@@ -21,7 +21,7 @@ def check_process_run():
 
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
     bucket = s3_resource.Bucket(bucket_name)
 
@@ -47,7 +47,7 @@ def check_process_run():
 def read_stock_adjustment_stage2_s3_file():
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     print("BUCKET:")
     print(bucket_name)
     s3_resource = boto3.resource("s3", aws_access_key_id=access_key, aws_secret_access_key=secret_key, region_name="us-east-1")
@@ -219,7 +219,7 @@ with DAG(
     'stock_adjustment_stage2',
     default_args=default_args,
     description="DAG to mantain 0 stock on those SKU that have already been adjusted the previous day",
-    schedule_interval="0 10 * * *",
+    schedule="0 10 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["OPS", "Janis"],

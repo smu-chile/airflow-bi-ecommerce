@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.sensors.external_task import ExternalTaskSensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -14,7 +14,7 @@ import pendulum
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -302,7 +302,7 @@ def drivin_escenarios_to_s3(ts,ds):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"forecast_and_planning/drivin/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -348,7 +348,7 @@ def drivin_escenarios_to_postgres(ti,ts):
     
     filename = ti.xcom_pull(key="return_value", task_ids=["drivin_escenarios_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -401,7 +401,7 @@ def drivin_escenarios_to_postgres(ti,ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -420,7 +420,7 @@ def drivin_rutas_escenario_to_s3(ds,ts):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"forecast_and_planning/drivin/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -481,7 +481,7 @@ def drivin_rutas_escenario_to_postgres(ti, ts):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["drivin_rutas_escenario_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: " + filename)
@@ -568,7 +568,7 @@ def drivin_rutas_escenario_to_postgres(ti, ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -588,7 +588,7 @@ def drivin_vehiculos_to_s3(ds,ts):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"forecast_and_planning/drivin/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -661,7 +661,7 @@ def drivin_vehiculos_to_postgres(ti,ts):
     
     filename = ti.xcom_pull(key="return_value", task_ids=["drivin_vehiculos_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -741,7 +741,7 @@ def drivin_vehiculos_to_postgres(ti,ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -760,7 +760,7 @@ def drivin_direcciones_to_s3(ds,ts):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"forecast_and_planning/drivin/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -836,7 +836,7 @@ def drivin_direcciones_to_postgres(ti,ts):
     
     filename = ti.xcom_pull(key="return_value", task_ids=["drivin_direcciones_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -924,7 +924,7 @@ def drivin_direcciones_to_postgres(ti,ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -1002,7 +1002,7 @@ def drivin_users_to_s3(ts, ds):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"forecast_and_planning/drivin/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -1059,7 +1059,7 @@ def drivin_users_to_postgres(ti, ts):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["drivin_user_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: " + filename)
@@ -1120,7 +1120,7 @@ def drivin_users_to_postgres(ti, ts):
     print(incremental_query)
 
     # Cargar en PostgreSQL
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -1233,7 +1233,7 @@ def drivin_entrega_prueba_to_s3(ts, ds):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"forecast_and_planning/drivin/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -1312,7 +1312,7 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
 
 
     filename = ti.xcom_pull(key="return_value", task_ids=["drivin_entrega_prueba_to_s3"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print(f"🔍 Buscando archivo en S3: {filename}")
@@ -1420,7 +1420,7 @@ def drivin_entrega_prueba_to_postgres(ti, ts):
     # =========================
     # Carga a Postgres
     # =========================
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     with pg_hook.get_conn() as conn:
         with conn.cursor() as cursor:
             cursor.executemany(incremental_query, fixed_records)
@@ -1439,7 +1439,7 @@ with DAG(
     'etl_drivin',
     default_args=default_args,
     description="carga y actualiza data de API driv.in, Rutas, Escenarios, Vehiculos y Ordenes",
-    schedule_interval="0 * * * *",
+    schedule="0 * * * *",
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,

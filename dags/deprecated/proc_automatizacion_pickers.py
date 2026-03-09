@@ -428,7 +428,7 @@ with DAG(
     'proc_automatizacion_pickers',
     default_args=default_args,
     description="Carga automática de pickers en la API",
-    schedule_interval="0 3 * * *",
+    schedule="0 3 * * *",
     start_date=pendulum.datetime(2022, 11, 3, tz="America/Santiago"),
     catchup=False,
     tags=["OPS","Janis","API","GET","PUT"],

@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime, timedelta
@@ -110,7 +110,7 @@ def get_stock(ts):
     """
 
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -304,7 +304,7 @@ def get_stock(ts):
     """
 
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -338,7 +338,7 @@ def get_stock(ts):
     """
 
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -361,7 +361,7 @@ with DAG(
     'etl_obtencion_stock_meli',
     default_args=default_args,
     description="Automatización de obtención de stock de MELI",
-    schedule_interval="0 3 * * *",
+    schedule="0 3 * * *",
     start_date=pendulum.datetime(2022, 12, 21, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "unimarc", "ecommerce_data", "MELI", "obtencion stock"],

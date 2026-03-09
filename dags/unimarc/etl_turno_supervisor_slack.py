@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow import macros
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
@@ -195,7 +195,7 @@ def ordenes_estimadas_load_to_s3(ds):
 
     exec_date = ds.replace("-", "/")
     prefix = f"dotacion/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -222,7 +222,7 @@ def ordenes_estimadas_load_to_s3(ds):
     print("ordenes query:")
     print(ordenes_estimadas_query)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ordenes_estimadas_query)
@@ -257,7 +257,7 @@ def tareas_load_to_s3(ds):
 
     exec_date = ds.replace("-", "/")
     prefix = f"dotacion/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -272,7 +272,7 @@ def tareas_load_to_s3(ds):
     print("Base query:")
     print(tareas_query)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     df_tareas = pd.read_sql_query(tareas_query, pg_connection)
@@ -304,7 +304,7 @@ def operadores_load_to_s3(ds):
 
     exec_date = ds.replace("-", "/")
     prefix = f"dotacion/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -319,7 +319,7 @@ def operadores_load_to_s3(ds):
     print("Base query:")
     print(operadores_query)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     df_operadores = pd.read_sql_query(operadores_query, pg_connection)
@@ -351,7 +351,7 @@ def disponibilidad_load_to_s3(ds):
 
     exec_date = ds.replace("-", "/")
     prefix = f"dotacion/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -366,7 +366,7 @@ def disponibilidad_load_to_s3(ds):
     print("Base query:")
     print(disponibilidad_query)
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
 
     df_disponibilidad = pd.read_sql_query(disponibilidad_query, pg_connection)
@@ -400,7 +400,7 @@ def turnos_load_to_slack(ti,ds):
     operadores_filename = ti.xcom_pull(key="return_value", task_ids=["operadores_load_to_s3"])[0]
     disponibilidad_filename = ti.xcom_pull(key="return_value", task_ids=["disponibilidad_load_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print(f"Searching file:{ordenes_filename}")
@@ -528,7 +528,7 @@ with DAG(
     'etl_turno_supervisor_mfc',
     default_args=default_args,
     description="consulta de datos de Stock MFC, maestra reposicion desde postgres para logica de reposicion.",
-    schedule_interval="0 6 * * 1,2,3,4,5",
+    schedule="0 6 * * 1,2,3,4,5",
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

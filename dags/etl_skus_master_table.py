@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import load_custom_bq_query_to_s3
@@ -31,7 +31,7 @@ def master_sku_to_s3(ds,ti):
     date_aux = ds.replace("-", "_")
     prefix = f"master_skus_/{exec_date}/"
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     ventas_sala_dw_file = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
@@ -126,7 +126,7 @@ def master_sku_to_postgresq(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["master_sku_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -230,7 +230,7 @@ with DAG(
     'etl_skus_master_table',
     default_args=default_args,
     description="cargar maestra skus",
-    schedule_interval= "0 9 * * 1",
+    schedule= "0 9 * * 1",
     start_date=pendulum.datetime(2023, 6, 14, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "postgres", "ecommdata", "maestra_skus", "proveedores", "PATRICIO"],

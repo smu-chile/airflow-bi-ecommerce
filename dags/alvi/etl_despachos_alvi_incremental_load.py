@@ -1,10 +1,10 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.janis_alvi_utils import load_custom_query_to_s3
 from utils.postgres_utils import is_empty_table
@@ -27,7 +27,7 @@ def _get_new_orders_from_s3(ts):
 
     curr_datetime = ts[:16].replace("-", "/").replace("T", "/").replace(":", "")
     orders_file = f"janis/replica_alvi/wms_orders/{curr_datetime}_wms_orders.csv"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+orders_file)
@@ -78,7 +78,7 @@ def _order_shipping_table_incremental_load(ts, ti):
     if shipping_file == "empty":
         return
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+shipping_file)
@@ -211,7 +211,7 @@ def _order_shipping_table_incremental_load(ts, ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -242,7 +242,7 @@ def _upsert_cumplimiento_despacho(ts):
 
         # Execute query
         print(cumplimiento_query)
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(cumplimiento_query)
@@ -264,7 +264,7 @@ with DAG(
     'etl_despachos_alvi_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla despachos desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     start_date=pendulum.datetime(2022, 2, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -303,7 +303,7 @@ with DAG(
     t2 = S3KeySensor(
         task_id = "wait_for_orders_s3_file",
         bucket_key = "janis/replica_alvi/wms_orders/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_orders.csv",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
         aws_conn_id = "aws_s3_connection",
         timeout = 600,
         retries = 3,
@@ -313,7 +313,7 @@ with DAG(
     t2_a = S3KeySensor(
         task_id = "wait_for_order_status_changes_s3_file",
         bucket_key = "janis/replica_alvi/wms_order_status_changes/{{execution_date.strftime('%Y/%m/%d/%H%M')}}_wms_order_status_changes.csv",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
         aws_conn_id = "aws_s3_connection",
         timeout = 600,
         retries = 3,
@@ -333,7 +333,7 @@ with DAG(
 
     t5 = PostgresOperator(
         task_id = "set_tipo_despacho",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = "sql/update_despachos_tipo.sql"
     )
 
@@ -344,7 +344,7 @@ with DAG(
 
     t7 = PostgresOperator(
         task_id = "update_estados_cumplimiento_despacho",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = "sql/update_estados_cumplimiento_despacho.sql"
     )
 

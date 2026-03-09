@@ -1,8 +1,8 @@
 from airflow import DAG
 from airflow.models import Variable
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from utils.janis_utils import load_custom_query_to_s3
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -15,7 +15,7 @@ def _full_load_table_to_workspace(ts, ti):
 
     sku_ean_items_file = ti.xcom_pull(key="return_value", task_ids=["extract_sku_ean_table"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+sku_ean_items_file)
@@ -66,11 +66,11 @@ with DAG(
     'etl_sku_ean_unimarc_full_load',
     default_args=default_args,
     description="Extracción y carga de tabla sku_ean desde Janis Replica hasta Workspace.",
-    schedule_interval="0 8 * * *",
+    schedule="0 8 * * *",
     start_date=pendulum.datetime(2022, 11, 2, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["DATA", "Janis", "ecommdata", "sku_ean", "unimarc", "MATIAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
@@ -99,7 +99,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "truncate_table_sku_ean",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = """
         truncate ecommdata.sku_ean;
         """,

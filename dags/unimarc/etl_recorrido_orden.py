@@ -1,10 +1,10 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator, BranchPythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.janis_utils import load_custom_query_to_s3
 from utils.postgres_utils import is_empty_table
@@ -47,7 +47,7 @@ def _calculate_routes(ds):
                 AND oj.fecha_facturacion < '"""+ds+"""'::date
                 AND ocde.estado_nuevo = 70
                 AND d2.tipo_despacho != 'pickup';"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn") #cambiar antes de pasar a prod
+    pg_hook = PostgresHook(conn_id="postgresql_conn") #cambiar antes de pasar a prod
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -99,7 +99,7 @@ def _calculate_routes(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"recorrido_orden/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -158,7 +158,7 @@ with DAG(
     'etl_recorrido_orden_incremental_load',
     default_args=default_args,
     description="Extracción y calculo de tabla recorrido_orden.",
-    schedule_interval="30 8 * * *",
+    schedule="30 8 * * *",
     start_date=pendulum.datetime(2023, 7, 26, tz="America/Santiago"),
     catchup=True,
     tags=["DATA", "ecommdata", "recorrido_orden","km", "unimarc", "SERGIO"],

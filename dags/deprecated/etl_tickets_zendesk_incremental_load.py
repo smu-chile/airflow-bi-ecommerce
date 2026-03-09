@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -17,7 +17,7 @@ def _load_tickets_zendesk(ts):
     exec_date = exec_date.strftime("%Y%m%d")
     prefix = f"zendesk/manual/tickets/{exec_date}_"
     zip_file_name = prefix+"tickets.zip"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+zip_file_name)
@@ -131,7 +131,7 @@ def _load_tickets_zendesk(ts):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -155,7 +155,7 @@ with DAG(
     'etl_tickets_zendesk_incremental_load',
     default_args=default_args,
     description="Carga de datos de tickets zendesk desde bucket de S3 al workspace de Postgresql.",
-    schedule_interval="0 12 * * *",
+    schedule="0 12 * * *",
     start_date=datetime(2022, 5, 24),
     catchup=True,
     max_active_runs = 1,
@@ -169,7 +169,7 @@ with DAG(
     t0 = S3KeySensor(
         task_id = "wait_for_tickets_zendesk_flag_file",
         bucket_key = "zendesk/manual/tickets/{{(execution_date + macros.timedelta(days=1)).strftime('%Y%m%d')}}_flag.txt",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*60*3
     )

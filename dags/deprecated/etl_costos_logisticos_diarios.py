@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime, timedelta, date
@@ -389,7 +389,7 @@ def _calcular_costos_logisticos(ds):
 
     aws_conn_id="aws_s3_connection"
     file_name = "forecast_and_planning/costos_logisticos/costos_logisticos_diarios_estimacion.csv"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id=aws_conn_id)
     s3_hook.load_string(buffer.getvalue(),
                   key=file_name,
@@ -404,7 +404,7 @@ def _subir_a_bdd(ti, ds):
 
     #### IMPORTA CSV
     file_name = ti.xcom_pull(key = "return_value", task_ids = ['calcular_costos_logisticos'])[0]
-    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME')
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+file_name)
@@ -503,7 +503,7 @@ def costos_to_sql(df_costos):
     """
 
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -540,7 +540,7 @@ with DAG(
     'etl_costos_logisticos_diarios',
     default_args=default_args,
     description="Automatización de calculo de costos logisticos diarios",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2022, 11, 28, tz="America/Santiago"),
     catchup=False,
     tags=["OPS","AWS","ETL", "unimarc", "forecast_and_planning", "costos_logisticos_solo_estim"],

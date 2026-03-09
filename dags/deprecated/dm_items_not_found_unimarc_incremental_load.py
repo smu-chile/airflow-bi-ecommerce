@@ -1,9 +1,9 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.hooks.postgres_hook import PostgresHook
 
@@ -114,7 +114,7 @@ with DAG(
     'dm_productos_no_encontrados',
     default_args=default_args,
     description="Carga de tabla de productos no encontrados",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     start_date=pendulum.datetime(2022, 6, 2, tz="America/Santiago"),
     catchup=False,
     tags=["data", "datamind", "not_found", "unimarc"],

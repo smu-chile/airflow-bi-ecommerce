@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.mongo.hooks.mongo import MongoHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from datetime import datetime, timedelta
@@ -17,7 +17,7 @@ def _liquidacion_semanal():
     file_name = "meli/liquidaciones/liquidacionsemana.xlsx"
     access_key = Variable.get("AWS_ACCESS_KEY")
     secret_key = Variable.get("AWS_SECRET_KEY")
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_client = boto3.client(
         "s3",
         aws_access_key_id=access_key,
@@ -84,7 +84,7 @@ def _liquidacion_semanal():
 """
 
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -107,7 +107,7 @@ with DAG(
     'etl_liquidaciones_semanales_MELI',
     default_args=default_args,
     description="Automatización de obtención de liquidaciones semanales MELI",
-    schedule_interval="0 21 * * 0",
+    schedule="0 21 * * 0",
     start_date=pendulum.datetime(2023, 1, 27, tz="America/Santiago"),
     catchup=False,
     tags=["MELI", "liquidaciones", "conciliacion","S3"],

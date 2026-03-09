@@ -1,5 +1,5 @@
 from airflow.models import Variable
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from io import StringIO
 import os
@@ -59,7 +59,7 @@ def netezza_full_table_load_to_s3(ts, table_name, where=None, date_query=None, a
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id=aws_conn_id)
     s3_hook.load_string(buffer.getvalue(),
                   key=file_name,
@@ -155,7 +155,7 @@ def netezza_incremental_load_to_s3(ti,
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id=aws_conn_id)
     s3_hook.load_string(buffer.getvalue(),
                   key=file_name,
@@ -208,7 +208,7 @@ def load_custom_query_to_s3(ts, query, query_name, aws_conn_id="aws_s3_connectio
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id=aws_conn_id)
     s3_hook.load_string(buffer.getvalue(),
                   key=file_name,

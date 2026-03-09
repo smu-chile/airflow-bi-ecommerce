@@ -2,7 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from datetime import datetime, timedelta
 import pendulum
@@ -96,7 +96,7 @@ def _post_request_to_publish_task_endpoint(ts):
     """
     print(query)
 
-    pg_datamind_hook = PostgresHook(postgres_conn_id="datamind_conn")
+    pg_datamind_hook = PostgresHook(conn_id="datamind_conn")
     pg_datamind_connection = pg_datamind_hook.get_conn()
     pg_datamind_cur = pg_datamind_connection.cursor()
     pg_datamind_cur.execute(query)
@@ -105,7 +105,7 @@ def _post_request_to_publish_task_endpoint(ts):
     pg_datamind_cur.close()
     pg_datamind_connection.close()
     
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     pg_cur = pg_connection.cursor()
     
@@ -164,7 +164,7 @@ def _post_request_to_publish_task_endpoint(ts):
 
     # Send payloads to S3
     print(payloads)
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     json_payloads_string = json.dumps(payloads)
@@ -211,11 +211,11 @@ with DAG(
     "proc_frogmi_post_alerta_foundrate_datamind",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate de Datamind a Frogmi",
-    schedule_interval="0 8,13,17 * * *",
+    schedule="0 8,13,17 * * *",
     start_date=pendulum.datetime(2022, 10, 18, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["OPS", "Frogmi", "API", "POST", "foundrate", "datamind", "soprole"],
 ) as dag:
 

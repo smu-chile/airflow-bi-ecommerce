@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -18,7 +18,7 @@ def _incremental_load_picking_control_items_table(ti, ds):
     
     picking_control_items_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+picking_control_items_file)
@@ -144,7 +144,7 @@ def _incremental_load_picking_control_items_table(ti, ds):
         FROM ecommdata.orden_productos op   
         WHERE cpp.id_orden_producto = op.id and cpp.descripcion is NULL;
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -168,7 +168,7 @@ with DAG(
     'etl_control_picking_productos_incremental_load',
     default_args=default_args,
     description="Extracción y carga de tabla control picking productos desde Janis Unimarc Replica hasta Workspace.",
-    schedule_interval="30 * * * *",
+    schedule="30 * * * *",
     start_date=pendulum.datetime(2022, 7, 1, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata", "control_picking", "Unimarc", "MATIAS"],

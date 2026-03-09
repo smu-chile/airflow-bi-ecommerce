@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -16,7 +16,7 @@ def _ventas_dw_incremental_load(ti):
     import numpy as np
 
     ventas_dw_file = ti.xcom_pull(key="return_value", task_ids=["extract_last_7_days_from_dw"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+ventas_dw_file)
@@ -137,7 +137,7 @@ def _ventas_dw_incremental_load(ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -159,11 +159,11 @@ with DAG(
     "etl_ventas_ecommerce_datawarehouse_incremental_load",
     default_args=default_args,
     description="Extracción diaria de ventas ecommerce de DataWarehouse.",
-    schedule_interval="15 5,7,9,11,13,15,17,19,21 * * *",
+    schedule="15 5,7,9,11,13,15,17,19,21 * * *",
     start_date=pendulum.datetime(2020, 8, 1, tz="America/Santiago"),
     catchup=True,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["DATA", "DW", "S3", "workspace", "ventas_ecommerce_datawarehouse", "unimarc", "MATIAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,

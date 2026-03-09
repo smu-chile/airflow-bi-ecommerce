@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 
 from utils.bigquery_utils import bq_query_to_df
@@ -52,7 +52,7 @@ def data_out_to_s3(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"promociones_comparadas/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -120,7 +120,7 @@ def data_to_postgresql(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["data_out_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -199,7 +199,7 @@ with DAG(
     'cargar_Peso_volumen_alvi',
     default_args=default_args,
     description='Guarda datos de peso y volumen de alvi en S3 y las carga en la base de datos',
-    schedule_interval='15 9 * * *',
+    schedule='15 9 * * *',
     start_date=pendulum.datetime(2024, 5, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

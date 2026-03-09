@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -36,7 +36,7 @@ def stock(ds):
                         date_part('week','{ds}'::date) as semana
                         from integraciones.lm_stock_precio_promo lspp
                         """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -51,7 +51,7 @@ def matriz_ss():
     matriz_query = """select *
                     from catalogo.matriz_ss_uber ms """
     print(matriz_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(matriz_query)
@@ -68,7 +68,7 @@ def promociones():
                     from integraciones.lm_stock_precio_promo lspp 
                     where lspp.precio_promocional is not null """
     print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
@@ -94,7 +94,7 @@ def venta_tienda():
                 where id_uber is not null)
             group by id_tienda,concat(lpad(material,18,'0'),'-',umv),fecha"""
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -110,7 +110,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad_uber/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -259,7 +259,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad_uber/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -405,7 +405,7 @@ def stock_seguridad_to_postgres_am(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_am"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -455,7 +455,7 @@ def stock_seguridad_to_postgres_pm(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_pm"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -508,7 +508,7 @@ with DAG(
     'etl_stock_seguridad_uber',
     default_args=default_args,
     description="cargar stock de seguridad a uber",
-    schedule_interval="10 1/4 * * *",
+    schedule="10 1/4 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "integraciones", "stock", "stock_seguidad", "ventas", "PATRICIO"],
@@ -526,7 +526,7 @@ with DAG(
         python_callable=_check_time,
     )
 
-    t_dummy = DummyOperator(
+    t_dummy = EmptyOperator(
             task_id='task_skip',
         )
 

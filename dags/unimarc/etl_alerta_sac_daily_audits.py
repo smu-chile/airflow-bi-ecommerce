@@ -25,7 +25,7 @@ def get_and_send_audits_daily():
     import requests, json, io, os
 
     # Conectar y reflejar tablas
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     engine  = pg_hook.get_sqlalchemy_engine()
 
     # Metadata limitado a tablas interesadas
@@ -103,7 +103,7 @@ with DAG(
     'etl_alertas_sac_daily_audits',
     default_args=default_args,
     description="Generación de alertas para SAC",
-    schedule_interval="30 21 * * *", 
+    schedule="30 21 * * *", 
     start_date=pendulum.datetime(2025, 3, 30, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -126,8 +126,7 @@ with DAG(
 
     t1 = PythonOperator(
         task_id="get_and_send_audits_daily",
-        python_callable=get_and_send_audits_daily,
-        provide_context=True,
+        python_callable=get_and_send_audits_daily
     )
 
     t0 >> t1

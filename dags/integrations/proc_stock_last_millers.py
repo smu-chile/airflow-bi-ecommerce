@@ -1,10 +1,10 @@
 from airflow import DAG
 from airflow import macros
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from airflow.models import Variable
 
@@ -19,7 +19,7 @@ def _get_last_millers_stores():
         SELECT id
         FROM integraciones.tiendas_last_millers;
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(last_millers_stores_query)
@@ -56,7 +56,7 @@ def _load_stock_to_postgres(ti):
 
     file_name = ti.xcom_pull(key="return_value", task_ids="get_stock_from_bigquery")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
@@ -106,7 +106,7 @@ def _load_products_to_postgres(ti):
 
     file_name = ti.xcom_pull(key="return_value", task_ids="get_products_from_bigquery")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
@@ -149,11 +149,11 @@ with DAG(
     "proc_stock_precios_last_millers",
     default_args=default_args,
     description="Extracción de stock, precios y precios promocionales simples para integraciones Last Millers. pow",
-    schedule_interval="0 9 * * *", 
+    schedule="0 9 * * *", 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    concurrency=2,
+
     tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
@@ -184,7 +184,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "truncate_integraciones_productos_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         TRUNCATE integraciones.productos;
         """,
@@ -201,14 +201,14 @@ with DAG(
         python_callable = _get_stock_from_bigquery
     )
 
-    t5 = DummyOperator(
+    t5 = EmptyOperator(
         task_id = "datawarehouse_error_side_path",
         trigger_rule = "one_failed"
     )
 
     t6 = PostgresOperator(
         task_id = "truncate_integraciones_stock_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         TRUNCATE integraciones.stock;
         """
@@ -219,7 +219,7 @@ with DAG(
         python_callable = _load_stock_to_postgres
     )
 
-    t8 = DummyOperator(
+    t8 = EmptyOperator(
         task_id = "join_paths",
         trigger_rule = "one_success"
     )
@@ -227,7 +227,7 @@ with DAG(
     # Calculate joined table
     t9 = PostgresOperator(
         task_id = "truncate_stock_prices_promos",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         TRUNCATE integraciones.lm_stock_precio_promo;
         """
@@ -235,29 +235,29 @@ with DAG(
 
     t10 = PostgresOperator(
         task_id = "calculate_stock_prices_promos",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = "sql/insert_stock_prices_promos.sql"
     )
 
     t11 = PostgresOperator(
         task_id = "calculate_stock_prices_promos_ph",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = "sql/insert_stock_prices_promos_padre_hijo.sql"
     )
 
     t12 = PostgresOperator(
         task_id = "calculate_stock_prices_promos_no_ecommerce",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = "sql/insert_stock_prices_promos_no_ecommerce.sql"
     )
 
     t13 = PostgresOperator(
         task_id = "calculate_stock_prices_promos_no_ecommerce_ph",
-        postgres_conn_id = "postgresql_conn",
+        conn_id="postgresql_conn",
         sql = "sql/insert_stock_prices_promos_no_ecommmerce_padre_hijo.sql"
     )
 
-    td = DummyOperator(
+    td = EmptyOperator(
         task_id = "dummy_task"
     )
 

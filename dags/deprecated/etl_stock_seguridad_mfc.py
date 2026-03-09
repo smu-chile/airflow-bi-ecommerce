@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 import pendulum
 
@@ -35,7 +35,7 @@ def ubicaciones_flo(ds):
                         mfc_is_item_side
                         from ecommdata.ubicacion_mfc
                         where mfc_is_item_side = 'FLO'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -49,7 +49,7 @@ def lista_eliminar_ss():
     lista_material_reg_query = """select sap_code
                             from ecommdata.ubicacion_mfc um 
                             where mfc_is_item_side = 'REG'"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(lista_material_reg_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -87,7 +87,7 @@ def promociones(ds):
                     group by wp.umv, wp.material
                             """
     print(promociones_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(promociones_query)
@@ -128,7 +128,7 @@ def venta_tienda(ds):
                         where precio_venta/precio_lista > 0.8 
                         """
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -156,7 +156,7 @@ def minimos_exhibicion():
                 and meio.minimo_exhibicion > 2
                 and um.mfc_is_item_side = 'FLO'"""
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -175,7 +175,7 @@ def stock_ventas_tienda_1917_to_s3_am(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad_mfc/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -310,7 +310,7 @@ def carga_stock_seguridad_1917_janis_am(ds,ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tienda_1917_to_s3_am"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -377,7 +377,7 @@ def stock_ventas_tienda_1917_to_s3_pm(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad_mfc/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -511,7 +511,7 @@ def carga_stock_seguridad_1917_janis_pm(ds,ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tienda_1917_to_s3_pm"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -631,7 +631,7 @@ with DAG(
     'etl_stock_seguridad_mfc',
     default_args=default_args,
     description="cargar stock de seguridad MFC",
-    schedule_interval="0 2/4 * * *",
+    schedule="0 2/4 * * *",
     start_date=pendulum.datetime(2023, 7, 11, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_unimarc", "stock", "stock_seguidad", "ventas", "unimarc", "MFC", "PATRICIO"],
@@ -647,7 +647,7 @@ with DAG(
         python_callable=_check_time,
     )
 
-    t_dummy = DummyOperator(
+    t_dummy = EmptyOperator(
             task_id='task_skip',
         )
     

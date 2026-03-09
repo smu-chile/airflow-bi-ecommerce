@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
 from utils.janis_utils import load_full_table_to_s3
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -16,7 +16,7 @@ def _prices_table_full_load(ts):
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"janis/replica/price/{exec_date}/"
     print(f"Searching prefix: {prefix}")
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -39,7 +39,7 @@ def _incremental_load_prices_table(ti, ts):
     prices_file = ti.xcom_pull(key="return_value", task_ids=["load_full_table_to_s3"])[0]
     print(f"Searching file: {prices_file}")
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+prices_file)
@@ -185,7 +185,7 @@ with DAG(
     'etl_precios_truncate_and_load',
     default_args=default_args,
     description="Extracción, truncado y carga de tabla price desde Janis Replica hasta el Workspace en Postgresql.",
-    schedule_interval="0 3 * * *",
+    schedule="0 3 * * *",
     start_date=pendulum.datetime(2022, 8, 29, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

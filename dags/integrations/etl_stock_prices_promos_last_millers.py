@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.utils.trigger_rule import TriggerRule
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 
@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 def query_to_df(query):
     import pandas as pd
     print(query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -36,7 +36,7 @@ def _get_last_millers_stores():
         SELECT id
         FROM integraciones.tiendas_last_millers;
     """
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(last_millers_stores_query)
@@ -116,7 +116,7 @@ def stock_to_postgresql(ts):
 
     filename = prefix+query_name+".csv"  
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -171,7 +171,7 @@ def product_to_postgresql(ts):
 
     filename = prefix+query_name+".csv"  
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -334,7 +334,7 @@ def stock_prices_promos_lss_to_s3(ti,ds,ts):
     exec_date = ds.replace("-", "/")
     date_aux = ts.replace("-", "_")
     prefix = f"re_factor_last_millers/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -677,7 +677,7 @@ def stock_prices_promos_lss_to_postgres(ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_prices_promos_lss_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -876,7 +876,7 @@ with DAG(
     'etl_stock_prices_promos_last_millers',
     default_args=default_args,
     description="cargar stock,precios y promos a la tabla lss_millers_promos",
-    schedule_interval="35 12,16,20 * * *",
+    schedule="35 12,16,20 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "last_millers", "integraciones", "stock", "prices", "promos","PATRICIO","NICOLAS"],
@@ -890,18 +890,18 @@ with DAG(
     guardar en S3 y postgresql.
     """ 
 
-    t_dummy_p = DummyOperator(
+    t_dummy_p = EmptyOperator(
             task_id='fallo_dw_producto',
         )
     
-    t_dummy_s = DummyOperator(
+    t_dummy_s = EmptyOperator(
             task_id='fallo_dw_stock',
         )
-    t_dummy_prom = DummyOperator(
+    t_dummy_prom = EmptyOperator(
             task_id='fallo_postgres_promos',
         )
     
-    t_dummy_price = DummyOperator(
+    t_dummy_price = EmptyOperator(
             task_id='fallo_postgres_precios',
         )
     

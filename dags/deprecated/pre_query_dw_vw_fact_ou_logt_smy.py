@@ -16,7 +16,7 @@ with DAG(
     'pre_query_vm_fact_ou_logt_smy',
     default_args=default_args,
     description="Simple select query to start view's rendering process.",
-    schedule_interval="30 10 * * *",
+    schedule="30 10 * * *",
     start_date=datetime(2022, 1, 1),
     catchup=False,
     tags=["DATA", "DW"],

@@ -25,7 +25,7 @@ with DAG(
     'janis_price_full_table_load',
     default_args=default_args,
     description="Extracción y carga de tabla price desde Janis Replica.",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DATA", "Janis"],

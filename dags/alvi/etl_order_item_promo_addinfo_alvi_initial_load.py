@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -34,7 +34,7 @@ def _order_item_promo_additional_info_incremental_load(ts, ti):
     
     order_item_prom_add_info_file = ti.xcom_pull(key="return_value", task_ids=["get_order_item_promotions_from_janis"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+order_item_prom_add_info_file)
@@ -100,7 +100,7 @@ def _order_item_promo_additional_info_incremental_load(ts, ti):
         DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") 
     """
     print(incremental_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
@@ -122,7 +122,7 @@ with DAG(
     'etl_orden_producto_promocion_extrainfo_alvi_initial_load',
     default_args=default_args,
     description="Extracción y carga de tabla orden_producto_promocion_extrainfo desde Janis Replica Alvi hasta Workspace.",
-    schedule_interval=None,
+    schedule=None,
     start_date=pendulum.datetime(2023, 7, 13, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

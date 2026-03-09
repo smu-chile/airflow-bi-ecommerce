@@ -155,7 +155,7 @@ with DAG(
     'etl_reasignacion_colaborador',
     default_args=default_args,
     description="Proceso mensual de reasignacion de colaboradores excluidos.",
-    schedule_interval="5 0 1 * *",  # 🔹 Se ejecuta el 1 de cada mes a las 00:00
+    schedule="5 0 1 * *",  # 🔹 Se ejecuta el 1 de cada mes a las 00:00
     start_date=pendulum.datetime(2025, 4, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1, 

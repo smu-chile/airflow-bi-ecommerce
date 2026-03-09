@@ -50,7 +50,7 @@ with DAG(
     'Netezza_connection_healthcheck',
     default_args=default_args,
     description="Netezza test",
-    schedule_interval="*/10 * * * *",
+    schedule="*/10 * * * *",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["DW", "MATIAS"],

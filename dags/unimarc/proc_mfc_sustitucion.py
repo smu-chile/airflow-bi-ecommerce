@@ -1,5 +1,5 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -23,7 +23,7 @@ def _proc_mfc_sustitucion(ts,ds):
         """
         print(query)
 
-        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        pg_hook = PostgresHook(conn_id="postgresql_conn")
         pg_connection = pg_hook.get_conn()
         cursor = pg_connection.cursor()
         cursor.execute(query)
@@ -99,7 +99,7 @@ with DAG(
     'proc_mfc_sustitucion',
     default_args=default_args,
     description="Declaración de sustitución de productos de orden MFC realizada en Sala a través de API",
-    schedule_interval="0 1 * * *",
+    schedule="0 1 * * *",
     start_date= pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

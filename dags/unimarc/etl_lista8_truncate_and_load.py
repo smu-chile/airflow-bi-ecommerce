@@ -1,6 +1,6 @@
 from airflow import DAG
-from airflow.sensors.s3_key_sensor import S3KeySensor
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.sensors.s3 import S3KeySensor
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
@@ -16,7 +16,7 @@ def lista8():
     import pandas as pd
     lista8 = """select concat(l.material, '-', l.umv) as ref_id, id_tienda from ecommdata.lista8 l;"""
     print(lista8)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(lista8)
@@ -35,7 +35,7 @@ def _stopper_lista8(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"datastage/L8/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -49,7 +49,7 @@ def _stopper_lista8(ts):
     and t.id <> '1917';
     """
 
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query)
@@ -77,7 +77,7 @@ def _load_lista8(ts):
     exec_date = datetime.strptime(ts[:10], "%Y-%m-%d") + timedelta(days=1)
     exec_date = exec_date.strftime("%Y/%m/%d")
     prefix = f"datastage/L8/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
@@ -224,7 +224,7 @@ def _load_lista9_filtered(ti):
 
     #obtener archivo con xcom desde S3
     file_name = ti.xcom_pull(key="return_value", task_ids=["extract_data_from_dw"])[0]
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     if  not s3_hook.check_for_key(file_name, bucket_name=s3_bucket):
@@ -288,7 +288,7 @@ with DAG(
     'etl_lista8_datastage_truncate_and_load',
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
-    schedule_interval="0 7 * * *",
+    schedule="0 7 * * *",
     start_date=pendulum.datetime(2022, 7, 3, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
@@ -306,7 +306,7 @@ with DAG(
     t0 = S3KeySensor(
         task_id = "wait_for_lista8_flag_file",
         bucket_key = "datastage/L8/{{(execution_date + macros.timedelta(days=1)).strftime('%Y/%m/%d')}}/LISTA_8.TRG",
-        bucket_name = Variable.get("AWS_S3_BUCKET_NAME"),
+        bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket'),
         aws_conn_id = "aws_s3_connection",
         timeout = 60*60,
         retries = 3,

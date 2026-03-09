@@ -2,8 +2,8 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from airflow.models import Variable
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow import macros
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
@@ -33,7 +33,7 @@ def limpiar_clientes(ti, ds):
 
     file_name = f"clientesretenidos/{exec_date}/retenidos_{date_aux}.csv"
     s3_hook = S3Hook(aws_conn_id='aws_s3_connection')
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     buffer = io.StringIO()
     buffer.seek(0)
@@ -213,7 +213,7 @@ def tagear_clientes_retenidos(ds, ti):
     import io
     from io import StringIO
     s3_hook = S3Hook(aws_conn_id='aws_s3_connection')
-    bucket_name = Variable.get("AWS_S3_BUCKET_NAME")
+    bucket_name = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     
     df_clientes_retenidos = get_clientes_retenidos()
     xCluster_value = "retenidos"
@@ -305,7 +305,7 @@ with DAG(
     'etl_clientes_retenidos',
     default_args=default_args,
     description='DAG para gestionar el campo xCluster en VTEX de clientes con Recencia',
-    schedule_interval= "30 8 * * 3", #Se ejecuta todos los miercoles.
+    schedule= "30 8 * * 3", #Se ejecuta todos los miercoles.
     start_date =pendulum.datetime(2025, 2, 5, tz="America/Santiago"),
     catchup=False,
     tags = ["xCluster", "VTEX", "Clientes", "KEVIN", "Unimarc"],
@@ -328,7 +328,7 @@ with DAG(
 
     t2 = PostgresOperator(
         task_id = "truncate_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         TRUNCATE TABLE ecommdata.clientes_retenidos;
         """,

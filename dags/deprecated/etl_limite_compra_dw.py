@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.providers.postgres.operators.postgres import PostgresOperator
+from airflow.providers.common.sql.operators.sql import SQLExecuteQueryOperator as PostgresOperator
 
 from utils.netezza_utils import load_custom_query_to_s3
 
@@ -16,7 +16,7 @@ def _load_limite_compra_dw_table(ti,ds):
     
     limit_file = ti.xcom_pull(key="return_value", task_ids=["load_custom_query_to_s3"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+limit_file)
@@ -51,7 +51,7 @@ def _load_limite_compra_dw_table(ti,ds):
                     from ecommdata.lista8 l
     """
     print(query_lista8)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query_lista8)
@@ -96,7 +96,7 @@ def _set_lim_compra(ti):
     query_lista8 = """select * from ecommdata.limite_compra_dw lcd;
     """
     print(query_lista8)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(query_lista8)
@@ -164,7 +164,7 @@ with DAG(
     'etl_limite_compra_dw',
     default_args=default_args,
     description="Extraer promedio de unidades por orden de Datawarehouse y setear limite de compra en JANIS",
-    schedule_interval="30 8 1,10,20 1-12 *",
+    schedule="30 8 1,10,20 1-12 *",
     start_date=pendulum.datetime(2023, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["ecommdata", "DW", "limite_compra", "unimarc", "SERGIO"],
@@ -212,7 +212,7 @@ with DAG(
 
     t1 = PostgresOperator(
         task_id = "clear_table",
-        postgres_conn_id="postgresql_conn",
+        conn_id="postgresql_conn",
         sql="""
         truncate ecommdata.limite_compra_dw
         """

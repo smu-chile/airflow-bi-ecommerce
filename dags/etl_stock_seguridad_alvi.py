@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow import macros
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator, BranchPythonOperator
-from airflow.hooks.S3_hook import S3Hook
+from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.models import Variable
-from airflow.operators.dummy import DummyOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -44,7 +44,7 @@ def stock(ds):
                             and surtido_ecommerce is true
                             and stock_infinito_janis is not true
                             and t.status = 1"""
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     print(stock_tiendas_query)
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
@@ -59,7 +59,7 @@ def matriz_ss():
     matriz_query = """select *
                     from catalogo.matriz_ss_alvi"""
     print(matriz_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(matriz_query)
@@ -95,7 +95,7 @@ def venta_tienda(ds):
                                     _t.dia,
                                     _t.semana"""
     print(ventas_skus_tienda_query)
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_hook = PostgresHook(conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.execute(ventas_skus_tienda_query)
@@ -111,7 +111,7 @@ def stock_ventas_tiendas_to_s3_am(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad_alvi_/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -219,7 +219,7 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     exec_date = ds.replace("-", "/")
     date_aux = ds.replace("-", "_")
     prefix = f"stock_seguridad_alvi_/{exec_date}/"
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
 
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -327,7 +327,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_pm"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -399,7 +399,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
 
     filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_am"])[0]
 
-    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_bucket = Variable.get('AWS_S3_BUCKET_NAME', default_var='default-bucket')
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
     print("Searching file: "+filename)
@@ -471,7 +471,7 @@ with DAG(
     'etl_stock_seguridad_alvi',
     default_args=default_args,
     description="cargar stock de seguridad alvi",
-    schedule_interval="30 1/4 * * *",
+    schedule="30 1/4 * * *",
     start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
     catchup=False,
     tags=["DATA", "Janis", "ecommdata_alvi", "stock", "stock_seguidad", "ventas", "alvi", "PATRICIO"],
@@ -489,7 +489,7 @@ with DAG(
         python_callable=_check_time,
     )
 
-    t_dummy = DummyOperator(
+    t_dummy = EmptyOperator(
             task_id='task_skip',
         )
 
