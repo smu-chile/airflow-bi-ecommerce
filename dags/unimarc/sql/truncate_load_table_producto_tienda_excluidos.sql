@@ -5,6 +5,12 @@ truncate table ecommdata.producto_tienda_excluidos;
 insert into ecommdata.producto_tienda_excluidos
 select material,umv, concat(material,'-',umv) as ref_id, 1 as all_stores,0 as is_mfc,null::varchar as id_tienda,fecha_carga  
 from catalogo.productos_excluidos pe 
+where not exists (
+    select 1 
+    from catalogo.productos_excluidos_excepciones ex
+    where pe.material = ex.material 
+      and pe.umv = ex.umv
+)
 order by fecha_carga desc;
 
 insert into ecommdata.producto_tienda_excluidos
