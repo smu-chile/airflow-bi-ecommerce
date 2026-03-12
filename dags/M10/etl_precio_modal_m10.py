@@ -4,7 +4,7 @@ from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
-from utils.netezza_utils import load_custom_query_to_s3
+from utils.bigquery_utils import load_custom_bq_query_to_s3
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 from datetime import datetime, timedelta
@@ -70,17 +70,19 @@ def _load_to_postgres(ti):
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
     print(f"Number of records to load: {str(len(fixed_records))}")
+    from psycopg2.extras import execute_values
+
     incremental_query = """
-        INSERT INTO ecommdata_m10.precio_modal (FORMATO_ID, CODIGO_MATERIAL, UMV, ID_SEMANA, """+columns_query+""") 
-        VALUES ("""+values_query+""")
+        INSERT INTO ecommdata_m10.precio_modal (FORMATO_ID, CODIGO_MATERIAL, UMV, ID_SEMANA, MATERIAL, ID_CATEGORIA, CATEGORIA, PRECIO_MODAL) 
+        VALUES %s
         ON CONFLICT (FORMATO_ID, CODIGO_MATERIAL, UMV, ID_SEMANA)
-        DO UPDATE SET ("""+columns_query+""") = ("""+excluded_query+""") ;
+        DO UPDATE SET (MATERIAL, ID_CATEGORIA, CATEGORIA, PRECIO_MODAL) = (EXCLUDED.MATERIAL, EXCLUDED.ID_CATEGORIA, EXCLUDED.CATEGORIA, EXCLUDED.PRECIO_MODAL) ;
     """
-    print(incremental_query)
+    
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
-    cursor.executemany(incremental_query, fixed_records)
+    execute_values(cursor, incremental_query, fixed_records)
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
@@ -116,13 +118,15 @@ with DAG(
     """ 
     t0 = PythonOperator(
         task_id = "extract_data_from_dw",
-        python_callable = load_custom_query_to_s3,
+        python_callable = load_custom_bq_query_to_s3,
         op_kwargs = {
             "query": """
                 SELECT *
-                FROM NZ_SMU_BI_DEV.BI.VW_DIM_PRECIO_MODAL_M10
+                FROM cl-cda-prod.DS_CDA_BI_SOURCES.PRECIO_MODAL
+                WHERE FORMATO_ID = '09'
             """,
-            "query_name": "precio_modal_M10"
+            "query_name": "precio_modal_M10",
+            "aws_conn_id": "aws_s3_connection"
         },
         retries = 2,
         retry_delay = timedelta(minutes=1),

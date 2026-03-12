@@ -4,6 +4,7 @@
 .venv
 local-values.yaml
 docker-compose.yml
+docker-compose-v3.yml
 
 # MacOS
 .DS_Store
