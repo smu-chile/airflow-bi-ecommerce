@@ -173,10 +173,10 @@ with DAG(
     default_args=default_args,
     description="extrae templates desde la API de onemarketer (Mejorado)",
     schedule_interval="0 * * * *",
-    start_date=pendulum.datetime(2024, 8, 26, tz="America/Santiago"),
-    catchup=False,
+    start_date=pendulum.datetime(2026, 3, 1, 1, tz="America/Santiago"),
+    catchup=True,
     max_active_runs=1,
-    tags=["onemarketer", "templates", "MAURICIO"],
+    tags=["onemarketer", "templates", "MAURICIO", "diego", "whatsapp"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
