@@ -41,7 +41,7 @@ def _api_onemarketer(ts):
         "answertime" : "true",
         "asc" : "false",
         "idUser" : "0",
-        "header" : f"""id_caso,operador,Operador_cierre,id_usuario,servicio,nombre,menu,submenu,nombre,email,compra,epa_respuesta,template,pedido,evento_inicio,fecha_inicio,hora_inicio,evento_cierre,fecha_cierre,hora_cierre,duracion,categoria,tiempo_1ra_respuesta,ts_1er_mensaje,tiempo_en_cola_espera,tiempo_de_espera_cliente,tot_mensajes_operador,tot_mensajes_cliente,total_mensajes,comentarios,poll_answer_time,ans1,ans2,ans3,ans4,ans5,ans6,ans7,comments""",
+        "header" : f"""id_caso,operador,Operador_cierre,agente_interno,id_usuario,servicio,nombre,menu,submenu,nombre_cliente,email,compra,epa,template,pedido,evento_inicio,fecha_inicio,hora_inicio,evento_cierre,fecha_cierre,hora_cierre,duracion,categoria,tiempo_1ra_respuesta,ts_1er_mensaje,tiempo_en_cola_espera,tiempo_de_espera_cliente,tot_mensajes_operador,tot_mensajes_cliente,total_mensajes,comentarios,poll_answer_time,ans1,ans2,ans3,ans4,ans5,ans6,ans7,comments""",
         "login" : "admin",
         "ri" : exec_date_rf_b,
         "rf" : exec_date_rf_e
@@ -65,16 +65,23 @@ def _from_api_to_postgres(ts):
     text_file = StringIO(results_api.text)
     df = pd.read_csv(text_file, sep=";", index_col=False)
     print(df)
-    df["id_caso"] = df["id_caso"].fillna(0)
-    df["id_caso"] = df["id_caso"].astype("int", errors="ignore")
+    df["id_caso"] = pd.to_numeric(df["id_caso"], errors="coerce").fillna(0).astype(int)
+    df["id_usuario"] = pd.to_numeric(df["id_usuario"], errors="coerce")
     df["id_caso"] = df["id_caso"].replace(0, None)
-    df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], format="%d-%m-%Y")
-    df["fecha_cierre"] = pd.to_datetime(df["fecha_inicio"], format="%d-%m-%Y")
+    df["fecha_inicio"] = pd.to_datetime(df["fecha_inicio"], format="%d-%m-%Y", errors="coerce")
+    df["fecha_cierre"] = pd.to_datetime(df["fecha_cierre"], format="%d-%m-%Y", errors="coerce")
+    
+    # Limpieza: eliminar filas donde el parseo de fecha falló (por desplazamientos de columna o basura en la API)
+    df = df.dropna(subset=["fecha_inicio"])
     df_operador = df[df["operador"] != "robot"]
     df_operador = df_operador[["id_caso", "operador", "id_usuario", "servicio", "evento_inicio", "fecha_inicio", "hora_inicio", "evento_cierre", "fecha_cierre", "hora_cierre", "duracion", "tiempo_1ra_respuesta", "tiempo_en_cola_espera", "tiempo_de_espera_cliente", "tot_mensajes_operador", "tot_mensajes_cliente", "total_mensajes"]]
     df_robot = df[df["operador"] == "robot"]
-    df_robot = df_robot[df_robot["template"].isna()]
+    # Intentamos filtrar por template si existe la columna, de lo contrario seguimos
+    if "template" in df_robot.columns:
+        df_robot = df_robot[df_robot["template"].isna()]
+    
     df_robot = df_robot[["id_caso", "operador", "id_usuario", "servicio", "menu", "submenu", "compra", "evento_inicio", "fecha_inicio", "hora_inicio", "evento_cierre", "fecha_cierre", "hora_cierre", "duracion"]]
+    
     df_encuesta = df[["id_caso", "ans1", "ans2", "ans3", "ans4", "ans5", "ans6", "ans7", "comments"]]
     df_encuesta = df_encuesta.dropna(subset=['id_caso'])
 
@@ -158,8 +165,8 @@ with DAG(
     default_args=default_args,
     description="utiliza la API de onemarketer para extraer el historial de conversaciones",
     schedule_interval= "0,30 * * * *",
-    start_date=pendulum.datetime(2024, 8, 26, tz="America/Santiago"),
-    catchup=True,
+    start_date=pendulum.datetime(2026, 3, 11, tz="America/Santiago"),
+    catchup=False,
     max_active_runs = 1,
     tags=["onemarketer", "MATIAS"],
     on_success_callback=dag_success_slack,
