@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow.sensors.s3_key_sensor import S3KeySensor
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.operators.dummy import DummyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
-from airflow.exceptions import AirflowSkipException
 
 import pendulum
 
@@ -32,11 +32,12 @@ def _get_new_orders_from_s3(ts):
 
     return df
 
-def _get_order_item_promotions_from_janis(ts):
+def _get_order_item_promotions_from_janis(ts, **context):
     # Search based on wms_orders.id
     df = _get_new_orders_from_s3(ts)
     if df.empty:
-        raise AirflowSkipException(f"No se encontraron órdenes en S3 para el periodo {ts}. Saltando extracción de promociones.")
+        print(f"No se encontraron órdenes en S3 para el periodo {ts}. Saltando a no_data_skip.")
+        return "no_data_skip"
     order_ids = df["id"].tolist()
     query_order_ids = "(" + ",".join([str(order_id) for order_id in order_ids]) + ")"
     query = f"""
@@ -50,13 +51,15 @@ def _get_order_item_promotions_from_janis(ts):
     """
     print(query)
     s3_object_name = load_custom_query_to_s3(ts, query, "wms_order_item_promotions")
-    return s3_object_name
+    context['ti'].xcom_push(key='s3_object_name', value=s3_object_name)
+
+    return "orden_producto_promociones_incremental_load"
 
 def _order_item_promotions_table_incremental_load(ts, ti):
     import numpy as np
     import pandas as pd
     
-    order_item_proms_file = ti.xcom_pull(key="return_value", task_ids=["get_order_item_promotions_from_janis"])[0]
+    order_item_proms_file = ti.xcom_pull(key="s3_object_name", task_ids=["get_order_item_promotions_from_janis"])[0]
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -146,7 +149,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 7, 11, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "Janis", "ecommdata_alvi", "orden_producto_promociones", "alvi", "cyber", "MATIAS"],
+    tags=["DATA", "Janis", "ecommdata_alvi", "orden_producto_promociones", "alvi", "cyber", "MATIAS", "MAURICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
@@ -163,7 +166,7 @@ with DAG(
         timeout = 1800
     )
 
-    t1 = PythonOperator(
+    t1 = BranchPythonOperator(
         task_id = "get_order_item_promotions_from_janis",
         python_callable = _get_order_item_promotions_from_janis
     )
@@ -171,7 +174,10 @@ with DAG(
     t2 = PythonOperator(
         task_id = "orden_producto_promociones_incremental_load",
         python_callable = _order_item_promotions_table_incremental_load,
-        trigger_rule = "none_failed"
     )
 
-    t0 >> t1 >> t2
+    t3 = DummyOperator(
+        task_id = "no_data_skip",
+    )
+
+    t0 >> t1 >> [t2, t3]
