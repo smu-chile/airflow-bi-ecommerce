@@ -25,7 +25,7 @@ select
 , su.date_published as fecha_publicacion_janis
 , su.date_modified as fecha_modificacion_janis
 , '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' as ultima_actualizacion
-	, l.material is not null and l.excluido is false and l.bloq_centro is null and l.bloq_formato is null and l.catalogado is true as surtido_ecommerce
+	, l.material is not null and l.excluido is false and ( (l.bloq_centro is null and l.bloq_formato is null) OR CONCAT(l.material, '-', l.umv) IN ('000000000000661989-UN', '000000000000661988-UN') ) and l.catalogado is true as surtido_ecommerce
 , case
 	when li.material is null then false
 	else true
