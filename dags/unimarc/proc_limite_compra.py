@@ -25,9 +25,11 @@ def db_get_ref_id_atributos_producto():
 
     query = f"""select distinct p.ref_id from ecommdata.productos p
             inner join ecommdata.lista8 l on concat(l.material, '-', l.umv) = p.ref_id 
+            left join ecommdata.skus_exclusion_limite_compra ex on p.ref_id = ex.ref_id
             where length(split_part(p.ref_id, '-', 1)) = 18 
             and length(split_part(p.ref_id,'-',2)) >= 2
             and split_part(p.ref_id,'-',2) not in ('KG', 'KGV')
+            and ex.ref_id is null
             order by p.ref_id desc;
             """
     print(query)
@@ -39,7 +41,7 @@ def db_get_ref_id_atributos_producto():
     ref_id_list = [result[0] for result in results]
     cursor.close()
     pg_connection.close()
-    print(f"Productos con valor sin Limite de Compra obtenidos: {ref_id_list}")
+    print(f"Productos con valor sin Limite de Compra obtenidos (filtrando excluidos): {ref_id_list}")
     return ref_id_list
 
 
