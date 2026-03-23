@@ -119,7 +119,17 @@ def _load_to_postgres(ti):
     df["fecha_carga"] = pd.to_datetime(df["fecha_carga"])
     df['material'] = df['material'].apply(lambda x: str(x).zfill(18))
     df['id_tienda'] = df['id_tienda'].apply(lambda x: str(x).zfill(4))
-    df["umv"] = df["umv"].str.replace('ST', 'UN')
+    # Normalización Universal de Medidas (UOM)
+    # ST (Sachet) -> UN (Unidad/Unit)
+    # CS/CJA (Case/Caja) -> CJ (Caja)
+    def normalize_uom(uom):
+        if not uom: return uom
+        uom_upper = str(uom).strip().upper()
+        if uom_upper in ['ST', 'UN']: return 'UN'
+        if uom_upper in ['CS', 'CJ', 'CJA']: return 'CJ'
+        return uom_upper
+
+    df["umv"] = df["umv"].apply(normalize_uom)
 
     # Convertimos los nan booleanos a python None o false para evitar fallos
     df["in_stock"] = df["in_stock"].fillna(False)

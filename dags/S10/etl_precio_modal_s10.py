@@ -53,7 +53,18 @@ def _load_to_postgres(ti):
     # Relleno de nulos y estandarización a lo que pide Postgres
     df["FORMATO_ID"] = df["FORMATO_ID"].astype(str).str.zfill(2)
     df["CODIGO_MATERIAL"] = df["CODIGO_MATERIAL"].apply(lambda x: str(x).zfill(18) if pd.notnull(x) else None)
-    df["UMV"] = df["UMV"].str.replace('ST', 'UN')
+    
+    # Normalización Universal de Medidas (UOM)
+    # ST (Sachet) -> UN (Unidad/Unit)
+    # CS/CJA (Case/Caja) -> CJ (Caja)
+    def normalize_uom(uom):
+        if not uom: return uom
+        uom_upper = str(uom).strip().upper()
+        if uom_upper in ['ST', 'UN']: return 'UN'
+        if uom_upper in ['CS', 'CJ', 'CJA']: return 'CJ'
+        return uom_upper
+
+    df["UMV"] = df["UMV"].apply(normalize_uom)
     
     records = list(df.to_records(index=False))
     
@@ -168,6 +179,7 @@ with DAG(
             "query": """
                 SELECT FORMATO_ID, CODIGO_MATERIAL, MATERIAL, UMV, ID_CATEGORIA, CATEGORIA, PRECIO_MODAL, ID_SEMANA
                 FROM `cl-cda-prod.DS_CDA_BI_SOURCES.PRECIO_MODAL`
+                WHERE FORMATO_ID = '09'
             """,
             "query_name": "precio_modal_s10",
             "aws_conn_id": "aws_s3_connection"

@@ -60,6 +60,18 @@ def _load_to_postgres(ti):
     # IMPORTANTE: Asegurar los 18 caracteres con ceros a la izquierda para el cruce
     df['MATERIAL'] = df['MATERIAL'].astype(str).str.zfill(18)
 
+    # Normalización Universal de Medidas (UOM)
+    # ST (Sachet) -> UN (Unidad/Unit)
+    # CS/CJA (Case/Caja) -> CJ (Caja)
+    def normalize_uom(uom):
+        if not uom: return uom
+        uom_upper = str(uom).strip().upper()
+        if uom_upper in ['ST', 'UN']: return 'UN'
+        if uom_upper in ['CS', 'CJ', 'CJA']: return 'CJ'
+        return uom_upper
+
+    df["UN_MEDIDA_VENTA"] = df["UN_MEDIDA_VENTA"].apply(normalize_uom)
+
     records = list(df.to_records(index=False))
     
     fixed_records = []
