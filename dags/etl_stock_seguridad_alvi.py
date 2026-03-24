@@ -136,6 +136,8 @@ def stock_ventas_tiendas_to_s3_am(ds):
     df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_aux2=df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
 
+    df_stock["id_tienda"] = df_stock["id_tienda"].astype(str)
+    df_aux2["id_tienda"] = df_aux2["id_tienda"].astype(str)
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
     print(df_stock_seguridad["cantidad"])
@@ -182,6 +184,8 @@ def stock_ventas_tiendas_to_s3_am(ds):
     
     df_matriz = matriz_ss()
 
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str)
+    df_matriz["id_tienda"] = df_matriz["id_tienda"].astype(str)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
@@ -244,6 +248,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id","dia"], as_index=False).mean()
     df_aux2=df_aux2[["id_tienda","ref_id","dia","semana","cantidad"]]
 
+    df_stock["id_tienda"] = df_stock["id_tienda"].astype(str)
+    df_aux2["id_tienda"] = df_aux2["id_tienda"].astype(str)
     df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id","dia"])
     df_stock_seguridad = df_stock_seguridad.fillna(0)
     print(df_stock_seguridad["cantidad"])
@@ -286,6 +292,8 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     
     df_matriz = matriz_ss()
 
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str)
+    df_matriz["id_tienda"] = df_matriz["id_tienda"].astype(str)
     df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
     df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
 
@@ -367,7 +375,7 @@ def carga_stock_seguridad_janis_pm(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = df.ref_id[i] if str(df.ref_id[i]).endswith("-KG") else str(df.ref_id[i]).split("-")[0]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
@@ -439,7 +447,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
     
     payload=[]
     for i in df.index:
-        material = df.ref_id[i].split("-")[0]
+        material = df.ref_id[i] if str(df.ref_id[i]).endswith("-KG") else str(df.ref_id[i]).split("-")[0]
         id_tienda = str(int(df['id_tienda'][i])).zfill(4)
         stock_seguridad = int(df.nuevo_stock_seguridad[i])
         row = {"IdSku": material,
