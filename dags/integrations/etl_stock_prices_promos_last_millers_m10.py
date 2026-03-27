@@ -43,9 +43,12 @@ def last_millers_m10_to_s3(ds):
             from ecommdata_m10.stock s
             left join ecommdata_m10.productos p 
             on concat(p.material, '-', replace(p.unidad_medida, 'ST','UN')) = concat(s.material,'-',s.umv)
-            left join (select lpad(pm.codigo_material::varchar,18,'0') as material, pm.umv,max(pm.precio_modal) as precio
+            left join (select distinct on (lpad(pm.codigo_material::varchar,18,'0'), pm.umv) 
+                              lpad(pm.codigo_material::varchar,18,'0') as material, 
+                              pm.umv, 
+                              pm.precio_modal as precio
                         from ecommdata_m10.precio_modal pm 
-                        group by lpad(pm.codigo_material::varchar,18,'0'), pm.umv) as pm
+                        order by lpad(pm.codigo_material::varchar,18,'0'), pm.umv, pm.id_semana desc) as pm
             on concat(pm.material, '-', pm.umv) = concat(s.material,'-',s.umv)
             left join (select lpad(material::varchar(18),18,'0') as material,
                         REPLACE(un_medida_venta, 'ST', 'UN') as umv,
