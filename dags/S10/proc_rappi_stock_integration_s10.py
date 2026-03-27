@@ -161,7 +161,7 @@ with DAG(
     schedule_interval=None, # Gatillado manualmente o por el integrador
     start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
     catchup=False,
-    tags=["S10", "integraciones", "rappi", "api"],
+    tags=["S10", "integraciones", "rappi", "api", "last-millers", "MAURICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:

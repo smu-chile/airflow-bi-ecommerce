@@ -129,7 +129,7 @@ with DAG(
     start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["S10", "integracion", "rappi", "ecommerce", "cruce"],
+    tags=["S10", "integracion", "rappi", "ecommerce", "cruce", "last-millers", "MAURICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
