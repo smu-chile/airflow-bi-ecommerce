@@ -37,16 +37,18 @@ def lista8():
                         where (l.id_tienda = '1917' OR ubi.ref_id is null) 
                         and l.excluido is not true
                         and not (
-                            (coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO'))
+                            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
+                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
+                            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
                             )
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
                         from ecommdata.lista8 l 
                         where (l.excluido is not true OR EXISTS (SELECT 1 FROM catalogo.productos_excluidos_excepciones ex WHERE ex.material = l.material AND ex.umv = l.umv))
                         and not (
-                            (coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO'))
+                            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
+                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
+                            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
                             )
                         union
                         select distinct pc.ref_id, '0053' as id_tienda
@@ -71,8 +73,9 @@ def lista8():
                             WHERE ex.material = l.material AND ex.umv = l.umv
                         )
                         AND NOT (
-                            (coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO'))
+                            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
+                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
+                            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
                         )
                         """
     results = query_to_df(promociones_query)
