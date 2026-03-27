@@ -59,7 +59,8 @@ def _set_lim_compra(ts):
     from datetime import datetime
     import pandas as pd
 
-    query_lista8 = """select * from ecommdata.limite_compra_promocion lcp;
+    query_lista8 = """select * from ecommdata.limite_compra_promocion lcp
+    where ref_id not in (select ref_id from ecommdata.skus_exclusion_limite_compra);
     """
     print(query_lista8)
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -112,7 +113,7 @@ def _set_lim_compra(ts):
                 "attributes": [
                     {
                         "id": str(Variable.get("JANIS_REF_ID_ATRIBUTO_ID_CATEGORIA")),
-                        "values": ["22"]
+                        "values": ["48"]
                     }
                 ]
             }

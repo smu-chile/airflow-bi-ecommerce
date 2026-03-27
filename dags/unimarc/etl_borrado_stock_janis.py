@@ -211,16 +211,43 @@ def _send_stock_0_to_janis(ts):
     "Connection" : "keep-alive"
     }
 
+    # Obtener excepciones actuales
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    df_excep = pg_hook.get_pandas_df("SELECT material, id_tienda FROM catalogo.productos_excluidos_excepciones")
+    df_excep["material"] = df_excep["material"].astype(str).str.zfill(18)
+    df_excep["id_tienda"] = df_excep["id_tienda"].astype(str).str.zfill(4)
+    # Crear una llave para cruce fácil
+    df_excep["key"] = df_excep["material"] + "_" + df_excep["id_tienda"]
+    set_excepciones = set(df_excep["key"].unique())
+
     for s3_file in s3_file_list:
         if (int(s3_file[-8:-4]) < 100) and (s3_file[-13:-9] != '1917'):
             payload=[]
             s3_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
             df = pd.read_csv(s3_object.get()["Body"], sep=",")
+            
+            # Contador para loguear cuántos se saltaron por excepción
+            count_skipped = 0
+
             for ind in df.index:
                 material = str(df['MATERIAL'][ind]).zfill(18)
                 id_tienda = str(int(df['CENTRO_x'][ind])).zfill(4)
+                
+                # REVISAR SI TIENE EXCEPCIÓN
+                if f"{material}_{id_tienda}" in set_excepciones:
+                    count_skipped += 1
+                    continue
+
                 row = {"IdSku": material, "Quantity": 0, "Store": id_tienda}
                 payload.append(row)
+            
+            if count_skipped > 0:
+                print(f"ℹ️ Se saltaron {count_skipped} productos en tienda {s3_file[-8:-4]} por tener una excepción activa.")
+
+            if not payload:
+                print(f"⚠️ Nada que enviar para archivo {s3_file} (todos tenían excepciones).")
+                continue
+
             payload = str(payload).replace("'", '"')
             response = requests.request("POST", url, headers=headers, data=payload)
             print(f"[L = {s3_file[-8:-4]} - S = {s3_file[-13:-9]}] response from file {s3_file}:")
