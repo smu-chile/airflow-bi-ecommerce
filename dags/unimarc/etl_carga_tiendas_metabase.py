@@ -35,6 +35,7 @@ def lista8():
                             where mfc_is_item_side = 'REG') as ubi
                             on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
                         where (l.id_tienda = '1917' OR ubi.ref_id is null) 
+                        and l.excluido is not true
                         and not (
                             ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
                             OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
@@ -43,7 +44,8 @@ def lista8():
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
                         from ecommdata.lista8 l 
-                        where not (
+                        where l.excluido is not true
+                        and not (
                             ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
                             OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
                             AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
@@ -63,6 +65,7 @@ def lista8():
                         union 
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
+                        AND l.excluido is not true
                         AND NOT (
                             ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
                             OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
@@ -246,9 +249,6 @@ def load_tables_to_s3(ts,ds):
     print(f"\ncantidad de registros en lista8 con productos no validos: {len(df_not_in_janis.index)}\n")
     #lista8+mfc
     df_lista8 = pd.concat([df_lista_8, df_publicacion_mfc_hoy], axis=0)
-    excluidos_x_tiendas_tiendas = df_excluidos_x_tiendas[df_excluidos_x_tiendas["all_stores"]==1]
-    lista_excluidos = excluidos_x_tiendas_tiendas['ref_id'].unique()
-    df_lista8 = df_lista8[~df_lista8['ref_id'].isin(lista_excluidos)]
     df_lista8 = df_lista8[["ref_id","id_tienda"]]
     print(f"\ncantidad de registros en lista8 con MFC: {len(df_lista8.index)}\n")
     #exclusiones con skus validos
