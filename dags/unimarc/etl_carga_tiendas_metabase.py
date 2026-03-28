@@ -44,11 +44,10 @@ def lista8():
                         union
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
                         from ecommdata.lista8 l 
-                        where l.excluido is not true
+                        where (l.excluido is not true OR EXISTS (SELECT 1 FROM catalogo.productos_excluidos_excepciones ex WHERE ex.material = l.material AND ex.umv = l.umv))
                         and not (
-                            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
-                            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
+                            (coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
+                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO'))
                             )
                         union
                         select distinct pc.ref_id, '0053' as id_tienda
@@ -66,6 +65,12 @@ def lista8():
                         select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
                         from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
                         AND l.excluido is not true
+                        -- BLOQUEO ESTRICTO DE EXCEPCIONES EN LA TIENDA VIRTUAL 0054
+                        -- Las excepciones manuales por tienda física NO DEBEN SALTAR a la web general
+                        AND NOT EXISTS (
+                            SELECT 1 FROM catalogo.productos_excluidos_excepciones ex 
+                            WHERE ex.material = l.material AND ex.umv = l.umv
+                        )
                         AND NOT (
                             ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
                             OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
@@ -249,12 +254,16 @@ def load_tables_to_s3(ts,ds):
     print(f"\ncantidad de registros en lista8 con productos no validos: {len(df_not_in_janis.index)}\n")
     #lista8+mfc
     df_lista8 = pd.concat([df_lista_8, df_publicacion_mfc_hoy], axis=0)
+    # Restauramos la definición para evitar el NameError
+    excluidos_x_tiendas_tiendas = df_excluidos_x_tiendas[df_excluidos_x_tiendas["all_stores"]==1]
+    # REMOVIDO: El filtro global por lista_excluidos ya no es necesario aquí 
+    # porque la función lista8() ya filtra individualmente por tienda usando l.excluido.
     df_lista8 = df_lista8[["ref_id","id_tienda"]]
     print(f"\ncantidad de registros en lista8 con MFC: {len(df_lista8.index)}\n")
     #exclusiones con skus validos
     lista_skus = df_skus['ref_id'].unique()
-    df_exclusions = excluidos_x_tiendas_tiendas[excluidos_x_tiendas_tiendas['ref_id'].isin(lista_skus)]
-    df_exclusions = df_exclusions[["ref_id"]]
+    # Cambiamos a vacío para que no interfiera con excepciones en df_deact
+    df_exclusions = pd.DataFrame(columns=['ref_id'])
     print(f"\ncantidad de registros en excluidos con skus validos: {len(df_exclusions.index)}\n")
     ##tiendas activcas
     df_tiendas = df_tiendas[["id_tienda"]]
@@ -323,14 +332,9 @@ def load_tables_to_s3(ts,ds):
     valores_unicos_skus = df_desactivados['ref_id'].unique()
     print(f"\nSkus unicos: {len(valores_unicos_skus)}")
 
-    df_excluidos = df_producto_tienda_janis.merge(excluidos_x_tiendas_tiendas, on=["ref_id"], how='inner')
-    df_excluidos = df_excluidos[df_excluidos["id_tienda_x"]!= '0486']
-    df_excluidos = df_excluidos[df_excluidos['id_tienda_x'].isin(series_active_stores)]
-    df_excluidos = df_excluidos[~df_excluidos['ref_id'].isin(lista_skus_activos)]
-    df_excluidos = df_excluidos.drop_duplicates(subset="ref_id")
-    df_excluidos = df_excluidos.reset_index(drop=True)
-    df_excluidos = df_excluidos[["ref_id"]]
-    df_excluidos.columns = ["refId"]
+    # REMOVIDO: df_excluidos causaba deactivación global de productos con excepciones. 
+    # El proceso de merge ya maneja las deactivaciones por tienda de forma individual.
+    df_excluidos = pd.DataFrame(columns=["refId"])
     print("\ndf_excluidos: ",len(df_excluidos.index))
 
     df_desactivados_sku = df_desactivados[["ref_id"]]
