@@ -28,58 +28,76 @@ def branch_8am():
     return "get_and_send_cargas_csv" if end_cl.hour == 8 else "skip_send"
     
 def lista8():
-    promociones_query = """select concat(l.material,'-',l.umv) as ref_id, l.id_tienda
-                        from ecommdata.lista8 l
-                        left join (select concat(sap_code,'-',measurement_unit) as ref_id, store as id_tienda 
-                            from ecommdata.ubicacion_mfc um 
-                            where mfc_is_item_side = 'REG') as ubi
-                            on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
-                        where (l.id_tienda = '1917' OR ubi.ref_id is null) 
-                        and l.excluido is not true
-                        and not (
-                            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
-                            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
-                            )
-                        union
-                        select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
-                        from ecommdata.lista8 l 
-                        where (l.excluido is not true OR EXISTS (SELECT 1 FROM catalogo.productos_excluidos_excepciones ex WHERE ex.material = l.material AND ex.umv = l.umv))
-                        and not (
-                            (coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            )
-                        union
-                        select distinct pc.ref_id, '0053' as id_tienda
-                        from ecommdata.publicacion_catalogo pc
-                        where pc.mfc is true
-                        and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
-                        and pc.stock_janis > 0
-                        union
-                        select distinct pc.ref_id, '0398' as id_tienda
-                        from ecommdata.publicacion_catalogo pc
-                        where pc.mfc is true
-                        and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
-                        and pc.stock_janis > 0
-                        union 
-                        select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
-                        from ecommdata.lista8 l where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
-                        AND l.excluido is not true
-                        -- BLOQUEO ESTRICTO DE EXCEPCIONES EN LA TIENDA VIRTUAL 0054
-                        -- Las excepciones manuales por tienda física NO DEBEN SALTAR a la web general
-                        AND NOT EXISTS (
-                            SELECT 1 FROM catalogo.productos_excluidos_excepciones ex 
-                            WHERE ex.material = l.material AND ex.umv = l.umv
-                        )
-                        AND NOT (
-                            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
-                            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
-                            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
-                        )
-                        """
+    import pandas as pd
+    from airflow.providers.postgres.hooks.postgres import PostgresHook
+    
+    # Obtenemos tiendas activas para el filtro estricto en SQL
+    promociones_query = """
+    WITH active_stores AS (
+        SELECT id FROM ecommdata.tiendas WHERE status = 1
+    ),
+    exceptions AS (
+        SELECT material, umv, id_tienda FROM catalogo.productos_excluidos_excepciones
+    )
+    SELECT ref_id, id_tienda FROM (
+        -- 1. TIENDAS FISICAS (BASE ORIGINAL)
+        select concat(l.material,'-',l.umv) as ref_id, l.id_tienda
+        from ecommdata.lista8 l
+        left join (select concat(sap_code,'-',measurement_unit) as ref_id, store as id_tienda 
+                    from ecommdata.ubicacion_mfc um 
+                    where mfc_is_item_side = 'REG') as ubi
+                    on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
+        where (l.id_tienda = '1917' OR ubi.ref_id is null) 
+        -- Misión Original: Bypass de Excepciones ESTRICTO POR TIENDA
+        and (l.excluido is not true OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv AND ex.id_tienda = l.id_tienda))
+        and not (
+            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
+            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
+            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
+            )
+        
+        union
+        
+        -- 2. TIENDA 0053 (MASTER)
+        select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
+        from ecommdata.lista8 l 
+        -- Misión Original: Bypass de Excepciones GENERAL (0053 siempre las tiene)
+        where (l.excluido is not true OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv))
+        and not (
+            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
+            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
+            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
+            )
+        
+        union
+        
+        -- 3. TIENDAS MFC (0053 Y 0398)
+        select distinct pc.ref_id, pc.id_tienda
+        from ecommdata.publicacion_catalogo pc
+        where pc.mfc is true
+        and pc.id_tienda in ('0053', '0398')
+        and pc.fecha_hora = (select max(fecha_hora) from ecommdata.publicacion_catalogo)
+        and pc.stock_janis > 0
+        
+        union
+        
+        -- 4. TIENDA WEB 0054 (STRICT EXCLUSION, NO EXCEPTIONS)
+        select distinct concat(l.material,'-',l.umv) as ref_id, '0054' as id_tienda
+        from ecommdata.lista8 l 
+        where l.id_tienda in ('0469','0917','0581','0347','0336','0034')
+        AND l.excluido is not true
+        -- Las excepciones manuales no deben ir a la tienda 0054
+        AND NOT EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv)
+        AND NOT (
+            ((coalesce(l.bloq_centro,0) in (2,9) and l.linea not in ('ELECTRO'))
+            OR (coalesce(l.bloq_formato,0) in (2,9) and l.linea not in ('ELECTRO')))
+            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
+        )
+    ) candidates
+    -- Solo cargamos si la tienda existe en ecommdata.tiendas (status=1)
+    WHERE candidates.id_tienda IN (SELECT id FROM active_stores)
+    """
     results = query_to_df(promociones_query)
-    results.columns = ["ref_id","id_tienda"]
-    print(results.head())
     return results
 
 def productos():
@@ -269,8 +287,11 @@ def load_tables_to_s3(ts,ds):
     df_tiendas = df_tiendas[["id_tienda"]]
     series_active_stores = df_tiendas['id_tienda'].unique()
 
-    #transformacion de datos
+    # transformacion de datos: Solo procesamos tiendas con status=1 en ecommdata.tiendas
+    # Esto evita que tiendas que se "adelantaron" (status=0) generen deltas de carga
+    # y evita que tiendas inactivas (como la 0486) se desactiven masivamente.
     df_lista8 = df_lista8[df_lista8['id_tienda'].isin(series_active_stores)]
+    df_productos_janis_tienda = df_productos_janis_tienda[df_productos_janis_tienda['id_tienda'].isin(series_active_stores)]
 
     df_deact = df_productos_janis_tienda.merge(df_lista8,how='left',on='ref_id')
     df_deact = df_deact[df_deact['id_tienda_y'].isna()]
