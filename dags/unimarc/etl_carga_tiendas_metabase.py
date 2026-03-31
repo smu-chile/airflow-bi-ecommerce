@@ -22,11 +22,17 @@ def branch_8am():
     end = ctx["data_interval_end"]  
     end_cl = end.in_timezone("America/Santiago")
 
-    # si el slot es el de las 08:00 CL O si es un disparo manual a las 07:00 AM → manda alerta
+    # si el slot es el de las 08:00 CL O si es un disparo manual a las 07:00 AM (en UTC o Chile) → manda alerta
     is_manual = ctx['dag_run'].external_trigger
-    if end_cl.hour == 8 or (is_manual and end_cl.hour == 7):
+    
+    # 1. Caso programado automático: Siempre a las 08:00 AM Chile
+    if not is_manual and end_cl.hour == 8:
         return "get_and_send_cargas_csv"
     
+    # 2. Caso manual (forzado): Si pusiste las 07:00 AM (ya sea que Airflow lo vea como UTC o Chile)
+    if is_manual and (end_cl.hour == 7 or end.hour == 7):
+        return "get_and_send_cargas_csv"
+
     return "skip_send"
     
 def lista8():
