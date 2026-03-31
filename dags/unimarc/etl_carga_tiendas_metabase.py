@@ -22,10 +22,12 @@ def branch_8am():
     end = ctx["data_interval_end"]  
     end_cl = end.in_timezone("America/Santiago")
 
-    print(f"[BRANCH] start={ctx['data_interval_start']} end={end} | CL end={end_cl} | hour={end_cl.hour}")
-
-    # si el slot es el de las 08:00 CL → manda alerta
-    return "get_and_send_cargas_csv" if end_cl.hour == 8 else "skip_send"
+    # si el slot es el de las 08:00 CL O si es un disparo manual a las 07:00 AM → manda alerta
+    is_manual = ctx['dag_run'].external_trigger
+    if end_cl.hour == 8 or (is_manual and end_cl.hour == 7):
+        return "get_and_send_cargas_csv"
+    
+    return "skip_send"
     
 def lista8():
     import pandas as pd
