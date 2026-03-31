@@ -11,7 +11,7 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 09:30 -  prev_date at 17:00 to curr_date at 08:00 (+16 hrs 30 min)
+    # 10:30 -  prev_date at 17:00 to curr_date at 10:30 (+17 hrs 30 min)
 
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
@@ -22,7 +22,7 @@ def _get_time_interval(ts):
     exec_datetime_local = exec_datetime_local.replace(hour=17, minute=0)
     exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
     print(f"Exec datetime: {exec_datetime_local_str}")
-    return exec_datetime_local_str, "interval '16 hours 30 minutes'", task_start_date
+    return exec_datetime_local_str, "interval '17 hours 30 minutes'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
     if Variable.get("FROGMI_ENV") != "prod":
@@ -205,7 +205,7 @@ with DAG(
     "proc_frogmi_post_alerta_foundrate_930",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate a Frogmi",
-    schedule_interval="30 9 * * *",
+    schedule_interval="30 10 * * *",
     start_date=pendulum.datetime(2022, 12, 28, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
