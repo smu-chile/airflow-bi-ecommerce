@@ -202,7 +202,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "proc_frogmi_post_alerta_foundrate_1030",
+    "proc_frogmi_post_alerta_foundrate_930",
     default_args=default_args,
     description="Envío de tareas Alerta de Found Rate a Frogmi",
     schedule_interval="30 10 * * *",
