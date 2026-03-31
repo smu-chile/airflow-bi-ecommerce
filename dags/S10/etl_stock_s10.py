@@ -202,7 +202,7 @@ with DAG(
     'etl_stock_s10',
     default_args=default_args,
     description="Extracción óptima de stock de S10 desde BigQuery",
-    schedule_interval="15 8 * * *",
+    schedule_interval="0 6 * * *",
     start_date=pendulum.datetime(2024, 5, 28, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
