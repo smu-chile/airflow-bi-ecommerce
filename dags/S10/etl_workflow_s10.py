@@ -171,8 +171,8 @@ with DAG(
     default_args=default_args,
     description="Extracción óptima de promociones de S10 desde BigQuery",
     # M10 solía agendarse solo los días 1 y 15 ("15 8 1,15 * *"). 
-    # Para S10 lo ponemos DIARIO ("15 8 * * *") para reaccionar al instante a nuevas promociones
-    schedule_interval="15 8 * * *",
+    # Para S10 lo ponemos DIARIO ("0 6 * * *") para reaccionar al instante a nuevas promociones
+    schedule_interval="0 6 * * *",
     start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

@@ -158,7 +158,7 @@ with DAG(
     "proc_rappi_stock_integration_s10",
     default_args=default_args,
     description="Dispatcher final S10: Stock y Precios para Rappi (Dedicado S10)",
-    schedule_interval=None, # Gatillado manualmente o por el integrador
+    schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
     catchup=False,
     tags=["S10", "integraciones", "rappi", "api", "last-millers", "MAURICIO"],
