@@ -156,7 +156,7 @@ with DAG(
     default_args=default_args,
     description="Extracción óptima de precios modales de S10 desde DW BQ Limitado a 12 semanas",
     schedule_interval="0 6 * * *",
-    start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
+    start_date=pendulum.datetime(2026, 3, 30, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["S10", "DW", "S3", "precio modal", "ecommerce", "last-millers", "MAURICIO"],
