@@ -155,7 +155,7 @@ with DAG(
     'etl_precio_modal_s10',
     default_args=default_args,
     description="Extracción óptima de precios modales de S10 desde DW BQ Limitado a 12 semanas",
-    schedule_interval="15 8 * * *",
+    schedule_interval="0 6 * * *",
     start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

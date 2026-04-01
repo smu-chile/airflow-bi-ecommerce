@@ -89,7 +89,7 @@ with DAG(
     'etl_tiendas_s10',
     default_args=default_args,
     description="Extracción de tiendas robusta para S10 desde BigQuery",
-    schedule_interval="15 8 * * *",
+    schedule_interval="0 6 * * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

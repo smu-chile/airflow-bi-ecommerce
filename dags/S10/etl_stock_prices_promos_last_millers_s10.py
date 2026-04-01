@@ -124,8 +124,8 @@ with DAG(
     'etl_stock_prices_promos_last_millers_s10',
     default_args=default_args,
     description="Motor de Cruce Final (Cerebro) S10 - Prepara datos para Rappi",
-    # Se ejecuta a las 12:30 PM para asegurar que los ETLs de la mañana terminaron
-    schedule_interval="30 12 * * *",
+    # Se ejecuta a las 06:30 AM para asegurar que los ETLs de la mañana terminaron
+    schedule_interval="30 6 * * *",
     start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
