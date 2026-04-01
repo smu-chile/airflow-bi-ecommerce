@@ -203,7 +203,7 @@ with DAG(
     default_args=default_args,
     description="Extracción óptima de stock de S10 desde BigQuery",
     schedule_interval="0 6 * * *",
-    start_date=pendulum.datetime(2024, 5, 28, tz="America/Santiago"),
+    start_date=pendulum.datetime(2026, 3, 30, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["S10", "DW", "S3", "stock", "ecommerce", "last-millers", "MAURICIO"],
