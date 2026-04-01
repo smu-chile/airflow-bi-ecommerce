@@ -173,7 +173,7 @@ with DAG(
     # M10 solía agendarse solo los días 1 y 15 ("15 8 1,15 * *"). 
     # Para S10 lo ponemos DIARIO ("0 6 * * *") para reaccionar al instante a nuevas promociones
     schedule_interval="0 6 * * *",
-    start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
+    start_date=pendulum.datetime(2026, 3, 30, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["S10", "BQ", "S3", "workflow", "promociones", "ecommerce", "last-millers", "MAURICIO"],

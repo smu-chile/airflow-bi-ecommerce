@@ -126,7 +126,7 @@ with DAG(
     description="Motor de Cruce Final (Cerebro) S10 - Prepara datos para Rappi",
     # Se ejecuta a las 06:30 AM para asegurar que los ETLs de la mañana terminaron
     schedule_interval="30 6 * * *",
-    start_date=pendulum.datetime(2024, 6, 1, tz="America/Santiago"),
+    start_date=pendulum.datetime(2026, 3, 30, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
     tags=["S10", "integracion", "rappi", "ecommerce", "cruce", "last-millers", "MAURICIO"],
