@@ -11,7 +11,7 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 10:30 -  prev_date at 17:00 to curr_date at 10:30 (+17 hrs 30 min)
+    # 10:30 -  prev_date at 17:00 to curr_date at 10:30 (+17 hrs 30 min) .
 
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
