@@ -1,5 +1,5 @@
 insert into ecommdata.publicacion_catalogo
-select s.ultima_actualizacion as fecha_hora
+select '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' as fecha_hora
 , s.material
 , s.ref_id
 , s.descripcion 
