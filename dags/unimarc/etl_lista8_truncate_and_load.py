@@ -131,6 +131,11 @@ def _load_lista8(ts):
         df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
         df['SUSTITUTO'] = df['SUSTITUTO'].fillna('Y')
         df['SUSTITUTO'] = df['SUSTITUTO'].map({'X': True, 'Y': False})
+        
+        # Limpieza de bloqueos múltiples (ej: "09, 02") -> Tomamos solo el primer ID numérico
+        df["BLOQ.CENTRO"] = df["BLOQ.CENTRO"].astype(str).str.extract(r'(\d+)', expand=False)
+        df["BLOQ.FORMATO"] = df["BLOQ.FORMATO"].astype(str).str.extract(r'(\d+)', expand=False)
+
         df["BLOQ.CENTRO"]  = pd.to_numeric(df["BLOQ.CENTRO"],  errors="coerce").astype("Int64")
         df["BLOQ.FORMATO"] = pd.to_numeric(df["BLOQ.FORMATO"], errors="coerce").astype("Int64")
         for col in ["CATALOGADO"]: # Asegura que las nuevas columnas sean booleanas y existan
@@ -153,13 +158,124 @@ def _load_lista8(ts):
     df_full = pd.concat(dataframe_list, ignore_index=True)
     df_full = df_full.rename(columns=column_names)
     df_full["fecha"] = exec_date
-    df_full["id_tienda"] = df_full["id_tienda"].str.zfill(4)
-    df_full["material"] = df_full["material"].str.zfill(18)
+    
+    # Estandarización de llaves de búsqueda (importante para merge posterior)
+    df_full["id_tienda"] = df_full["id_tienda"].astype(str).str.zfill(4)
+    df_full["material"] = df_full["material"].astype(str).str.zfill(18)
     df_full["excluido"] = False
+    
+    # Limpieza de nulos reales para evitar que strings vacíos de SAP se salten el enriquecimiento
+    for b_col in ["bloq_centro", "bloq_formato"]:
+        df_full[b_col] = pd.to_numeric(df_full[b_col], errors="coerce").astype("Int64")
 
     # Drop duplicates
     df_full = df_full.drop_duplicates()
     print("Number of records to be loaded: "+str(len(df_full.index)))
+
+    # === ENRIQUECIMIENTO DE BLOQUEOS VACUNO ===
+    print("Iniciando enriquecimiento de bloqueos para Vacunos...")
+    try:
+        from utils.bigquery_utils import bq_query_to_df
+        from google.cloud import bigquery as bq_client
+
+        # 1. Obtener equivalencias y TIENDAS ACTIVAS desde Postgres
+        pg_hook_equiv = PostgresHook(postgres_conn_id="postgresql_conn")
+        equiv_df = pg_hook_equiv.get_pandas_df("SELECT sku_venta, sku_compra FROM ecommdata.equivalencias_vacuno")
+        
+        # Estandarizar equivalencias para asegurar cruce con df_full y BQ
+        if not equiv_df.empty:
+            equiv_df['sku_venta'] = equiv_df['sku_venta'].astype(str).str.zfill(18)
+            equiv_df['sku_compra'] = equiv_df['sku_compra'].astype(str).str.zfill(18)
+
+        # Filtro de tiendas activas (mismo criterio que script manual)
+        query_tiendas = "SELECT id FROM ecommdata.tiendas WHERE status = 1"
+        tiendas_activas_df = pg_hook_equiv.get_pandas_df(query_tiendas)
+        tiendas_activas = tiendas_activas_df['id'].astype(str).str.zfill(4).unique().tolist()
+
+        if not equiv_df.empty and tiendas_activas:
+            # 2. Identificar filas de Vacuno en tiendas activas que NO tienen bloqueos
+            vacunos_venta_lista = equiv_df['sku_venta'].unique().tolist()
+            mask_vacuno = df_full['material'].isin(vacunos_venta_lista)
+            mask_tienda_activa = df_full['id_tienda'].isin(tiendas_activas)
+            mask_sin_bloqueo = df_full['bloq_centro'].isna() & df_full['bloq_formato'].isna()
+            
+            df_vacunos_sin_bloq = df_full[mask_vacuno & mask_tienda_activa & mask_sin_bloqueo].copy()
+            
+            if not df_vacunos_sin_bloq.empty:
+                # 3. Consultar bloqueos en BigQuery para los SKUs de COMPRA y TIENDAS ACTIVAS
+                unique_vacunos_venta_afectados = df_vacunos_sin_bloq['material'].unique().tolist()
+                relevant_equiv = equiv_df[equiv_df['sku_venta'].isin(unique_vacunos_venta_afectados)]
+                skus_compra_to_query = relevant_equiv['sku_compra'].unique().tolist()
+                
+                print(f"Consultando BQ para {len(skus_compra_to_query)} SKUs de COMPRA en {len(tiendas_activas)} tiendas activas...")
+                
+                query_bq = """
+                SELECT DISTINCT
+                    CAST(O.OU_ID AS STRING)         AS id_tienda_bq,
+                    CAST(H.SKU_PRODUCT AS STRING)   AS sku_compra,
+                    CAST(L.BLOQUEO_TIENDA AS STRING) AS bloq_centro_bq,
+                    CAST(L.BLOQUEO_FORMATO AS STRING) AS bloq_formato_bq
+                FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_OU_LOGT_SMY` L
+                JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_OU_HIERARCHY` O
+                    ON L.OU_KEY = O.OU_KEY AND O.ORG_IP_ID IN ('01')
+                JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_SKU_HIERARCHY` H
+                    ON L.SKU_KEY = H.SKU_KEY
+                WHERE
+                    CAST(H.SKU_PRODUCT AS STRING) IN UNNEST(@skus)
+                    AND CAST(O.OU_ID AS STRING) IN UNNEST(@stores)
+                    AND DATE(L.DATE_VALUE) = CURRENT_DATE('America/Santiago') - 1
+                    AND (COALESCE(L.BLOQUEO_TIENDA,'') != '' OR COALESCE(L.BLOQUEO_FORMATO,'') != '')
+                """
+                
+                params = [
+                    bq_client.ArrayQueryParameter("skus", "STRING", skus_compra_to_query),
+                    bq_client.ArrayQueryParameter("stores", "STRING", tiendas_activas)
+                ]
+                df_bq = bq_query_to_df(query_bq, query_parameters=params)
+                
+                if not df_bq.empty:
+                    # Estandarización de BQ para asegurar MERGE correcto con equivalencias
+                    df_bq['id_tienda_bq'] = df_bq['id_tienda_bq'].astype(str).str.zfill(4)
+                    df_bq['sku_compra'] = df_bq['sku_compra'].astype(str).str.zfill(18)
+
+                    # Limpiar bloqueos de BQ y convertir a numérico para compatibilidad tras merge
+                    df_bq["bloq_centro_bq"] = pd.to_numeric(df_bq["bloq_centro_bq"].astype(str).str.extract(r'(\d+)', expand=False), errors='coerce').astype("Int64")
+                    df_bq["bloq_formato_bq"] = pd.to_numeric(df_bq["bloq_formato_bq"].astype(str).str.extract(r'(\d+)', expand=False), errors='coerce').astype("Int64")
+                    
+                    # 4. Cruzar y Actualizar df_full
+                    df_full['join_key'] = df_full['id_tienda'] + "_" + df_full['material']
+                    
+                    df_bq_mapped = df_bq.merge(relevant_equiv, on='sku_compra', how='inner')
+                    df_bq_mapped['join_key'] = df_bq_mapped['id_tienda_bq'] + "_" + df_bq_mapped['sku_venta']
+                    
+                    # Mapeo de valores desde BQ
+                    map_centro = df_bq_mapped.set_index('join_key')['bloq_centro_bq'].to_dict()
+                    map_formato = df_bq_mapped.set_index('join_key')['bloq_formato_bq'].to_dict()
+                    
+                    # Aplicar actualización: SAP MANDA. Solo rellenamos con BQ si el campo en SAP es nulo (fillna)
+                    idx = df_full[mask_vacuno & mask_tienda_activa & mask_sin_bloqueo].index
+                    df_full.loc[idx, 'bloq_centro'] = df_full.loc[idx, 'bloq_centro'].fillna(df_full.loc[idx, 'join_key'].map(map_centro))
+                    df_full.loc[idx, 'bloq_formato'] = df_full.loc[idx, 'bloq_formato'].fillna(df_full.loc[idx, 'join_key'].map(map_formato))
+                    
+                    # Limpieza final de la llave temporal
+                    df_full.drop(columns=['join_key'], inplace=True)
+                    
+                    # Conversión a Int64 robusta (float -> Int64 para manejar NaNs sin error de objeto)
+                    for b_col in ["bloq_centro", "bloq_formato"]:
+                        df_full[b_col] = pd.to_numeric(df_full[b_col], errors="coerce").astype(float).astype("Int64")
+                    
+                    print(f"✅ Enriquecimiento finalizado exitosamente.")
+                else:
+                    print("No se encontraron bloqueos en BQ para los SKUs de compra de vacuno.")
+            else:
+                print("No hay SKUs de vacuno (venta) sin bloqueos para enriquecer.")
+    except Exception as e:
+        print(f"⚠️ Error durante el enriquecimiento de vacunos: {e}")
+    finally:
+        # SEGURIDAD: La columna join_key nunca debe llegar al to_sql independientemente de cualquier fallo
+        if 'join_key' in df_full.columns:
+            df_full.drop(columns=['join_key'], inplace=True)
+        # Se continúa el flujo normal si falla el enriquecimiento para no romper la carga diaria
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
