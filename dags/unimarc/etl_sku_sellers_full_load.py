@@ -105,7 +105,7 @@ with DAG(
     dag_id="etl_sku_sellers_to_postgres",    # Identificador del proceso
     default_args=default_args,
     start_date=pendulum.datetime(2026, 4, 14, tz="America/Santiago"),
-    schedule_interval="30 8 * * *",          # Cron: todos los días a las 08:30
+    schedule_interval="30 8 * * *",          # Cron: todos los días a las 08:30--
     catchup=False,
     tags=["janis", "sellers", "postgres"],
     on_success_callback=dag_success_slack,
