@@ -287,6 +287,9 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Apptoken"),
         "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Apptoken"),
     }
+    all_final_responses = []
+    all_exception_cases = []
+
     for name in vtex_account_name:
         print(name)
         url_list = []
@@ -337,19 +340,24 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
-        #print(final_responses)
+        
+        all_final_responses.extend(final_responses)
+        all_exception_cases.extend(exception_cases)
 
-        _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
+    # Cargo todos los resultados juntos
+    if all_final_responses:
+        _load_final_responses_to_postgres(all_final_responses, ts, 'stock_vtex')
 
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    # Manejo de reintentos en S3 al final de todas las tiendas
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-        date_path = ts[:10].replace("-","/")
-        s3_path = f"vtex/api/get_stock_url_retries/{date_path}/"
-        retries = s3_path+"retries"
+    date_path = ts[:10].replace("-","/")
+    s3_path = f"vtex/api/get_stock_url_retries/{date_path}/"
+    retries_path = s3_path+"retries"
 
-        s3_hook.load_string(str(exception_cases),retries,bucket_name=s3_bucket,replace=True)
-        ti.xcom_push(key = 'vtex_retries', value = retries)
+    s3_hook.load_string(str(all_exception_cases), retries_path, bucket_name=s3_bucket, replace=True)
+    ti.xcom_push(key = 'vtex_retries', value = retries_path)
 
     return
 
@@ -448,6 +456,9 @@ def _vtex_get_stock_retries(ti, ts):
         "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Apptoken"),
     }
     
+    all_final_responses = []
+    all_exception_cases = []
+
     for name in vtex_account_name:
         url_list = retries  #retries      
         session = requests.session()
@@ -493,13 +504,18 @@ def _vtex_get_stock_retries(ti, ts):
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
-        #print(final_responses)
-    if len(exception_cases) > 0:
-        raise Exception('exception cases found during retry.')
-    print(exception_cases)
-    
-    _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
+        
+        all_final_responses.extend(final_responses)
+        all_exception_cases.extend(exception_cases)
 
+    if all_final_responses:
+        _load_final_responses_to_postgres(all_final_responses, ts, 'retries_stock_vtex')
+
+    if len(all_exception_cases) > 0:
+        print(f"Exception cases found during retry: {len(all_exception_cases)}")
+        # Note: We don't raise here to allow the DAG to continue to final stock load
+    
+    return
 
 
 default_args = {
