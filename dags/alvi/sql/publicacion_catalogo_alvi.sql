@@ -1,3 +1,4 @@
+DELETE FROM ecommdata_alvi.publicacion_catalogo WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 insert into ecommdata_alvi.publicacion_catalogo
 select s.ultima_actualizacion as fecha_hora
 , s.material

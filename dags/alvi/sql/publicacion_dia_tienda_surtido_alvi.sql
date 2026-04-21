@@ -1,3 +1,4 @@
+DELETE FROM catalogo.publicacion_dia_tienda_surtido_alvi WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 insert into catalogo.publicacion_dia_tienda_surtido_alvi
 SELECT pc.fecha_hora,
     pc.id_tienda,
@@ -40,6 +41,8 @@ SELECT pc.fecha_hora,
             ELSE 0
         END) AS con_tienda
 FROM ecommdata_alvi.publicacion_catalogo pc
+left join ecommdata_alvi.lista8 l on pc.material = l.material and pc.id_tienda =l.id_tienda
 WHERE pc.surtido_ecommerce IS TRUE 
 and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
+and l.excluido is false
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2;

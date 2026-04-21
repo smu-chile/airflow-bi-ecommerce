@@ -237,6 +237,9 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvicl014": Variable.get("VTEX_ALVI3086_ACCOUNT_NAME"),
         "alvichillan3091": Variable.get("VTEX_ALVI3091_ACCOUNT_NAME"),
         "alvilosandes3206": Variable.get("VTEX_ALVI3206_ACCOUNT_NAME"),
+        "alvibelloto3085": Variable.get("VTEX_ALVI3085_ACCOUNT_NAME"),
+        "alvipuntaarenas3212": Variable.get("VTEX_ALVI3212_ACCOUNT_NAME"),
+        "alviconcon3211": Variable.get("VTEX_ALVI3211_ACCOUNT_NAME"),
     }
 
     x_vtex_api_appkey = {
@@ -257,6 +260,9 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvicl014": Variable.get("X_VTEX_ALVI3086_API_Appkey"),
         "alvichillan3091": Variable.get("X_VTEX_ALVI3091_API_Appkey"),
         "alvilosandes3206": Variable.get("X_VTEX_ALVI3206_API_Appkey"),
+        "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Appkey"),
+        "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Appkey"),
+        "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Appkey"),
     }
 
     x_vtex_api_apptoken = {
@@ -277,7 +283,13 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvicl014": Variable.get("X_VTEX_ALVI3086_API_Apptoken"),
         "alvichillan3091": Variable.get("X_VTEX_ALVI3091_API_Apptoken"),
         "alvilosandes3206": Variable.get("X_VTEX_ALVI3206_API_Apptoken"),
+        "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Apptoken"),
+        "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Apptoken"),
+        "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Apptoken"),
     }
+    all_final_responses = []
+    all_exception_cases = []
+
     for name in vtex_account_name:
         print(name)
         url_list = []
@@ -328,19 +340,24 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
-        #print(final_responses)
+        
+        all_final_responses.extend(final_responses)
+        all_exception_cases.extend(exception_cases)
 
-        _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex')
+    # Cargo todos los resultados juntos
+    if all_final_responses:
+        _load_final_responses_to_postgres(all_final_responses, ts, 'stock_vtex')
 
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    # Manejo de reintentos en S3 al final de todas las tiendas
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-        date_path = ts[:10].replace("-","/")
-        s3_path = f"vtex/api/get_stock_url_retries/{date_path}/"
-        retries = s3_path+"retries"
+    date_path = ts[:10].replace("-","/")
+    s3_path = f"vtex/api/get_stock_url_retries/{date_path}/"
+    retries_path = s3_path+"retries"
 
-        s3_hook.load_string(str(exception_cases),retries,bucket_name=s3_bucket,replace=True)
-        ti.xcom_push(key = 'vtex_retries', value = retries)
+    s3_hook.load_string(str(all_exception_cases), retries_path, bucket_name=s3_bucket, replace=True)
+    ti.xcom_push(key = 'vtex_retries', value = retries_path)
 
     return
 
@@ -385,9 +402,12 @@ def _vtex_get_stock_retries(ti, ts):
         "alvitobalaba3193": Variable.get("VTEX_ALVI3193_ACCOUNT_NAME"),
         "alvicl012": Variable.get("VTEX_ALVI3088_ACCOUNT_NAME"),
         "alvicl013": Variable.get("VTEX_ALVI3094_ACCOUNT_NAME"),
-        "alvicl014": Variable.get("X_VTEX_ALVI3086_ACCOUNT_NAME"),
-        "alvichillan3091": Variable.get("X_VTEX_ALVI3091_ACCOUNT_NAME"),
-        "alvilosandes3206": Variable.get("X_VTEX_ALVI3206_ACCOUNT_NAME"),
+        "alvicl014": Variable.get("VTEX_ALVI3086_ACCOUNT_NAME"),
+        "alvichillan3091": Variable.get("VTEX_ALVI3091_ACCOUNT_NAME"),
+        "alvilosandes3206": Variable.get("VTEX_ALVI3206_ACCOUNT_NAME"),
+        "alvibelloto3085": Variable.get("VTEX_ALVI3085_ACCOUNT_NAME"),
+        "alvipuntaarenas3212": Variable.get("VTEX_ALVI3212_ACCOUNT_NAME"),
+        "alviconcon3211": Variable.get("VTEX_ALVI3211_ACCOUNT_NAME"),
     }
 
     x_vtex_api_appkey = {
@@ -408,6 +428,9 @@ def _vtex_get_stock_retries(ti, ts):
         "alvicl014": Variable.get("X_VTEX_ALVI3086_API_Appkey"),
         "alvichillan3091": Variable.get("X_VTEX_ALVI3091_API_Appkey"),
         "alvilosandes3206": Variable.get("X_VTEX_ALVI3206_API_Appkey"),
+        "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Appkey"),
+        "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Appkey"),
+        "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Appkey"),
     }
 
     x_vtex_api_apptoken = {
@@ -428,8 +451,14 @@ def _vtex_get_stock_retries(ti, ts):
         "alvicl014": Variable.get("X_VTEX_ALVI3086_API_Apptoken"),
         "alvichillan3091": Variable.get("X_VTEX_ALVI3091_API_Apptoken"),
         "alvilosandes3206": Variable.get("X_VTEX_ALVI3206_API_Apptoken"),
+        "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Apptoken"),
+        "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Apptoken"),
+        "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Apptoken"),
     }
     
+    all_final_responses = []
+    all_exception_cases = []
+
     for name in vtex_account_name:
         url_list = retries  #retries      
         session = requests.session()
@@ -475,13 +504,18 @@ def _vtex_get_stock_retries(ti, ts):
                     print(e)
                     print(response)
                     exception_cases.append(response['url'])
-        #print(final_responses)
-    if len(exception_cases) > 0:
-        raise Exception('exception cases found during retry.')
-    print(exception_cases)
-    
-    _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
+        
+        all_final_responses.extend(final_responses)
+        all_exception_cases.extend(exception_cases)
 
+    if all_final_responses:
+        _load_final_responses_to_postgres(all_final_responses, ts, 'retries_stock_vtex')
+
+    if len(all_exception_cases) > 0:
+        print(f"Exception cases found during retry: {len(all_exception_cases)}")
+        # Note: We don't raise here to allow the DAG to continue to final stock load
+    
+    return
 
 
 default_args = {

@@ -3,7 +3,8 @@ boto3==1.20.15
 geopy
 google-auth
 gspread
-jaydebeapi
+jaydebeapi==1.1.1
+JPype1==1.4.1
 oauth2client
 openpyxl
 ortools
