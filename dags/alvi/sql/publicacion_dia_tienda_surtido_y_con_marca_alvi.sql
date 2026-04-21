@@ -45,5 +45,5 @@ FROM ecommdata_alvi.publicacion_catalogo pc
 left join ecommdata_alvi.lista8 l on pc.material = l.material and pc.id_tienda =l.id_tienda
 WHERE pc.surtido_ecommerce IS TRUE
 and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
-and l.bloq_centro is null and l.bloq_formato is null and l.catalogado =true
+and l.excluido is false
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.marca;
