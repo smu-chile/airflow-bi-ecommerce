@@ -2,10 +2,10 @@ FROM reigncl/airflow:2.2.4-python3.9-onbuild
 
 USER root
 RUN sudo rm -f /etc/apt/sources.list.d/pgdg.list
-RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys B7B3B788A8D3785C
+RUN apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys B7B3B788A8D3785C
 RUN echo "deb https://apt-archive.postgresql.org/pub/repos/apt buster-pgdg main" > /etc/apt/sources.list.d/postgresql.list
-RUN echo "deb http://archive.debian.org/debian buster main contrib non-free" > /etc/apt/sources.list && \
-    echo "deb http://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list && \
+RUN echo "deb https://archive.debian.org/debian buster main contrib non-free" > /etc/apt/sources.list && \
+    echo "deb https://archive.debian.org/debian-security buster/updates main" >> /etc/apt/sources.list && \
     apt-get -o Acquire::Check-Valid-Until=false update
 
 RUN apt-get install default-jre -y

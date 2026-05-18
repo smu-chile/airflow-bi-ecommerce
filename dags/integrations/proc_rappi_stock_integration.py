@@ -24,15 +24,19 @@ def _get_rappi_active_stores():
     pg_connection.close()
     return results
 
-def _join_stock_and_promo_prices_from_s3(ds, ti):
+def _join_stock_and_promo_prices_from_s3(ds, ti, **kwargs):
     import json
     import pandas as pd
+    import pendulum
 
     rappi_stores = ti.xcom_pull(key="return_value", task_ids=["get_rappi_active_stores"])[0]
     rappi_store_ids = [rappi_store_id[0] for rappi_store_id in rappi_stores]
     print(rappi_store_ids)
 
+    # Creamos una subcarpeta con el timestamp del run para auditoria
+    ts_folder = pendulum.now('America/Santiago').format('HHmm')
     exec_date = ds.replace("-", "/")
+    run_prefix = f"integraciones/last_millers/stock/out/rappi/{exec_date}/{ts_folder}"
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -44,11 +48,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
     for store_id in rappi_store_ids:
         print(f"Store id: {store_id}")
         
-        join_file_name = f"integraciones/last_millers/stock/out/rappi/{exec_date}/{store_id}.json"
-        if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
-            print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
-            continue
-
+        join_file_name = f"{run_prefix}/{store_id}.json"
+        
+        # Eliminamos el 'continue' para permitir reprocesar siempre en carpetas nuevas
         peya_stock_query = f"""
             select lspp.id_tienda as store_id
                 , case 
@@ -98,15 +100,23 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
 
     cursor.close()
     pg_connection.close()
-    return
+    return run_prefix
 
-def _send_joined_data_to_api(ds):
+def _send_joined_data_to_api(ds, ti, **kwargs):
     import json
     import requests
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/stock/out/rappi/{exec_date}/"
+    # Jalamos el prefijo exacto de la tarea anterior via XCom
+    prefix = ti.xcom_pull(task_ids="join_stock_and_promo_prices_from_s3")
+    if not prefix:
+        prefix = f"integraciones/last_millers/stock/out/rappi/{exec_date}/"
+    
+    # Aseguramos que termine en slash para list_keys
+    if not prefix.endswith("/"):
+        prefix += "/"
 
+    print(f"Reading files from prefix: {prefix}")
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
@@ -160,13 +170,13 @@ default_args = {
 with DAG(
     "proc_rappi_stock_integration",
     default_args=default_args,
-    description="Cruce de stock, precios y precios promocionales simples para integracion Rappi",
+    description="Cruce de stock, precios y precios promocionales simples para integracion Rappi - Se puede reprocesar.",
     schedule_interval=None, 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS"],
+    tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS", "MAURICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
