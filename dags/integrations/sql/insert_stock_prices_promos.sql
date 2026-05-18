@@ -46,7 +46,7 @@ join (
 	left join ecommdata.productos ep on ep.ref_id = p.ref_id
 	left join ecommdata.categorias ec on ep.id_categoria = ec.id
 	where p.fecha_carga = '{{ds}}'
-	and (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
+	and (ec.n1 NOT IN ('No Trabajar', 'Inactivos') OR ec.n1 IS NULL)
 ) _t2
 on _t.material = _t2.material 
 and _t.unidad_de_medida = _t2.umv
