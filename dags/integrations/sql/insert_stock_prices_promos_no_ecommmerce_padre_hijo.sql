@@ -17,7 +17,7 @@ join productos_lista8 l
 left join ecommdata.productos ep on ep.ref_id = p.ref_id
 left join ecommdata.categorias ec on ep.id_categoria = ec.id
 where p.fecha_carga = '{{ds}}'
-and (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
+and (ec.n1 NOT IN ('No Trabajar', 'Inactivos') OR ec.n1 IS NULL)
 group by p.ref_id)
 select _t.id_tienda,
 	_t.ean,
