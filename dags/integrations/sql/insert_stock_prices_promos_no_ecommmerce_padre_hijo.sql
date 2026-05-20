@@ -12,6 +12,9 @@ select p.ref_id
 	, split_part(p.ref_id, '-', 2) as umv
 	, max(p.precio) as precio
 from ecommdata.precios p 
+join ecommdata.tiendas t
+	on p.id_tienda_janis = t.id_janis
+	and t.status = 1
 join productos_lista8 l 
 	on l.ref_id = p.ref_id 
 left join ecommdata.productos ep on ep.ref_id = p.ref_id
