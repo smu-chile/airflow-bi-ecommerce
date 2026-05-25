@@ -38,69 +38,86 @@ def _join_promo_prices_test_from_s3(ds, ti):
     uber_promotions_query = None
 
     uber_promotions_query = f""" 
-    WITH promociones_filtradas AS (
-    SELECT DISTINCT 
-        p.ean AS ean,
-        tlm.id AS id_de_tienda,
-        wp.material AS sku,
-        wp.precio_modal AS price,
-        CASE
-            WHEN wp.umv = 'ST' THEN 'UN'
-            ELSE wp.umv
-        END AS unidad_de_medida_venta,
-        CASE
-            WHEN wp.desc_promocion IN ('PRECIO FIJO', '% DE DESCUENTO') THEN 'descuento'
-            ELSE 'pack'
-        END AS tipo_de_promoción,
-        CASE
-            WHEN wp.desc_promocion IN ('COMBINACION NXM') THEN CONCAT(wp.cantidad_n, 'x', wp.cantidad_m)
-            WHEN wp.desc_promocion IN ('COMBINACION NX$') THEN CONCAT(wp.cantidad_n, 'x')
-            ELSE 'null'
-        END AS combinacion,
-        wp.precio_promocional AS precio_venta_individual,
-        wp.precio_total_promocional AS precio_venta_total,
-        CURRENT_DATE AS fecha_inicio_venta,
-        wp.fecha_fin_de_promocion AS fecha_final_venta,
-        ROW_NUMBER() OVER (PARTITION BY wp.material, tlm.id ORDER BY wp.precio_promocional ASC) AS rn
-    FROM ecommdata.workflow_promociones wp
-    LEFT JOIN integraciones.stock s ON s.sku_product = wp.material
-    LEFT JOIN integraciones.tiendas_last_millers tlm ON tlm.id_uber IS NOT NULL
-    LEFT JOIN integraciones.productos p ON s.sku_key = p.sku_key AND p.ean = wp.ean
-    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
-      AND wp.fecha_fin_de_promocion >= CURRENT_DATE
-      AND wp.tipo_promocion IN (1, 2, 4, 7)
-      AND wp.registro_valido = TRUE
-      and wp.cantidad_n < 10
-      AND wp.organizacion_ventas = '1000'
-      AND wp.canal_distribucion = '10'
-      AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
-      AND wp.nombre_promocion::TEXT !~~ '%ZONA%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%MFC%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%BANCO%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%UNIPAY%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%TERCERA%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%917%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '%ESTADO%'::TEXT
-      AND wp.nombre_promocion::TEXT !~~ '% LOC%'::TEXT
-      and wp.nombre_promocion::text !~~ '%CYBER%'::text
-      AND wp.nombre_promocion::TEXT !~~ '%LIQ%'::text
-      AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
-                                 '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
-                                 '4000512024','1120012025','1120022025','1120032025','1120042025','1120212025')
-)
-SELECT ean,
-       id_de_tienda,
-       sku,
-       price,
-       unidad_de_medida_venta,
-       tipo_de_promoción,
-       combinacion,
-       precio_venta_individual,
-       precio_venta_total,
-       fecha_inicio_venta,
-       fecha_final_venta
-FROM promociones_filtradas
-WHERE rn = 1;
+    WITH promociones_base AS (
+        SELECT DISTINCT
+            wp.ean,
+            wp.material,
+            wp.precio_modal,
+            wp.umv,
+            wp.desc_promocion,
+            wp.cantidad_n,
+            wp.cantidad_m,
+            wp.precio_promocional,
+            wp.precio_total_promocional,
+            wp.fecha_fin_de_promocion
+        FROM ecommdata.workflow_promociones wp
+        LEFT JOIN ecommdata.productos ep ON ep.material = wp.material
+        LEFT JOIN ecommdata.categorias ec ON ep.id_categoria = ec.id
+        WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE
+          AND wp.fecha_fin_de_promocion >= CURRENT_DATE
+          AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos','Integración') OR ec.n1 IS NULL)
+          AND wp.tipo_promocion IN (1, 2, 4, 7)
+          AND wp.registro_valido = TRUE
+          AND wp.cantidad_n < 10
+          AND wp.organizacion_ventas = '1000'
+          AND wp.canal_distribucion = '10'
+          AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+          AND wp.nombre_promocion NOT ILIKE '%ZONA%'
+          AND wp.nombre_promocion NOT ILIKE '%MFC%'
+          AND wp.nombre_promocion NOT ILIKE '%BANCO%'
+          AND wp.nombre_promocion NOT ILIKE '%UNIPAY%'
+          AND wp.nombre_promocion NOT ILIKE '%TERCERA%'
+          AND wp.nombre_promocion NOT ILIKE '%917%'
+          AND wp.nombre_promocion NOT ILIKE '%ESTADO%'
+          AND wp.nombre_promocion NOT ILIKE '% LOC%'
+          AND wp.nombre_promocion NOT ILIKE '%CYBER%'
+          AND wp.nombre_promocion NOT ILIKE '%LIQ%'
+          AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
+                                     '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
+                                     '4000512024','1120012025','1120022025','1120032025','1120042025','1120212025')
+    ),
+    promociones_filtradas AS (
+        SELECT
+            pb.ean                                              AS ean,
+            tlm.id                                              AS id_de_tienda,
+            pb.material                                         AS sku,
+            pb.precio_modal                                     AS price,
+            CASE WHEN pb.umv = 'ST' THEN 'UN' ELSE pb.umv END  AS unidad_de_medida_venta,
+            CASE
+                WHEN pb.desc_promocion IN ('PRECIO FIJO', '% DE DESCUENTO') THEN 'descuento'
+                ELSE 'pack'
+            END                                                 AS tipo_de_promoción,
+            CASE
+                WHEN pb.desc_promocion = 'COMBINACION NXM' THEN CONCAT(pb.cantidad_n, 'x', pb.cantidad_m)
+                WHEN pb.desc_promocion = 'COMBINACION NX$' THEN CONCAT(pb.cantidad_n, 'x')
+                ELSE 'null'
+            END                                                 AS combinacion,
+            pb.precio_promocional                               AS precio_venta_individual,
+            pb.precio_total_promocional                         AS precio_venta_total,
+            CURRENT_DATE                                        AS fecha_inicio_venta,
+            pb.fecha_fin_de_promocion                           AS fecha_final_venta,
+            ROW_NUMBER() OVER (
+                PARTITION BY pb.material, tlm.id
+                ORDER BY pb.precio_promocional ASC
+            )                                                   AS rn
+        FROM promociones_base pb
+        LEFT JOIN integraciones.stock s ON s.sku_product = pb.material
+        LEFT JOIN integraciones.tiendas_last_millers tlm ON tlm.id_uber IS NOT NULL
+        INNER JOIN integraciones.productos p ON p.ean = pb.ean
+    )
+    SELECT ean,
+           id_de_tienda,
+           sku,
+           price,
+           unidad_de_medida_venta,
+           tipo_de_promoción,
+           combinacion,
+           precio_venta_individual,
+           precio_venta_total,
+           fecha_inicio_venta,
+           fecha_final_venta
+    FROM promociones_filtradas
+    WHERE rn = 1;
     """
     cursor.execute(uber_promotions_query)  # Ejecuta la consulta directamente
     results = cursor.fetchall()  # Obtiene los resultados
