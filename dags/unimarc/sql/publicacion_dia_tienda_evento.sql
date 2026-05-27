@@ -1,4 +1,5 @@
-DELETE FROM catalogo.publicacion_dia_tienda_evento WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
+DELETE FROM catalogo.publicacion_dia_tienda_evento
+WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 insert into catalogo.publicacion_dia_tienda_evento
 SELECT pc.fecha_hora,
     pc.id_tienda,
@@ -10,42 +11,62 @@ SELECT pc.fecha_hora,
     sum(
         CASE
             WHEN pc.publicacion_valida IS TRUE THEN 1
-            ELSE 0
-        END) AS publicacion_valida,
+            ELSE 0im
+        END
+    ) AS publicacion_valida,
     sum(
         CASE
             WHEN pc.disponible_web IS TRUE THEN 1
             ELSE 0
-        END) AS disponible_web,
+        END
+    ) AS disponible_web,
     sum(
         CASE
             WHEN COALESCE(pc.stock_janis, 0::bigint) > 0 THEN 1
             ELSE 0
-        END) AS con_stock,
+        END
+    ) AS con_stock,
     sum(
         CASE
             WHEN pc.stock_valido IS TRUE THEN 1
             ELSE 0
-        END) AS con_stock_visible,
+        END
+    ) AS con_stock_visible,
     sum(
         CASE
             WHEN pc.foto_valida IS TRUE THEN 1
             ELSE 0
-        END) AS con_foto,
+        END
+    ) AS con_foto,
     sum(
         CASE
             WHEN pc.categoria_valida IS TRUE THEN 1
             ELSE 0
-        END) AS con_categoria,
+        END
+    ) AS con_categoria,
     sum(
         CASE
             WHEN pc.tienda_valida IS TRUE THEN 1
             ELSE 0
-        END) AS con_tienda,
+        END
+    ) AS con_tienda,
     pc.mfc
 FROM ecommdata.publicacion_catalogo pc
-INNER JOIN catalogo.productos_eventos pe on pc.ref_id = pe.ref_id
-left join ecommdata.lista8 l on pc.material = l.material and pc.id_tienda =l.id_tienda
-WHERE (pc.surtido_ecommerce IS TRUE or pc.mfc is TRUE) and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
-and l.bloq_centro is null and l.bloq_formato is null and l.catalogado =true
-GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pe.evento, pc.mfc;
+    INNER JOIN catalogo.productos_eventos pe on pc.ref_id = pe.ref_id
+    left join ecommdata.lista8 l on pc.material = l.material
+    and pc.id_tienda = l.id_tienda
+WHERE (
+        pc.surtido_ecommerce IS TRUE
+        or pc.mfc is TRUE
+    )
+    and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
+    and l.bloq_centro is null
+    and l.bloq_formato is null
+    and l.catalogado = true
+GROUP BY pc.fecha_hora,
+    pc.id_tienda,
+    pc.c1,
+    pc.c2,
+    pc.c3,
+    pe.evento,
+    pc.mfc;
