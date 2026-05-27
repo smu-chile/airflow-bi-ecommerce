@@ -28,7 +28,6 @@ def db_get_ref_id_atributos_producto():
             left join ecommdata.skus_exclusion_limite_compra ex on p.ref_id = ex.ref_id
             where length(split_part(p.ref_id, '-', 1)) = 18 
             and length(split_part(p.ref_id,'-',2)) >= 2
-            and split_part(p.ref_id,'-',2) not in ('KG', 'KGV')
             and ex.ref_id is null
             order by p.ref_id desc;
             """
