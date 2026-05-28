@@ -11,7 +11,7 @@ SELECT pc.fecha_hora,
     sum(
         CASE
             WHEN pc.publicacion_valida IS TRUE THEN 1
-            ELSE 0im
+            ELSE 0
         END
     ) AS publicacion_valida,
     sum(
