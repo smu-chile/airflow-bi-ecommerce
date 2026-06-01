@@ -15,7 +15,7 @@ ENV LD_LIBRARY_PATH="/usr/lib/jvm/java-8-openjdk/jre/lib/amd64/server/"
 ADD requirements.txt /opt/airflow/
 
 USER airflow
-RUN pip install --upgrade pip \
+RUN pip install --upgrade pip certifi \
     && pip install --no-cache-dir -r requirements.txt \
     && pip install --no-cache-dir \
         "apache-airflow-providers-google>=4.0,<4.2" \
