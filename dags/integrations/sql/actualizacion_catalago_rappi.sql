@@ -23,6 +23,8 @@ WITH RankedCatalog AS (
     LEFT JOIN ecommdata.imagenes_sku t 
         ON s.ref_id = t.ref_id AND t.orden = 1
     WHERE (ec.n1 NOT IN ('No Trabajar', 'Inactivos') OR ec.n1 IS NULL)
+      --AND (ec.status = 'activo' OR ec.status IS NULL)
+      AND l.excluido IS NOT TRUE -- Evita considerar los registros marcados como excluidos (True)
 )
 SELECT 
     sku,
@@ -35,6 +37,15 @@ SELECT
     is_prepackaged,
     image
 FROM RankedCatalog
-WHERE rn = 1;
-
-
+WHERE rn = 1
+GROUP BY 
+    sku,
+    ean,
+    name,
+    quantity,
+    unit_type,
+    selling_units,
+    is_weightable,
+    is_prepackaged,
+    image
+HAVING image IS NOT NULL;
