@@ -12,6 +12,15 @@ from datetime import datetime, timedelta
 from utils.postgres_utils import query_to_df
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
+# ============================================================
+# Semanas de Cyberday a excluir del cálculo de stock seguridad
+# Formato: conjunto de tuplas (año, semana_ISO)
+# ============================================================
+CYBERDAY_WEEKS = {
+    (2026, 23),  # 01-06-2026 al 07-06-2026
+    (2026, 41),  # 05-10-2026 al 11-10-2026
+}
+
 def _check_time(ts):
     
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
@@ -60,7 +69,8 @@ def venta_tienda(ds):
                     CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
                     v.venta_umv as cantidad,
                     date_part('dow',v.fecha)::int as dia,
-                    date_part('week',v.fecha)::int as semana
+                    date_part('week',v.fecha)::int as semana,
+                    date_part('year',v.fecha)::int as anio
                     from ecommdata.venta_sku_tienda as v
                     left join ecommdata.tiendas as t
                     on LPAD(v.id_tienda , 4, '0') = t.id
@@ -170,6 +180,15 @@ def stock_ventas_tiendas_to_s3_am(ds):
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
     dia = (dia + 1) % 7
+
+    # Excluir ventas de semanas Cyberday (no distorsionar el promedio)
+    mask_cyberday = df_venta_tienda.apply(
+        lambda r: (int(r["anio"]), int(r["semana"])) in CYBERDAY_WEEKS, axis=1
+    )
+    semanas_excluidas = df_venta_tienda[mask_cyberday][["anio","semana"]].drop_duplicates()
+    if not semanas_excluidas.empty:
+        print(f"[AM] Excluyendo semanas Cyberday del promedio de ventas: {semanas_excluidas.to_dict('records')}")
+    df_venta_tienda = df_venta_tienda[~mask_cyberday]
 
     #filtramos columnas necesarias de dataframe de ventas
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
@@ -364,6 +383,15 @@ def stock_ventas_tiendas_to_s3_pm(ds):
     dia = datetime.strptime(fecha_str, formato_str) 
     dia = dia.weekday()
     dia = (dia + 1) % 7
+
+    # Excluir ventas de semanas Cyberday (no distorsionar el promedio)
+    mask_cyberday = df_venta_tienda.apply(
+        lambda r: (int(r["anio"]), int(r["semana"])) in CYBERDAY_WEEKS, axis=1
+    )
+    semanas_excluidas = df_venta_tienda[mask_cyberday][["anio","semana"]].drop_duplicates()
+    if not semanas_excluidas.empty:
+        print(f"[PM] Excluyendo semanas Cyberday del promedio de ventas: {semanas_excluidas.to_dict('records')}")
+    df_venta_tienda = df_venta_tienda[~mask_cyberday]
 
     df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
 
