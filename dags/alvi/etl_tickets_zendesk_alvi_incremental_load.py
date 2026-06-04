@@ -143,11 +143,12 @@ def _load_ticket_zendesk_to_s3(ts, ds):
         estado = ticket_json['estado']
         if estado in ['Closed', 'Solved']:
             metrics = get_metrics_by_ticket_id(id, url, API_KEY)
-            dias_resolucion = metrics['full_resolution_time_in_minutes']['calendar'] / 1440
-            horas_primera_respuesta = metrics['first_resolution_time_in_minutes']['business'] / 60
-            ticket_json['fecha_cierre'] = metrics['solved_at']
-            ticket_json['total_dias_hasta_resolucion'] = round(dias_resolucion, 2)
-            ticket_json['horas_primera_respuesta'] = round(horas_primera_respuesta, 2)
+            if metrics:
+                dias_resolucion = metrics['full_resolution_time_in_minutes']['calendar'] / 1440
+                horas_primera_respuesta = metrics['first_resolution_time_in_minutes']['business'] / 60
+                ticket_json['fecha_cierre'] = metrics['solved_at']
+                ticket_json['total_dias_hasta_resolucion'] = round(dias_resolucion, 2)
+                ticket_json['horas_primera_respuesta'] = round(horas_primera_respuesta, 2)
         
         audits = get_audits_by_ticket_id(id, url, API_KEY)
         if isinstance(audits, list):
