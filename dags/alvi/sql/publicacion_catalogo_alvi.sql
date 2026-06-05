@@ -68,3 +68,5 @@ end as stock_valido
 end as tienda_valida) val on true
 where s.fecha = '{{ds}}'::date
 order by s.ultima_actualizacion, s.id_tienda desc;
+
+ANALYZE ecommdata_alvi.publicacion_catalogo;

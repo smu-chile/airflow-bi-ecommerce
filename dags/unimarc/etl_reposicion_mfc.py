@@ -477,8 +477,8 @@ default_args = {
 with DAG(
     'etl_reposicion_mfc',
     default_args=default_args,
-    description="consulta de datos de Stock MFC, maestra reposicion desde postgres para logica de reposicion.",
-    schedule_interval="0 7,19 * * *",
+    description="[Ajustar horario al volver a encender. lista8 a las 07:40 UTC] consulta de datos de Stock MFC, maestra reposicion desde postgres para logica de reposicion.",
+    schedule_interval=None,
     start_date=pendulum.datetime(2022, 8, 25, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,

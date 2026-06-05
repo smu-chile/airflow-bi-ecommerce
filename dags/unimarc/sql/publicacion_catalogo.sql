@@ -94,3 +94,5 @@ end as precio_valido
 end as tienda_valida) val on true
 where s.fecha = '{{ds}}'::date
 order by s.ultima_actualizacion, s.id_tienda desc;
+
+ANALYZE ecommdata.publicacion_catalogo;
