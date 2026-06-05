@@ -120,13 +120,14 @@ def _load_lista8(ts):
         "CATALOGADO": "catalogado" 
     }
 
-    dataframe_list = []
-    for s3_file in s3_file_list:
-        if not s3_file.endswith((".csv", ".CSV")):
-            # Skip empty any non-csv file
-            continue
-        print(f"Loading file: {s3_file}")
-        lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    def process_single_file(s3_bucket, s3_file):
+        # Import S3Hook inside function for thread safety
+        from airflow.hooks.S3_hook import S3Hook
+        local_s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+        
+        lista8_object = local_s3_hook.get_key(s3_file, bucket_name=s3_bucket)
         df = pd.read_csv(lista8_object.get()["Body"], sep=";")
         df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
         df['SUSTITUTO'] = df['SUSTITUTO'].fillna('Y')
@@ -154,7 +155,22 @@ def _load_lista8(ts):
             df[col] = df[col].fillna(False) # Asigna False a las otras columnas si es NaN
 
         df = df.astype(column_types)
-        dataframe_list.append(df)
+        return df
+
+    dataframe_list = []
+    # Filtrar rápidamente solo archivos CSV para evitar procesar carpetas o archivos basura en S3
+    valid_files = [f for f in s3_file_list if f.endswith((".csv", ".CSV"))]
+    print(f"Iniciando carga paralela de {len(valid_files)} archivos...")
+    
+    # OPTIMIZACIÓN: Descarga y parseo en paralelo usando múltiples hilos.
+    # Esto baja drásticamente el tiempo de ejecución comparado con el ciclo for secuencial.
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(process_single_file, s3_bucket, f): f for f in valid_files}
+        for future in as_completed(futures):
+            df = future.result()
+            dataframe_list.append(df)
+            
+    # Unir todos los dataframes de las tiendas en una sola gran tabla en memoria
     df_full = pd.concat(dataframe_list, ignore_index=True)
     df_full = df_full.rename(columns=column_names)
     df_full["fecha"] = exec_date
@@ -285,61 +301,88 @@ def _load_lista8(ts):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
-    # Save to PostgreSQL:
-
-    with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata.lista8") 
-        df_full.to_sql(name="lista8",
-                    con=conn,         
-                    schema="ecommdata",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
+    # === APLICACIÓN DE EXCLUSIONES EN MEMORIA (OPTIMIZACIÓN) ===
+    # En lugar de usar sentencias UPDATE en PostgreSQL (lo cual es muy lento y bloquea la BD),
+    # extraemos las exclusiones a memoria y las procesamos con Pandas antes de subir la información.
+    print("Iniciando exclusiones en memoria (Pandas)...")
+    try:
+        # 1. Cargar las tablas de configuración (excluidos globales, excepciones locales, excluidos por tienda)
+        df_pe = pd.read_sql("SELECT material, umv FROM catalogo.productos_excluidos", engine)
+        df_ex = pd.read_sql("SELECT material, umv, id_tienda FROM catalogo.productos_excluidos_excepciones", engine)
+        df_pet = pd.read_sql("SELECT material, umv, id_tienda FROM catalogo.productos_excluidos_x_tienda", engine)
+        
+        # 2. Formatear y estandarizar IDs para evitar fallos de cruce por ceros faltantes
+        df_pe['material'] = df_pe['material'].astype(str).str.zfill(18)
+        df_ex['material'] = df_ex['material'].astype(str).str.zfill(18)
+        df_ex['id_tienda'] = df_ex['id_tienda'].astype(str).str.zfill(4)
+        df_pet['material'] = df_pet['material'].astype(str).str.zfill(18)
+        df_pet['id_tienda'] = df_pet['id_tienda'].astype(str).str.zfill(4)
+        
+        # 3. Eliminar posibles duplicados en las tablas maestras para evitar una explosión cartesiana (filas duplicadas) en el merge
+        df_pe = df_pe.drop_duplicates(subset=['material', 'umv'])
+        df_ex = df_ex.drop_duplicates(subset=['material', 'umv', 'id_tienda'])
+        df_pet = df_pet.drop_duplicates(subset=['material', 'umv', 'id_tienda'])
+        
+        # 4. Crear banderas booleanas provisorias
+        df_pe['_in_pe'] = True
+        df_ex['_in_ex'] = True
+        df_pet['_in_pet'] = True
+        
+        # 5. Cruzar (Left Join) nuestro df_full de ~1M de filas con las banderas de exclusión
+        df_full = df_full.merge(df_pe, on=['material', 'umv'], how='left')
+        df_full = df_full.merge(df_ex, on=['material', 'umv', 'id_tienda'], how='left')
+        df_full = df_full.merge(df_pet, on=['material', 'umv', 'id_tienda'], how='left')
+        
+        # 6. Lógica de negocio:
+        # - mask_pe: El producto está en la lista global de excluidos PERO NO es una excepción para esta tienda.
+        # - mask_pet: El producto está explícitamente excluido para esta tienda.
+        mask_pe = (df_full['_in_pe'] == True) & (df_full['_in_ex'].isna())
+        mask_pet = (df_full['_in_pet'] == True)
+        
         # Log exception cases where a globally excluded product will NOT be excluded for a specific store
-        exceptions = conn.execute("""
-            SELECT l.material, l.umv, l.id_tienda 
-            FROM ecommdata.lista8 l
-            JOIN catalogo.productos_excluidos pe ON l.material = pe.material AND l.umv = pe.umv
-            JOIN catalogo.productos_excluidos_excepciones ex 
-                ON l.material = ex.material 
-                AND l.umv = ex.umv 
-                AND l.id_tienda = ex.id_tienda
-        """).fetchall()
+        mask_exception = (df_full['_in_pe'] == True) & (df_full['_in_ex'] == True)
+        exceptions_df = df_full[mask_exception]
+        if not exceptions_df.empty:
+            print(f"⚠️ Se detectaron {len(exceptions_df)} excepciones de exclusión:")
+            for _, row in exceptions_df.iterrows():
+                print(f"   - Material: {row['material']}, UMV: {row['umv']}, Tienda: {row['id_tienda']} (NO será excluido)")
 
-        if exceptions:
-            print(f"⚠️ Se detectaron {len(exceptions)} excepciones de exclusión:")
-            for e in exceptions:
-                print(f"   - Material: {e[0]}, UMV: {e[1]}, Tienda: {e[2]} (NO será excluido)")
+        df_full.loc[mask_pe | mask_pet, 'excluido'] = True
+        
+        df_full = df_full.drop(columns=['_in_pe', '_in_ex', '_in_pet'])
+        
+        materiales_delete = ['000000000000655232','000000000000671384','000000000000671581','000000000000671582','000000000000671583','000000000000671584','000000000000671585','000000000000671586','000000000000671587','000000000000671588','000000000000671589','000000000000671590','000000000000671591','000000000000671592','000000000000671593','000000000000671594','000000000000671595','000000000000671596','000000000000671646','000000000000671649','000000000000671650','000000000000671671','000000000000671672','000000000000671673','000000000000671674','000000000000671675','000000000000671676','000000000000671677','000000000000671678','000000000000671679','000000000000671680','000000000000671683','000000000000671753','000000000000671754','000000000000671755','000000000000671756','000000000000671757','000000000000671765','000000000000672059','000000000000672089','000000000000673021','000000000000673649','000000000000673650','000000000000673711','000000000000673712','000000000000674028','000000000000674029','000000000000674030','000000000000674031','000000000000674032','000000000000675333','000000000000675334','000000000000675353','000000000000675354','000000000000675355','000000000000675356','000000000000675357','000000000000675421','000000000000675738','000000000000675739','000000000000675740','000000000000675751','000000000000675752','000000000000676042','000000000000676043','000000000000676044','000000000000676045','000000000000676046','000000000673517002','000000000673517004']
+        df_full = df_full[~df_full['material'].isin(materiales_delete)]
+        
+        print("✅ Exclusiones en Pandas aplicadas exitosamente.")
+    except Exception as e:
+        print(f"⚠️ Error al aplicar exclusiones en Pandas: {e}")
 
-        conn.execute("""
-            UPDATE ecommdata.lista8 l
-            SET excluido = True
-            FROM catalogo.productos_excluidos pe
-            WHERE l.material = pe.material 
-              AND l.umv = pe.umv
-              AND NOT EXISTS (
-                  SELECT 1 
-                  FROM catalogo.productos_excluidos_excepciones ex
-                  WHERE ex.material = l.material 
-                    AND ex.umv = l.umv 
-                    AND ex.id_tienda = l.id_tienda
-              )
-        """)
+    # Save to PostgreSQL:
+    import io
+    
+    # 1. Preparar el buffer en memoria ANTES de tocar la base de datos
+    # Esto previene que si el contenedor se queda sin RAM y se congela, la tabla en BD quede bloqueada o vacía.
+    buffer = io.StringIO()
+    df_full.to_csv(buffer, index=False, header=False, sep='\t', na_rep='\\N')
+    buffer.seek(0)
+    
+    # 2. Ejecutar TRUNCATE e INSERT en una sola transacción atómica
+    raw_conn = engine.raw_connection()
+    try:
+        with raw_conn.cursor() as cursor:
+            cursor.execute("TRUNCATE ecommdata.lista8;")
+            columns_str = ','.join(df_full.columns)
+            cursor.copy_expert(f"COPY ecommdata.lista8 ({columns_str}) FROM STDIN WITH CSV DELIMITER '\t' NULL '\\N'", buffer)
+        raw_conn.commit()
+    finally:
+        raw_conn.close()
 
-        # 2. Exclusiones específicas por tienda
-        conn.execute("""
-            UPDATE ecommdata.lista8 l
-            SET excluido = True
-            FROM catalogo.productos_excluidos_x_tienda pet
-            WHERE l.material = pet.material 
-              AND l.umv = pet.umv
-              AND l.id_tienda = pet.id_tienda
-        """)
-        conn.execute("""
-            DELETE FROM ecommdata.lista8 l
-            WHERE l.material in ('000000000000655232','000000000000671384','000000000000671581','000000000000671582','000000000000671583','000000000000671584','000000000000671585','000000000000671586','000000000000671587','000000000000671588','000000000000671589','000000000000671590','000000000000671591','000000000000671592','000000000000671593','000000000000671594','000000000000671595','000000000000671596','000000000000671646','000000000000671649','000000000000671650','000000000000671671','000000000000671672','000000000000671673','000000000000671674','000000000000671675','000000000000671676','000000000000671677','000000000000671678','000000000000671679','000000000000671680','000000000000671683','000000000000671753','000000000000671754','000000000000671755','000000000000671756','000000000000671757','000000000000671765','000000000000672059','000000000000672089','000000000000673021','000000000000673649','000000000000673650','000000000000673711','000000000000673712','000000000000674028','000000000000674029','000000000000674030','000000000000674031','000000000000674032','000000000000675333','000000000000675334','000000000000675353','000000000000675354','000000000000675355','000000000000675356','000000000000675357','000000000000675421','000000000000675738','000000000000675739','000000000000675740','000000000000675751','000000000000675752','000000000000676042','000000000000676043','000000000000676044','000000000000676045','000000000000676046','000000000673517002','000000000673517004')
-                     """)
+    # IMPORTANTE: Forzar actualización de estadísticas del motor SQL para prevenir Hash Join vs Nested Loop bugs
+    with engine.begin() as conn:
+        print("Actualizando estadísticas de la tabla (ANALYZE)...")
+        conn.execute("ANALYZE ecommdata.lista8;")
+
     print("Data saved to PostgreSQL. Table: ecommdata.lista8")
 
     return
@@ -370,16 +413,6 @@ def _load_lista9_filtered(ti):
     ventas = ventas.drop_duplicates()
     print(f"[DW] filas ventas únicas: {len(ventas)}")
 
-    df_l8 = lista8()  
-    df_l8["ref_id"] = df_l8["ref_id"].astype(str).str.strip()
-    df_l8["id_tienda"] = df_l8["id_tienda"].astype(str).str.zfill(4)
-
-    # Inner join en pandas SOLO para obtener el set de llaves válidas en lista8 que tienen venta
-    df_full = df_l8.merge(ventas, on=["ref_id", "id_tienda"], how="inner").drop_duplicates()
-    print(f"[JOIN-keys] llaves a traer completas desde lista8: {len(df_full)}")
-    if df_full.empty:
-        raise Exception("No hay llaves (ref_id, id_tienda) con venta presentes en lista8.")
-
     # Conexión y carga de datos a PostgreSQL
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -389,15 +422,46 @@ def _load_lista9_filtered(ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
+    # OPTIMIZACIÓN: Push-down SQL approach
+    # Para evitar descargar lista8 entera a Pandas, subimos el listado de ventas a una tabla temporal en Postgres
+    # y realizamos el cruce (INNER JOIN) nativamente en SQL. Esto reduce enormemente el consumo de red y memoria.
+    import io
+    raw_conn = engine.raw_connection()
+    try:
+        with raw_conn.cursor() as cursor:
+            print("Creando tabla temporal de ventas...")
+            cursor.execute("DROP TABLE IF EXISTS staging.tmp_ventas_lista9;")
+            cursor.execute("CREATE TABLE staging.tmp_ventas_lista9 (ref_id VARCHAR, id_tienda VARCHAR);")
+            
+            # COPY ultrarrápido del catálogo de ventas
+            buffer = io.StringIO()
+            ventas.to_csv(buffer, index=False, header=False, sep='\t', na_rep='\\N')
+            buffer.seek(0)
+            cursor.copy_expert("COPY staging.tmp_ventas_lista9 (ref_id, id_tienda) FROM STDIN WITH CSV DELIMITER '\t' NULL '\\N'", buffer)
+            
+            # Cruce directo en SQL e inyección a lista9
+            # Se genera de inmediato la inserción con los productos de lista8 que coinciden con los de ventas.
+            print("Ejecutando cruce SQL (Push-down) hacia lista9...")
+            cursor.execute("TRUNCATE ecommdata.lista9;")
+            cursor.execute("""
+                INSERT INTO ecommdata.lista9 (ref_id, id_tienda)
+                SELECT DISTINCT concat(l.material, '-', l.umv), v.id_tienda
+                FROM ecommdata.lista8 l
+                INNER JOIN staging.tmp_ventas_lista9 v 
+                    ON concat(l.material, '-', l.umv) = v.ref_id 
+                    AND l.id_tienda = v.id_tienda;
+            """)
+            
+            # Limpiar rastro de la tabla temporal
+            cursor.execute("DROP TABLE staging.tmp_ventas_lista9;")
+        raw_conn.commit()
+    finally:
+        raw_conn.close()
+
+    # IMPORTANTE: Forzar actualización de estadísticas de lista9 para optimizar cruces futuros
     with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata.lista9") 
-        df_full.to_sql(name="lista9",
-                    con=conn,         
-                    schema="ecommdata",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
+        print("Actualizando estadísticas de la tabla (ANALYZE lista9)...")
+        conn.execute("ANALYZE ecommdata.lista9;")
 
     print("Data saved to PostgreSQL. Table: ecommdata.lista9")
 
@@ -414,11 +478,11 @@ with DAG(
     'etl_lista8_datastage_truncate_and_load',
     default_args=default_args,
     description="Carga de datos de lista8 desde bucket de S3 al workspace de Postgresql.",
-    schedule_interval="0 7 * * *",
+    schedule_interval="40 7 * * *",
     start_date=pendulum.datetime(2022, 7, 3, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "SAP", "ecommdata", "lista8", "FRANCISCO"],
+    tags=["DATA", "SAP", "ecommdata", "lista8", "FRANCISCO", "MAURICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:

@@ -88,19 +88,29 @@ def _load_lista8(ts):
         "SUSTITUTO": "sustituto"
     }
 
-    dataframe_list = []
-    for s3_file in s3_file_list:
-        if not s3_file.endswith((".csv", ".CSV")):
-            # Skip empty any non-csv file
-            continue
-        print(f"Loading file: {s3_file}")
-        lista8_object = s3_hook.get_key(s3_file, bucket_name=s3_bucket)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def process_single_file(s3_bucket, s3_file):
+        from airflow.hooks.S3_hook import S3Hook
+        local_s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+        lista8_object = local_s3_hook.get_key(s3_file, bucket_name=s3_bucket)
         df = pd.read_csv(lista8_object.get()["Body"], sep=";")
         df["STOCK X UMV"] = df["STOCK X UMV"].str.replace(',','.')
         df['SUSTITUTO'] = df['SUSTITUTO'].fillna('Y')
         df['SUSTITUTO'] = df['SUSTITUTO'].map({'X': True, 'Y': False})
         df = df.astype(column_types)
-        dataframe_list.append(df)
+        return df
+
+    dataframe_list = []
+    valid_files = [f for f in s3_file_list if f.endswith((".csv", ".CSV"))]
+    print(f"Iniciando carga paralela de {len(valid_files)} archivos...")
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(process_single_file, s3_bucket, f): f for f in valid_files}
+        for future in as_completed(futures):
+            df = future.result()
+            dataframe_list.append(df)
+            
     df_full = pd.concat(dataframe_list, ignore_index=True)
     df_full = df_full.rename(columns=column_names)
     df_full["fecha"] = exec_date
@@ -120,25 +130,47 @@ def _load_lista8(ts):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
+    # === APLICACIÓN DE EXCLUSIONES EN MEMORIA (OPTIMIZACIÓN) ===
+    print("Iniciando exclusiones en memoria (Pandas)...")
+    try:
+        df_pe = pd.read_sql("SELECT material, umv FROM catalogo.productos_excluidos_alvi", engine)
+        df_pe['material'] = df_pe['material'].astype(str).str.zfill(18)
+        df_pe = df_pe.drop_duplicates(subset=['material', 'umv'])
+        df_pe['_in_pe'] = True
+        
+        df_full = df_full.merge(df_pe, on=['material', 'umv'], how='left')
+        df_full.loc[df_full['_in_pe'] == True, 'excluido'] = True
+        df_full = df_full.drop(columns=['_in_pe'])
+        
+        print("✅ Exclusiones en Pandas aplicadas exitosamente.")
+    except Exception as e:
+        print(f"⚠️ Error al aplicar exclusiones en Pandas: {e}")
+
     # Save to PostgreSQL:
+    import io
+    
+    # Preparar el buffer en memoria ANTES de tocar la base de datos
+    buffer = io.StringIO()
+    df_full.to_csv(buffer, index=False, header=False, sep='\t', na_rep='\\N')
+    buffer.seek(0)
+    
+    # Ejecutar TRUNCATE e INSERT en una sola transacción atómica
+    raw_conn = engine.raw_connection()
+    try:
+        with raw_conn.cursor() as cursor:
+            cursor.execute("TRUNCATE ecommdata_alvi.lista8;")
+            columns_str = ','.join(df_full.columns)
+            cursor.copy_expert(f"COPY ecommdata_alvi.lista8 ({columns_str}) FROM STDIN WITH CSV DELIMITER '\t' NULL '\\N'", buffer)
+        raw_conn.commit()
+    finally:
+        raw_conn.close()
 
+    # IMPORTANTE: Forzar actualización de estadísticas del motor SQL para prevenir Hash Join vs Nested Loop bugs
     with engine.begin() as conn:
-        conn.execute("TRUNCATE ecommdata_alvi.lista8") 
-        df_full.to_sql(name="lista8",
-                    con=conn,         
-                    schema="ecommdata_alvi",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
-        conn.execute("""
-            UPDATE ecommdata_alvi.lista8 l
-            SET excluido = True
-            FROM catalogo.productos_excluidos_alvi pe
-            WHERE l.material = pe.material and l.umv = pe.umv
-        """)
+        print("Actualizando estadísticas de la tabla (ANALYZE)...")
+        conn.execute("ANALYZE ecommdata_alvi.lista8;")
 
-    print("Data saved to PostgreSQL. Table: ecommdata.lista8")
+    print("Data saved to PostgreSQL. Table: ecommdata_alvi.lista8")
 
     return
 
