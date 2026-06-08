@@ -3,6 +3,7 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.exceptions import AirflowSkipException
 
 from utils.slack_utils import dag_failure_slack, dag_success_slack
 
@@ -218,7 +219,11 @@ def _save_tickets_zendesk_in_postgres(ti):
 
     zendesk_object = s3_hook.get_key(zendesk_file, bucket_name=s3_bucket)
 
-    df = pd.read_csv(zendesk_object.get()["Body"])
+    try:
+        df = pd.read_csv(zendesk_object.get()["Body"])
+    except pd.errors.EmptyDataError:
+        raise AirflowSkipException("El archivo en S3 está vacío. Task exitosa.")
+        
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return
