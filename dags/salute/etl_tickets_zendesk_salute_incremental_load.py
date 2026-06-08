@@ -218,7 +218,12 @@ def _save_tickets_zendesk_in_postgres(ti):
 
     zendesk_object = s3_hook.get_key(zendesk_file, bucket_name=s3_bucket)
 
-    df = pd.read_csv(zendesk_object.get()["Body"])
+    try:
+        df = pd.read_csv(zendesk_object.get()["Body"])
+    except pd.errors.EmptyDataError:
+        print("El archivo en S3 está vacío. Task exitosa.")
+        return
+        
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
         return

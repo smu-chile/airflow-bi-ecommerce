@@ -337,8 +337,12 @@ def load_tables_to_s3(ts,ds):
 
     cols = df_changes_final.filter(like='id_tienda_').columns
 
-    df_changes_final['tiendas'] = df_changes_final[cols].agg(lambda s: s.dropna().str.cat(sep=','), axis=1)
-    df_changes_final.drop(columns=cols, inplace=True)
+    if df_changes_final.empty:
+        df_changes_final['tiendas'] = pd.Series(dtype='str')
+    else:
+        df_changes_final['tiendas'] = df_changes_final[cols].agg(lambda s: s.dropna().str.cat(sep=','), axis=1)
+        
+    df_changes_final.drop(columns=cols, inplace=True, errors='ignore')
 
     df_changes_final["publish"] = 1
     df_changes_final["visible"] = 1

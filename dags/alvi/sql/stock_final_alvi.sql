@@ -32,8 +32,10 @@ left join ecommdata_alvi.skus s on svu.vtex_id = s.vtex_id
 left join staging.stock_janis_alvi su on s.id = su.item_id and t.id_janis = su.store_id and b.id_janis = su.warehouse_id
 left join ecommdata_alvi.productos p on s.ref_id = p.ref_id
 left join ecommdata_alvi.categorias c on p.id_categoria = c.id
-left join ecommdata_alvi.lista8 l on s.ref_id = CONCAT(l.material, '-', l.umv) and t.id = l.id_tienda
+left join ecommdata_alvi.lista8 l on l.material = split_part(s.ref_id, '-', 1) and l.umv = split_part(s.ref_id, '-', 2) and t.id = l.id_tienda
 where t.status = 1 and (b.dock_activo is true);
 DELETE from ecommdata_alvi.stock
 WHERE ultima_actualizacion < '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' AND fecha = '{{ds}}'::date;
 COMMIT;
+
+ANALYZE ecommdata_alvi.stock;

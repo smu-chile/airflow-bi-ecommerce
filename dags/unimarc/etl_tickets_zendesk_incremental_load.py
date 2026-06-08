@@ -388,6 +388,9 @@ def _save_tickets_zendesk_in_postgres(ti):
             else:
                 fixed_record.append(value)
         fixed_records.append(tuple(fixed_record))
+    # Deduplicate and sort by id_ticket to prevent Postgres UPSERT deadlocks
+    unique_records = {r[0]: r for r in fixed_records}
+    fixed_records = sorted(unique_records.values(), key=lambda x: x[0])
     print(f"Number of records to lo.ad: {str(len(fixed_records))}")
     incremental_query = """
         INSERT INTO analytics_and_growth.tickets_zendesk (id_ticket,"""+columns_query+""") 
