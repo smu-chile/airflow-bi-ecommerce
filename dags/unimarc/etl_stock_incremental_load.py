@@ -93,16 +93,31 @@ def load_full_table_from_staging_to_s3(table_name, df, ts):
 
     return file_name
 
-def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
-    r = session.get(url, headers = {"X-VTEX-API-AppKey" : X_VTEX_API_AppKey, "X-VTEX-API-AppToken" : X_VTEX_API_AppToken})
-    try:
-        responses.append({'json':r.json(), 'url':url})
-    except Exception as e:
-        print(e)
-        print(url)
-        print(r)
-        print(r.status_code)
-        exception_cases.append(url)
+def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken, max_retries=5):
+    import time
+    import random
+    for attempt in range(max_retries):
+        try:
+            r = session.get(url, headers={"X-VTEX-API-AppKey": X_VTEX_API_AppKey, "X-VTEX-API-AppToken": X_VTEX_API_AppToken}, timeout=10)
+            if r.status_code == 429:
+                print(f"[429 Rate Limit] Retrying {url} in attempt {attempt+1}")
+                time.sleep((2 ** attempt) + random.uniform(0, 1))
+                continue
+            r.raise_for_status()
+            responses.append({'json': r.json(), 'url': url})
+            return
+        except Exception as e:
+            print(e)
+            print(url)
+            if 'r' in locals() and r is not None:
+                print(r.status_code)
+                if r.status_code == 429:
+                    time.sleep((2 ** attempt) + random.uniform(0, 1))
+                    continue
+            print(f"Failed to fetch {url} after {attempt} attempts")
+            exception_cases.append(url)
+            return
+    exception_cases.append(url)
 
 
 def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
@@ -171,13 +186,27 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
-    df.to_sql(name="stock_vtex_unimarc",
-                con=engine,         
-                schema="staging",         
-                if_exists='append',         
-                index=False,         
-                chunksize=20000,         
-                method='multi')
+    from io import StringIO
+    import csv
+
+    # Escribir el DataFrame en memoria como CSV
+    buffer = StringIO()
+    df.to_csv(buffer, index=False, header=False, quoting=csv.QUOTE_MINIMAL)
+    buffer.seek(0)
+
+    # Inyectar a Postgres usando COPY para máximo rendimiento
+    conn = engine.raw_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.copy_expert("COPY staging.stock_vtex_unimarc (vtex_id, id_warehouse, cantidad_total, cantidad_reservada, cantidad_ilimitada) FROM STDIN WITH CSV", buffer)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error executing COPY: {e}")
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
 
     load_full_table_from_staging_to_s3(file_name, df, ts)
 
@@ -372,7 +401,7 @@ with DAG(
         postgres_conn_id = "postgresql_conn",
         sql = """DELETE
             FROM ecommdata.stock
-            WHERE fecha = '{{ds}}'::date - interval '21 days' """
+            WHERE fecha <= '{{ds}}'::date - interval '21 days' """
     )
 
 
