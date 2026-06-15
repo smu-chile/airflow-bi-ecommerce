@@ -46,68 +46,55 @@ def _join_Catalog_from_s3(ds, ti):
     
 
     uber_catalog_query = f"""
-                SELECT DISTINCT  
-                    p.material AS SKU,
-                    se.umv AS Unidad_de_unidad_venta,
-                    se.ean::varchar AS "código de barras",
-                    p.nombre AS descripcion,
-                    m.nombre AS Marca,
-                    CONCAT('https://unimarc.vteximg.com.br', is2.imagen) AS main_image_url,
-                    c.n2 AS Category_level_1,
-                    c.n3 AS Category_level_2
-                FROM ecommdata.productos p
-                LEFT JOIN ecommdata.sku_ean se ON se.ref_id = p.ref_id 
-                LEFT JOIN ecommdata.marcas m ON m.id  = p.id_marca 
-                LEFT JOIN ecommdata.imagenes_sku is2 
-                    ON is2.ref_id = p.ref_id 
-                AND (
-                (is2.orden = '2' AND p.ref_id IN (
-                    '000000000000008644-UN', '000000000000210537-UN', '000000000000641934-UN', 
-                    '000000000000342883-UN', '000000000000668375-UN', '000000000000759755-UN', 
-                    '000000000000053692-UN', '000000000000624684-DIS', '000000000000662074-UN', 
-                    '000000000000547168-UN', '000000000000665740-UN', '000000000000053693-UN', 
-                    '000000000000955615-UN', '000000000000624685-DIS', 
-                    '000000000000180052-UN', '000000000000180044-UN', '000000000000603859-UN', 
-                    '000000000000655188-UN', '000000000000668149-UN', '000000000000008894-DIS', 
-                    '000000000000008892-DIS', '000000000000604951-DIS', '000000000000653818-UN', 
-                    '000000000000140980-UN', '000000000000140979-UN', '000000000000200942-UN', 
-                    '000000000000639546-UN', '000000000000200942-DIS', '000000000000566684-UN', 
-                    '000000000000566684-DIS', '000000000000626636-DIS', '000000000000604209-UN', 
-                    '000000000000160531-UN', '000000000000653819-UN', '000000000000501297-DIS', 
-                    '000000000000009130-UN', '000000000000870753-UN', '000000000000570212-DIS', 
-                    '000000000000570212-UN', '000000000000578616-DIS', '000000000000009158-UN', 
-                    '000000000000200943-DIS', '000000000000200943-UN', '000000000000578616-UN', 
-                    '000000000000200944-DIS', '000000000000856869-UN', '000000000000637320-UN', 
-                    '000000000000177167-UN', '000000000000799363-UN', '000000000000666036-UN', 
-                    '000000000000666587-UN', '000000000000666035-UN'
-                ))
-                OR (is2.orden = '1' AND p.ref_id NOT IN (
-                    '000000000000008644-UN', '000000000000210537-UN', '000000000000641934-UN', 
-                    '000000000000342883-UN', '000000000000668375-UN', '000000000000759755-UN', 
-                    '000000000000053692-UN', '000000000000624684-DIS', '000000000000662074-UN', 
-                    '000000000000665740-UN', '000000000000053693-UN', 
-                    '000000000000667826-UN', '000000000000955615-UN', '000000000000624685-DIS', 
-                    '000000000000180052-UN', '000000000000180044-UN', '000000000000603859-UN', 
-                    '000000000000655188-UN', '000000000000668149-UN', '000000000000008894-DIS', 
-                    '000000000000008892-DIS', '000000000000604951-DIS', '000000000000653818-UN', 
-                    '000000000000140980-UN', '000000000000140979-UN', '000000000000200942-UN', 
-                    '000000000000639546-UN', '000000000000200942-DIS', '000000000000566684-UN', 
-                    '000000000000566684-DIS', '000000000000626636-DIS', '000000000000604209-UN', 
-                    '000000000000160531-UN', '000000000000653819-UN', '000000000000501297-DIS', 
-                    '000000000000009130-UN', '000000000000870753-UN', '000000000000570212-DIS', 
-                    '000000000000570212-UN', '000000000000578616-DIS', '000000000000009158-UN', 
-                    '000000000000200943-DIS', '000000000000200943-UN', '000000000000578616-UN', 
-                    '000000000000200944-DIS', '000000000000856869-UN', '000000000000637320-UN', 
-                    '000000000000177167-UN', '000000000000799363-UN', '000000000000666036-UN', 
-                    '000000000000666587-UN', '000000000000666035-UN'
-                ))
-            )
-            LEFT JOIN ecommdata.categorias c ON p.id_categoria = c.id
-            LEFT JOIN ecommdata.lista8 l ON l.material = p.material
-            WHERE l.material IS NOT NULL
-            AND c.n2 IS NOT NULL
-            AND c.n3 IS NOT null
-            and is2.imagen is not null;
+    WITH RankedUberCatalog AS (
+    SELECT
+        l.material AS SKU,
+        s.unidad_de_venta AS Unidad_de_unidad_venta,
+        s.ean_primario::varchar AS "código de barras",
+        p.nombre AS descripcion,
+        m.nombre AS Marca,
+        CASE 
+            WHEN img.imagen IS NOT NULL AND img.imagen <> '' 
+                THEN CONCAT('https://unimarc.vteximg.com.br', img.imagen)
+            ELSE NULL
+        END AS main_image_url,
+        c.n2 AS Category_level_1,
+        c.n3 AS Category_level_2,
+        ROW_NUMBER() OVER (
+            PARTITION BY l.material 
+            ORDER BY s.ref_id ASC
+        ) AS rn
+    FROM ecommdata.lista8 l
+    INNER JOIN ecommdata.skus s
+        ON l.material || '-' || l.umv = s.ref_id
+    INNER JOIN ecommdata.productos p
+        ON s.ref_id = p.ref_id
+    LEFT JOIN ecommdata.marcas m
+        ON m.id = p.id_marca
+    LEFT JOIN ecommdata.categorias c
+        ON p.id_categoria = c.id
+    LEFT JOIN ecommdata.imagenes_sku img
+        ON img.ref_id = s.ref_id
+        AND img.orden = 1
+    WHERE l.excluido IS NOT TRUE
+      AND (c.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR c.n1 IS NULL)
+      AND c.n2 IS NOT NULL
+      AND c.n3 IS NOT NULL
+      AND s.ean_primario IS NOT NULL
+      AND img.imagen IS NOT NULL
+)
+SELECT
+    SKU,
+    Unidad_de_unidad_venta,
+    "código de barras",
+    descripcion,
+    Marca,
+    main_image_url,
+    Category_level_1,
+    Category_level_2
+FROM RankedUberCatalog
+WHERE rn = 1
+ORDER BY SKU ASC;
                     """
     cursor.execute(uber_catalog_query)
     results = cursor.fetchall()
@@ -1820,7 +1807,7 @@ with DAG(
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS","UBER"],
+    tags=["OPS", "last_millers", "dw", "promotions", "precios","NICOLAS","UBER","RODRIGO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
