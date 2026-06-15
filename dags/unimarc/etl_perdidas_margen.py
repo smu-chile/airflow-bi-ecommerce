@@ -40,6 +40,7 @@ def _load_to_postgres(ti,ds):
         "descuento_platino",
         "descuento_oro",
         "descuento_unipay",
+        "descuento_cupones_crm",
         "perdida_sustitucion",
         "venta_total_neta_sin_descuentos",
         "venta_total_neta",
@@ -55,6 +56,7 @@ def _load_to_postgres(ti,ds):
     df_margen['descuento_platino'] = df_margen['descuento_platino'].astype(int)
     df_margen['descuento_oro'] = df_margen['descuento_oro'].astype(int)
     df_margen['descuento_unipay'] = df_margen['descuento_unipay'].astype(int)
+    df_margen['descuento_cupones_crm'] = df_margen['descuento_cupones_crm'].astype(int)
     df_margen['perdida_sustitucion'] = df_margen['perdida_sustitucion'].astype(int)
     df_margen['venta_total_neta_sin_descuentos'] = df_margen['venta_total_neta_sin_descuentos'].astype(int)
     df_margen['venta_total_neta'] = df_margen['venta_total_neta'].astype(int)
@@ -69,6 +71,7 @@ def _load_to_postgres(ti,ds):
         "descuento_platino",
         "descuento_oro",
         "descuento_unipay",
+        "descuento_cupones_crm",
         "perdida_sustitucion",
         "venta_total_neta_sin_descuentos",
         "venta_total_neta",
