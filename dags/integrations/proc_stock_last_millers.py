@@ -149,7 +149,7 @@ with DAG(
     "proc_stock_precios_last_millers",
     default_args=default_args,
     description="Extracción de stock, precios y precios promocionales simples para integraciones Last Millers. pow",
-    schedule_interval="0 9 * * *", 
+    schedule_interval="30 7 * * *", 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
