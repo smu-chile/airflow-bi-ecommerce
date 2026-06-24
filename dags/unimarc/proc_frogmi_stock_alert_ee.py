@@ -147,16 +147,34 @@ def _post_request_to_publish_task_endpoint(ts):
         "Content-Type": "application/json"
     }
     jobs_ids = []
-    for payload in payloads:
-        response = requests.post(frogmi_publish_task_endpoint, json=payload, headers=headers)
-        print(response.status_code)
+    
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    def send_request(payload):
         try:
-            response_json = response.json()
-            print(response.json())
-            jobs_ids.append(response_json["data"]["id"])
+            response = requests.post(frogmi_publish_task_endpoint, json=payload, headers=headers, timeout=15)
+            return response, payload
         except Exception as e:
-            print(e)
-            print("Error on response. Can not get job id.")
+            print(f"Request failed or timed out: {e}")
+            return None, payload
+
+    print(f"Sending {len(payloads)} payloads concurrently...")
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = [executor.submit(send_request, p) for p in payloads]
+        for future in as_completed(futures):
+            response, payload = future.result()
+            if response is not None:
+                print(response.status_code)
+                try:
+                    response_json = response.json()
+                    print(response_json)
+                    jobs_ids.append(response_json["data"]["id"])
+                except Exception as e:
+                    print(e)
+                    print("Error on response. Can not get job id.")
+            else:
+                store_id = payload["data"][0]["attributes"]["stores"][0]
+                print(f"Failed to send task for store {store_id} due to timeout/error.")
 
     return
 

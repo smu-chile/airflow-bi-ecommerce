@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Optional
 import json
 import io
+import time
 import pendulum
 import requests
 from airflow.models import Variable
@@ -89,18 +90,31 @@ def upload_bytes_to_slack(
 
     # 3) completar subida
     complete_payload = {
-        "files": [{"id": file_id}],
+        "files": [{"id": file_id, "title": file_name}],
         "channel_id": channel_id,
-        "initial_comment": initial_comment,
     }
-    comp = requests.post(
-        "https://slack.com/api/files.completeUploadExternal",
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-        },
-        data=json.dumps(complete_payload),
-    ).json()
+    if initial_comment:
+        complete_payload["initial_comment"] = initial_comment
+
+    comp = {}
+    for attempt in range(3):
+        comp = requests.post(
+            "https://slack.com/api/files.completeUploadExternal",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json; charset=utf-8",
+            },
+            data=json.dumps(complete_payload),
+        ).json()
+        
+        if comp.get("ok"):
+            break
+            
+        if comp.get("error") == "file_update_failed":
+            time.sleep(2)
+        else:
+            break
+
     if not comp.get("ok"):
         raise RuntimeError(f"Error completeUploadExternal {file_name}: {comp}")
 

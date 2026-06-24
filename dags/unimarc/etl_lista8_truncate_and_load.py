@@ -230,7 +230,9 @@ def _load_lista8(ts):
                     CAST(O.OU_ID AS STRING)         AS id_tienda_bq,
                     CAST(H.SKU_PRODUCT AS STRING)   AS sku_compra,
                     CAST(L.BLOQUEO_TIENDA AS STRING) AS bloq_centro_bq,
-                    CAST(L.BLOQUEO_FORMATO AS STRING) AS bloq_formato_bq
+                    CAST(L.BLOQUEO_FORMATO AS STRING) AS bloq_formato_bq,
+                    CAST(L.CATALOGADO AS STRING)    AS catalogado_bq,
+                    CAST(L.ACTIVO AS STRING)        AS activo_bq
                 FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_OU_LOGT_SMY` L
                 JOIN `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_DIM_OU_HIERARCHY` O
                     ON L.OU_KEY = O.OU_KEY AND O.ORG_IP_ID IN ('01')
@@ -240,7 +242,12 @@ def _load_lista8(ts):
                     CAST(H.SKU_PRODUCT AS STRING) IN UNNEST(@skus)
                     AND CAST(O.OU_ID AS STRING) IN UNNEST(@stores)
                     AND DATE(L.DATE_VALUE) = CURRENT_DATE('America/Santiago') - 1
-                    AND (COALESCE(L.BLOQUEO_TIENDA,'') != '' OR COALESCE(L.BLOQUEO_FORMATO,'') != '')
+                    AND (
+                        COALESCE(L.BLOQUEO_TIENDA,'') != '' 
+                        OR COALESCE(L.BLOQUEO_FORMATO,'') != ''
+                        OR CAST(L.CATALOGADO AS STRING) != '1'
+                        OR CAST(L.ACTIVO AS STRING) != '1'
+                    )
                 """
                 
                 params = [
@@ -258,6 +265,9 @@ def _load_lista8(ts):
                     df_bq["bloq_centro_bq"] = pd.to_numeric(df_bq["bloq_centro_bq"].astype(str).str.extract(r'(\d+)', expand=False), errors='coerce').astype("Int64")
                     df_bq["bloq_formato_bq"] = pd.to_numeric(df_bq["bloq_formato_bq"].astype(str).str.extract(r'(\d+)', expand=False), errors='coerce').astype("Int64")
                     
+                    # Evaluar si está descatalogado o inactivo en BQ (distinto de '1')
+                    df_bq["is_descatalogado_bq"] = (df_bq["catalogado_bq"].astype(str) != '1') | (df_bq["activo_bq"].astype(str) != '1')
+
                     # 4. Cruzar y Actualizar df_full
                     df_full['join_key'] = df_full['id_tienda'] + "_" + df_full['material']
                     
@@ -267,12 +277,17 @@ def _load_lista8(ts):
                     # Mapeo de valores desde BQ
                     map_centro = df_bq_mapped.set_index('join_key')['bloq_centro_bq'].to_dict()
                     map_formato = df_bq_mapped.set_index('join_key')['bloq_formato_bq'].to_dict()
+                    map_descatalogado = df_bq_mapped.set_index('join_key')['is_descatalogado_bq'].to_dict()
                     
                     # Aplicar actualización: SAP MANDA. Solo rellenamos con BQ si el campo en SAP es nulo (fillna)
                     idx = df_full[mask_vacuno & mask_tienda_activa & mask_sin_bloqueo].index
                     df_full.loc[idx, 'bloq_centro'] = df_full.loc[idx, 'bloq_centro'].fillna(df_full.loc[idx, 'join_key'].map(map_centro))
                     df_full.loc[idx, 'bloq_formato'] = df_full.loc[idx, 'bloq_formato'].fillna(df_full.loc[idx, 'join_key'].map(map_formato))
                     
+                    # Si BigQuery dice que está descatalogado o inactivo, forzamos catalogado = False
+                    descatalogado_series = df_full.loc[idx, 'join_key'].map(map_descatalogado)
+                    df_full.loc[idx, 'catalogado'] = df_full.loc[idx, 'catalogado'].mask(descatalogado_series == True, False)
+
                     # Limpieza final de la llave temporal
                     df_full.drop(columns=['join_key'], inplace=True)
                     
