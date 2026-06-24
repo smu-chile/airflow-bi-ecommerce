@@ -64,8 +64,8 @@ def lista8():
         -- Misión Original: Bypass de Excepciones ESTRICTO POR TIENDA
         and (l.excluido is not true OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv AND ex.id_tienda = l.id_tienda))
         and not (
-            ((coalesce(l.bloq_centro,0) in (1,2,9) and l.linea not in ('ELECTRO'))
-            OR (coalesce(l.bloq_formato,0) in (1,2,9) and l.linea not in ('ELECTRO')))
+            ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
+            OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
             AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
             )
         
@@ -77,8 +77,8 @@ def lista8():
         -- Misión Original: Bypass de Excepciones GENERAL (0053 siempre las tiene)
         where (l.excluido is not true OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv))
         and not (
-            ((coalesce(l.bloq_centro,0) in (1,2,9) and l.linea not in ('ELECTRO'))
-            OR (coalesce(l.bloq_formato,0) in (1,2,9) and l.linea not in ('ELECTRO')))
+            ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
+            OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
             AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
             )
         
@@ -102,8 +102,8 @@ def lista8():
         -- Las excepciones manuales no deben ir a la tienda 0054
         AND NOT EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv)
         AND NOT (
-            ((coalesce(l.bloq_centro,0) in (1,2,9) and l.linea not in ('ELECTRO'))
-            OR (coalesce(l.bloq_formato,0) in (1,2,9) and l.linea not in ('ELECTRO')))
+            ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
+            OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
             AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
         )
     ) candidates
