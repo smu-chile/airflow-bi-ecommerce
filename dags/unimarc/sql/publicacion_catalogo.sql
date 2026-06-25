@@ -1,3 +1,5 @@
+BEGIN TRANSACTION;
+
 DELETE FROM ecommdata.publicacion_catalogo WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 insert into ecommdata.publicacion_catalogo
 select s.ultima_actualizacion as fecha_hora
@@ -70,7 +72,7 @@ left join (select tom_id as ref_id,quantity_on_hand, '1917' as id_tienda
 			from ecommdata.stock_mfc_takeoff
 			where fecha = (select max(fecha) from ecommdata.stock_mfc_takeoff smt)) as smt
 			on smt.ref_id = s.ref_id and s.id_tienda = smt.id_tienda
-left join ecommdata.ubicacion_mfc um on um.sap_code = split_part(s.ref_id, '-', 1) and um.measurement_unit = split_part(s.ref_id, '-', 2) and um.store = s.id_tienda
+left join ecommdata.ubicacion_mfc um on concat(um.sap_code, '-', um.measurement_unit) = s.ref_id and um.store = s.id_tienda
 inner join lateral (select
 	case 
 	when foto.ref_id is null then false
@@ -94,5 +96,7 @@ end as precio_valido
 end as tienda_valida) val on true
 where s.fecha = '{{ds}}'::date
 order by s.ultima_actualizacion, s.id_tienda desc;
+
+COMMIT;
 
 ANALYZE ecommdata.publicacion_catalogo;
