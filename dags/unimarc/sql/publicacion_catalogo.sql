@@ -95,7 +95,7 @@ end as precio_valido
 	else true
 end as tienda_valida) val on true
 where s.fecha = '{{ds}}'::date
-order by s.ultima_actualizacion, s.id_tienda desc;
+order by s.id_tienda desc;
 
 COMMIT;
 
