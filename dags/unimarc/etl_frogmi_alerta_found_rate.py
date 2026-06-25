@@ -161,7 +161,8 @@ def _save_table_alerta_found_rate(ts, ti, ds):
     with engine.begin() as conn:
         conn.execute(f"""
             DELETE FROM ecommdata.frogmi_alerta_found_rate
-            WHERE fecha_inicio::date >= '{exec_date}'
+            WHERE fecha_inicio >= '{exec_date}'::date
+              AND fecha_inicio < '{exec_date}'::date + interval '3 days'
         """)
         df.to_sql(name="frogmi_alerta_found_rate",
                 con=engine,         
@@ -174,11 +175,15 @@ def _save_table_alerta_found_rate(ts, ti, ds):
             UPDATE ecommdata.frogmi_alerta_found_rate
             SET id_tienda = t.id
             FROM ecommdata.tiendas t
-            WHERE fecha_inicio::date >= '{exec_date}' and tienda_frogmi = t.id_frogmi
+            WHERE fecha_inicio >= '{exec_date}'::date 
+              AND fecha_inicio < '{exec_date}'::date + interval '3 days'
+              AND tienda_frogmi = t.id_frogmi
         """)
         conn.execute(f"""
             DELETE FROM ecommdata.frogmi_alerta_found_rate
             WHERE id_tienda is NULL
+              AND fecha_inicio >= '{exec_date}'::date 
+              AND fecha_inicio < '{exec_date}'::date + interval '3 days'
         """)
         conn.close
     return
