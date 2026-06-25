@@ -19,18 +19,9 @@ def _load_json_to_s3(ts, ds):
     import boto3 
 
     base_url = Variable.get("FROGMI_API_URL")
-    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={ds}&filters[period][to]={macros.ds_add(ds, 1)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
+    url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={ds}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
 
-    exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
-    exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
-    local_tz = pendulum.timezone("America/Santiago")
-    exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
-    print(exec_datetime_local_str)
-
-    if exec_datetime_local_str.split("T")[1] == "19:00":
-        url = f"{base_url}/api/v3/tasks_management/results?filters[period][from]={macros.ds_add(ds, 1)}&filters[period][to]={macros.ds_add(ds, 2)}&filters[activity][]=a6dbc4bd-64e6-4628-bb6b-66902cba3a7e&per_page=500&include=events"
-    print(url)
+    print(f"URL de extracción base: {url}")
     api_key = Variable.get("FROGMI_API_TOKEN_SECRET")
 
     payload={}
@@ -40,37 +31,47 @@ def _load_json_to_s3(ts, ds):
     'Content-Type': 'application/vnd.api+json'
     }
 
-    response = requests.request("GET", url, headers=headers, data=payload)
-
-    res = json.loads(response.text)
     lista_lineas = []
 
-    for linea in res['data']:
-        respuesta_0 = None
-        respuesta_1 = None
-        respuesta_2 = None
-        respuesta_3 = None
-        id = linea['id']
-        realizado = linea['attributes']['done']
-        fecha_inicio = linea['attributes']['start_date']
-        fecha_fin = linea['attributes']['end_date']
-        descripcion = linea['attributes']['external_data'][0]['main_text']
-        material = linea['attributes']['external_data'][0]['second_text'][8:]
-        tienda_frogmi = linea['relationships']['stores']['data']['id']
-        for i in res['included']:
-            if i['relationships']['task_action_events']['data']['id'] == id:
-                pregunta = i['attributes']['name']
-                id_respuesta = i['attributes']['answer']
-                for j in i['attributes']['alternatives']['data']:
-                    if id_respuesta == j['id'] and pregunta == "Producto se encuentra en la góndola?":
-                        respuesta_0 = bool(j['attributes']['value'])
-                    if id_respuesta == j['id'] and pregunta == "Hay stock para reponer?":
-                        respuesta_1 = bool(j['attributes']['value'])
-                    if id_respuesta == j['id'] and pregunta == "Hay stock en sistema?":
-                        respuesta_2 = bool(j['attributes']['value'])
-                    if id_respuesta == j['id'] and pregunta == "Se pudo reponer?":
-                        respuesta_3 = bool(j['attributes']['value'])
-        lista_lineas.append([id,realizado,fecha_inicio,fecha_fin,descripcion,material,tienda_frogmi,respuesta_0,respuesta_1,respuesta_2,respuesta_3])
+    while url:
+        print(f"Fetching API Frogmi: {url}")
+        response = requests.request("GET", url, headers=headers, data=payload)
+        
+        if response.status_code != 200:
+            print(f"Error consultando API: {response.status_code} - {response.text}")
+            break
+
+        res = json.loads(response.text)
+
+        for linea in res.get('data', []):
+            respuesta_0 = None
+            respuesta_1 = None
+            respuesta_2 = None
+            respuesta_3 = None
+            id = linea['id']
+            realizado = linea['attributes']['done']
+            fecha_inicio = linea['attributes']['start_date']
+            fecha_fin = linea['attributes']['end_date']
+            descripcion = linea['attributes']['external_data'][0]['main_text']
+            material = linea['attributes']['external_data'][0]['second_text'][8:]
+            tienda_frogmi = linea['relationships']['stores']['data']['id']
+            for i in res.get('included', []):
+                if i['relationships']['task_action_events']['data']['id'] == id:
+                    pregunta = i['attributes']['name']
+                    id_respuesta = i['attributes']['answer']
+                    for j in i['attributes']['alternatives']['data']:
+                        if id_respuesta == j['id'] and pregunta == "Producto se encuentra en la góndola?":
+                            respuesta_0 = bool(j['attributes']['value'])
+                        if id_respuesta == j['id'] and pregunta == "Hay stock para reponer?":
+                            respuesta_1 = bool(j['attributes']['value'])
+                        if id_respuesta == j['id'] and pregunta == "Hay stock en sistema?":
+                            respuesta_2 = bool(j['attributes']['value'])
+                        if id_respuesta == j['id'] and pregunta == "Se pudo reponer?":
+                            respuesta_3 = bool(j['attributes']['value'])
+            lista_lineas.append([id,realizado,fecha_inicio,fecha_fin,descripcion,material,tienda_frogmi,respuesta_0,respuesta_1,respuesta_2,respuesta_3])
+            
+        # Paginación
+        url = res.get('links', {}).get('next')
     df = pd.DataFrame(lista_lineas, columns =['id','realizado','fecha_inicio','fecha_fin','descripcion','material','tienda_frogmi','gondola','stock_para_reponer','stock_en_sistema','repuesto'])
     
     df = df.astype({
@@ -155,22 +156,12 @@ def _save_table_alerta_found_rate(ts, ti, ds):
 
     exec_date = ds
 
-    exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
-    exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
-    local_tz = pendulum.timezone("America/Santiago")
-    exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
-    print(exec_datetime_local_str)
-
-    if exec_datetime_local_str.split("T")[1] == "19:00":
-        exec_date = macros.ds_add(ds, 1)
-    
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
     with engine.begin() as conn:
         conn.execute(f"""
             DELETE FROM ecommdata.frogmi_alerta_found_rate
-            WHERE fecha_inicio::date = '{exec_date}'
+            WHERE fecha_inicio::date >= '{exec_date}'
         """)
         df.to_sql(name="frogmi_alerta_found_rate",
                 con=engine,         
@@ -205,7 +196,7 @@ with DAG(
     'etl_frogmi_alerta_found_rate',
     default_args=default_args,
     description="Extracción y carga de tabla alerta frogmi desde API.",
-    schedule_interval="0 12,15,19 * * *",
+    schedule_interval="15 12,16,20 * * *",
     start_date=pendulum.datetime(2022, 10, 12, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
