@@ -1,4 +1,11 @@
+ANALYZE staging.stock_vtex_unimarc;
+ANALYZE staging.stock_unimarc;
+
 BEGIN TRANSACTION;
+
+DELETE FROM ecommdata.stock
+WHERE fecha = '{{ds}}'::date;
+
 insert into ecommdata.stock
 select 
 '{{ds}}'::date as fecha
@@ -37,7 +44,7 @@ left join ecommdata.skus s on svu.vtex_id = s.vtex_id
 left join staging.stock_unimarc su on s.id = su.item_id and t.id_janis = su.store_id and b.id_janis = su.warehouse_id
 left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
-left join ecommdata.lista8 l on l.material = split_part(s.ref_id, '-', 1) and l.umv = split_part(s.ref_id, '-', 2) and t.id = l.id_tienda
+left join ecommdata.lista8 l on concat(l.material, '-', l.umv) = s.ref_id and t.id = l.id_tienda
 left join ecommdata.lista_infaltables li on p.material = li.material
 where t.status = 1 and (b.dock_activo is true)
 and NOT (
@@ -46,8 +53,6 @@ and NOT (
 	(t.id = '0088' AND b.id = '0324')
 )
 ;
-DELETE from ecommdata.stock
-WHERE ultima_actualizacion < '{{ts}}' at time zone 'America/Santiago' + interval '4 hours' AND fecha = '{{ds}}'::date;
 COMMIT;
 
 ANALYZE ecommdata.stock;
