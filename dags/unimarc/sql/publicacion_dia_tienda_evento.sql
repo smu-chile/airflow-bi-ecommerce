@@ -1,3 +1,5 @@
+BEGIN TRANSACTION;
+
 DELETE FROM catalogo.publicacion_dia_tienda_evento
 WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 insert into catalogo.publicacion_dia_tienda_evento
@@ -53,7 +55,7 @@ SELECT pc.fecha_hora,
     pc.mfc
 FROM ecommdata.publicacion_catalogo pc
     INNER JOIN catalogo.productos_eventos pe on pc.ref_id = pe.ref_id
-    left join ecommdata.lista8 l on pc.material = l.material
+    left join ecommdata.lista8 l on concat(l.material, '-', l.umv) = pc.ref_id
     and pc.id_tienda = l.id_tienda
 WHERE (
         pc.surtido_ecommerce IS TRUE
@@ -70,3 +72,5 @@ GROUP BY pc.fecha_hora,
     pc.c3,
     pe.evento,
     pc.mfc;
+
+COMMIT;
