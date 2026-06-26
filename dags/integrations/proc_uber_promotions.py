@@ -72,9 +72,10 @@ def _join_promo_prices_test_from_s3(ds, ti):
           AND wp.nombre_promocion NOT ILIKE '% LOC%'
           AND wp.nombre_promocion NOT ILIKE '%CYBER%'
           AND wp.nombre_promocion NOT ILIKE '%LIQ%'
+          AND wp.nombre_promocion NOT ILIKE '%REGIO%'
           AND wp.n_promocion NOT IN ('5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
                                      '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024', 
-                                     '4000512024','1120012025','1120022025','1120032025','1120042025','1120212025')
+                                     '4000512024','1120012025','1120022025','1120032025','1120042025','1120212025','5551272026')
     ),
     promociones_filtradas AS (
         SELECT
