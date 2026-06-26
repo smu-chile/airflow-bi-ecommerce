@@ -76,7 +76,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     FROM integraciones.lm_stock_precio_promo lspp 
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                     LEFT JOIN ecommdata.workflow_promociones wp ON concat(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = concat(lspp.material, '-', lspp.unidad_de_medida) 
-                    LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.id_tienda = lspp.id_tienda
+                    LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                     LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                     LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
                     WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
@@ -153,7 +153,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 FROM integraciones.lm_stock_precio_promo lspp 
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                 LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
-                LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.id_tienda = lspp.id_tienda
+                LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                 LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                 LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
                 WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
@@ -220,7 +220,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     NULL AS bundle_discount
                 FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.id_tienda = lspp.id_tienda
+                LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                 LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                 LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
                 where lspp.precio_promocional  is not null
