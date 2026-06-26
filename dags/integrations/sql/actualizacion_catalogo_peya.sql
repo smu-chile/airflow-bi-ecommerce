@@ -11,7 +11,7 @@ WITH RankedCatalog AS (
             ELSE NULL 
         END AS "IMAGEN",
         -- Se aplica ROW_NUMBER temprano para evitar multiplicar filas antes de agrupar y hacer join con precios
-        ROW_NUMBER() OVER (PARTITION BY l.material ORDER BY s.ref_id ASC) as rn
+        ROW_NUMBER() OVER (PARTITION BY s.ref_id ORDER BY s.ref_id ASC) as rn
     FROM ecommdata.lista8 l
     INNER JOIN ecommdata.skus s 
         ON l.material || '-' || l.umv = s.ref_id
@@ -51,6 +51,6 @@ GROUP BY
     RC."NOMBRE" ,
     rc."IMAGEN" 
 HAVING 
-    MAX(pr.precio) IS NOT null and rc."SECCION" is not NULL
+    MAX(pr.precio) IS NOT null and rc."SECCION" is not NULL and rc."IMAGEN" IS NOT NULL
 ORDER BY 
     rc."SKU" ASC;
