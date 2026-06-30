@@ -142,11 +142,19 @@ def _join_promo_prices_from_s3(ds, ti):
                     'percentage_value_off' AS promotion_sub_type,
                     NULL AS discount_usage_limit,
                     CASE
-                        WHEN WP.desc_promocion = 'COMBINACION NX$' THEN CONCAT('B', Wp.cantidad_n, 'G', 1)
+                        WHEN WP.desc_promocion = 'COMBINACION NX$' THEN 
+                            CONCAT('B', 
+                                   wp.cantidad_n - GREATEST(1, LEAST(wp.cantidad_n - 1, CEIL((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)))), 
+                                   'G', 
+                                   GREATEST(1, LEAST(wp.cantidad_n - 1, CEIL((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)))))
                     END AS bundle_details,
                     CASE
                         WHEN COALESCE(lspp.precio, 0) = 0 THEN 0
-                        ELSE LEAST(100, ROUND((wp.ahorro_total / lspp.precio) * 100))
+                        ELSE 
+                            LEAST(100, ROUND(
+                                ((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / 
+                                (GREATEST(1, LEAST(wp.cantidad_n - 1, CEIL((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)))) * lspp.precio)) * 100
+                            ))
                     END AS bundle_discount,
                     NULL AS discounted_price,
                     NULL AS max_no_of_orders
@@ -317,7 +325,7 @@ def _send_joined_data_to_stfp(ds):
                                 port=ftp_port, 
                                 password=ftp_rsa_key) as sftp:
             localFile = stock_object_body
-            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/SMUPromotionall"
+            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/{output_promo_file}"
             sftp.putfo(localFile, remotePath)
         
         print("Combined file loaded successfully to SFTP.")
