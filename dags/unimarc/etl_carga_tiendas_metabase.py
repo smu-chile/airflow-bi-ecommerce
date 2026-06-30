@@ -66,7 +66,7 @@ def lista8():
         and not (
             ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
             OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
-            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
+            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN', '000000000000638773-UN')
             )
         
         union
@@ -79,7 +79,7 @@ def lista8():
         and not (
             ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
             OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
-            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
+            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN', '000000000000638773-UN')
             )
         
         union
@@ -104,7 +104,7 @@ def lista8():
         AND NOT (
             ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
             OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
-            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN')
+            AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN', '000000000000638773-UN')
         )
     ) candidates
     -- Solo cargamos si la tienda existe en ecommdata.tiendas (status=1)

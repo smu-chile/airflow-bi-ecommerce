@@ -11,7 +11,7 @@ where not exists (
     where pe.material = ex.material 
       and pe.umv = ex.umv
 )
-and concat(pe.material,'-',pe.umv) NOT IN ('000000000000661989-UN', '000000000000661988-UN')
+and concat(pe.material,'-',pe.umv) NOT IN ('000000000000661989-UN', '000000000000661988-UN', '000000000000638773-UN')
 order by fecha_carga desc;
 
 insert into ecommdata.producto_tienda_excluidos
