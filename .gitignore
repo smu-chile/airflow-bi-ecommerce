@@ -1,4 +1,5 @@
 # Local config files
+.vscode/
 .airflowignore
 .env
 .venv
