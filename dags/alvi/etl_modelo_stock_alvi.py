@@ -240,6 +240,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvibelloto3085": Variable.get("VTEX_ALVI3085_ACCOUNT_NAME"),
         "alvipuntaarenas3212": Variable.get("VTEX_ALVI3212_ACCOUNT_NAME"),
         "alviconcon3211": Variable.get("VTEX_ALVI3211_ACCOUNT_NAME"),
+        "alvicurico3223": Variable.get("VTEX_ALVI3223_ACCOUNT_NAME"),
     }
 
     x_vtex_api_appkey = {
@@ -263,6 +264,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Appkey"),
         "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Appkey"),
         "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Appkey"),
+        "alvicurico3223": Variable.get("X_VTEX_ALVI3223_API_Appkey"),
     }
 
     x_vtex_api_apptoken = {
@@ -286,6 +288,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
         "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Apptoken"),
         "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Apptoken"),
         "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Apptoken"),
+        "alvicurico3223": Variable.get("X_VTEX_ALVI3223_API_Apptoken"),
     }
     all_final_responses = []
     all_exception_cases = []
@@ -408,6 +411,7 @@ def _vtex_get_stock_retries(ti, ts):
         "alvibelloto3085": Variable.get("VTEX_ALVI3085_ACCOUNT_NAME"),
         "alvipuntaarenas3212": Variable.get("VTEX_ALVI3212_ACCOUNT_NAME"),
         "alviconcon3211": Variable.get("VTEX_ALVI3211_ACCOUNT_NAME"),
+        "alvicurico3223": Variable.get("VTEX_ALVI3223_ACCOUNT_NAME"),
     }
 
     x_vtex_api_appkey = {
@@ -431,6 +435,7 @@ def _vtex_get_stock_retries(ti, ts):
         "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Appkey"),
         "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Appkey"),
         "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Appkey"),
+        "alvicurico3223": Variable.get("X_VTEX_ALVI3223_API_Appkey"),
     }
 
     x_vtex_api_apptoken = {
@@ -454,6 +459,7 @@ def _vtex_get_stock_retries(ti, ts):
         "alvibelloto3085": Variable.get("X_VTEX_ALVI3085_API_Apptoken"),
         "alvipuntaarenas3212": Variable.get("X_VTEX_ALVI3212_API_Apptoken"),
         "alviconcon3211": Variable.get("X_VTEX_ALVI3211_API_Apptoken"),
+        "alvicurico3223": Variable.get("X_VTEX_ALVI3223_API_Apptoken"),
     }
     
     all_final_responses = []
