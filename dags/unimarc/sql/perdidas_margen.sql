@@ -141,7 +141,9 @@ SELECT
     SUM(CASE 
         WHEN opp.ref_id IN ('2257d2e7-8653-4ec0-98de-b8827b30e7ec',
                             '6d89c126-19e1-4f4e-9f5c-a2a4ef85a8ba',
-                            '74806be4-f768-4ee0-9ab6-3722153ae8e5') THEN opp.valor
+                            '74806be4-f768-4ee0-9ab6-3722153ae8e5',
+                            '0deddb4c-e547-4e16-a57b-d8594852bd4b',
+                            'f7f3930e-387c-4e25-bbf6-74a204e1a1ec') THEN opp.valor
         ELSE 0 
     END)::int AS descuento_cupones_crm,
     SUM(CASE 
@@ -201,6 +203,8 @@ SELECT
                            '2257d2e7-8653-4ec0-98de-b8827b30e7ec',
                            '6d89c126-19e1-4f4e-9f5c-a2a4ef85a8ba',
                            '74806be4-f768-4ee0-9ab6-3722153ae8e5',
+                           '0deddb4c-e547-4e16-a57b-d8594852bd4b',
+                           'f7f3930e-387c-4e25-bbf6-74a204e1a1ec',
                            -- Viejas Promociones
                            '57886947-d010-4472-99d2-2eab8b45a23c',
                            '4bf15f33-19e9-449c-a319-108b8917216f',
