@@ -115,7 +115,7 @@ def _post_request_to_publish_task_endpoint(ts):
         order by id_tienda, _rank
         ; 
     """
-    #Se añade intervalo de 1 hr en linea 109
+    #Se añade intervalo de 1 hr en linea 109.
     print(query)
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
