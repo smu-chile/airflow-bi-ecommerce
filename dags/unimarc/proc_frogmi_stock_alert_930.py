@@ -106,7 +106,7 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = t.id and t.id_frogmi is not null
                 left join catalogo.cantidad_productos_frogmi cpf
                     on frp.id_tienda = cpf.id_tienda
-                where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
+                where fecha_picking between '{exec_date_local}'::timestamp - interval '1 hour' and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
                 group by ref_id, frp.descripcion, id_frogmi, cpf.id_tienda, cpf.cantidad
             ) _t
@@ -115,6 +115,7 @@ def _post_request_to_publish_task_endpoint(ts):
         order by id_tienda, _rank
         ; 
     """
+    #Se añade intervalo de 1 hr en linea 109.
     print(query)
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
