@@ -117,7 +117,7 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = cpf.id_tienda
                 left join ecommdata.frogmi_alerta_reposicion far
                     on substring(frp.ref_id,1,18) = lpad(far.material, 18, '0') and frp.id_tienda = far.id_tienda
-                where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
+                where fecha_picking between '{exec_date_local}'::timestamp - interval '1 hour'and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
                 and ((far.fecha_inicio not between '{exec_date_local}'::timestamp + interval '3 hours' and '{exec_date_local}'::timestamp + {time_interval} + interval '3 hours') or far.fecha_inicio is null)
                 group by ref_id, frp.descripcion, id_frogmi, cpf.id_tienda, cpf.cantidad

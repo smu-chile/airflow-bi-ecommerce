@@ -15,3 +15,5 @@ docker-compose-v3.yml
 
 # Local logs
 logs
+# DAGs
+dags/etl_sku_positions_normalization_QA.py
