@@ -602,7 +602,7 @@ def _save_table_detalle_promociones(ts, ti, ds):
     ]
     for col in int_cols:
         if col in df2.columns:
-            df2[col] = pd.to_numeric(df2[col], errors='coerce').astype('Int64')
+            df2[col] = pd.to_numeric(df2[col], errors='coerce').apply(lambda x: str(int(x)) if pd.notna(x) else None)
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
