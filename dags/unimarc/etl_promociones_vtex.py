@@ -592,7 +592,17 @@ def _save_table_detalle_promociones(ts, ti, ds):
 
     df2 = pd.DataFrame(aux_list, columns = ['id','nombre_promocion','valores_generales','fecha_inicio','fecha_fin','ultima_modificacion','activo','archivado','tabla_nombre_precio','marcas','cupon','vtex_id_producto','nombre_producto','vtex_id_sku','nombre_sku','tipo','maxima_unidad_pd','min_cantidad_bt','cantidad_a_afectar_bt','valor_descuento_percentual','acumular_precio_fijo','vtex_id_coleccion','nombre_coleccion','campana_cupon','total_carro','afecta_despacho'])
         
-
+    int_cols = [
+        'vtex_id_producto', 
+        'vtex_id_sku', 
+        'vtex_id_coleccion', 
+        'maxima_unidad_pd', 
+        'min_cantidad_bt', 
+        'cantidad_a_afectar_bt'
+    ]
+    for col in int_cols:
+        if col in df2.columns:
+            df2[col] = pd.to_numeric(df2[col], errors='coerce').astype('Int64')
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
