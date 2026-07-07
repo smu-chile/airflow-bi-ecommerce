@@ -155,6 +155,16 @@ def excluidos_x_tiendas():
     print(results.head())
     return results
 
+def get_bundles_retornables():
+    query = """
+        SELECT sku_original, sku_bundle 
+        FROM ecommdata.sku_bundles_retornables 
+        WHERE active = true
+    """
+    results = query_to_df(query)
+    results.columns = ["sku_original", "sku_bundle"]
+    return results
+
 def publicacion_1917_today(ts):
     import pandas as pd
     mfc_query = f"""select pc.ref_id, pc.id_tienda,
@@ -263,6 +273,8 @@ def load_tables_to_s3(ts,ds):
     print("Ready excluidos_x_tiendas activas\n")
     df_publicacion_mfc_hoy = publicacion_1917_today(ts)
     print("Ready publicacion_1917_today activas\n")
+    df_bundles_activos = get_bundles_retornables()
+    print("Ready bundles retornables activos\n")
 
     df_productos_sin_skus = df_productos.merge(df_lista_8, on = ["ref_id"], how = 'left')
     df_skus_sin_producto = df_productos_sin_skus.merge(df_skus, on = ["ref_id"], how = 'left')
@@ -325,6 +337,11 @@ def load_tables_to_s3(ts,ds):
     df_changes = df_changes.loc[~df_changes['ref_id'].isin(series_deact)]
     series_changes = pd.Series(df_changes['ref_id'].unique())
 
+    # --- FORZAR EVALUACION DE BUNDLES ORIGINALES ---
+    if not df_bundles_activos.empty:
+        bundle_originals = pd.Series(df_bundles_activos["sku_original"].unique())
+        series_changes = pd.concat([series_changes, bundle_originals]).drop_duplicates().reset_index(drop=True)
+
     df_lista8_changes = df_lista8.loc[df_lista8['ref_id'].isin(series_changes)]
 
     df_lista8_changes.loc[:,'idx'] = df_lista8_changes.groupby(['ref_id']).cumcount()
@@ -350,6 +367,34 @@ def load_tables_to_s3(ts,ds):
     df_changes_final["active"] = 1
     df_changes_final.rename(columns={"ref_id":"refId","tiendas":"stores"}, inplace=True)
     df_changes_final["date"] = pd.to_datetime('today')
+
+    # --- FORZAR INVISIBILIDAD DE ENVASES ---
+    envases_skus = ['000000000000167429-UN', '000000000000163603-UN']
+    mask_envases = df_changes_final['refId'].isin(envases_skus)
+    df_changes_final.loc[mask_envases, 'visible'] = 0
+
+    # --- LOGICA DE REEMPLAZO BUNDLES RETORNABLES ---
+    if not df_bundles_activos.empty:
+        df_bundles_merge = df_changes_final.merge(
+            df_bundles_activos, 
+            left_on='refId', 
+            right_on='sku_original', 
+            how='inner'
+        )
+        if not df_bundles_merge.empty:
+            # 1. Apagamos la visibilidad del SKU original
+            mask_originals = df_changes_final['refId'].isin(df_bundles_merge['sku_original'])
+            df_changes_final.loc[mask_originals, 'visible'] = 0
+
+            # 2. Creamos los bundles copiando la data de la tienda original
+            df_new_bundles = df_bundles_merge.copy()
+            df_new_bundles['refId'] = df_new_bundles['sku_bundle']
+            df_new_bundles['visible'] = 1
+            
+            cols_to_keep = ['refId', 'stores', 'publish', 'updatePending', 'visible', 'active', 'date']
+            df_new_bundles = df_new_bundles[cols_to_keep]
+            
+            df_changes_final = pd.concat([df_changes_final, df_new_bundles], ignore_index=True)
 
     #desactivados
     df_lista8_desactivar = df_lista8
