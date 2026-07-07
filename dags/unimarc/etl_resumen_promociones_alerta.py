@@ -92,7 +92,7 @@ def check_and_notify_slack():
         cantidad_tiendas_activas,
         sku
     FROM ecommdata.resumen_promociones_activas r
-    WHERE porcentaje_descuento_final > 50 
+    WHERE porcentaje_descuento_final > 75 
     AND NOT EXISTS (
         SELECT 1 FROM ecommdata.excepciones_alertas_promociones exc 
         WHERE exc.sku = r.sku AND exc.nombre_promocion = r.nombre_promocion
@@ -114,17 +114,17 @@ def check_and_notify_slack():
     # y para que la alerta sea fácil de leer en dispositivos móviles sin hacer scroll infinito.
     top_cases = rows[:20]
     
-    texto_intro = f"<!channel> Se han detectado *{total_anomalies} productos* activos en e-commerce con un descuento real superior al 50%."
+    texto_intro = f"<!channel> Se han detectado *{total_anomalies} productos* activos en e-commerce con un descuento real superior al 75%."
     if total_anomalies > 20:
         texto_intro += " (Mostrando el Top 20 más crítico)."
-    texto_intro += " Por favor, revisa la lista para evitar pérdida."
+    texto_intro += " Estos no serán cargados en Vtex, favor, solicitar corregir."
     
     slack_blocks = [
         {
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": "🚨 Alerta de Promociones: Descuentos > 50% Detectados",
+                "text": "🚨 Alerta de Promociones: Descuentos > 75% Detectados",
                 "emoji": True
             }
         },
