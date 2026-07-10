@@ -117,6 +117,33 @@ def _create_final_store_table(ti):
     df["numero"] = df["numero"].astype("string").str.replace(".0", "", regex=False)
     df["region"] = df["region"].astype("string").str.replace(".0", "", regex=False)
 
+    # Obtener transportadoras desde MariaDB (Janis) para marcar punto_retiro y delivery
+    from utils.janis_utils import _execute_mariadb_query
+    try:
+        query_tr = "SELECT ref_id, type FROM janis_jackie.wms_logistic_carriers WHERE status = 3 AND ref_id IS NOT NULL"
+        results_tr, columns_tr = _execute_mariadb_query(query_tr)
+        df_tr = pd.DataFrame(results_tr, columns=columns_tr)
+        import re
+        def normalize_ref_id(val):
+            val_str = str(val).strip()
+            match = re.match(r'^(\d+)(.*)$', val_str)
+            if match:
+                digits, rest = match.groups()
+                return digits.zfill(4) + rest
+            return val_str
+
+        df_tr["ref_id_norm"] = df_tr["ref_id"].apply(normalize_ref_id)
+        
+        punto_retiro_tiendas = df_tr[df_tr["type"] == "Retira en tu Unimarc"]["ref_id_norm"].unique()
+        delivery_tiendas = df_tr[df_tr["type"] == "Despacho a Domicilio"]["ref_id_norm"].unique()
+    except Exception as e:
+        print(f"Error al obtener o procesar transportadoras desde MariaDB: {e}")
+        punto_retiro_tiendas = []
+        delivery_tiendas = []
+
+    df["punto_retiro"] = df["id"].apply(lambda x: any(str(r).startswith(x) for r in punto_retiro_tiendas))
+    df["delivery"] = df["id"].apply(lambda x: any(str(r).startswith(x) for r in delivery_tiendas))
+
     columns = ["nombre_tienda_janis",
                 "nombre_tienda",
                 "id_janis",
@@ -134,7 +161,9 @@ def _create_final_store_table(ti):
                 "status",
                 "fecha_modificacion",
                 "fecha_creacion",
-                "glosa"]
+                "glosa",
+                "punto_retiro",
+                "delivery"]
     columns_query = ",".join(columns)
     excluded_query = ",".join(["EXCLUDED."+column for column in columns])
     values_query = "%s,"+",".join(["%s" for column in columns])
