@@ -232,6 +232,7 @@ with DAG(
     t2 = TriggerDagRunOperator(
         task_id="trigger_alerta_fr_encargado",
         trigger_dag_id="proc_frogmi_post_alerta_foundrate_encargado_ecommerce",
+        conf={"schema": "ecommdata_alvi"},
         wait_for_completion=False
     )
 
