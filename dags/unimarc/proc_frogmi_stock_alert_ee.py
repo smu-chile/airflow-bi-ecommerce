@@ -68,17 +68,21 @@ def _pre_payload(id_tienda, product, descr, task_start_date, template, accountab
     }
     return base_payload
 
-def _post_request_to_publish_task_endpoint(ts):
+def _post_request_to_publish_task_endpoint(ts, dag_run=None):
     import pandas as pd
     import json
     import requests
     
     exec_date_local, time_interval, task_start_date = _get_time_interval(ts)
 
+    schema = "ecommdata"
+    if dag_run and dag_run.conf and "schema" in dag_run.conf:
+        schema = dag_run.conf["schema"]
+
     query = f"""
         select p.ref_id, p.nombre as descripcion, fafr.tienda_frogmi as id_tienda
-        from ecommdata.frogmi_alerta_found_rate fafr
-        inner join ecommdata.productos p on lpad(fafr.material, 18, '0') = p.material
+        from {schema}.frogmi_alerta_found_rate fafr
+        inner join {schema}.productos p on lpad(fafr.material, 18, '0') = p.material
         where fafr.gondola is true and (fecha_fin = date_trunc('hour','{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp) + interval '3 hours' or fecha_fin = date_trunc('hour','{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp) + interval '3 hours 30 minutes');
     """
     print(query)
