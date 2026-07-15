@@ -308,7 +308,7 @@ default_args = {
     "retries": 0,
 }
 with DAG(
-    "test_proc_uber_promotions_integration",
+    "proc_uber_promotions_integration",
     default_args=default_args,
     description="Cruce de precios y precios promocionales simples para integracion Uber",
     schedule_interval=None, 
