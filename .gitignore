@@ -17,3 +17,4 @@ docker-compose-v3.yml
 logs
 # DAGs
 dags/etl_sku_positions_normalization_QA.py
+locales/

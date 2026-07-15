@@ -111,6 +111,59 @@ def lista8():
     WHERE candidates.id_tienda IN (SELECT id FROM active_stores)
     """
     results = query_to_df(promociones_query)
+    
+    import pandas as pd
+    # --- INICIO REPLICA DE BUNDLES ESTATICOS ---
+    STATIC_BUNDLES = {
+        '000000000000760476-UN': '000000000099999001-UN',
+        '000000000663002001-UN': '000000000099999002-UN',
+        '000000000000604342-UN': '000000000099999003-UN',
+        '000000000000663001-UN': '000000000099999004-UN',
+        '000000000663002002-UN': '000000000099999005-UN',
+        '000000000000661863-UN': '000000000099999006-UN',
+        '000000000000652451-UN': '000000000099999008-UN',
+        '000000000653931001-UN': '000000000099999009-UN',
+        '000000000653931002-UN': '000000000099999010-UN',
+        '000000000000677826-UN': '000000000099999011-UN',
+        '000000000000711482-UN': '000000000099999012-UN'
+    }
+    
+    bundles_a_concatenar = []
+    
+    # 1. Bundles simples 1 a 1
+    for ref_original, ref_bundle in STATIC_BUNDLES.items():
+        df_bundle = results[results['ref_id'] == ref_original].copy()
+        if not df_bundle.empty:
+            df_bundle['ref_id'] = ref_bundle
+            bundles_a_concatenar.append(df_bundle)
+            
+    # 2. Bundle Surtido Costa (requiere que la tienda tenga TODOS los 6 componentes)
+    surtido_components = [
+        '000000000000760476-UN',
+        '000000000663002001-UN',
+        '000000000000604342-UN',
+        '000000000000663001-UN',
+        '000000000663002002-UN',
+        '000000000000661863-UN'
+    ]
+    df_surtido = results[results['ref_id'].isin(surtido_components)]
+    tiendas_con_todos = df_surtido.groupby('id_tienda').size()
+    # Filtramos solo las tiendas que tienen exactamente los 6 SKUs
+    tiendas_validas = tiendas_con_todos[tiendas_con_todos == len(surtido_components)].index.tolist()
+    
+    if tiendas_validas:
+        df_bundle_surtido = pd.DataFrame({
+            'ref_id': '000000000099999007-UN',
+            'id_tienda': tiendas_validas
+        })
+        bundles_a_concatenar.append(df_bundle_surtido)
+        print(f"📦 BUNDLE SURTIDO COSTA: Se habilitaron {len(tiendas_validas)} tiendas que contienen los 6 componentes.")
+
+    if bundles_a_concatenar:
+        results = pd.concat([results] + bundles_a_concatenar, ignore_index=True)
+        results = results.drop_duplicates()
+    # --- FIN REPLICA DE BUNDLES ESTATICOS ---
+
     return results
 
 def productos():
@@ -293,7 +346,7 @@ def load_tables_to_s3(ts,ds):
     #lista8 con productos validos
     lista_productos = df_productos['ref_id'].unique()
     df_not_in_janis = df_lista_8[~df_lista_8['ref_id'].isin(lista_productos)]
-    df_not_in_janis = df_not_in_janis[["ref_id"]]
+    df_not_in_janis = df_not_in_janis[["ref_id"]].drop_duplicates()
     print(f"\ncantidad de registros en lista8 con productos no validos: {len(df_not_in_janis.index)}\n")
     #lista8+mfc
     df_lista8 = pd.concat([df_lista_8, df_publicacion_mfc_hoy], axis=0)
@@ -318,8 +371,13 @@ def load_tables_to_s3(ts,ds):
     df_lista8 = df_lista8[df_lista8['id_tienda'].isin(series_active_stores)]
     df_productos_janis_tienda = df_productos_janis_tienda[df_productos_janis_tienda['id_tienda'].isin(series_active_stores)]
 
-    df_deact = df_productos_janis_tienda.merge(df_lista8,how='left',on='ref_id')
-    df_deact = df_deact[df_deact['id_tienda_y'].isna()]
+    # OPTIMIZACION OOM: Hacemos el merge solo con valores unicos para no generar producto cartesiano infinito
+    df_janis_unique = df_productos_janis_tienda[['ref_id']].drop_duplicates()
+    df_lista8_unique = df_lista8[['ref_id']].drop_duplicates()
+    df_lista8_unique['in_lista8'] = 1
+
+    df_deact = df_janis_unique.merge(df_lista8_unique, how='left', on='ref_id')
+    df_deact = df_deact[df_deact['in_lista8'].isna()][['ref_id']]
     df_deact = pd.concat([df_exclusions, df_deact])
 
     series_deact = pd.Series(df_deact.loc[:,'ref_id'].unique())
