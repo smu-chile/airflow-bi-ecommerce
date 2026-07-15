@@ -37,7 +37,7 @@ def _join_Catalog_from_s3(ds, ti):
     # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
 
-    join_file_name = f"pruebas_integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/{exec_date_formatted}.csv"
+    join_file_name = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/{exec_date_formatted}.csv"
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
@@ -158,7 +158,7 @@ def _join_stock_from_s3(ds, ti):
     # Obtén la fecha de ejecución en formato YYYYMMDD
     exec_date_formatted = datetime.now().strftime("%Y%m%d")
 
-    join_file_name = f"pruebas_integraciones/last_millers/stock/out/uber/stock/{exec_date}/{exec_date_formatted}.csv"
+    join_file_name = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/{exec_date_formatted}.csv"
     if s3_hook.check_for_key(join_file_name, bucket_name=s3_bucket):
             print(f"File {join_file_name} already exists on bucket: {s3_bucket}. Skipping...")
 
@@ -240,8 +240,8 @@ def _send_joined_data_to_sftp(ds):
     #Datos de los envios
 
     exec_date = ds.replace("-", "/")
-    prefix_Catalog = f"pruebas_integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/" #Prefis para el catologo enviado a uber
-    prefix_Stock = f"pruebas_integraciones/last_millers/stock/out/uber/stock/{exec_date}/" #Prefix para actualizacion de stock
+    prefix_Catalog = f"integraciones/last_millers/stock/out/uber/Catalog/{exec_date}/" #Prefis para el catologo enviado a uber
+    prefix_Stock = f"integraciones/last_millers/stock/out/uber/stock/{exec_date}/" #Prefix para actualizacion de stock
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -339,10 +339,10 @@ with DAG(
         python_callable = _join_stock_from_s3
     )
 
-    #t2 = PythonOperator(
-    #    task_id = "send_joined_data",
-    #    python_callable = _send_joined_data_to_sftp
-    #)
+    t2 = PythonOperator(
+        task_id = "send_joined_data",
+        python_callable = _send_joined_data_to_sftp
+    )
 
     t0 >> t1
-    #t1 >> t2
+    t1 >> t2
