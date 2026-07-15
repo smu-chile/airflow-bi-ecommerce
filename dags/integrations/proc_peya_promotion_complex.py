@@ -57,12 +57,12 @@ def _join_promo_prices_from_s3(ds, ti):
             peya_promotion_nxm_query = f"""
                     SELECT DISTINCT 
                         'all' AS vendors,
-                        s.ean_primario AS barcode,
-                        '' AS sku,
+                        '' AS barcode,
+                        s.ref_id AS sku,
                         'Promociones Unimarc {n}' AS campaign_name,
                         'Promociones Complejas NXM' AS reason,
-                        concat(current_date ,' 10:00:00') AS start_date,
-                        concat(current_date + 1 ,' 09:50:00') AS end_date,
+                        concat(current_date ,' 11:00:00') AS start_date,
+                        concat(wp.fecha_fin_de_promocion ,' 11:10:00') AS end_date,
                         1 AS campaign_status,
                         'same_item_bundle' AS promotion_type,
                         'free_item' AS promotion_sub_type,
@@ -98,6 +98,7 @@ def _join_promo_prices_from_s3(ds, ti):
                       AND wp.nombre_promocion::text !~~ '% LOC%'::text
                       AND wp.nombre_promocion::text !~~ '%LIQ%'::text
                       AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+                      AND wp.nombre_promocion::text !~~ '%REGIO%'::text
                       AND lspp.ean IS NOT NULL
                       AND WP.desc_promocion = 'COMBINACION NXM'
                       AND wp.n_promocion NOT IN ('5552392024',
@@ -131,30 +132,27 @@ def _join_promo_prices_from_s3(ds, ti):
             peya_promotion_nxs_query = f"""
                     SELECT DISTINCT
                     'all' as vendors,
-                    s.ean_primario AS barcode,
-                    '' AS sku,
+                    '' AS barcode,
+                    s.ref_id AS sku,
                     'Promociones UnimarcNXS{n}' AS campaign_name,
                     'Promociones Complejas NX$' AS reason,
-                    concat(current_date ,' 10:00:00') AS start_date,
-                    concat(current_date + 1 ,' 09:50:00') AS end_date,
+                    concat(current_date ,' 11:00:00') AS start_date,
+                    concat(wp.fecha_fin_de_promocion ,' 11:10:00') AS end_date,
                     1 AS campaign_status,
                     'same_item_bundle' AS promotion_type,
                     'percentage_value_off' AS promotion_sub_type,
                     NULL AS discount_usage_limit,
                     CASE
                         WHEN WP.desc_promocion = 'COMBINACION NX$' THEN 
-                            CONCAT('B', 
-                                   wp.cantidad_n - GREATEST(1, LEAST(wp.cantidad_n - 1, CEIL((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)))), 
-                                   'G', 
-                                   GREATEST(1, LEAST(wp.cantidad_n - 1, CEIL((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)))))
+                            CONCAT('B', wp.cantidad_n , 'G1')
                     END AS bundle_details,
                     CASE
                         WHEN COALESCE(lspp.precio, 0) = 0 THEN 0
                         ELSE 
-                            LEAST(100, ROUND(
-                                ((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / 
-                                (GREATEST(1, LEAST(wp.cantidad_n - 1, CEIL((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)))) * lspp.precio)) * 100
-                            ))
+                            TRUNC(
+                                (((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / 
+                                NULLIF(lspp.precio, 0)) * 100)::numeric
+                            )
                     END AS bundle_discount,
                     NULL AS discounted_price,
                     NULL AS max_no_of_orders
@@ -183,6 +181,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.nombre_promocion::text NOT LIKE '% LOC%'
                 AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
                 AND wp.nombre_promocion::text NOT LIKE '%CYBER%'
+                AND wp.nombre_promocion::text NOT LIKE '%REGIO%'
                 AND lspp.ean IS NOT NULL
                 AND wp.ahorro_total IS NOT NULL
                 AND WP.desc_promocion = 'COMBINACION NX$'
@@ -192,8 +191,10 @@ def _join_promo_prices_from_s3(ds, ti):
                 '1120112024', '1120122024', '4000512024','5552792024','5552852024'
                 )
                AND lspp.unidad_de_medida NOT IN ('KG', 'KGV')
-               AND l.excluido IS NOT TRUE
-               AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
+                AND l.excluido IS NOT TRUE
+                AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
+                AND COALESCE(lspp.precio, 0) > 0
+                AND (((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)) * 100) < 99
             """
             cursor.execute(peya_promotion_nxs_query)
             results = cursor.fetchall()
@@ -210,12 +211,12 @@ def _join_promo_prices_from_s3(ds, ti):
         peya_promotion_query = f"""
                 SELECT DISTINCT
                     'all' as vendors,
-                    s.ean_primario AS barcode,
-                    '' AS sku,
+                    '' AS barcode,
+                    s.ref_id AS sku,
                     'Promociones' AS campaign_name,
                     'Promociones Simples' AS reason,
-                    concat(current_date ,' 10:00:00') AS start_date,
-                    concat(current_date + 1,' 09:50:00') AS end_date,
+                    concat(current_date ,' 11:00:00') AS start_date,
+                    concat(wp.fecha_fin_de_promocion ,' 11:10:00') AS end_date,
                     CASE
                         WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
                         WHEN lspp.unidad_de_medida in ('KG','KGV') then ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida)) 
@@ -228,6 +229,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     NULL AS bundle_discount
                 FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
+                LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
                 LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                 LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                 LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
@@ -235,6 +237,37 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND lspp.id_tienda = '{store_id}'
                 AND l.excluido IS NOT TRUE
                 AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
+                AND wp.fecha_inicio_de_promocion <= CURRENT_DATE 
+                AND wp.fecha_fin_de_promocion >= CURRENT_DATE
+                AND wp.tipo_promocion IN (1, 4)
+                AND wp.registro_valido = TRUE
+                AND wp.organizacion_ventas = '1000'
+                AND wp.canal_distribucion = '10'
+                AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+                AND wp.nombre_promocion::text !~~ '%ZONA%'::text
+                AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                AND wp.nombre_promocion::text !~~ '%917%'::text
+                AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                AND wp.nombre_promocion::text !~~ '% LOC%'::text
+                AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+                AND wp.nombre_promocion::text !~~ '%REGIO%'::text
+                AND wp.n_promocion NOT IN ('5552392024',
+                  '1120012024',
+                  '1120022024',
+                  '1120032024',
+                  '1120042024',
+                  '1120052024',
+                  '1120062024',
+                  '1120082024',
+                  '1120092024',
+                  '1120102024',
+                  '1120112024',
+                  '1120122024',
+                  '4000512024','5552792024','5552852024')
             """
         cursor.execute(peya_promotion_query)
         results = cursor.fetchall()

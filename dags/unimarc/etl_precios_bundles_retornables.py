@@ -151,8 +151,15 @@ def update_bundle_prices():
             # Helper for updating a component
             def update_component(comp, new_price):
                 sku_id = comp['StockKeepingUnitId']
-                # Delete
-                del_url = f"https://unimarc.myvtex.com/api/catalog/pvt/stockkeepingunitkit?parentSkuId={vtex_id_bundle}&skuId={sku_id}"
+                kit_rel_id = comp.get('id') or comp.get('Id')
+                
+                # Delete using specific relation ID to bypass VTEX global deletion bug
+                if kit_rel_id:
+                    del_url = f"https://unimarc.myvtex.com/api/catalog/pvt/stockkeepingunitkit/{kit_rel_id}"
+                else:
+                    # Fallback (very dangerous due to VTEX bug, but needed if no ID is returned)
+                    del_url = f"https://unimarc.myvtex.com/api/catalog/pvt/stockkeepingunitkit?parentSkuId={vtex_id_bundle}&skuId={sku_id}"
+                    
                 resp_del = retry_request('DELETE', del_url, headers=headers, timeout=30)
                 if resp_del.status_code not in [200, 204]:
                     raise Exception(f"Fallo crítico al hacer DELETE del componente {sku_id} en el bundle {vtex_id_bundle}. RESP: {resp_del.text}")

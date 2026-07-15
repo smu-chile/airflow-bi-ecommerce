@@ -46,6 +46,7 @@ join (
 	left join ecommdata.productos ep on ep.ref_id = p.ref_id
 	left join ecommdata.categorias ec on ep.id_categoria = ec.id
 	where p.fecha_carga = '{{ds}}'
+	and l.excluido IS NOT TRUE
 	and (ec.n1 NOT IN ('No Trabajar', 'Inactivos') OR ec.n1 IS NULL)
 ) _t2
 on _t.material = _t2.material 
