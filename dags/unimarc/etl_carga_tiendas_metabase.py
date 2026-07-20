@@ -111,57 +111,57 @@ def lista8():
     WHERE candidates.id_tienda IN (SELECT id FROM active_stores)
     """
     results = query_to_df(promociones_query)
-    
     import pandas as pd
-    # --- INICIO REPLICA DE BUNDLES ESTATICOS ---
-    STATIC_BUNDLES = {
-        '000000000000760476-UN': '000000000099999001-UN',
-        '000000000663002001-UN': '000000000099999002-UN',
-        '000000000000604342-UN': '000000000099999003-UN',
-        '000000000000663001-UN': '000000000099999004-UN',
-        '000000000663002002-UN': '000000000099999005-UN',
-        '000000000000661863-UN': '000000000099999006-UN',
-        '000000000000652451-UN': '000000000099999008-UN',
-        '000000000653931001-UN': '000000000099999009-UN',
-        '000000000653931002-UN': '000000000099999010-UN',
-        '000000000000677826-UN': '000000000099999011-UN',
-        '000000000000711482-UN': '000000000099999012-UN'
-    }
-    
-    bundles_a_concatenar = []
-    
-    # 1. Bundles simples 1 a 1
-    for ref_original, ref_bundle in STATIC_BUNDLES.items():
-        df_bundle = results[results['ref_id'] == ref_original].copy()
-        if not df_bundle.empty:
-            df_bundle['ref_id'] = ref_bundle
-            bundles_a_concatenar.append(df_bundle)
-            
-    # 2. Bundle Surtido Costa (requiere que la tienda tenga TODOS los 6 componentes)
-    surtido_components = [
-        '000000000000760476-UN',
-        '000000000663002001-UN',
-        '000000000000604342-UN',
-        '000000000000663001-UN',
-        '000000000663002002-UN',
-        '000000000000661863-UN'
-    ]
-    df_surtido = results[results['ref_id'].isin(surtido_components)]
-    tiendas_con_todos = df_surtido.groupby('id_tienda').size()
-    # Filtramos solo las tiendas que tienen exactamente los 6 SKUs
-    tiendas_validas = tiendas_con_todos[tiendas_con_todos == len(surtido_components)].index.tolist()
-    
-    if tiendas_validas:
-        df_bundle_surtido = pd.DataFrame({
-            'ref_id': '000000000099999007-UN',
-            'id_tienda': tiendas_validas
-        })
-        bundles_a_concatenar.append(df_bundle_surtido)
-        print(f"📦 BUNDLE SURTIDO COSTA: Se habilitaron {len(tiendas_validas)} tiendas que contienen los 6 componentes.")
 
-    if bundles_a_concatenar:
-        results = pd.concat([results] + bundles_a_concatenar, ignore_index=True)
-        results = results.drop_duplicates()
+    # --- INICIO REPLICA DE BUNDLES ESTATICOS ---
+    # STATIC_BUNDLES = {
+    #     '000000000000760476-UN': '000000000099999001-UN',
+    #     '000000000663002001-UN': '000000000099999002-UN',
+    #     '000000000000604342-UN': '000000000099999003-UN',
+    #     '000000000000663001-UN': '000000000099999004-UN',
+    #     '000000000663002002-UN': '000000000099999005-UN',
+    #     '000000000000661863-UN': '000000000099999006-UN',
+    #     '000000000000652451-UN': '000000000099999008-UN',
+    #     '000000000653931001-UN': '000000000099999009-UN',
+    #     '000000000653931002-UN': '000000000099999010-UN',
+    #     '000000000000677826-UN': '000000000099999011-UN',
+    #     '000000000000711482-UN': '000000000099999012-UN'
+    # }
+    # 
+    # bundles_a_concatenar = []
+    # 
+    # # 1. Bundles simples 1 a 1
+    # for ref_original, ref_bundle in STATIC_BUNDLES.items():
+    #     df_bundle = results[results['ref_id'] == ref_original].copy()
+    #     if not df_bundle.empty:
+    #         df_bundle['ref_id'] = ref_bundle
+    #         bundles_a_concatenar.append(df_bundle)
+    #         
+    # # 2. Bundle Surtido Costa (requiere que la tienda tenga TODOS los 6 componentes)
+    # surtido_components = [
+    #     '000000000000760476-UN',
+    #     '000000000663002001-UN',
+    #     '000000000000604342-UN',
+    #     '000000000000663001-UN',
+    #     '000000000663002002-UN',
+    #     '000000000000661863-UN'
+    # ]
+    # df_surtido = results[results['ref_id'].isin(surtido_components)]
+    # tiendas_con_todos = df_surtido.groupby('id_tienda').size()
+    # # Filtramos solo las tiendas que tienen exactamente los 6 SKUs
+    # tiendas_validas = tiendas_con_todos[tiendas_con_todos == len(surtido_components)].index.tolist()
+    # 
+    # if tiendas_validas:
+    #     df_bundle_surtido = pd.DataFrame({
+    #         'ref_id': '000000000099999007-UN',
+    #         'id_tienda': tiendas_validas
+    #     })
+    #     bundles_a_concatenar.append(df_bundle_surtido)
+    #     print(f"📦 BUNDLE SURTIDO COSTA: Se habilitaron {len(tiendas_validas)} tiendas que contienen los 6 componentes.")
+    #
+    # if bundles_a_concatenar:
+    #     results = pd.concat([results] + bundles_a_concatenar, ignore_index=True)
+    #     results = results.drop_duplicates()
     # --- FIN REPLICA DE BUNDLES ESTATICOS ---
 
     return results
