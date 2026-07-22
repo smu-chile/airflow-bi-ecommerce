@@ -218,6 +218,21 @@ def get_bundles_retornables():
     results.columns = ["sku_original", "sku_bundle"]
     return results
 
+def get_bundles_dinamicos():
+    query = """
+        SELECT skuid_bundle, ref_id_bundle, skus_componentes 
+        FROM ecommdata.sku_bundles_dinamicos 
+        WHERE active = true
+    """
+    try:
+        results = query_to_df(query)
+        results.columns = ["skuid_bundle", "ref_id_bundle", "skus_componentes"]
+        return results
+    except Exception as e:
+        print(f"Error querying sku_bundles_dinamicos: {e}")
+        import pandas as pd
+        return pd.DataFrame(columns=["skuid_bundle", "ref_id_bundle", "skus_componentes"])
+
 def publicacion_1917_today(ts):
     import pandas as pd
     mfc_query = f"""select pc.ref_id, pc.id_tienda,
@@ -453,6 +468,68 @@ def load_tables_to_s3(ts,ds):
             df_new_bundles = df_new_bundles[cols_to_keep]
             
             df_changes_final = pd.concat([df_changes_final, df_new_bundles], ignore_index=True)
+
+    # --- LOGICA BUNDLES DINAMICOS ---
+    df_bundles_din = get_bundles_dinamicos()
+    if not df_bundles_din.empty:
+        import json
+        nuevos_dinamicos = []
+        for _, row in df_bundles_din.iterrows():
+            skuid_bundle = str(row['skuid_bundle'])
+            ref_id_bundle = row.get('ref_id_bundle')
+            if pd.isna(ref_id_bundle) or not ref_id_bundle:
+                ref_id_bundle = skuid_bundle # fallback si aun no llenan el campo
+            else:
+                ref_id_bundle = str(ref_id_bundle)
+                
+            componentes = row['skus_componentes']
+            
+            if isinstance(componentes, str):
+                try:
+                    componentes = json.loads(componentes)
+                except:
+                    componentes = []
+                    
+            if not componentes or not isinstance(componentes, list):
+                continue
+                
+            intersected_stores = None
+            valid = True
+            for comp in componentes:
+                comp_row = df_changes_final[df_changes_final['refId'] == str(comp)]
+                if comp_row.empty:
+                    valid = False
+                    break
+                
+                comp_stores_str = comp_row.iloc[0]['stores']
+                if pd.isna(comp_stores_str) or not comp_stores_str:
+                    valid = False
+                    break
+                    
+                comp_stores = set(str(comp_stores_str).split(','))
+                if intersected_stores is None:
+                    intersected_stores = comp_stores
+                else:
+                    intersected_stores = intersected_stores.intersection(comp_stores)
+                    
+                if not intersected_stores:
+                    valid = False
+                    break
+            
+            if valid and intersected_stores:
+                nuevos_dinamicos.append({
+                    'refId': ref_id_bundle,
+                    'stores': ','.join(sorted(list(intersected_stores))),
+                    'publish': 1,
+                    'updatePending': 1,
+                    'visible': 1, # Se mantiene siempre visible por ser dinamico, como pediste
+                    'active': 1,
+                    'date': pd.to_datetime('today')
+                })
+                
+        if nuevos_dinamicos:
+            df_nuevos_din = pd.DataFrame(nuevos_dinamicos)
+            df_changes_final = pd.concat([df_changes_final, df_nuevos_din], ignore_index=True)
 
     #desactivados
     df_lista8_desactivar = df_lista8
