@@ -477,10 +477,15 @@ def load_tables_to_s3(ts,ds):
         for _, row in df_bundles_din.iterrows():
             skuid_bundle = str(row['skuid_bundle'])
             ref_id_bundle = row.get('ref_id_bundle')
-            if pd.isna(ref_id_bundle) or not ref_id_bundle:
+            if pd.isna(ref_id_bundle) or not ref_id_bundle or str(ref_id_bundle).lower() in ['none', 'nan', 'null']:
                 ref_id_bundle = skuid_bundle # fallback si aun no llenan el campo
             else:
                 ref_id_bundle = str(ref_id_bundle)
+                
+            ref_id_bundle = ref_id_bundle.strip()
+            if not ref_id_bundle or ref_id_bundle.lower() in ['none', 'nan', 'null']:
+                continue # Evitar generar filas sin refId valido
+
                 
             componentes = row['skus_componentes']
             
