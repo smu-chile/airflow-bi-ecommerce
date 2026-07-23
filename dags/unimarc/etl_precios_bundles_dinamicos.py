@@ -79,7 +79,7 @@ def update_dynamic_bundle_prices():
     # 1. Obtener bundles activos
     query = """
         SELECT 
-            b.sku_bundle as vtex_id_bundle,
+            b.skuid_bundle as vtex_id_bundle,
             COALESCE(b.discount_multiplier, 1.0) as discount_multiplier
         FROM ecommdata.sku_bundles_dinamicos b
         WHERE b.active = true

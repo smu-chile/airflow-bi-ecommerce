@@ -7,6 +7,7 @@ import pendulum
 import io
 import pandas as pd
 import csv
+import paramiko
 import pysftp
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
@@ -39,46 +40,66 @@ def extract_promotions(ds, store_ids):
     store_ids_str = ", ".join([f"'{s}'" for s in store_ids])
     
     query = f"""
-    SELECT DISTINCT
-        tlm.id_rappi AS store_id,
-        tlm.id AS smu_store_id,
-        wp.fecha_inicio_de_promocion AS start_date_raw,
-        wp.fecha_fin_de_promocion AS end_date_raw,
-        wp.desc_promocion,
-        wp.cantidad_n,
-        wp.cantidad_m,
-        wp.precio_total_promocional,
-        wp.descripcion_material AS name,
-        lspp.material AS id
-    FROM integraciones.lm_stock_precio_promo lspp
-    INNER JOIN integraciones.tiendas_last_millers tlm 
-        ON tlm.id = lspp.id_tienda 
-    INNER JOIN ecommdata.workflow_promociones wp 
-        ON wp.material = lspp.material 
-        AND (CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = lspp.unidad_de_medida
-    WHERE wp.fecha_inicio_de_promocion <= '{ds}'
-      AND wp.fecha_fin_de_promocion >= '{ds}'
-      AND tlm.id IN ({store_ids_str})
-      AND wp.tipo_promocion IN (2, 7)
-      AND wp.registro_valido = TRUE
-      AND wp.organizacion_ventas = '1000'
-      AND wp.canal_distribucion = '10'
-      AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
-      AND wp.nombre_promocion::text !~~ '%MFC%'::text
-      AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-      AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-      AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-      AND wp.nombre_promocion::text !~~ '%917%'::text
-      AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-      AND wp.nombre_promocion::text !~~ '% LOC%'::text
-      AND wp.nombre_promocion::text !~~ '%LIQ%'::text
-      AND wp.nombre_promocion::text !~~ '%CYBER%'::text
-      AND wp.nombre_promocion::text !~~ '%REGIO%'::text
-      AND wp.n_promocion NOT IN (
-          '5552392024','1120012024','1120022024','1120032024','1120042024',
-          '1120052024','1120062024','1120082024','1120092024','1120102024',
-          '1120112024','1120122024','4000512024','5552792024','5552852024'
-      );
+    WITH promociones_base AS (
+        SELECT DISTINCT
+            tlm.id_rappi AS store_id,
+            tlm.id AS smu_store_id,
+            wp.fecha_inicio_de_promocion AS start_date_raw,
+            wp.fecha_fin_de_promocion AS end_date_raw,
+            wp.desc_promocion,
+            wp.cantidad_n,
+            wp.cantidad_m,
+            wp.precio_promocional,
+            wp.precio_total_promocional,
+            wp.descripcion_material AS name,
+            lspp.material AS id,
+            ROW_NUMBER() OVER (
+                PARTITION BY lspp.material, tlm.id_rappi
+                ORDER BY wp.precio_promocional ASC
+            ) AS rn
+        FROM integraciones.lm_stock_precio_promo lspp
+        INNER JOIN integraciones.tiendas_last_millers tlm 
+            ON tlm.id = lspp.id_tienda 
+        INNER JOIN ecommdata.workflow_promociones wp 
+            ON wp.material = lspp.material 
+            AND (CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = lspp.unidad_de_medida
+        WHERE wp.fecha_inicio_de_promocion <= '{ds}'
+          AND wp.fecha_fin_de_promocion >= '{ds}'
+          AND tlm.id IN ({store_ids_str})
+          AND wp.tipo_promocion IN (2, 7)
+          AND wp.registro_valido = TRUE
+          AND wp.organizacion_ventas = '1000'
+          AND wp.canal_distribucion = '10'
+          AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+          AND wp.nombre_promocion::text !~~ '%MFC%'::text
+          AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+          AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+          AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+          AND wp.nombre_promocion::text !~~ '%917%'::text
+          AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+          AND wp.nombre_promocion::text !~~ '% LOC%'::text
+          AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+          AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+          AND wp.nombre_promocion::text !~~ '%REGIO%'::text
+          AND wp.n_promocion NOT IN (
+              '5552392024','1120012024','1120022024','1120032024','1120042024',
+              '1120052024','1120062024','1120082024','1120092024','1120102024',
+              '1120112024','1120122024','4000512024','5552792024','5552852024'
+          )
+    )
+    SELECT 
+        store_id,
+        smu_store_id,
+        start_date_raw,
+        end_date_raw,
+        desc_promocion,
+        cantidad_n,
+        cantidad_m,
+        precio_total_promocional,
+        name,
+        id
+    FROM promociones_base
+    WHERE rn = 1;
     """
     return pg_hook.get_pandas_df(query)
 
@@ -271,18 +292,13 @@ def upload_sftp(sftp_connection, local_file_buffer, remote_folder, filename):
 
 def extract_and_process_promotions(ds, ti, **kwargs):
     """
-    Tarea 2: Extracción, Validación, Transformación, Generación de CSV y Validación.
-    Almacena archivos CSV válidos en S3 para la Tarea 3.
+    Tarea 2: Extracción, Validación, Transformación y consolidación en un único CSV para todas las tiendas.
+    Almacena el archivo CSV consolidado en S3 para la Tarea 3.
     """
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
     exec_date = ds.replace("-", "/")
-    
-    ts = kwargs.get('ts')
-    if ts:
-        aux_time = pendulum.parse(ts).strftime("%H%M")
-    else:
-        aux_time = pendulum.now("America/Santiago").strftime("%H%M")
+    partner_name = Variable.get("RAPPI_PARTNER_NAME", "Unimarc")
     
     # Recuperar tiendas activas de la Tarea 1 vía XCom
     rappi_stores = ti.xcom_pull(task_ids="get_rappi_active_stores")
@@ -301,64 +317,57 @@ def extract_and_process_promotions(ds, ti, **kwargs):
         print("No se encontraron promociones para la extracción. Omitiendo...")
         return
         
-    grouped = raw_df.groupby('store_id')
+    valid_records = []
     
-    for store_id, group in grouped:
-        print(f"Procesando Tienda ID: {store_id}")
-        
-        valid_records = []
-        
-        for idx, row in group.iterrows():
-            is_valid, reason = validate_promotion(row)
-            if not is_valid:
-                print(f"SKU {row.get('id')} omitido: {reason}")
-                continue
-                
-            transformed = transform_promotion(row)
-            valid_records.append(transformed)
-            
-        if not valid_records:
-            print(f"No hay registros válidos para la tienda {store_id}. Omitiendo generación de archivo.")
+    for idx, row in raw_df.iterrows():
+        is_valid, reason = validate_promotion(row)
+        if not is_valid:
             continue
             
-        valid_df = pd.DataFrame(valid_records)
+        transformed = transform_promotion(row)
+        valid_records.append(transformed)
         
-        # Validación de duplicados
-        initial_len = len(valid_df)
-        valid_df.drop_duplicates(subset=['store_id', 'id', 'start_date', 'end_date', 'type_format'], keep='first', inplace=True)
-        if len(valid_df) < initial_len:
-            print(f"Se eliminaron {initial_len - len(valid_df)} promociones duplicadas.")
-            
-        csv_buffer = io.StringIO()
-        write_csv(valid_df, csv_buffer)
-        csv_content = csv_buffer.getvalue()
+    if not valid_records:
+        print("No hay registros válidos para ninguna tienda. Omitiendo generación de archivo.")
+        return
         
-        try:
-            validate_csv(csv_content)
-            print(f"Validación de CSV exitosa para tienda {store_id}.")
-        except Exception as e:
-            print(f"Validación de CSV falló para tienda {store_id}: {e}. Omitiendo archivo.")
-            csv_buffer.close()
-            continue
-            
-        filename = f"{store_id}_{ds}_{aux_time}.csv"
-        s3_key = f"integraciones/last_millers/promotions/out/rappi/Complex/{exec_date}/{filename}"
-        s3_hook.load_string(csv_content,
-                            key=s3_key,
-                            bucket_name=s3_bucket,
-                            replace=True,
-                            encrypt=False)
-        print(f"Archivo cargado en S3: {s3_key}")
+    valid_df = pd.DataFrame(valid_records)
+    
+    # Validación de duplicados entre todas las tiendas
+    initial_len = len(valid_df)
+    valid_df.drop_duplicates(subset=['store_id', 'id', 'start_date', 'end_date', 'type_format'], keep='first', inplace=True)
+    if len(valid_df) < initial_len:
+        print(f"Se eliminaron {initial_len - len(valid_df)} promociones duplicadas.")
         
+    csv_buffer = io.StringIO()
+    write_csv(valid_df, csv_buffer)
+    csv_content = csv_buffer.getvalue()
+    
+    try:
+        validate_csv(csv_content)
+        print("Validación de CSV consolidado exitosa.")
+    except Exception as e:
+        print(f"Validación de CSV consolidado falló: {e}. Omitiendo archivo.")
         csv_buffer.close()
+        return
+        
+    filename = f"{partner_name}_{ds}.csv"
+    s3_key = f"integraciones/last_millers/promotions/out/rappi/Complex/{exec_date}/{filename}"
+    s3_hook.load_string(csv_content,
+                        key=s3_key,
+                        bucket_name=s3_bucket,
+                        replace=True,
+                        encrypt=False)
+    print(f"Archivo consolidado cargado en S3: {s3_key}")
+    
+    csv_buffer.close()
 
 def send_joined_data_to_stfp(ds, ti, **kwargs):
     """
-    Tarea 3: Lee los CSV generados desde S3, los sube a Rappi SFTP usando .tmp y renombrado,
-    y registra resultados y limpia buffers de memoria.
+    Tarea 3: Lee el CSV consolidado generado desde S3 y lo sube al SFTP de Rappi en la carpeta Descuentos/.
     """
     ftp_host = Variable.get("SFTP_RAPPI_HOST")
-    ftp_port = 22
+    ftp_port = int(Variable.get("SFTP_RAPPI_PORT", 22))
     ftp_user = Variable.get("SFTP_RAPPI_USER")
     ftp_rsa_key = Variable.get("SFTP_RAPPI_PASSWORD")
     
@@ -375,27 +384,26 @@ def send_joined_data_to_stfp(ds, ti, **kwargs):
         
     print(f"Cantidad de archivos encontrados: {len(s3_file_list)}")
     
-    remote_folder = Variable.get("SFTP_RAPPI_COMPLEX_FOLDER", "/discounts")
-    if remote_folder and not remote_folder.endswith("/"):
-        remote_folder += "/"
-        
-    cnopts = pysftp.CnOpts()
-    cnopts.hostkeys = None
+    base_folder = Variable.get("SFTP_RAPPI_COMPLEX_FOLDER", "Descuentos").strip("/")
+    remote_folder = f"/{base_folder}/"
     
-    with pysftp.Connection(host=ftp_host,
-                            username=ftp_user,
-                            port=ftp_port,
-                            password=ftp_rsa_key,
-                            cnopts=cnopts) as sftp:
-                            
+    key_buffer = io.StringIO(ftp_rsa_key)
+    p_key = paramiko.RSAKey.from_private_key(key_buffer)
+    
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    ssh.connect(hostname=ftp_host, port=ftp_port, username=ftp_user, pkey=p_key)
+    sftp = ssh.open_sftp()
+    
+    try:
         try:
-            sftp.makedirs(remote_folder)
-        except Exception as e:
-            print(f"Error al chequear o crear directorio remoto: {e}")
+            sftp.mkdir(remote_folder)
+        except Exception:
+            pass
             
         for s3_key in s3_file_list:
             filename = s3_key.split("/")[-1]
-            print(f"Procesando subida SFTP para el archivo: {filename}")
+            print(f"Procesando subida SFTP hacia {remote_folder} para el archivo: {filename}")
             
             s3_obj = s3_hook.get_key(s3_key, bucket_name=s3_bucket)
             csv_content = s3_obj.get()["Body"].read().decode('utf-8')
@@ -406,10 +414,12 @@ def send_joined_data_to_stfp(ds, ti, **kwargs):
                 print(f"Subido y registrado exitosamente: {filename}")
             except Exception as e:
                 print(f"Error al subir {filename}: {e}")
-                local_file_buffer.close()
                 raise e
             finally:
                 local_file_buffer.close()
+    finally:
+        sftp.close()
+        ssh.close()
             
     print("Todas las subidas fueron completadas exitosamente.")
 
@@ -449,9 +459,9 @@ with DAG(
         python_callable = extract_and_process_promotions
     )
 
-    #t2 = PythonOperator(
-    #    task_id = "send_joined_data_to_stfp",
-    #    python_callable = send_joined_data_to_stfp
-    #)
+    t2 = PythonOperator(
+        task_id = "send_joined_data_to_stfp",
+        python_callable = send_joined_data_to_stfp
+    )
 
-    t0 >> t1 #>> t2
+    t0 >> t1 >> t2
