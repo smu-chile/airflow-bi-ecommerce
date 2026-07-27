@@ -11,27 +11,24 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 13:00 -  curr_date at 09:30 to curr_date at 13:00 (+3 hrs 30 min)
-    # 17:00 -  curr_date at 13:00 to curr_date at 17:00 (+4 hrs)
+    # 13:00 run: curr_date at 09:30 to curr_date at 13:00 (base: 10:30 - 1h = 09:30, + 2h 30m = 13:00)
+    # 17:00 run: curr_date at 12:00 to curr_date at 17:00 (base: 13:00 - 1h = 12:00, + 4h = 17:00)
 
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
-    print(exec_datetime_local_str)
+    task_start_date = exec_datetime_local
 
-    current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
+    current_exec_hour = exec_datetime_local.strftime("%H")
     if current_exec_hour == "17":
-        task_start_date = exec_datetime_local + timedelta(days=1)
-        task_start_date = task_start_date.replace(hour=13, minute=0, second=0)
-        exec_datetime_local = exec_datetime_local.replace(hour=9, minute=30, second=0) + timedelta(days=1)
-        exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
-        return exec_datetime_local_str, "interval '3 hours 30 minutes'", task_start_date
+        interval_base_date = exec_datetime_local.replace(hour=13, minute=0, second=0)
+        interval_base_str = interval_base_date.strftime("%Y-%m-%dT%H:%M")
+        return interval_base_str, "interval '4 hours'", task_start_date
     else:
-        task_start_date = exec_datetime_local
-        task_start_date = task_start_date.replace(hour=17, minute=0, second=0)
-        return exec_datetime_local_str, "interval '4 hours'", task_start_date
+        interval_base_date = exec_datetime_local.replace(hour=10, minute=30, second=0)
+        interval_base_str = interval_base_date.strftime("%Y-%m-%dT%H:%M")
+        return interval_base_str, "interval '2 hours 30 minutes'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
     if Variable.get("FROGMI_ENV") != "prod":
