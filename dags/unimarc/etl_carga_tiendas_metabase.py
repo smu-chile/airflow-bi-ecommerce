@@ -415,6 +415,24 @@ def load_tables_to_s3(ts,ds):
         bundle_originals = pd.Series(df_bundles_activos["sku_original"].unique())
         series_changes = pd.concat([series_changes, bundle_originals]).drop_duplicates().reset_index(drop=True)
 
+    # --- FORZAR EVALUACION DE COMPONENTES DE BUNDLES DINAMICOS ---
+    df_bundles_din = get_bundles_dinamicos()
+    if not df_bundles_din.empty:
+        import json
+        componentes_dinamicos = []
+        for _, row in df_bundles_din.iterrows():
+            componentes = row['skus_componentes']
+            if isinstance(componentes, str):
+                try:
+                    componentes = json.loads(componentes)
+                except:
+                    componentes = []
+            if componentes and isinstance(componentes, list):
+                componentes_dinamicos.extend([str(c) for c in componentes])
+        if componentes_dinamicos:
+            series_componentes = pd.Series(componentes_dinamicos)
+            series_changes = pd.concat([series_changes, series_componentes]).drop_duplicates().reset_index(drop=True)
+
     df_lista8_changes = df_lista8.loc[df_lista8['ref_id'].isin(series_changes)]
 
     df_lista8_changes.loc[:,'idx'] = df_lista8_changes.groupby(['ref_id']).cumcount()
@@ -470,7 +488,7 @@ def load_tables_to_s3(ts,ds):
             df_changes_final = pd.concat([df_changes_final, df_new_bundles], ignore_index=True)
 
     # --- LOGICA BUNDLES DINAMICOS ---
-    df_bundles_din = get_bundles_dinamicos()
+    # df_bundles_din ya fue consultado al inicio para forzar componentes
     if not df_bundles_din.empty:
         import json
         nuevos_dinamicos = []

@@ -5,7 +5,7 @@ insert into ecommdata_alvi.precios_huerfanos WITH huerfanos AS (
         WHERE l.material NOT IN (
                 SELECT material
                 FROM ecommdata_alvi.lista8
-                WHERE id_tienda = "3092"
+                WHERE id_tienda = '3092'
             )
     ),
     precios_activos AS (
