@@ -16,7 +16,7 @@ def _get_peya_active_stores():
     peya_stores_query = """
         SELECT id, id_peya
         FROM integraciones.tiendas_last_millers
-        WHERE id_peya = '512089';
+        WHERE id_peya in ('512089','277730');
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -61,8 +61,8 @@ def _join_promo_prices_from_s3(ds, ti):
                         s.ref_id AS sku,
                         'Promociones Unimarc {n}' AS campaign_name,
                         'Promociones Complejas NXM' AS reason,
-                        concat(current_date ,' 11:00:00') AS start_date,
-                        concat(wp.fecha_fin_de_promocion ,' 11:10:00') AS end_date,
+                        concat(current_date ,' 09:00:00') AS start_date,
+                        concat(wp.fecha_fin_de_promocion ,' 09:00:00') AS end_date,
                         1 AS campaign_status,
                         'same_item_bundle' AS promotion_type,
                         'free_item' AS promotion_sub_type,
@@ -72,7 +72,11 @@ def _join_promo_prices_from_s3(ds, ti):
                         END AS bundle_details,
                         NULL AS bundle_discount,
                         NULL AS discounted_price,
-                        NULL AS max_no_of_orders
+                        NULL AS max_no_of_orders,
+                        COALESCE(lspp.precio, 0) AS regular_price,
+                        COALESCE(wp.precio_total_promocional, 0) AS total_promo_price,
+                        COALESCE(wp.cantidad_n, 0) AS qty_n,
+                        COALESCE(wp.cantidad_m, 0) AS qty_m
                     FROM integraciones.lm_stock_precio_promo lspp 
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                     LEFT JOIN ecommdata.workflow_promociones wp ON concat(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = concat(lspp.material, '-', lspp.unidad_de_medida) 
@@ -84,7 +88,6 @@ def _join_promo_prices_from_s3(ds, ti):
                       AND lspp.id_tienda = '{store_id}'
                       AND wp.tipo_promocion IN (2, 7)
                       AND Wp.cantidad_n = '{n}'
-                      AND lspp.precio_promocional IS NULL
                       AND wp.registro_valido = TRUE
                       AND wp.organizacion_ventas = '1000'
                       AND wp.canal_distribucion = '10'
@@ -125,7 +128,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 df.columns = map(str.lower, df.columns)
                 all_dfs.append(df)
 
-    # # 2. Promociones Complejas NxS
+    # 2. Promociones Complejas NxS
     for n in range(2, 11):  # Iterar desde 2 hasta 10    
         print(f"Procesando NxS para cantidad_n = {n}...")
         for store_id in peya_store_ids.keys():
@@ -136,8 +139,8 @@ def _join_promo_prices_from_s3(ds, ti):
                     s.ref_id AS sku,
                     'Promociones UnimarcNXS{n}' AS campaign_name,
                     'Promociones Complejas NX$' AS reason,
-                    concat(current_date ,' 11:00:00') AS start_date,
-                    concat(wp.fecha_fin_de_promocion ,' 11:10:00') AS end_date,
+                    concat(current_date ,' 09:00:00') AS start_date,
+                    concat(wp.fecha_fin_de_promocion ,' 09:00:00') AS end_date,
                     1 AS campaign_status,
                     'same_item_bundle' AS promotion_type,
                     'percentage_value_off' AS promotion_sub_type,
@@ -155,7 +158,11 @@ def _join_promo_prices_from_s3(ds, ti):
                             )
                     END AS bundle_discount,
                     NULL AS discounted_price,
-                    NULL AS max_no_of_orders
+                    NULL AS max_no_of_orders,
+                    COALESCE(lspp.precio, 0) AS regular_price,
+                    COALESCE(wp.precio_total_promocional, 0) AS total_promo_price,
+                    COALESCE(wp.cantidad_n, 0) AS qty_n,
+                    COALESCE(wp.cantidad_m, 0) AS qty_m
                 FROM integraciones.lm_stock_precio_promo lspp 
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                 LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
@@ -167,7 +174,6 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.tipo_promocion IN (2, 7)
                 AND lspp.id_tienda = '{store_id}'
                 AND Wp.cantidad_n = '{n}'  -- Número de la iteración actual
-                and lspp.precio_promocional is null
                 AND wp.registro_valido = TRUE
                 AND wp.organizacion_ventas = '1000'
                 AND wp.canal_distribucion = '10'
@@ -215,8 +221,8 @@ def _join_promo_prices_from_s3(ds, ti):
                     s.ref_id AS sku,
                     'Promociones' AS campaign_name,
                     'Promociones Simples' AS reason,
-                    concat(current_date ,' 11:00:00') AS start_date,
-                    concat(wp.fecha_fin_de_promocion ,' 11:10:00') AS end_date,
+                    concat(current_date ,' 09:00:00') AS start_date,
+                    concat(wp.fecha_fin_de_promocion ,' 09:00:00') AS end_date,
                     CASE
                         WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
                         WHEN lspp.unidad_de_medida in ('KG','KGV') then ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida)) 
@@ -226,7 +232,11 @@ def _join_promo_prices_from_s3(ds, ti):
                     'strikethrough' AS promotion_type,
                     NULL AS promotion_sub_type,
                     NULL AS bundle_details,
-                    NULL AS bundle_discount
+                    NULL AS bundle_discount,
+                    COALESCE(lspp.precio, 0) AS regular_price,
+                    0 AS total_promo_price,
+                    0 AS qty_n,
+                    0 AS qty_m
                 FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
                 LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
@@ -282,8 +292,56 @@ def _join_promo_prices_from_s3(ds, ti):
 
     if all_dfs:
         merged_df = pd.concat(all_dfs, ignore_index=True)
-        merged_df.drop_duplicates(inplace=True)
-        print(f"Total registros consolidados: {len(merged_df.index)}")
+
+        def calculate_effective_unit_price(row):
+            promo_type = str(row.get("promotion_type", ""))
+            sub_type = str(row.get("promotion_sub_type", ""))
+            
+            try:
+                reg_price = float(row.get("regular_price") or 0)
+            except (ValueError, TypeError):
+                reg_price = 0.0
+
+            # 1. Promoción Simple (Descuento directo / strikethrough)
+            if promo_type == "strikethrough":
+                try:
+                    disc_price = float(row.get("discounted_price") or 0)
+                    if disc_price > 0:
+                        return disc_price
+                except (ValueError, TypeError):
+                    pass
+                return reg_price if reg_price > 0 else 9999999.0
+
+            # 2. Promoción Compleja Nx$ (percentage_value_off)
+            elif promo_type == "same_item_bundle" and sub_type == "percentage_value_off":
+                try:
+                    tot_promo = float(row.get("total_promo_price") or 0)
+                    qty_n = float(row.get("qty_n") or 0)
+                    if qty_n > 0 and tot_promo > 0:
+                        return tot_promo / qty_n
+                except (ValueError, TypeError):
+                    pass
+
+            # 3. Promoción Compleja NxM (free_item)
+            elif promo_type == "same_item_bundle" and sub_type == "free_item":
+                try:
+                    qty_n = float(row.get("qty_n") or 0)
+                    qty_m = float(row.get("qty_m") or 0)
+                    if qty_n > 0 and reg_price > 0:
+                        return (qty_m * reg_price) / qty_n
+                except (ValueError, TypeError):
+                    pass
+
+            return reg_price if reg_price > 0 else 9999999.0
+
+        merged_df["unit_effective_price"] = merged_df.apply(calculate_effective_unit_price, axis=1)
+
+        # Ordenar por SKU y por menor precio unitario efectivo (el más barato primero)
+        merged_df.sort_values(by=["sku", "unit_effective_price"], ascending=[True, True], inplace=True)
+
+        # Eliminar duplicados reteniendo SOLO la mejor promoción por SKU
+        merged_df.drop_duplicates(subset=["sku"], keep="first", inplace=True)
+        print(f"Total registros consolidados con la mejor promoción por SKU: {len(merged_df.index)}")
 
         merged_df.columns = map(str.lower, merged_df.columns)
         expected_cols = [
@@ -376,7 +434,7 @@ with DAG(
     "proc_peya_promotion_complex",
     default_args=default_args,
     description="Cruce de stock, precios y precios promocionales simples y complejas para integracion Pedidos Ya",
-    schedule_interval=None, 
+    schedule_interval="30 7 * * *", 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

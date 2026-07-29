@@ -11,15 +11,15 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 10:30 -  prev_date at 17:00 to curr_date at 10:30 (+17 hrs 30 min) .
+    # 10:30 AM run: prev_date at 16:00 to curr_date at 10:30 (+17 hrs 30 min from prev_date 17:00)
 
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    task_start_date = exec_datetime_local + timedelta(days=1)
+    task_start_date = exec_datetime_local
 
-    exec_datetime_local = exec_datetime_local.replace(hour=17, minute=0)
+    exec_datetime_local = (exec_datetime_local - timedelta(days=1)).replace(hour=17, minute=0, second=0)
     exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
     print(f"Exec datetime: {exec_datetime_local_str}")
     return exec_datetime_local_str, "interval '17 hours 30 minutes'", task_start_date

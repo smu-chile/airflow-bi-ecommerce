@@ -13,7 +13,7 @@ def _get_peya_active_stores():
     peya_stores_query = """
         SELECT id, id_peya
         FROM integraciones.tiendas_last_millers
-        WHERE id_peya ='512089';
+        WHERE id_peya in ('512089','277730');
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
@@ -87,32 +87,45 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             continue
         
         peya_stock_query = f"""
+        WITH catalogo_skus AS (
+            SELECT 
+                material, 
+                unidad_de_medida, 
+                ean,
+                MAX(precio) AS precio_referencial
+            FROM integraciones.lm_stock_precio_promo
+            GROUP BY material, unidad_de_medida, ean
+        )
         SELECT	
-            s.ean_primario AS barcode,
+            COALESCE(s.ean_primario, c.ean, c.material) AS barcode,
             '' AS sku,
+            COALESCE(
+                CASE
+                    WHEN c.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(COALESCE(lspp.precio, c.precio_referencial))
+                    WHEN c.unidad_de_medida IN ('KG','KGV') THEN ROUND(COALESCE(lspp.precio, c.precio_referencial) * COALESCE(s.multiplicador_unidad_medida, 1))
+                END,
+                ROUND(c.precio_referencial),
+                1
+            ) AS price,
+            -- Si el producto no está registrado en esta tienda (lspp IS NULL), está excluido en lista8 o su categoría es inactiva, se envía quantity = 0
             CASE
-                WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio)
-                WHEN lspp.unidad_de_medida in ('KG','KGV') then ROUND(lspp.precio * s.multiplicador_unidad_medida)
-            END AS price,
-            -- El stock de seguridad es el inventario mínimo que se mantiene para evitar quiebres de stock.
-            -- Lógica anterior utilizando la tabla de stock de seguridad de tiendas:
-            --     WHEN (lspp.unidad_de_medida NOT IN ('KG', 'KGV') AND (lspp.stock_unitario / lspp.multiplicador_unidad) >= COALESCE(sst.nuevo_stock_seguridad, 2)) THEN 1
-            --     WHEN (lspp.unidad_de_medida IN ('KG', 'KGV') AND lspp.stock_unitario >= COALESCE(sst.nuevo_stock_seguridad, 2)) THEN 1
-            -- Nueva lógica con el estándar de stock de seguridad mayor a 2:
-            CASE
-                WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN GREATEST(ROUND(lspp.stock_unitario / lspp.multiplicador_unidad), 0)
+                WHEN lspp.material IS NULL THEN 0
+                WHEN l.excluido IS TRUE OR ec.n1 IN ('No Trabajar', 'Inactivos', 'Integración') THEN 0
+                WHEN c.unidad_de_medida NOT IN ('KG', 'KGV') THEN GREATEST(ROUND(lspp.stock_unitario / lspp.multiplicador_unidad), 0)
                 ELSE GREATEST(ROUND(lspp.stock_unitario), 0)
             END AS quantity
-            FROM integraciones.lm_stock_precio_promo lspp
-            INNER JOIN integraciones.tiendas_last_millers tlm ON lspp.id_tienda = tlm.id
-            INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-            LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
-            LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
-            LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
-            LEFT JOIN ecommdata.stock_seguridad_tiendas sst ON sst.ref_id  = CONCAT(lspp.material, '-', lspp.unidad_de_medida) AND sst.id_tienda = lspp.id_tienda
-            WHERE lspp.id_tienda = '{store_id}'
-              AND l.excluido IS NOT TRUE
-              AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
+        FROM catalogo_skus c
+        LEFT JOIN ecommdata.skus s ON s.ref_id = CONCAT(c.material, '-', c.unidad_de_medida)
+        LEFT JOIN integraciones.lm_stock_precio_promo lspp 
+               ON lspp.material = c.material 
+              AND lspp.unidad_de_medida = c.unidad_de_medida 
+              AND lspp.id_tienda = '{store_id}'
+        LEFT JOIN ecommdata.lista8 l 
+               ON l.material = c.material 
+              AND l.umv = c.unidad_de_medida 
+              AND l.id_tienda = '{store_id}'
+        LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
+        LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
@@ -408,12 +421,12 @@ with DAG(
     "test_proc_peya_stock_integration",
     default_args=default_args,
     description="Cruce de stock, precios y precios promocionales simples para integracion Pedidos Ya",
-    schedule_interval=None, 
+    schedule_interval="30 7 * * *", 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
     concurrency=2,
-    tags=["OPS", "last_millers", "dw", "stock", "precios", "NICOLAS","RODRIGO"],
+    tags=["OPS", "last_millers", "dw", "stock", "precios","RODRIGO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
