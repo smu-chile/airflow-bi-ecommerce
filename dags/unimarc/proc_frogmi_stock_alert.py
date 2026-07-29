@@ -24,10 +24,12 @@ def _get_time_interval(ts):
     if current_exec_hour == "17":
         interval_base_date = exec_datetime_local.replace(hour=13, minute=0, second=0)
         interval_base_str = interval_base_date.strftime("%Y-%m-%dT%H:%M")
+        task_start_date = (exec_datetime_local + timedelta(days=1)).replace(hour=13, minute=0, second=0)
         return interval_base_str, "interval '4 hours'", task_start_date
     else:
         interval_base_date = exec_datetime_local.replace(hour=10, minute=30, second=0)
         interval_base_str = interval_base_date.strftime("%Y-%m-%dT%H:%M")
+        task_start_date = exec_datetime_local.replace(hour=17, minute=0, second=0)
         return interval_base_str, "interval '2 hours 30 minutes'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
@@ -114,9 +116,9 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = cpf.id_tienda
                 left join ecommdata.frogmi_alerta_reposicion far
                     on substring(frp.ref_id,1,18) = lpad(far.material, 18, '0') and frp.id_tienda = far.id_tienda
-                where fecha_picking between '{exec_date_local}'::timestamp - interval '1 hour'and '{exec_date_local}'::timestamp + {time_interval}
+                where fecha_picking between '{exec_date_local}'::timestamp - interval '1 hour' and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
-                and ((far.fecha_inicio not between '{exec_date_local}'::timestamp + interval '3 hours' and '{exec_date_local}'::timestamp + {time_interval} + interval '3 hours') or far.fecha_inicio is null)
+                and ((far.fecha_inicio not between '{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp - interval '1 hour' and '{task_start_date.strftime("%Y-%m-%d %H:%M:%S")}'::timestamp + interval '3 hours') or far.fecha_inicio is null)
                 group by ref_id, frp.descripcion, id_frogmi, cpf.id_tienda, cpf.cantidad
             ) _t
         ) _resultado
