@@ -30,6 +30,23 @@ def format_unixtime(ts):
     except:
         return '2100-12-31 23:59'
 
+def format_janis_date(ts):
+    if pd.isna(ts) or ts == 0:
+        return '31-12-2100 23:59'
+    try:
+        dt = pendulum.from_timestamp(float(ts), tz="America/Santiago")
+        return dt.strftime('%d-%m-%Y %H:%M')
+    except:
+        return '31-12-2100 23:59'
+
+def safe_int(val, default=0):
+    if pd.isna(val) or val is None:
+        return default
+    try:
+        return int(float(val))
+    except:
+        return default
+
 def _audit_vtex_prices(**kwargs):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     
@@ -47,14 +64,14 @@ def _audit_vtex_prices(**kwargs):
     query_maria = """
         SELECT item_id as id_sku_janis, store_id as id_tienda_janis, 
                sku_min_quantity as skuminquantity, price, list_price, 
-               valid_from, valid_to 
+               cost_price, valid_from, valid_to 
         FROM janis_alvicl.price
     """
     results, columns = _execute_mariadb_query(query_maria)
     df_prices = pd.DataFrame(results, columns=columns)
     
     # Convert numerical columns
-    num_cols = ['id_sku_janis', 'id_tienda_janis', 'skuminquantity', 'price', 'list_price', 'valid_from', 'valid_to']
+    num_cols = ['id_sku_janis', 'id_tienda_janis', 'skuminquantity', 'price', 'list_price', 'cost_price', 'valid_from', 'valid_to']
     for col in num_cols:
         df_prices[col] = pd.to_numeric(df_prices[col], errors='coerce')
         
@@ -64,6 +81,11 @@ def _audit_vtex_prices(**kwargs):
         (df_prices['valid_from'] <= current_time) & 
         ((df_prices['valid_to'] >= current_time) | (df_prices['valid_to'] == 0) | df_prices['valid_to'].isna())
     ]
+    
+    # 2.5 Filter df_prices by active stores (status = 1)
+    df_tiendas_db = pg_hook.get_pandas_df("SELECT id_janis FROM ecommdata_alvi.tiendas WHERE status = 1 AND id <> '1'")
+    active_janis_store_ids = df_tiendas_db['id_janis'].dropna().unique()
+    df_prices = df_prices[df_prices['id_tienda_janis'].isin(active_janis_store_ids)]
     
     # 3. Merge and Homologate
     df_active_prices = df_prices.merge(df_skus, on="id_sku_janis").merge(df_catalog, on="ref_id")
@@ -99,6 +121,7 @@ def _audit_vtex_prices(**kwargs):
     
     # 4. Build Expected JSONs
     expected_data = {}
+    expected_igualadas_map = {}
     if not df_expected.empty:
         grouped = df_expected.groupby('vtex_id')
         for vtex_id, group in grouped:
@@ -123,6 +146,7 @@ def _audit_vtex_prices(**kwargs):
                         **escalas_dict
                     }]
                 }
+                # Escala normalizada como JSON lineal
                 json_escala_precio = json.dumps(escala_json_obj)
             else:
                 json_escala_precio = None
@@ -135,6 +159,7 @@ def _audit_vtex_prices(**kwargs):
                 "escala_precio": json_escala_precio,
                 "tiendas_igualadas_janis": is_igualadas
             }
+            expected_igualadas_map[str(vtex_id)] = is_igualadas
             
     unique_vtex_ids = df_catalog['vtex_id'].dropna().unique()
     print(f"Auditando {len(unique_vtex_ids)} productos en VTEX...")
@@ -158,45 +183,38 @@ def _audit_vtex_prices(**kwargs):
         tiene_escala = False
         
         try:
-            response = requests.get(url, headers=headers, timeout=10)
-            if response.status_code == 200:
-                specs = response.json()
+            resp = requests.get(url, headers=headers, timeout=10)
+            if resp.status_code == 200:
+                specs = resp.json()
                 for spec in specs:
-                    name = spec.get("Name", "")
-                    if name == "Precio Lista" and spec.get("Value"):
-                        vtex_precio_lista = str(spec["Value"][0])
+                    if spec.get("Name") == "Precio Lista":
+                        val = spec.get("Value")
+                        vtex_precio_lista = val[0] if val and len(val) > 0 else None
                         tiene_precio = True
-                    elif name == "Escala Precios" and spec.get("Value"):
-                        vtex_escala_precio = str(spec["Value"][0])
+                    elif spec.get("Name") == "Escala Precios":
+                        val = spec.get("Value")
+                        raw_escala = val[0] if val and len(val) > 0 else None
                         tiene_escala = True
-            else:
-                print(f"Error {response.status_code} API VTEX para ID {vtex_id_str}")
+                        if raw_escala:
+                            try:
+                                vtex_escala_precio = json.dumps(json.loads(raw_escala))
+                            except Exception:
+                                vtex_escala_precio = raw_escala
         except Exception as e:
-            print(f"Request failed para ID {vtex_id_str}: {e}")
+            print(f"Error consultando VTEX para product {vtex_id_str}: {e}")
             
-        # Expected from Janis
-        exp_precio = None
-        exp_escala = None
-        exp_igualadas = False
-        if vtex_id_str in expected_data:
-            exp_precio = expected_data[vtex_id_str]["precio_lista"]
-            exp_escala = expected_data[vtex_id_str]["escala_precio"]
-            exp_igualadas = expected_data[vtex_id_str]["tiendas_igualadas_janis"]
-            
-        # Comparison logic
-        coincide_precio = False
-        if exp_precio is not None and vtex_precio_lista is not None:
-            coincide_precio = (vtex_precio_lista == exp_precio)
-        elif exp_precio is None and vtex_precio_lista is None:
-            coincide_precio = True
+        exp_info = expected_data.get(vtex_id_str, {})
+        exp_precio = exp_info.get("precio_lista")
+        exp_escala = exp_info.get("escala_precio")
+        exp_igualadas = exp_info.get("tiendas_igualadas_janis", False)
+        
+        coincide_precio = (vtex_precio_lista == exp_precio)
         
         coincide_escala = False
         if exp_escala and vtex_escala_precio:
             try:
-                dict_vtex = json.loads(vtex_escala_precio)
-                dict_exp = json.loads(exp_escala)
-                coincide_escala = (dict_vtex == dict_exp)
-            except:
+                coincide_escala = (json.loads(exp_escala) == json.loads(vtex_escala_precio))
+            except Exception:
                 coincide_escala = (vtex_escala_precio == exp_escala)
         elif not exp_escala and not vtex_escala_precio:
             coincide_escala = True
@@ -216,6 +234,261 @@ def _audit_vtex_prices(**kwargs):
             results.append(res)
             
     if results:
+        # Build update and backup payloads for VTEX S3
+        updates_data = []
+        backups_data = []
+        cnt_modificados = 0
+        cnt_precio_act = 0
+        cnt_escala_act = 0
+
+        for res in results:
+            (vtex_precio_lista, vtex_escala_precio, _, _, 
+             exp_precio, exp_escala, coincide_precio, coincide_escala, 
+             _, vtex_id_str) = res
+            
+            if not coincide_precio or not coincide_escala:
+                cnt_modificados += 1
+                update_specs = []
+                backup_specs = []
+                
+                if not coincide_precio:
+                    cnt_precio_act += 1
+                    update_specs.append({
+                        "Value": [exp_precio] if exp_precio else [],
+                        "Id": 33,
+                        "Name": "Precio Lista"
+                    })
+                    backup_specs.append({
+                        "Value": [vtex_precio_lista] if vtex_precio_lista else [],
+                        "Id": 33,
+                        "Name": "Precio Lista"
+                    })
+                    
+                if not coincide_escala:
+                    cnt_escala_act += 1
+                    update_specs.append({
+                        "Value": [exp_escala] if exp_escala else [],
+                        "Id": 28,
+                        "Name": "Escala Precios"
+                    })
+                    backup_specs.append({
+                        "Value": [vtex_escala_precio] if vtex_escala_precio else [],
+                        "Id": 28,
+                        "Name": "Escala Precios"
+                    })
+                    
+                updates_data.append({
+                    "vtex_id": vtex_id_str,
+                    "url": f"https://alvicl.myvtex.com/api/catalog_system/pvt/products/{vtex_id_str}/specification",
+                    "body": update_specs
+                })
+                
+                backups_data.append({
+                    "vtex_id": vtex_id_str,
+                    "url": f"https://alvicl.myvtex.com/api/catalog_system/pvt/products/{vtex_id_str}/specification",
+                    "body": backup_specs
+                })
+
+        # Build Janis price homogenization updates and backups (Categorized: insert & update)
+        janis_inserts = []
+        janis_updates = []
+        
+        janis_backups_updates = []
+        
+        cnt_janis_skus = 0
+
+        # Load active stores mapping from Postgres (id is SAP store code, id_janis is Janis store code)
+        df_tiendas = pg_hook.get_pandas_df("SELECT id AS id_tienda, id_janis FROM ecommdata_alvi.tiendas WHERE status = 1")
+        df_tiendas = df_tiendas[(df_tiendas['id_tienda'] != '1') & df_tiendas['id_janis'].notnull()]
+
+        for vtex_id, is_igualadas in expected_igualadas_map.items():
+            if not is_igualadas:
+                # Get the expected price scales from df_expected (the winning store profile)
+                group = df_expected[df_expected['vtex_id'].astype(str) == str(vtex_id)].sort_values(by='skuminquantity')
+                if group.empty:
+                    continue
+                
+                # Build winner store tiers map: min_quantity -> row
+                winner_tiers = {safe_int(row.skuminquantity): row for row in group.itertuples()}
+                
+                ref_id = group.iloc[0]['ref_id']
+                parts = ref_id.split('-')
+                material = parts[0]
+                umv = parts[1] if len(parts) > 1 else 'UN'
+                
+                sku_had_mismatch = False
+                
+                # Fetch current prices in Janis for this product
+                df_curr_prod = df_active_prices[df_active_prices['vtex_id'].astype(str) == str(vtex_id)]
+                
+                # Get the Janis store IDs that currently have prices for this SKU and are active
+                active_janis_store_ids = set(df_tiendas['id_janis'].unique())
+                product_stores = df_curr_prod[df_curr_prod['id_tienda_janis'].isin(active_janis_store_ids)]
+                unique_stores = product_stores['id_tienda_janis'].unique()
+                
+                for store_janis_id in unique_stores:
+                    df_curr_store = product_stores[product_stores['id_tienda_janis'] == store_janis_id]
+                    store_tiers = {safe_int(row.skuminquantity): row for row in df_curr_store.itertuples()}
+                    
+                    store_code = df_tiendas[df_tiendas['id_janis'] == store_janis_id].iloc[0]['id_tienda']
+                    
+                    # Evaluate winner scales against store scales (Inserts & Updates)
+                    for min_qty, winner_row in winner_tiers.items():
+                        winner_price = safe_int(winner_row.price)
+                        winner_list_price = safe_int(winner_row.list_price) if pd.notnull(winner_row.list_price) else winner_price
+                        winner_cost_price = safe_int(winner_row.cost_price) if pd.notnull(winner_row.cost_price) else winner_list_price
+                        
+                        if min_qty not in store_tiers:
+                            sku_had_mismatch = True
+                            janis_inserts.append({
+                                "IdSku": material,
+                                "Store": str(store_code),
+                                "Price": winner_price,
+                                "MinQuantity": min_qty,
+                                "MeasurementUnit": umv,
+                                "ValidDateFrom": format_janis_date(winner_row.valid_from),
+                                "ValidDateTo": format_janis_date(winner_row.valid_to),
+                                "ListPrice": winner_list_price,
+                                "CostPrice": winner_cost_price
+                            })
+                        else:
+                            curr_row = store_tiers[min_qty]
+                            curr_price = safe_int(curr_row.price)
+                            curr_list_price = safe_int(curr_row.list_price) if pd.notnull(curr_row.list_price) else curr_price
+                            if curr_price != winner_price or curr_list_price != winner_list_price:
+                                sku_had_mismatch = True
+                                janis_updates.append({
+                                    "IdSku": material,
+                                    "Store": str(store_code),
+                                    "Price": winner_price,
+                                    "MinQuantity": min_qty,
+                                    "MeasurementUnit": umv,
+                                    "ValidDateFrom": format_janis_date(winner_row.valid_from),
+                                    "ValidDateTo": format_janis_date(winner_row.valid_to),
+                                    "ListPrice": winner_list_price,
+                                    "CostPrice": winner_cost_price
+                                })
+                                
+                                curr_cost_price = safe_int(curr_row.cost_price) if pd.notnull(curr_row.cost_price) else curr_list_price
+                                janis_backups_updates.append({
+                                    "IdSku": material,
+                                    "Store": str(store_code),
+                                    "Price": curr_price,
+                                    "MinQuantity": min_qty,
+                                    "MeasurementUnit": umv,
+                                    "ValidDateFrom": format_janis_date(curr_row.valid_from),
+                                    "ValidDateTo": format_janis_date(curr_row.valid_to),
+                                    "ListPrice": curr_list_price,
+                                    "CostPrice": curr_cost_price
+                                })
+
+                if sku_had_mismatch:
+                    cnt_janis_skus += 1
+
+        # Chunking helper function
+        def chunk_list(lst, n=500):
+            for i in range(0, len(lst), n):
+                yield lst[i:i + n]
+
+        janis_updates_data = []
+        for chunk in chunk_list(janis_inserts, 500):
+            janis_updates_data.append({
+                "tipo_accion": "insert",
+                "descripcion": "Precios y escalas nuevas a insertar",
+                "url": "https://janis.in/api/price",
+                "body": chunk
+            })
+        for chunk in chunk_list(janis_updates, 500):
+            janis_updates_data.append({
+                "tipo_accion": "update",
+                "descripcion": "Precios y escalas existentes con cambio de valor",
+                "url": "https://janis.in/api/price",
+                "body": chunk
+            })
+
+        janis_backups_data = []
+        for chunk in chunk_list(janis_backups_updates, 500):
+            janis_backups_data.append({
+                "tipo_accion": "update",
+                "descripcion": "Respaldo de precios y escalas antes del cambio",
+                "url": "https://janis.in/api/price",
+                "body": chunk
+            })
+
+        cnt_insert = len(janis_inserts)
+        cnt_update = len(janis_updates)
+        cnt_total_janis = cnt_insert + cnt_update
+
+        if cnt_modificados > 0 or cnt_janis_skus > 0:
+            from airflow.hooks.S3_hook import S3Hook
+            try:
+                s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+                s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+                
+                logical_date = kwargs.get('logical_date') or kwargs.get('execution_date')
+                if logical_date:
+                    if hasattr(logical_date, 'in_timezone'):
+                        dt_exec = logical_date.in_timezone("America/Santiago")
+                    else:
+                        dt_exec = pendulum.instance(logical_date).in_timezone("America/Santiago")
+                else:
+                    dt_exec = pendulum.now("America/Santiago")
+                
+                year = dt_exec.strftime('%Y')
+                month = dt_exec.strftime('%m')
+                day = dt_exec.strftime('%d')
+                timestamp = dt_exec.strftime('%H%M%S')
+                
+                if cnt_modificados > 0:
+                    update_payload = {
+                        "skus_modificados": cnt_modificados,
+                        "listas_de_precios_actualizadas": cnt_precio_act,
+                        "escalas_de_precios_actualizadas": cnt_escala_act,
+                        "data": updates_data
+                    }
+                    backup_payload = {
+                        "skus_modificados": cnt_modificados,
+                        "listas_de_precios_actualizadas": cnt_precio_act,
+                        "escalas_de_precios_actualizadas": cnt_escala_act,
+                        "data": backups_data
+                    }
+                    update_key = f"audit_vtex_prices/year={year}/month={month}/day={day}/update/vtex_updates_{timestamp}.json"
+                    backup_key = f"audit_vtex_prices/year={year}/month={month}/day={day}/backup/vtex_backup_{timestamp}.json"
+                    
+                    s3_hook.load_string(json.dumps(update_payload), key=update_key, bucket_name=s3_bucket, replace=True)
+                    s3_hook.load_string(json.dumps(backup_payload), key=backup_key, bucket_name=s3_bucket, replace=True)
+                    print(f"✅ Se subieron los payloads de VTEX a S3.")
+                    print(f"   Update VTEX: {update_key}")
+                    print(f"   Backup VTEX: {backup_key}")
+                    
+                if cnt_janis_skus > 0:
+                    janis_update_payload = {
+                        "skus_modificados": cnt_janis_skus,
+                        "precios_totales_a_enviar": cnt_total_janis,
+                        "precios_insertados": cnt_insert,
+                        "precios_actualizados": cnt_update,
+                        "chunks_totales": len(janis_updates_data),
+                        "data": janis_updates_data
+                    }
+                    janis_backup_payload = {
+                        "skus_modificados": cnt_janis_skus,
+                        "precios_totales_a_enviar": len(janis_backups_updates),
+                        "precios_actualizados": len(janis_backups_updates),
+                        "chunks_totales": len(janis_backups_data),
+                        "data": janis_backups_data
+                    }
+                    janis_update_key = f"audit_janis_prices/year={year}/month={month}/day={day}/update/janis_updates_{timestamp}.json"
+                    janis_backup_key = f"audit_janis_prices/year={year}/month={month}/day={day}/backup/janis_backup_{timestamp}.json"
+                    
+                    s3_hook.load_string(json.dumps(janis_update_payload), key=janis_update_key, bucket_name=s3_bucket, replace=True)
+                    s3_hook.load_string(json.dumps(janis_backup_payload), key=janis_backup_key, bucket_name=s3_bucket, replace=True)
+                    print(f"✅ Se subieron los payloads de Janis a S3.")
+                    print(f"   Update Janis: {janis_update_key}")
+                    print(f"   Backup Janis: {janis_backup_key}")
+                    
+            except Exception as e:
+                print(f"❌ Error al subir los archivos a S3: {e}")
+
         from psycopg2.extras import execute_values
         update_query = """
             UPDATE ecommdata_alvi.catalogo_activo_alvi AS c
