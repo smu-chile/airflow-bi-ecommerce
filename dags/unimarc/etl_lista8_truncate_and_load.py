@@ -191,10 +191,11 @@ def _load_lista8(ts):
     # === ENRIQUECIMIENTO Y EXCLUSIÓN DE BLOQUEOS PESABLES (KG/KGV) ===
     print("Iniciando enriquecimiento y validación doble de bloqueos para Pesables (KG/KGV)...")
     try:
+        import gc
         from utils.bigquery_utils import bq_query_to_df
         from google.cloud import bigquery as bq_client
 
-        # 1. Obtener equivalencias (sku_venta <-> sku_compra) y TIENDAS ACTIVAS desde Postgres
+        # 1. Obtener solo equivalencias reales (donde sku_venta != sku_compra) y TIENDAS ACTIVAS
         pg_hook_equiv = PostgresHook(postgres_conn_id="postgresql_conn")
         query_equiv = """
         SELECT DISTINCT 
@@ -203,48 +204,44 @@ def _load_lista8(ts):
         FROM ecommdata.skus 
         WHERE ref_id IS NOT NULL 
           AND erp_id IS NOT NULL 
+          AND split_part(ref_id, '-', 1) != erp_id::text
           AND (ref_id ILIKE '%-KG' OR ref_id ILIKE '%-KGV')
         UNION
         SELECT sku_venta, sku_compra 
         FROM ecommdata.equivalencias_vacuno
+        WHERE sku_venta != sku_compra
         """
         equiv_df = pg_hook_equiv.get_pandas_df(query_equiv)
         
-        # Estandarizar equivalencias para asegurar cruce con df_full y BQ
         if not equiv_df.empty:
             equiv_df['sku_venta'] = equiv_df['sku_venta'].astype(str).str.zfill(18)
             equiv_df['sku_compra'] = equiv_df['sku_compra'].astype(str).str.zfill(18)
 
-        # Filtro de tiendas activas
         query_tiendas = "SELECT id FROM ecommdata.tiendas WHERE status = 1"
         tiendas_activas_df = pg_hook_equiv.get_pandas_df(query_tiendas)
         tiendas_activas = tiendas_activas_df['id'].astype(str).str.zfill(4).unique().tolist()
 
-        if tiendas_activas:
-            # 2. Identificar filas de Pesables (KG/KGV o presentes en equivalencias) en tiendas activas
-            mask_pesable_umv = df_full['umv'].astype(str).str.upper().isin(['KG', 'KGV'])
-            mask_pesable_equiv = df_full['material'].isin(equiv_df['sku_venta'].unique().tolist()) if not equiv_df.empty else False
-            mask_pesables = mask_pesable_umv | mask_pesable_equiv
+        if tiendas_activas and not equiv_df.empty:
+            # 2. Identificar SKUs pesables con equivalencia presentes en df_full y tiendas activas
+            mask_pesable_equiv = df_full['material'].isin(equiv_df['sku_venta'].unique().tolist()) | df_full['material'].isin(equiv_df['sku_compra'].unique().tolist())
             mask_tienda_activa = df_full['id_tienda'].isin(tiendas_activas)
             
-            df_pesables_target = df_full[mask_pesables & mask_tienda_activa].copy()
+            df_pesables_target = df_full[mask_pesable_equiv & mask_tienda_activa]
             
             if not df_pesables_target.empty:
-                # 3. Consolidar el universo de SKUs a consultar en BQ: tanto sku_venta como sku_compra
                 skus_venta_afectados = df_pesables_target['material'].unique().tolist()
+                relevant_equiv = equiv_df[
+                    equiv_df['sku_venta'].isin(skus_venta_afectados) | 
+                    equiv_df['sku_compra'].isin(skus_venta_afectados)
+                ]
                 
-                # Obtener sku_compra correspondientes
-                if not equiv_df.empty:
-                    relevant_equiv = equiv_df[equiv_df['sku_venta'].isin(skus_venta_afectados)]
-                    skus_compra = relevant_equiv['sku_compra'].unique().tolist()
-                else:
-                    relevant_equiv = pd.DataFrame(columns=['sku_venta', 'sku_compra'])
-                    skus_compra = []
-
-                # BQ debe consultar tanto los sku_venta como los sku_compra para validación doble
-                skus_to_query = list(set(skus_venta_afectados + skus_compra))
+                # Consolidar universo único de SKUs (venta + compra) para consultar BQ
+                skus_to_query = list(set(
+                    relevant_equiv['sku_venta'].tolist() + 
+                    relevant_equiv['sku_compra'].tolist()
+                ))
                 
-                print(f"Consultando BQ para {len(skus_to_query)} SKUs (venta + compra) en {len(tiendas_activas)} tiendas activas...")
+                print(f"Consultando BQ para {len(skus_to_query)} SKUs pesables en {len(tiendas_activas)} tiendas activas...")
                 
                 query_bq = """
                 SELECT DISTINCT
@@ -266,8 +263,8 @@ def _load_lista8(ts):
                     AND (
                         COALESCE(L.BLOQUEO_TIENDA,'') != '' 
                         OR COALESCE(L.BLOQUEO_FORMATO,'') != ''
-                        OR CAST(L.CATALOGADO AS STRING) = '0'
-                        OR CAST(L.ACTIVO AS STRING) = '0'
+                        OR COALESCE(CAST(L.CATALOGADO AS STRING), '0') != '1'
+                        OR COALESCE(CAST(L.ACTIVO AS STRING), '0') != '1'
                     )
                 """
                 
@@ -280,51 +277,60 @@ def _load_lista8(ts):
                 if not df_bq.empty:
                     df_bq['id_tienda_bq'] = df_bq['id_tienda_bq'].astype(str).str.zfill(4)
                     df_bq['sku_bq'] = df_bq['sku_bq'].astype(str).str.zfill(18)
-
-                    df_bq["bloq_centro_bq"] = pd.to_numeric(df_bq["bloq_centro_bq"].astype(str).str.extract(r'(\d+)', expand=False), errors='coerce').astype("Int64")
-                    df_bq["bloq_formato_bq"] = pd.to_numeric(df_bq["bloq_formato_bq"].astype(str).str.extract(r'(\d+)', expand=False), errors='coerce').astype("Int64")
                     
+                    # Diccionario ligero de traducción sku_compra -> sku_venta
+                    compra_to_venta = dict(zip(relevant_equiv['sku_compra'], relevant_equiv['sku_venta']))
+                    venta_to_compra = dict(zip(relevant_equiv['sku_venta'], relevant_equiv['sku_compra']))
+
+                    keys_to_exclude = set()
+                    map_centro = {}
+                    map_formato = {}
+
+                    # Iteración liviana en RAM para colectar llaves a excluir y bloqueos
+                    for row in df_bq.itertuples(index=False):
+                        tienda = row.id_tienda_bq
+                        sku = row.sku_bq
+                        catalogado = str(row.catalogado_bq) if pd.notna(row.catalogado_bq) else '0'
+                        activo = str(row.activo_bq) if pd.notna(row.activo_bq) else '0'
+                        bloq_c = row.bloq_centro_bq
+                        bloq_f = row.bloq_formato_bq
+                        
+                        is_failed = (catalogado != '1') or (activo != '1') or pd.notna(bloq_c) or pd.notna(bloq_f)
+                        
+                        # Si sku_bq es sku_compra, traducir a sku_venta
+                        sku_venta = compra_to_venta.get(sku, sku)
+                        key_venta = f"{tienda}_{sku_venta}"
+                        key_direct = f"{tienda}_{sku}"
+                        
+                        if is_failed:
+                            keys_to_exclude.add(key_venta)
+                            keys_to_exclude.add(key_direct)
+                        
+                        if pd.notna(bloq_c):
+                            map_centro[key_venta] = str(bloq_c)
+                        if pd.notna(bloq_f):
+                            map_formato[key_venta] = str(bloq_f)
+
+                    # Aplicación de exclusiones en df_full usando la llave temporal
                     df_full['join_key'] = df_full['id_tienda'] + "_" + df_full['material']
+                    
+                    if map_centro:
+                        df_full['bloq_centro'] = df_full['bloq_centro'].fillna(df_full['join_key'].map(map_centro))
+                    if map_formato:
+                        df_full['bloq_formato'] = df_full['bloq_formato'].fillna(df_full['join_key'].map(map_formato))
 
-                    # A) Mapear hallazgos directos sobre sku_venta
-                    df_bq_venta = df_bq.copy()
-                    df_bq_venta['join_key'] = df_bq_venta['id_tienda_bq'] + "_" + df_bq_venta['sku_bq']
-                    
-                    # B) Mapear hallazgos sobre sku_compra traducidos a sku_venta
-                    if not relevant_equiv.empty:
-                        df_bq_compra = df_bq.merge(relevant_equiv, left_on='sku_bq', right_on='sku_compra', how='inner')
-                        df_bq_compra['join_key'] = df_bq_compra['id_tienda_bq'] + "_" + df_bq_compra['sku_venta']
-                        df_bq_combined = pd.concat([df_bq_venta, df_bq_compra], ignore_index=True)
-                    else:
-                        df_bq_combined = df_bq_venta
-                    
-                    # Mapeo de bloqueos hacia df_full
-                    map_centro = df_bq_combined.set_index('join_key')['bloq_centro_bq'].dropna().to_dict()
-                    map_formato = df_bq_combined.set_index('join_key')['bloq_formato_bq'].dropna().to_dict()
-                    
-                    idx = df_full[mask_pesables & mask_tienda_activa].index
-                    df_full.loc[idx, 'bloq_centro'] = df_full.loc[idx, 'bloq_centro'].fillna(df_full.loc[idx, 'join_key'].map(map_centro))
-                    df_full.loc[idx, 'bloq_formato'] = df_full.loc[idx, 'bloq_formato'].fillna(df_full.loc[idx, 'join_key'].map(map_formato))
-                    
-                    # Criterio: Si CUALQUIERA (sku_venta O sku_compra) en BQ no cumple (catalogado='0' o activo='0' o tiene bloqueo) -> EXCLUIDO
-                    mask_excluir_bq = (
-                        (df_bq_combined['catalogado_bq'] == '0') | 
-                        (df_bq_combined['activo_bq'] == '0') | 
-                        df_bq_combined['bloq_centro_bq'].notna() | 
-                        df_bq_combined['bloq_formato_bq'].notna()
-                    )
-                    join_keys_excluir = df_bq_combined.loc[mask_excluir_bq, 'join_key'].unique().tolist()
-                    
-                    if join_keys_excluir:
-                        mask_excluir_full = df_full['join_key'].isin(join_keys_excluir)
-                        df_full.loc[mask_excluir_full, 'excluido'] = True
-                        print(f"Pesables excluidos por incumplimiento/bloqueos en BQ (venta/compra): {len(join_keys_excluir)}")
-                    
+                    if keys_to_exclude:
+                        mask_excl = df_full['join_key'].isin(keys_to_exclude)
+                        df_full.loc[mask_excl, 'excluido'] = True
+                        print(f"Pesables excluidos por incumplimiento/bloqueos en BQ (venta/compra): {mask_excl.sum()}")
+
                     df_full.drop(columns=['join_key'], inplace=True)
                     
                     for b_col in ["bloq_centro", "bloq_formato"]:
                         df_full[b_col] = pd.to_numeric(df_full[b_col], errors="coerce").astype(float).astype("Int64")
                     
+                    del df_bq, keys_to_exclude, map_centro, map_formato
+                    gc.collect()
                     print(f"✅ Enriquecimiento y validación doble finalizada exitosamente.")
                 else:
                     print("No se encontraron registros de exclusión/bloqueo en BQ para pesables.")
