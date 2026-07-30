@@ -278,9 +278,11 @@ def _load_lista8(ts):
                     df_bq['id_tienda_bq'] = df_bq['id_tienda_bq'].astype(str).str.zfill(4)
                     df_bq['sku_bq'] = df_bq['sku_bq'].astype(str).str.zfill(18)
                     
-                    # Diccionario ligero de traducción sku_compra -> sku_venta
-                    compra_to_venta = dict(zip(relevant_equiv['sku_compra'], relevant_equiv['sku_venta']))
-                    venta_to_compra = dict(zip(relevant_equiv['sku_venta'], relevant_equiv['sku_compra']))
+                    # Diccionario 1 a muchos de traducción sku_compra -> list(sku_venta)
+                    from collections import defaultdict
+                    compra_to_ventas = defaultdict(list)
+                    for _, r_eq in relevant_equiv.iterrows():
+                        compra_to_ventas[r_eq['sku_compra']].append(r_eq['sku_venta'])
 
                     keys_to_exclude = set()
                     map_centro = {}
@@ -297,27 +299,27 @@ def _load_lista8(ts):
                         
                         is_failed = (catalogado != '1') or (activo != '1') or pd.notna(bloq_c) or pd.notna(bloq_f)
                         
-                        # Si sku_bq es sku_compra, traducir a sku_venta
-                        sku_venta = compra_to_venta.get(sku, sku)
-                        key_venta = f"{tienda}_{sku_venta}"
-                        key_direct = f"{tienda}_{sku}"
+                        # Obtener todos los SKUs de venta asociados a este sku_bq (compra o directo)
+                        skus_asociados = compra_to_ventas.get(sku, [sku])
                         
-                        if is_failed:
-                            keys_to_exclude.add(key_venta)
-                            keys_to_exclude.add(key_direct)
-                        
-                        if pd.notna(bloq_c):
-                            map_centro[key_venta] = str(bloq_c)
-                        if pd.notna(bloq_f):
-                            map_formato[key_venta] = str(bloq_f)
+                        for s_v in skus_asociados:
+                            key_v = f"{tienda}_{s_v}"
+                            if is_failed:
+                                keys_to_exclude.add(key_v)
+                            if pd.notna(bloq_c):
+                                map_centro[key_v] = pd.to_numeric(bloq_c, errors='coerce')
+                            if pd.notna(bloq_f):
+                                map_formato[key_v] = pd.to_numeric(bloq_f, errors='coerce')
 
                     # Aplicación de exclusiones en df_full usando la llave temporal
                     df_full['join_key'] = df_full['id_tienda'] + "_" + df_full['material']
                     
                     if map_centro:
-                        df_full['bloq_centro'] = df_full['bloq_centro'].fillna(df_full['join_key'].map(map_centro))
+                        mapped_c = pd.to_numeric(df_full['join_key'].map(map_centro), errors='coerce')
+                        df_full['bloq_centro'] = df_full['bloq_centro'].fillna(mapped_c)
                     if map_formato:
-                        df_full['bloq_formato'] = df_full['bloq_formato'].fillna(df_full['join_key'].map(map_formato))
+                        mapped_f = pd.to_numeric(df_full['join_key'].map(map_formato), errors='coerce')
+                        df_full['bloq_formato'] = df_full['bloq_formato'].fillna(mapped_f)
 
                     if keys_to_exclude:
                         mask_excl = df_full['join_key'].isin(keys_to_exclude)
@@ -327,7 +329,7 @@ def _load_lista8(ts):
                     df_full.drop(columns=['join_key'], inplace=True)
                     
                     for b_col in ["bloq_centro", "bloq_formato"]:
-                        df_full[b_col] = pd.to_numeric(df_full[b_col], errors="coerce").astype(float).astype("Int64")
+                        df_full[b_col] = pd.to_numeric(df_full[b_col], errors="coerce").astype("Int64")
                     
                     del df_bq, keys_to_exclude, map_centro, map_formato
                     gc.collect()
@@ -337,7 +339,9 @@ def _load_lista8(ts):
             else:
                 print("No hay SKUs pesables en tiendas activas para enriquecer.")
     except Exception as e:
+        import traceback
         print(f"⚠️ Error durante el enriquecimiento de pesables: {e}")
+        print(traceback.format_exc())
     finally:
         if 'join_key' in df_full.columns:
             df_full.drop(columns=['join_key'], inplace=True)
