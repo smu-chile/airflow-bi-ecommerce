@@ -42,7 +42,7 @@ WHERE
 -- 3. Registrar cantidad de cambios detectados en la tabla de logs
 INSERT INTO ecommdata.stock_trapenses_v2_changes (fecha_hora, cantidad_cambios)
 SELECT 
-    CURRENT_TIMESTAMP AT TIME ZONE 'America/Santiago',
+    CURRENT_TIMESTAMP,
     COUNT(*)
 FROM temp_detected_changes;
 
@@ -55,7 +55,7 @@ SELECT
     src_stock,
     src_activo,
     FALSE AS publicado,
-    CURRENT_TIMESTAMP AT TIME ZONE 'America/Santiago' AS fecha_actualizacion
+    CURRENT_TIMESTAMP AS fecha_actualizacion
 FROM temp_detected_changes
 ON CONFLICT (ref_id) DO UPDATE SET 
     stock = EXCLUDED.stock,
