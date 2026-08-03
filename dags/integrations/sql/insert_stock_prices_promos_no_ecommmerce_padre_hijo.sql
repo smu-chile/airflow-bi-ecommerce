@@ -4,6 +4,10 @@ insert into integraciones.lm_stock_precio_promo
 with productos_lista8 as (
 	select material || '-' || umv as ref_id
 	from ecommdata.lista8 l 
+	where l.material <> '000000000000163603'
+	and l.material <> '000000000000167429'
+	and l.bloq_formato is null
+	and l.bloq_centro is null
 	group by material || '-' || umv
 ),
 precios_modales as (

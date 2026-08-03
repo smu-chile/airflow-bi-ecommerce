@@ -1,0 +1,710 @@
+from airflow import DAG
+from airflow import macros
+from airflow.providers.postgres.hooks.postgres import PostgresHook
+from airflow.operators.python import PythonOperator, BranchPythonOperator
+from airflow.hooks.S3_hook import S3Hook
+from airflow.models import Variable
+from airflow.operators.dummy import DummyOperator
+
+import pendulum
+
+from datetime import datetime, timedelta
+from utils.postgres_utils import query_to_df
+from utils.slack_utils import dag_success_slack, dag_failure_slack
+
+# ============================================================
+# Semanas de Cyberday a excluir del cálculo de stock seguridad
+# Formato: conjunto de tuplas (año, semana_ISO)
+# ============================================================
+CYBERDAY_WEEKS = {
+    (2026, 23),  # 01-06-2026 al 07-06-2026
+    (2026, 41),  # 05-10-2026 al 11-10-2026
+}
+
+def _check_time(ts):
+    
+    exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
+    exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
+    local_tz = pendulum.timezone("America/Santiago")
+    exec_datetime_local = local_tz.convert(exec_datetime_utc)
+    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+    print(exec_datetime_local_str)
+
+    time_str = exec_datetime_local_str.split("T")[1]
+    if (time_str == "17:30") or (time_str == "21:30") or (time_str == "01:30") or (time_str == "13:30"):
+        return "task_skip"
+    elif (time_str == "05:30"):
+        return "stock_ventas_tiendas_to_s3_am"
+    else:
+        return "stock_ventas_tiendas_to_s3_pm"
+
+def stock(ds):
+    stock_tiendas_query = f"""select distinct c.*, date_part('dow','{ds}'::date) as dia, date_part('week','{ds}'::date) as semana, s.erp_id
+                    from(select pt.ref_id, pt.id_tienda
+                            from ecommdata.productos_tienda pt
+                            inner join integraciones.tiendas_last_millers tlm on tlm.id = pt.id_tienda 
+                            where pt.id_tienda not in ('9212', '1917', '0956')
+                            union
+                            select distinct
+                            "refId" as ref_id,
+                            unnest(string_to_array(stores, ',')) AS id_tienda
+                            from ecommdata.carga_productos cp) as c
+                            left join ecommdata.skus s on c.ref_id = s.ref_id
+                            inner join integraciones.tiendas_last_millers tlm on tlm.id = c.id_tienda
+                            where c.id_tienda not in ('0956');
+                            """
+    results = query_to_df(stock_tiendas_query)
+    results = results[["ref_id","id_tienda","erp_id"]]
+    results.info()
+    return results
+
+def matriz_ss():
+    matriz_query = """select *
+                    from integraciones.matriz_ss_last_millers ms """
+    results = query_to_df(matriz_query)
+    return results
+
+def venta_tienda(ds):
+    ventas_skus_tienda_query = f"""select LPAD(v.id_tienda , 4, '0') as id_tienda,
+                    CONCAT(LPAD(v.material, 18, '0'), '-', v.umv) as ref_id,
+                    v.venta_umv as cantidad,
+                    date_part('dow',v.fecha)::int as dia,
+                    date_part('week',v.fecha)::int as semana,
+                    date_part('year',v.fecha)::int as anio
+                    from ecommdata.venta_sku_tienda as v
+                    inner join integraciones.tiendas_last_millers as tlm
+                    on LPAD(v.id_tienda , 4, '0') = tlm.id
+                    where v.fecha >= '{ds}'::date - 15
+                    and v.organizacion = 'Unimarc'
+                    and v.id_tienda not in ('0956')
+                    """
+    results = query_to_df(ventas_skus_tienda_query)
+    return results
+
+def minimos_exhibicion():
+    query = """select concat(meio.material,'-',meio.umv) as ref_id, meio.id_tienda, meio.minimo_exhibicion
+                from ecommdata.minimos_exhibicion_in_out meio
+                inner join integraciones.tiendas_last_millers tlm 
+                on tlm.id = meio.id_tienda
+                left join ecommdata.lista8 l 
+                on l.material = meio.material and l.umv = meio.umv and l.id_tienda = meio.id_tienda 
+                where l.material is not null
+                and l.id_tienda not in ('9212', '1917', '0956')
+                and l.id_tienda is not null
+                and l.umv is not null
+                and meio.minimo_exhibicion > 1"""
+    results = query_to_df(query)
+    return results
+
+def excluidos_ss():
+    query = """select id_tienda, ref_id
+                from ecommdata.productos_excluidos_ss
+            union
+                select
+                l.id_tienda,
+                CONCAT(l.material, '-', l.umv) AS ref_id
+                from ecommdata.lista8 l
+                join ecommdata.productos p
+                on p.ref_id = CONCAT(l.material, '-', l.umv)
+                join ecommdata.categorias c
+                on c.id = p.id_categoria
+                join integraciones.tiendas_last_millers tlm
+                on tlm.id = l.id_tienda
+                where l.id_tienda in ('0581','0333','0347','0917','0089')
+                and c.id in (11370562, 48312585,48312606,48312608,48312610,48312612) -- (n3) Fruta; Fruta Orgánica; Verduras; Verduras Orgánicas; Pechugas y filetitos; Trutro
+        ;"""
+    results = query_to_df(query)
+    return results
+
+def productos_pesables_excluidos_meios():
+    query = """select distinct p.ref_id
+        , lpad(meio.id_tienda,4,'0') as id_tienda
+        from ecommdata.minimos_exhibicion_in_out meio 
+        inner join integraciones.tiendas_last_millers tlm 
+            on tlm.id = meio.id_tienda 
+        inner join ecommdata.lista8 l 
+            on meio.material = l.material 
+            and meio.umv = l.umv 
+            and meio.id_tienda = l.id_tienda 
+        left join ecommdata.productos p
+            on p.ref_id = concat(l.material, '-', l.umv)
+        left join ecommdata.categorias c 
+            on p.id_categoria = c.id 
+        where c.n2 = 'Pollo'
+        and (p.ref_id ilike '%KG%' or p.ref_id ilike '%KGV%')
+        and meio.minimo_exhibicion < 1
+    """
+    results = query_to_df(query)
+    return results
+
+def listado_slotting_mfc():
+    query = f"""
+        select distinct msm.ref_id 
+        from ecommdata.maestra_slotting_mfc msm
+        where msm.candidato_merma ilike '%no%'
+        or msm.restriccion_merma_00 ilike '%no%'
+    """
+    results = query_to_df(query)
+    return results
+
+def stock_ventas_tiendas_to_s3_am(ds):
+    import pandas as pd
+    import numpy as np
+    import io
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"stock_seguridad_last_millers/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    df_stock = stock(ds)
+    print("se ha cargado stock\n")
+    print(df_stock)
+
+    df_venta_tienda = venta_tienda(ds)
+    print("se ha cargado ventas\n")
+    print(df_venta_tienda)
+    
+    print("\nse ha terminado de extraer data \n")
+
+    #########################
+    #transformacion de datos#
+    #########################
+
+    fecha_str = ds
+    formato_str = "%Y-%m-%d"
+
+    dia = datetime.strptime(fecha_str, formato_str) 
+    dia = dia.weekday()
+    dia = (dia + 1) % 7
+
+    # Excluir ventas de semanas Cyberday (no distorsionar el promedio)
+    mask_cyberday = df_venta_tienda.apply(
+        lambda r: (int(r["anio"]), int(r["semana"])) in CYBERDAY_WEEKS, axis=1
+    )
+    semanas_excluidas = df_venta_tienda[mask_cyberday][["anio","semana"]].drop_duplicates()
+    if not semanas_excluidas.empty:
+        print(f"[AM] Excluyendo semanas Cyberday del promedio de ventas: {semanas_excluidas.to_dict('records')}")
+    df_venta_tienda = df_venta_tienda[~mask_cyberday]
+
+    #filtramos columnas necesarias de dataframe de ventas
+    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
+
+    #sumamos venta umv a nivel tienda, sku, dia
+    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia"], as_index=False).sum()
+
+    #promediamos venta a nivel tienda,sku
+    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
+
+    #filtramos columnas necesarias de venta con la venta promedio
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
+    df_aux2["dia"] = dia
+    df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
+
+    #hacemos merge de stock con venta promedio a nivel tienda, sku, dia
+    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id"])
+
+    #rellenamos los registros con dia y venta 0 para los que no hubo venta en el merge
+    df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
+
+    #multiplicamos la venta por 0.5 para cargar la mitad del stock de seguridad por regla de negocio
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.25
+    print(df_stock_seguridad["cantidad"])
+
+    #Condicion para que si la venta fue menor a dos setear stock seguridad igual a 2
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
+
+    df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
+
+    #filtrar columnas necesarias del nuevo dataFrame      
+    df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+
+    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
+    df_stock_seguridad_aux["nuevo_stock_seguridad"] =round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
+    df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
+    df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
+
+    ###############################################
+    #        filtrado por dia #y promociones      #
+    ###############################################
+
+    df_stock_seguridad_aux.info()
+    df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
+    df_stock_seguridad_aux.info()
+
+    df_final = df_stock_seguridad_aux
+    df_final.reset_index()
+    df_final.info()
+
+    df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+
+    # ============================
+    #  Lógica de mínimos (base + excepción pollo KG/KGV min<1)
+    # ============================
+    df_minimos = minimos_exhibicion()
+    df_minimos_ignorar = productos_pesables_excluidos_meios()
+
+    df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
+
+    df_minimos_ignorar["ignorar_minimo"] = 1
+    df_final = df_final.merge(
+        df_minimos_ignorar[["id_tienda", "ref_id", "ignorar_minimo"]],
+        how="left",
+        on=["id_tienda", "ref_id"]
+    )
+
+    df_final["ignorar_minimo"] = df_final["ignorar_minimo"].fillna(0).astype(int)
+    df_final["minimo_exhibicion"] = df_final["minimo_exhibicion"].fillna(0)
+    df_final["minimo_exhibicion"] = pd.to_numeric(
+        df_final["minimo_exhibicion"], errors="coerce"
+    ).fillna(0).astype(int)
+
+    # Reglas de aplicación del mínimo:
+    condlist_1 = [
+        df_final["ignorar_minimo"] == 1,
+        (df_final["ignorar_minimo"] == 0) & (df_final["minimo_exhibicion"] > 0)
+        & (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]),
+    ]
+    choicelist_1 = [
+        df_final["nuevo_stock_seguridad"],     # ignora mínimo (pollo KG/KGV min<1)
+        df_final["minimo_exhibicion"],         # aplica mínimo normal
+    ]
+    
+    condlist_1 = [c.to_numpy(dtype=bool) for c in condlist_1]
+
+    df_final["nuevo_stock_seguridad"] = np.select(
+        condlist_1,
+        choicelist_1,
+        default=df_final["nuevo_stock_seguridad"].to_numpy()
+    )
+
+    df_final["dia"] = df_final["dia"].astype(int)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final.info()
+
+    print("transformacion de datos listo \n")
+    #################
+    #Matrix de Pesos#
+    #################
+    
+    df_matriz = matriz_ss()
+
+    df_final = df_final.merge(df_matriz, how='left', on="id_tienda")
+    df_final["peso"] = df_final["peso"].astype(float).fillna(1.0)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
+
+    #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
+    df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
+    df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
+
+
+    ##############
+    #cargar datos#
+    ##############
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"],2)
+    print(df_final.head())
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=50,
+                df_final["nuevo_stock_seguridad"]<50]
+    choicelist = [50, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+
+    df_final = df_final[df_final['id_tienda'] != '1917']
+    df_final = df_final[df_final['id_tienda'] != '9212']
+    print(df_final.head())
+    # Aplicar lógica de excluidos
+    df_excluidos = excluidos_ss()
+    df_excluidos["id_tienda"] = df_excluidos["id_tienda"].astype(str).str.zfill(4)
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str).str.zfill(4)
+    df_final = df_final.merge(df_excluidos, how="left", on=["id_tienda", "ref_id"], indicator=True)
+
+    # Si el producto está en los excluidos, forzar nuevo_stock_seguridad = 0
+    df_final.loc[df_final["_merge"] == "both", "nuevo_stock_seguridad"] = 0
+    df_final = df_final.drop(columns=["_merge"])
+    print("Productos con stock seguridad 0 (por exclusión):")
+    print(df_final[(df_final["nuevo_stock_seguridad"] == 0) & (df_final["id_tienda"] == "0917")].head(10))
+    buffer = io.StringIO()
+    df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"stock_seguridad_last_millers/{exec_date}/stock_seguridad_last_millers_am_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+def stock_ventas_tiendas_to_s3_pm(ds):
+    import pandas as pd
+    import numpy as np
+    import io
+    exec_date = ds.replace("-", "/")
+    date_aux = ds.replace("-", "_")
+    prefix = f"stock_seguridad_last_millers/{exec_date}/"
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    df_stock = stock(ds)
+    print("se ha cargado stock\n")
+    print(df_stock)
+
+    df_venta_tienda = venta_tienda(ds)
+    print("se ha cargado ventas\n")
+    print(df_venta_tienda)
+    
+    print("\nse ha terminado de extraer data \n")
+
+    #########################
+    #transformacion de datos#
+    #########################
+    fecha_str = ds
+    formato_str = "%Y-%m-%d"
+
+    dia = datetime.strptime(fecha_str, formato_str) 
+    dia = dia.weekday()
+    dia = (dia + 1) % 7
+
+    # Excluir ventas de semanas Cyberday (no distorsionar el promedio)
+    mask_cyberday = df_venta_tienda.apply(
+        lambda r: (int(r["anio"]), int(r["semana"])) in CYBERDAY_WEEKS, axis=1
+    )
+    semanas_excluidas = df_venta_tienda[mask_cyberday][["anio","semana"]].drop_duplicates()
+    if not semanas_excluidas.empty:
+        print(f"[PM] Excluyendo semanas Cyberday del promedio de ventas: {semanas_excluidas.to_dict('records')}")
+    df_venta_tienda = df_venta_tienda[~mask_cyberday]
+
+    df_venta_tienda = df_venta_tienda[["id_tienda","ref_id","cantidad","dia"]]
+
+    df_aux1 = df_venta_tienda.groupby(by=["id_tienda","ref_id","dia"], as_index=False).sum()
+    df_aux2 = df_aux1.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
+    df_aux2 = df_aux2[["id_tienda","ref_id","dia","cantidad"]]
+    df_aux2["dia"] = dia
+    print("\nventa promedio:\n")
+    df_aux2.info()
+
+    df_aux2["cantidad"] = df_aux2["cantidad"].fillna(0)
+
+    df_aux2.info()
+    df_stock_seguridad = df_stock.merge(df_aux2, how='left', on=["id_tienda","ref_id"])
+    df_stock_seguridad["dia"] = df_stock_seguridad["dia"].fillna(dia)
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"].fillna(0)
+    df_stock_seguridad.info()
+    df_stock_seguridad["cantidad"] = df_stock_seguridad["cantidad"]*0.25
+
+    condlist = [df_stock_seguridad["cantidad"]>=1,
+                df_stock_seguridad["cantidad"]<1]
+    choicelist = [df_stock_seguridad["cantidad"], 0]
+
+    df_stock_seguridad["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_stock_seguridad["nuevo_stock_seguridad"] = round(df_stock_seguridad["nuevo_stock_seguridad"],2)
+
+    df_stock_seguridad = df_stock_seguridad[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+    df_stock_seguridad_aux = df_stock_seguridad.groupby(by=["id_tienda","ref_id"], as_index=False).mean()
+    df_stock_seguridad_aux["nuevo_stock_seguridad"] = round(df_stock_seguridad_aux["nuevo_stock_seguridad"],0)
+    df_stock_seguridad_aux['nuevo_stock_seguridad'] = pd.to_numeric(df_stock_seguridad_aux['nuevo_stock_seguridad'], errors='coerce').astype('Int64')
+    df_stock_seguridad_aux['dia'] = pd.to_numeric(df_stock_seguridad_aux['dia'], errors='coerce').astype('Int64')
+    
+    ###############################################
+    #        filtrado por dia y promociones       #
+    ###############################################
+
+    print(f"\ndia: {dia}\n")
+    df_stock_seguridad_aux.info()
+    df_stock_seguridad_aux["dia"] = df_stock_seguridad_aux["dia"].fillna(dia)
+    df_stock_seguridad_aux.info()
+
+    df_final = df_stock_seguridad_aux
+    df_final.reset_index()
+    df_final.info()
+
+    df_final = df_final[["ref_id","id_tienda","dia","nuevo_stock_seguridad"]]
+    print(df_final)
+
+    # ============================
+    #  Lógica de mínimos (base + excepción pollo KG/KGV min<1)
+    # ============================
+    df_minimos = minimos_exhibicion()
+    df_minimos_ignorar = productos_pesables_excluidos_meios()
+
+    df_final = df_final.merge(df_minimos, how='left', on=["id_tienda","ref_id"])
+
+    df_minimos_ignorar["ignorar_minimo"] = 1
+    df_final = df_final.merge(
+        df_minimos_ignorar[["id_tienda", "ref_id", "ignorar_minimo"]],
+        how="left",
+        on=["id_tienda", "ref_id"]
+    )
+
+    df_final["ignorar_minimo"] = df_final["ignorar_minimo"].fillna(0).astype(int)
+    df_final["minimo_exhibicion"] = df_final["minimo_exhibicion"].fillna(0)
+    df_final["minimo_exhibicion"] = pd.to_numeric(
+        df_final["minimo_exhibicion"], errors="coerce"
+    ).fillna(0).astype(int)
+
+    # Reglas de aplicación del mínimo:
+    condlist_1 = [
+        df_final["ignorar_minimo"] == 1,
+        (df_final["ignorar_minimo"] == 0) & (df_final["minimo_exhibicion"] > 0)
+        & (df_final["nuevo_stock_seguridad"] > df_final["minimo_exhibicion"]),
+    ]
+    choicelist_1 = [
+        df_final["nuevo_stock_seguridad"],     # ignora mínimo (pollo KG/KGV min<1)
+        df_final["minimo_exhibicion"],         # aplica mínimo normal
+    ]
+
+    condlist_1 = [c.to_numpy(dtype=bool) for c in condlist_1]
+
+    df_final["nuevo_stock_seguridad"] = np.select(
+        condlist_1,
+        choicelist_1,
+        default=df_final["nuevo_stock_seguridad"].to_numpy()
+    )
+
+    df_final["dia"] = df_final["dia"].astype(int)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(int)
+
+    df_final.info()
+
+    print("transformacion de datos listo \n")
+    #################
+    #Matrix de Pesos#
+    #################
+    
+    df_matriz = matriz_ss()
+    print(df_matriz)
+    print("\n")
+    print(df_final)
+    df_final = df_final.merge(df_matriz, how='left', on=["id_tienda"])
+    df_final["peso"] = df_final["peso"].astype(float).fillna(1.0)
+    print("QA_test")
+    print(df_final)
+    df_final["nuevo_stock_seguridad"] = round(df_final["nuevo_stock_seguridad"] * df_final["peso"],0)
+
+    #Se realiza merge de los erp_id ya que deben ser el skuid para hacer post a Janis
+    df_final = df_final.merge(df_stock[["ref_id", "id_tienda", "erp_id"]], on=["ref_id", "id_tienda"], how="left")
+    df_final = df_final[["id_tienda", "ref_id", "erp_id", "dia", "nuevo_stock_seguridad"]]
+    print("\n")
+    print(df_final)
+    ##############
+    #cargar datos#
+    ##############
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=1,
+                df_final["nuevo_stock_seguridad"]<1]
+    choicelist = [df_final["nuevo_stock_seguridad"], 0]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final["nuevo_stock_seguridad"] = df_final["nuevo_stock_seguridad"].astype(float).round(2)
+
+    condlist = [df_final["nuevo_stock_seguridad"]>=50,
+                df_final["nuevo_stock_seguridad"]<50]
+    choicelist = [50, df_final["nuevo_stock_seguridad"]]
+
+    df_final["nuevo_stock_seguridad"] = np.select(condlist, choicelist)
+    df_final = df_final[df_final['id_tienda'] != '1917']
+    df_final = df_final[df_final['id_tienda'] != '9212']
+    print(df_final)
+
+    # Aplicar lógica de excluidos
+    df_excluidos = excluidos_ss()
+    df_excluidos["id_tienda"] = df_excluidos["id_tienda"].astype(str).str.zfill(4)
+    df_final["id_tienda"] = df_final["id_tienda"].astype(str).str.zfill(4)
+    df_final = df_final.merge(df_excluidos, how="left", on=["id_tienda", "ref_id"], indicator=True)
+
+    # Si el producto está en los excluidos, forzar nuevo_stock_seguridad = 0
+    df_final.loc[df_final["_merge"] == "both", "nuevo_stock_seguridad"] = 0
+    df_final = df_final.drop(columns=["_merge"])
+    print("Productos con stock seguridad 0 (por exclusión):")
+    print(df_final[(df_final["nuevo_stock_seguridad"] == 0) & (df_final["id_tienda"] == "0917")].head(10))
+    buffer = io.StringIO()
+    df_final.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    filename = f"stock_seguridad_last_millers/{exec_date}/stock_seguridad_last_millers_pm_{date_aux}.csv"
+    buffer.seek(0)
+    print("se logro transformar el dataframe a un archivo .csv")
+    print(f"con fecha {ds} y nombre de filename como {filename}")
+    s3_hook.load_string(buffer.getvalue(),
+                key=filename,
+                bucket_name=s3_bucket,
+                replace=True,
+                encrypt=False)
+    print(f"File load on S3: {prefix}")
+
+    return filename
+
+
+
+def stock_ventas_tiendas_to_postgresql_am(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_am"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
+    df.info()
+    print(df.head())
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.stock_seguridad_tiendas_last_millers") 
+        df.to_sql(name="stock_seguridad_tiendas_last_millers",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
+
+def stock_ventas_tiendas_to_postgresql_pm(ti):
+    import numpy as np
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+
+    filename = ti.xcom_pull(key="return_value", task_ids=["stock_ventas_tiendas_to_s3_pm"])[0]
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    print("Searching file: "+filename)
+    if not s3_hook.check_for_key(filename, bucket_name=s3_bucket):
+        raise Exception("Key %s does not exist." % filename)
+
+    s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
+
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype={"erp_id": str})
+    if len(df.index) == 0:
+        print("There are no new nor updated records to load. Task will exit as successfull.")
+        return
+    
+    print(f"Number of records extracted: {len(df.index)}")
+    df["id_tienda"] = df["id_tienda"].apply(lambda x: str(x).zfill(4))
+    df.info()
+    print(df.head())
+
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/"+database
+    engine = sqlalchemy.create_engine(conn_url)
+
+    with engine.begin() as conn:
+        conn.execute("TRUNCATE integraciones.stock_seguridad_tiendas_last_millers") 
+        df.to_sql(name="stock_seguridad_tiendas_last_millers",
+                    con=conn,         
+                    schema="integraciones",         
+                    if_exists='append',         
+                    index=False,         
+                    chunksize=20000,         
+                    method='multi')
+
+    print("Data saved to PostgreSQL.")
+
+    return
+
+
+default_args = {
+    "owner": "ecommerce_data",
+    "depends_on_past": False,
+    "email_on_failure": False,
+    "email_on_retry": False,
+    "retries": 0,
+}
+with DAG(
+    'etl_stock_seguridad_last_millers',
+    default_args=default_args,
+    description="cargar stock de seguridad",
+    schedule_interval="30 1/4 * * *",
+    start_date=pendulum.datetime(2023, 6, 12, tz="America/Santiago"),
+    catchup=False,
+    tags=["DATA", "last_millers", "stock", "stock_seguidad", "ventas", "RODRIGO"],
+    on_success_callback=dag_success_slack,
+    on_failure_callback=dag_failure_slack,
+) as dag:
+    
+
+    dag.doc_md = """
+    Carga stock de seguridad \n
+    guardar en S3.
+    """ 
+    t0 = BranchPythonOperator(
+        task_id='check_time',
+        python_callable=_check_time,
+    )
+
+    t_dummy = DummyOperator(
+            task_id='task_skip',
+        )
+
+    t1_am = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_s3_am",
+        python_callable = stock_ventas_tiendas_to_s3_am,
+    )
+
+    t1_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_s3_pm",
+        python_callable = stock_ventas_tiendas_to_s3_pm,
+    )
+
+    t2_am = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_am",
+        python_callable = stock_ventas_tiendas_to_postgresql_am,
+    )
+
+    t2_pm = PythonOperator(
+        task_id = "stock_ventas_tiendas_to_postgresql_pm",
+        python_callable = stock_ventas_tiendas_to_postgresql_pm,
+    )
+
+    t0 >> t1_am >> t2_am
+    t0 >> t1_pm >> t2_pm
+
+    t0 >> t_dummy

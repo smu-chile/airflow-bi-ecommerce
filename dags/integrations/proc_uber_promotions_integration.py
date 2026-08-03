@@ -173,14 +173,25 @@ def _join_stock_from_s3(ds, ti):
                   ELSE lspp.multiplicador_unidad
               END AS "UXV",
         		CASE 
-          		WHEN lspp.unidad_de_medida = 'KGV' THEN GREATEST(lspp.stock_unitario::numeric(13,3), 0)
-          		WHEN lspp.unidad_de_medida != 'KG' THEN GREATEST(((lspp.stock_unitario * lspp.multiplicador_unidad))::numeric(13,0), 0)
-          		WHEN lspp.unidad_de_medida = 'KG' THEN GREATEST(((lspp.stock_unitario * lspp.multiplicador_unidad))::numeric(13,3), 0)
+                    WHEN lspp.id_tienda IN ('0325', '0326', '0483') THEN
+                        CASE
+                            WHEN lspp.unidad_de_medida = 'KGV' THEN GREATEST((lspp.stock_unitario - (COALESCE(sst.nuevo_stock_seguridad, 0) * COALESCE(lspp.multiplicador_unidad, 1)))::numeric(13,3), 0)
+                            WHEN lspp.unidad_de_medida != 'KG' THEN GREATEST((((lspp.stock_unitario - COALESCE(sst.nuevo_stock_seguridad, 0)) * lspp.multiplicador_unidad))::numeric(13,0), 0)
+                            WHEN lspp.unidad_de_medida = 'KG' THEN GREATEST((((lspp.stock_unitario - COALESCE(sst.nuevo_stock_seguridad, 0)) * lspp.multiplicador_unidad))::numeric(13,3), 0)
+                        END
+                    ELSE
+                        CASE
+                            WHEN lspp.unidad_de_medida = 'KGV' THEN GREATEST(lspp.stock_unitario::numeric(13,3), 0)
+                            WHEN lspp.unidad_de_medida != 'KG' THEN GREATEST(((lspp.stock_unitario * lspp.multiplicador_unidad))::numeric(13,0), 0)
+                            WHEN lspp.unidad_de_medida = 'KG' THEN GREATEST(((lspp.stock_unitario * lspp.multiplicador_unidad))::numeric(13,3), 0)
+                        END
      		 	 END AS "STOCK X UMV",
           	lspp.precio AS "PRICE"
          FROM integraciones.lm_stock_precio_promo lspp
          INNER JOIN integraciones.tiendas_last_millers tlm ON tlm.id = lspp.id_tienda AND tlm.id_uber IS NOT NULL
-         --left join integraciones.stock_seguridad_uber ssu on ssu.ref_id = (lspp.material || '-' || lspp.unidad_de_medida);
+         LEFT JOIN integraciones.stock_seguridad_tiendas_last_millers sst 
+                ON sst.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
+               AND sst.id_tienda = lspp.id_tienda;
         """
     cursor.execute(uber_catalog_query)
     results = cursor.fetchall()
