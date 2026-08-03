@@ -47,6 +47,10 @@ join (
 	left join ecommdata.categorias ec on ep.id_categoria = ec.id
 	where p.fecha_carga = '{{ds}}'
 	and l.excluido IS NOT TRUE
+	and l.material <> '000000000000163603'
+	and l.material <> '000000000000167429'
+	and l.bloq_formato is null
+	and l.bloq_centro is null
 	and (ec.n1 NOT IN ('No Trabajar', 'Inactivos') OR ec.n1 IS NULL)
 ) _t2
 on _t.material = _t2.material 

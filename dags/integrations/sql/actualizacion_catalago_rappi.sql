@@ -12,6 +12,10 @@ WITH RankedCatalog AS (
             WHEN t.imagen IS NOT NULL AND t.imagen <> '' THEN CONCAT('https://unimarc.vteximg.com.br', t.imagen)
             ELSE NULL 
         END AS image,
+        ec.n1,
+        ec.n2,
+        ec.n3,
+        l.precio_regular,
         ROW_NUMBER() OVER (PARTITION BY l.material ORDER BY s.ref_id ASC) as rn
     FROM ecommdata.lista8 l
     INNER JOIN ecommdata.skus s 
@@ -25,6 +29,9 @@ WITH RankedCatalog AS (
     WHERE (ec.n1 NOT IN ('No Trabajar', 'Inactivos') OR ec.n1 IS NULL)
       --AND (ec.status = 'activo' OR ec.status IS NULL)
       AND l.excluido IS NOT TRUE -- Evita considerar los registros marcados como excluidos (True)
+      --AND ec.n3 = 'Juguetería' -- Filtra por el ID de referencia de VTEX/Janis
+      and l.bloq_centro is null
+      and l.bloq_formato is null
 )
 SELECT 
     sku,
@@ -35,7 +42,11 @@ SELECT
     selling_units,
     is_weightable,
     is_prepackaged,
-    image
+    image,
+    n1,
+    n2,
+    n3,
+    precio_regular
 FROM RankedCatalog
 WHERE rn = 1
 GROUP BY 
@@ -47,5 +58,9 @@ GROUP BY
     selling_units,
     is_weightable,
     is_prepackaged,
-    image
+    image,
+    n1,
+    n2,
+    n3,
+    precio_regular
 HAVING image IS NOT NULL;

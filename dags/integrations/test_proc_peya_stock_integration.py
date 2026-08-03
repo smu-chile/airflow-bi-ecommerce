@@ -97,8 +97,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             GROUP BY material, unidad_de_medida, ean
         )
         SELECT	
-            COALESCE(s.ean_primario, c.ean, c.material) AS barcode,
-            '' AS sku,
+            '' AS barcode,
+            CONCAT(c.material, '-', c.unidad_de_medida) AS sku,
             COALESCE(
                 CASE
                     WHEN c.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(COALESCE(lspp.precio, c.precio_referencial))
@@ -107,13 +107,13 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 ROUND(c.precio_referencial),
                 1
             ) AS price,
-            -- Si el producto no está registrado en esta tienda (lspp IS NULL), está excluido en lista8 o su categoría es inactiva, se envía quantity = 0
-            CASE
+            -- Si el producto no está registrado en esta tienda, excluido, inactivo o descontando stock de seguridad da <= 0, se envía quantity = 0
+            CAST(CASE
                 WHEN lspp.material IS NULL THEN 0
                 WHEN l.excluido IS TRUE OR ec.n1 IN ('No Trabajar', 'Inactivos', 'Integración') THEN 0
-                WHEN c.unidad_de_medida NOT IN ('KG', 'KGV') THEN GREATEST(ROUND(lspp.stock_unitario / lspp.multiplicador_unidad), 0)
-                ELSE GREATEST(ROUND(lspp.stock_unitario), 0)
-            END AS quantity
+                WHEN c.unidad_de_medida NOT IN ('KG', 'KGV') THEN GREATEST(ROUND(CAST(lspp.stock_unitario AS NUMERIC) / COALESCE(CAST(lspp.multiplicador_unidad AS NUMERIC), 1)) - COALESCE(sst.nuevo_stock_seguridad, 0), 0)
+                ELSE GREATEST(ROUND(CAST(lspp.stock_unitario AS NUMERIC)) - (COALESCE(sst.nuevo_stock_seguridad, 0) * COALESCE(CAST(lspp.multiplicador_unidad AS NUMERIC), 1)), 0)
+            END AS INTEGER) AS quantity
         FROM catalogo_skus c
         LEFT JOIN ecommdata.skus s ON s.ref_id = CONCAT(c.material, '-', c.unidad_de_medida)
         LEFT JOIN integraciones.lm_stock_precio_promo lspp 
@@ -126,6 +126,9 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
               AND l.id_tienda = '{store_id}'
         LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
         LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
+        LEFT JOIN integraciones.stock_seguridad_tiendas_last_millers sst
+               ON sst.ref_id = CONCAT(c.material, '-', c.unidad_de_medida)
+              AND sst.id_tienda = '{store_id}'
         """
          #AND lspp.id_tienda = '0755' 
         #AND lspp.id_tienda = '{store_id}'
@@ -207,8 +210,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         
         peya_stock_query = f"""
              SELECT DISTINCT
-                s.ean_primario AS barcode,
-                lspp.material AS sku,
+                '' AS barcode,
+                CONCAT(lspp.material, '-', lspp.unidad_de_medida) AS sku,
                 'Promociones' AS campaign_name,
                 'PedidosYa' AS reason,
                 current_date AS start_date,
@@ -257,8 +260,8 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
         # # 
         # # peya_stock_query = f"""
         # #      SELECT DISTINCT
-        # #         s.ean_primario AS barcode,
-        # #         lspp.material AS sku,
+        # #         '' AS barcode,
+        # #         CONCAT(lspp.material, '-', lspp.unidad_de_medida) AS sku,
         # #         'Promociones' AS campaign_name,
         # #         'PedidosYa' AS reason,
         # #         current_date AS start_date,
