@@ -134,6 +134,7 @@ def _save_lista8_exclusions_in_s3(ts):
         df = pd.merge(dfA, dfB, on=['MATERIAL', 'UM VTA'], how="outer", indicator=True
               ).query('_merge=="left_only"')
 
+        df = df[df['UM VTA'].isin(['UN', 'KG', 'KGV'])]
         df = df[['CENTRO_x','MATERIAL', 'UM VTA', 'DESCRIPCION_x']]
         df = df.astype(column_types)
 
@@ -221,7 +222,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 3, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs = 1,
-    tags=["DATA", "SAP", "ecommdata_alvi", "lista8", "stock", "janis", "alvi", "MATIAS"],
+    tags=["DATA", "SAP", "ecommdata_alvi", "lista8", "stock", "janis", "alvi", "MAURICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:

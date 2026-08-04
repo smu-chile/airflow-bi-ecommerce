@@ -111,8 +111,17 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = t.id and t.id_frogmi is not null
                 left join catalogo.cantidad_productos_frogmi cpf
                     on frp.id_tienda = cpf.id_tienda
+                left join (
+                    select id_tienda, lpad(material, 18, '0') as material, max(fecha_inicio::timestamp) as max_fecha_inicio
+                    from ecommdata_alvi.frogmi_alerta_found_rate
+                    where fecha_inicio::date >= '{exec_date_local}'::date - interval '1 day'
+                    group by id_tienda, lpad(material, 18, '0')
+                ) far 
+                    on lpad(split_part(frp.ref_id, '-', 1), 18, '0') = far.material 
+                   and frp.id_tienda = far.id_tienda
                 where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
+                and (far.max_fecha_inicio is null or frp.fecha_picking > far.max_fecha_inicio)
                 group by ref_id, frp.descripcion, id_frogmi, cpf.id_tienda, cpf.cantidad
             ) _t
         ) _resultado

@@ -2,7 +2,7 @@
 WITH RankedCatalog AS (
     SELECT 
         s.ean_primario AS "EAN",
-        l.material AS "SKU",
+        l.material || '-' || l.umv AS "SKU",
         s.ref_id,
         ec.n1 AS "SECCION",
         p.nombre AS "NOMBRE",
@@ -10,6 +10,7 @@ WITH RankedCatalog AS (
             WHEN t.imagen IS NOT NULL AND t.imagen <> '' THEN CONCAT('https://unimarc.vteximg.com.br', t.imagen)
             ELSE NULL 
         END AS "IMAGEN",
+        ROUND(CAST(um.length * um.height * um.width AS numeric), 2) AS "VOLUMEN",
         -- Se aplica ROW_NUMBER temprano para evitar multiplicar filas antes de agrupar y hacer join con precios
         ROW_NUMBER() OVER (PARTITION BY s.ref_id ORDER BY s.ref_id ASC) as rn
     FROM ecommdata.lista8 l
@@ -21,9 +22,15 @@ WITH RankedCatalog AS (
         ON p.id_categoria = ec.id
     LEFT JOIN ecommdata.imagenes_sku t 
         ON s.ref_id = t.ref_id AND t.orden = 1
+    LEFT JOIN ecommdata.ubicacion_mfc um 
+        ON l.material = um.sap_code AND l.umv = um.measurement_unit
     WHERE (ec.n1 NOT IN ('No Trabajar', 'Inactivos','Integración') OR ec.n1 IS NULL)
       --AND (ec.status = 'activo' OR ec.status IS NULL)
-      AND l.excluido IS NOT TRUE
+      AND l.excluido IS NOT true
+      and l.material <> '000000000000163603'
+      and l.material <> '000000000000167429'
+      and l.bloq_formato is null
+      and l.bloq_centro is null
 )
 SELECT 
     rc."EAN",
@@ -31,7 +38,8 @@ SELECT
     MAX(pr.precio) AS "Precio", -- Buscamos el precio más alto asociado al SKU/EAN dentro de las tablas
     rc."SECCION",
     RC."NOMBRE" ,
-    RC."IMAGEN" 
+    RC."IMAGEN" ,
+    rc."VOLUMEN"
 FROM RankedCatalog rc
 -- Hacemos el JOIN con precios DESPUÉS de haber filtrado el catálogo base (rn = 1)
 -- Esto reduce exponencialmente el cruce de datos, agilizando mucho la consulta.
@@ -49,7 +57,8 @@ GROUP BY
     rc."SKU", 
     rc."SECCION",
     RC."NOMBRE" ,
-    rc."IMAGEN" 
+    rc."IMAGEN" ,
+    rc."VOLUMEN"
 HAVING 
     MAX(pr.precio) IS NOT null and rc."SECCION" is not NULL and rc."IMAGEN" IS NOT NULL
 ORDER BY 
