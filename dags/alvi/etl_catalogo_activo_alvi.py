@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.operators.python import PythonOperator
+from airflow.sensors.external_task import ExternalTaskSensor
 from airflow.models import Variable
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 from utils.janis_alvi_utils import _execute_mariadb_query
@@ -54,7 +55,7 @@ def _fetch_janis_prices_and_calculate_winners(**kwargs):
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     
     # 🧪 MODO PRUEBA: Cambiar a None para producción con todo el catálogo
-    TEST_LIMIT = 5
+    TEST_LIMIT = None
     
     query_catalog = "SELECT vtex_id, ref_id FROM ecommdata_alvi.catalogo_activo_alvi WHERE categoria_valida IS TRUE AND vtex_id IS NOT NULL"
     df_catalog = pg_hook.get_pandas_df(query_catalog)
@@ -612,6 +613,20 @@ def _save_audit_results_to_postgres(**kwargs):
 # -------------------------------------------------------------------------
 # TASK 6: Execute Janis price updates by sending HTTP POST requests to Janis API
 # -------------------------------------------------------------------------
+def send_single_janis_price_chunk(session, janis_url, chunk_item, idx, total_chunks, headers):
+    tipo = chunk_item.get("tipo_accion", "update")
+    body = chunk_item.get("body", [])
+    if not body:
+        return
+    try:
+        resp = session.post(janis_url, json=body, headers=headers, timeout=30)
+        if resp.status_code in [200, 201]:
+            print(f"✅ [JANIS API OK] Lote {idx+1}/{total_chunks} ({tipo}): {len(body)} precios enviados | Status: {resp.status_code}")
+        else:
+            print(f"⚠️ [JANIS API ERROR] Lote {idx+1}/{total_chunks} ({tipo}): Status {resp.status_code} | Resp: {resp.text[:200]}")
+    except Exception as e:
+        print(f"❌ [JANIS API EXCEPCIÓN] Lote {idx+1}/{total_chunks} ({tipo}): Error {e}")
+
 def _execute_janis_price_updates(**kwargs):
     ti = kwargs['ti']
     janis_update_key = ti.xcom_pull(task_ids='generate_and_upload_janis_s3_payloads')
@@ -620,6 +635,9 @@ def _execute_janis_price_updates(**kwargs):
         return
 
     from airflow.hooks.S3_hook import S3Hook
+    from requests.adapters import HTTPAdapter
+    from urllib3.util import Retry
+    from concurrent.futures import as_completed
     try:
         s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
         s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -654,28 +672,41 @@ def _execute_janis_price_updates(**kwargs):
         if janis_client:
             headers["janis-client"] = janis_client
             
-        print(f"🚀 Iniciando inyección de {len(chunks)} bloques a la API de Janis ({janis_url})...")
-        for idx, chunk_item in enumerate(chunks):
-            tipo = chunk_item.get("tipo_accion", "update")
-            body = chunk_item.get("body", [])
-            if not body:
-                continue
-                
-            try:
-                resp = requests.post(janis_url, json=body, headers=headers, timeout=30)
-                if resp.status_code in [200, 201]:
-                    print(f"✅ [JANIS API OK] Lote {idx+1}/{len(chunks)} ({tipo}): {len(body)} precios enviados | Status: {resp.status_code}")
-                else:
-                    print(f"⚠️ [JANIS API ERROR] Lote {idx+1}/{len(chunks)} ({tipo}): Status {resp.status_code} | Resp: {resp.text[:200]}")
-            except Exception as e:
-                print(f"❌ [JANIS API EXCEPCIÓN] Lote {idx+1}/{len(chunks)} ({tipo}): Error {e}")
-                
+        session = requests.Session()
+        retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+        session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
+        session.mount('http://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
+        
+        print(f"🚀 Iniciando inyección multihilo de {len(chunks)} bloques a la API de Janis ({janis_url})...")
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [
+                executor.submit(send_single_janis_price_chunk, session, janis_url, chunk_item, idx, len(chunks), headers)
+                for idx, chunk_item in enumerate(chunks)
+            ]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error procesando lote de Janis: {e}")
+                    
     except Exception as e:
         print(f"Error procesando la ejecución de precios en Janis: {e}")
 
-# -------------------------------------------------------------------------
-# TASK 7: Execute VTEX specification updates by sending HTTP POST requests to VTEX API
-# -------------------------------------------------------------------------
+def send_single_vtex_spec_update(session, item, idx, total_items, headers):
+    vtex_id = item.get("vtex_id")
+    url = item.get("url")
+    body = item.get("body", [])
+    if not body:
+        return
+    try:
+        resp = session.post(url, json=body, headers=headers, timeout=15)
+        if resp.status_code in [200, 204]:
+            print(f"✅ [VTEX API OK] Producto {vtex_id} ({idx+1}/{total_items}): Especificaciones actualizadas | Status: {resp.status_code}")
+        else:
+            print(f"⚠️ [VTEX API ERROR] Producto {vtex_id} ({idx+1}/{total_items}): Status {resp.status_code} | Resp: {resp.text[:200]}")
+    except Exception as e:
+        print(f"❌ [VTEX API EXCEPCIÓN] Producto {vtex_id}: Error {e}")
+
 def _execute_vtex_specification_updates(**kwargs):
     ti = kwargs['ti']
     vtex_res = ti.xcom_pull(task_ids='audit_and_upload_vtex_s3_payloads')
@@ -685,6 +716,9 @@ def _execute_vtex_specification_updates(**kwargs):
     vtex_update_key = vtex_res["vtex_update_key"]
 
     from airflow.hooks.S3_hook import S3Hook
+    from requests.adapters import HTTPAdapter
+    from urllib3.util import Retry
+    from concurrent.futures import as_completed
     try:
         s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
         s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -707,23 +741,23 @@ def _execute_vtex_specification_updates(**kwargs):
             "X-VTEX-API-AppToken": vtex_app_token
         }
         
-        print(f"🚀 Iniciando inyección de especificaciones para {len(items)} productos a la API de VTEX...")
-        for idx, item in enumerate(items):
-            vtex_id = item.get("vtex_id")
-            url = item.get("url")
-            body = item.get("body", [])
-            if not body:
-                continue
-                
-            try:
-                resp = requests.post(url, json=body, headers=headers, timeout=15)
-                if resp.status_code in [200, 204]:
-                    print(f"✅ [VTEX API OK] Producto {vtex_id} ({idx+1}/{len(items)}): Especificaciones actualizadas | Status: {resp.status_code}")
-                else:
-                    print(f"⚠️ [VTEX API ERROR] Producto {vtex_id} ({idx+1}/{len(items)}): Status {resp.status_code} | Resp: {resp.text[:200]}")
-            except Exception as e:
-                print(f"❌ [VTEX API EXCEPCIÓN] Producto {vtex_id}: Error {e}")
-                
+        session = requests.Session()
+        retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+        session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
+        session.mount('http://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
+        
+        print(f"🚀 Iniciando inyección multihilo de especificaciones para {len(items)} productos a la API de VTEX...")
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = [
+                executor.submit(send_single_vtex_spec_update, session, item, idx, len(items), headers)
+                for idx, item in enumerate(items)
+            ]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as e:
+                    print(f"Error actualizando especificación en VTEX: {e}")
+                    
     except Exception as e:
         print(f"Error procesando la ejecución de especificaciones en VTEX: {e}")
 
@@ -738,7 +772,7 @@ with DAG(
     start_date=pendulum.datetime(2023, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
-    tags=["DATA", "Alvi", "ecommdata_alvi", "catalogo", "MATIAS", "auditoria"],
+    tags=["DATA", "Alvi", "ecommdata_alvi", "catalogo", "auditoria", "MAURICIO"],
     on_success_callback=dag_success_slack,
     on_failure_callback=dag_failure_slack,
 ) as dag:
@@ -753,6 +787,17 @@ with DAG(
     6. `execute_janis_price_updates`: Lee el payload exacto de S3 vía XCom y ejecuta POST HTTP real a la API de Janis (`https://janis.in/api/price`).
     7. `execute_vtex_specification_updates`: Lee el payload exacto de S3 vía XCom y ejecuta POST/PUT HTTP real a la API de VTEX Catalog.
     """ 
+
+    t0 = ExternalTaskSensor(
+        task_id="wait_lista8_alvi",
+        external_dag_id='etl_lista8_alvi_datastage_truncate_and_load',
+        external_task_id=None,
+        allowed_states=['success'],
+        failed_states=['failed'],
+        timeout=3600,
+        poke_interval=60,
+        mode='reschedule'
+    )
 
     t1 = PostgresOperator(
         task_id="load_active_catalog_base",
@@ -790,4 +835,4 @@ with DAG(
         python_callable=_execute_vtex_specification_updates,
     )
 
-    t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7
+    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7

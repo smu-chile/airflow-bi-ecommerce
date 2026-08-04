@@ -14,7 +14,7 @@ SELECT
     p.nombre,
     c.n1 AS nombre_categoria,
     CASE 
-        WHEN c.n1 IN ('No trabajar', 'No Trabajar', 'Fizzmod Categoria', 'Inactivos', 'Integración') THEN FALSE 
+        WHEN c.n1 IN ('No trabajar', 'No Trabajar', 'Inactivos', 'Integración') THEN FALSE 
         WHEN c.n1 IS NULL THEN FALSE
         ELSE TRUE 
     END AS categoria_valida
