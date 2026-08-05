@@ -408,6 +408,7 @@ with DAG(
         external_task_id='sync_catalogo_api',
         allowed_states=['success'],
         failed_states=['failed'],
+        execution_delta=pendulum.duration(hours=2, minutes=30),
         timeout=1800,
         poke_interval=60,
         mode='reschedule'
