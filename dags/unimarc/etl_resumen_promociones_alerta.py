@@ -37,7 +37,7 @@ def truncate_and_load_resumen():
         INNER JOIN Lista8Tiendas l8 ON l8.ref_id = ((wp.material::text || '-'::text) || CASE WHEN wp.umv::text = 'ST'::text THEN 'UN'::character varying WHEN wp.umv::text = 'CS'::text THEN 'CJ'::character varying ELSE wp.umv END::text)
         WHERE wp.precio_modal IS NOT NULL AND wp.precio_promocional IS NOT NULL AND wp.precio_modal > 0
         AND (wp.id_mecanica <> ALL (ARRAY [124,36, 67, 72, 99, 84, 37, 51, 93, 53, 96, 77, 59,50]))
-        AND wp.fecha_inicio_de_promocion <= current_date + 1 AND wp.fecha_fin_de_promocion >= current_date
+        AND wp.fecha_inicio_de_promocion <= current_date + 8 AND wp.fecha_fin_de_promocion >= current_date
         AND wp.tipo_promocion <> 3
         AND wp.n_promocion NOT IN (5720882025, 5552152024, 4040162024, 5552792024, 5552852024, 4060322024, 5553242024, 1120042025, 1120032025, 1120022025, 1120012025, 4000182025, 1120232025, 1120232025)
         AND wp.nombre_promocion::text !~~ '%ZONA%'::text AND wp.nombre_promocion::text !~~ '%MFC%'::text AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text AND wp.nombre_promocion::text !~~ '%917%'::text AND wp.nombre_promocion::text !~~ '%ESTADO%'::text AND wp.nombre_promocion::text !~~ '%LOC%'::text AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})' AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text AND wp.nombre_promocion::text !~~ '%LOCAL%'::text AND wp.nombre_promocion::text !~~ '%MEMB%'::text AND wp.nombre_promocion::text !~~ '%CYBER%'::text AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text AND wp.nombre_promocion::text !~~ '%BLACK%'::text
