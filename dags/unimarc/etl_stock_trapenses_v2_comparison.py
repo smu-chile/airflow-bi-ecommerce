@@ -220,6 +220,218 @@ def _fetch_janis_api_stock(**kwargs):
     # Retornamos la cantidad de skus recuperados para el log
     return len(all_stock)
 
+def _publish_janis_v2_stock(**kwargs):
+    import requests
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+    from airflow.models import Variable
+    from requests.adapters import HTTPAdapter
+    from urllib3.util import Retry
+
+    # 1. Credentials
+    api_key = Variable.get("JANIS_API_KEY")
+    api_secret = Variable.get("JANIS_API_SECRET")
+    client = Variable.get("JANIS_CLIENT")
+    base_url = Variable.get("JANIS_API_URL")
+
+    # 2. Database connection
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # 3. Query pending items
+    with engine.connect() as connection:
+        result = connection.execute(text("""
+            SELECT ref_id, stock
+            FROM ecommdata.stock_trapenses_v2
+            WHERE publicado_janis = FALSE
+              AND intentos_janis < 5;
+        """))
+        pending_items = result.fetchall()
+
+    if not pending_items:
+        print("No pending stock updates for Janis v2.")
+        return
+
+    print(f"Found {len(pending_items)} pending updates for Janis v2.")
+
+    # 4. Setup API session
+    session = requests.Session()
+    retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=15, pool_maxsize=15))
+
+    headers = {
+        "janis-api-key": api_key,
+        "janis-api-secret": api_secret,
+        "janis-client": client,
+        "Content-Type": "application/json",
+        "Connection": "keep-alive"
+    }
+
+    url = f"{base_url.rstrip('/')}/stock"
+
+    # Build payload
+    payload = []
+    for ref_id, stock in pending_items:
+        payload.append({
+            "IdSku": ref_id,
+            "Quantity": int(stock),
+            "Store": "0917",
+            "Warehouse": "193949d",
+            "Type": 1
+        })
+
+    def chunk_list(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    # Send in batches of 500
+    for batch in chunk_list(payload, 500):
+        batch_ref_ids = [item["IdSku"] for item in batch]
+        try:
+            print(f"Sending batch of {len(batch)} items to Janis v2...")
+            response = session.post(url, headers=headers, json=batch, timeout=15)
+            response.raise_for_status()
+            print(f"Batch successfully sent. Status: {response.status_code}")
+            
+            with engine.begin() as connection:
+                connection.execute(text("""
+                    UPDATE ecommdata.stock_trapenses_v2
+                    SET publicado_janis = TRUE,
+                        intentos_janis = 0,
+                        fecha_actualizacion = CURRENT_TIMESTAMP
+                    WHERE ref_id = ANY(:ref_ids);
+                """), {"ref_ids": list(batch_ref_ids)})
+        except Exception as e:
+            print(f"Error sending batch of {len(batch)} items to Janis v2: {e}")
+            with engine.begin() as connection:
+                connection.execute(text("""
+                    UPDATE ecommdata.stock_trapenses_v2
+                    SET intentos_janis = intentos_janis + 1,
+                        fecha_actualizacion = CURRENT_TIMESTAMP
+                    WHERE ref_id = ANY(:ref_ids);
+                """), {"ref_ids": list(batch_ref_ids)})
+
+def send_single_vtex_stock(session, url, headers, ref_id, vtex_id, stock):
+    payload = {
+        "unlimitedQuantity": False,
+        "dateUtcOnBalanceSystem": None,
+        "quantity": int(stock)
+    }
+    try:
+        response = session.put(url, headers=headers, json=payload, timeout=10)
+        response.raise_for_status()
+        return ref_id, True, None
+    except Exception as e:
+        return ref_id, False, str(e)
+
+def _publish_vtex_stock(**kwargs):
+    import requests
+    import pandas as pd
+    import sqlalchemy
+    from sqlalchemy import text
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from airflow.models import Variable
+    from requests.adapters import HTTPAdapter
+    from urllib3.util import Retry
+
+    # 1. Credentials
+    app_key = Variable.get("X_VTEX_API_AppKey", default_var=None) or Variable.get("VTEX_API_KEY", default_var=None)
+    app_token = Variable.get("X_VTEX_API_AppToken", default_var=None) or Variable.get("VTEX_API_TOKEN", default_var=None)
+    account_name = Variable.get("VTEX_ACCOUNT_NAME", default_var="unimarc")
+    env = Variable.get("VTEX_ENV", default_var="vtexcommercestable")
+
+    if not app_key or not app_token:
+        print("VTEX AppKey or AppToken not configured. Skipping VTEX stock update.")
+        return
+
+    # 2. Database connection
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+    
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    # 3. Query pending items
+    with engine.connect() as connection:
+        result = connection.execute(text("""
+            SELECT v.ref_id, v.stock, s.vtex_id
+            FROM ecommdata.stock_trapenses_v2 v
+            INNER JOIN ecommdata.skus s ON v.ref_id = s.ref_id
+            WHERE v.publicado_vtex = FALSE
+              AND v.intentos_vtex < 5
+              AND s.vtex_id IS NOT NULL;
+        """))
+        pending_items = result.fetchall()
+
+    if not pending_items:
+        print("No pending stock updates for VTEX.")
+        return
+
+    print(f"Found {len(pending_items)} pending updates for VTEX.")
+
+    # 4. Setup API session
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=20, pool_maxsize=20))
+
+    headers = {
+        "X-VTEX-API-AppKey": app_key,
+        "X-VTEX-API-AppToken": app_token,
+        "Content-Type": "application/json",
+        "Accept": "application/json"
+    }
+
+    # 5. Parallel sending
+    max_workers = 10
+    success_ids = []
+    failed_ids = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for ref_id, stock, vtex_id in pending_items:
+            url = f"https://{account_name}.{env}.com.br/api/logistics/pvt/inventory/skus/{vtex_id}/warehouses/0917"
+            futures.append(
+                executor.submit(send_single_vtex_stock, session, url, headers, ref_id, vtex_id, stock)
+            )
+        
+        for future in as_completed(futures):
+            ref_id, success, err_msg = future.result()
+            if success:
+                success_ids.append(ref_id)
+            else:
+                failed_ids.append(ref_id)
+                print(f"Error publishing SKU {ref_id} to VTEX: {err_msg}")
+
+    print(f"VTEX Sync Completed. Success: {len(success_ids)} | Failed: {len(failed_ids)}")
+
+    # 6. Update database states
+    if success_ids:
+        with engine.begin() as connection:
+            connection.execute(text("""
+                UPDATE ecommdata.stock_trapenses_v2
+                SET publicado_vtex = TRUE,
+                    intentos_vtex = 0,
+                    fecha_actualizacion = CURRENT_TIMESTAMP
+                WHERE ref_id = ANY(:ref_ids);
+            """), {"ref_ids": list(success_ids)})
+
+    if failed_ids:
+        with engine.begin() as connection:
+            connection.execute(text("""
+                UPDATE ecommdata.stock_trapenses_v2
+                SET intentos_vtex = intentos_vtex + 1,
+                    fecha_actualizacion = CURRENT_TIMESTAMP
+                WHERE ref_id = ANY(:ref_ids);
+            """), {"ref_ids": list(failed_ids)})
+
 with DAG(
     'etl_stock_trapenses_v2_comparison',
     default_args=default_args,
@@ -249,4 +461,14 @@ with DAG(
         sql="sql/stock_trapenses_v2_comparison.sql"
     )
 
-    fetch_api_stock >> calculate_changes
+    publish_janis_v2 = PythonOperator(
+        task_id="publish_janis_v2_stock",
+        python_callable=_publish_janis_v2_stock,
+    )
+
+    publish_vtex = PythonOperator(
+        task_id="publish_vtex_stock",
+        python_callable=_publish_vtex_stock,
+    )
+
+    fetch_api_stock >> calculate_changes >> [publish_janis_v2, publish_vtex]
