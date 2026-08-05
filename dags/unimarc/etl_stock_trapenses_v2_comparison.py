@@ -230,10 +230,9 @@ def _publish_janis_v2_stock(**kwargs):
     from urllib3.util import Retry
 
     # 1. Credentials
-    api_key = Variable.get("JANIS_API_KEY")
-    api_secret = Variable.get("JANIS_API_SECRET")
-    client = Variable.get("JANIS_CLIENT")
-    base_url = Variable.get("JANIS_API_URL")
+    api_key = Variable.get("JANIS_V2_UNIMARC_KEY")
+    api_secret = Variable.get("JANIS_V2_UNIMARC_SECRET")
+    client = Variable.get("JANIS_V2_UNIMARC_CLIENT")
 
     # 2. Database connection
     host = Variable.get("POSTGRESQL_HOST")
@@ -244,23 +243,35 @@ def _publish_janis_v2_stock(**kwargs):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
-    # 3. Query pending items
+    # 3. Mark not_found items as published/processed immediately since they cannot be injected into Janis
+    with engine.begin() as connection:
+        res_update = connection.execute(text("""
+            UPDATE ecommdata.stock_trapenses_v2
+            SET publicado_janis = TRUE,
+                fecha_actualizacion = CURRENT_TIMESTAMP
+            WHERE publicado_janis = FALSE
+              AND not_found = TRUE;
+        """))
+        print(f"Skipped and marked as published {res_update.rowcount} SKUs that do not exist in Janis (not_found = TRUE).")
+
+    # 4. Query pending items (only not_found = FALSE)
     with engine.connect() as connection:
         result = connection.execute(text("""
             SELECT ref_id, stock
             FROM ecommdata.stock_trapenses_v2
             WHERE publicado_janis = FALSE
+              AND not_found = FALSE
               AND intentos_janis < 5;
         """))
         pending_items = result.fetchall()
 
     if not pending_items:
-        print("No pending stock updates for Janis v2.")
+        print("No pending stock updates for Janis v2 WMS.")
         return
 
-    print(f"Found {len(pending_items)} pending updates for Janis v2.")
+    print(f"Found {len(pending_items)} pending updates for Janis v2 WMS.")
 
-    # 4. Setup API session
+    # 5. Setup API session
     session = requests.Session()
     retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
     session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=15, pool_maxsize=15))
@@ -273,17 +284,16 @@ def _publish_janis_v2_stock(**kwargs):
         "Connection": "keep-alive"
     }
 
-    url = f"{base_url.rstrip('/')}/stock"
+    url = "https://wms.janis.in/api/stored-good-batch"
 
     # Build payload
     payload = []
     for ref_id, stock in pending_items:
         payload.append({
-            "IdSku": ref_id,
-            "Quantity": int(stock),
-            "Store": "0917",
-            "Warehouse": "193949d",
-            "Type": 1
+            "quantity": int(stock),
+            "skuReferenceId": ref_id,
+            "warehouseReferenceId": "unimarc-0917",
+            "operation": "set"
         })
 
     def chunk_list(lst, n):
@@ -292,12 +302,16 @@ def _publish_janis_v2_stock(**kwargs):
 
     # Send in batches of 500
     for batch in chunk_list(payload, 500):
-        batch_ref_ids = [item["IdSku"] for item in batch]
+        batch_ref_ids = [item["skuReferenceId"] for item in batch]
         try:
-            print(f"Sending batch of {len(batch)} items to Janis v2...")
+            print(f"📤 [Janis WMS v2] Sending batch of {len(batch)} items. SKUs: {batch_ref_ids}")
             response = session.post(url, headers=headers, json=batch, timeout=15)
+            
+            if response.status_code >= 400:
+                print(f"❌ [Janis WMS v2] Error response body: {response.text}")
+                
             response.raise_for_status()
-            print(f"Batch successfully sent. Status: {response.status_code}")
+            print(f"✅ [Janis WMS v2] Batch successfully sent. Status: {response.status_code}")
             
             with engine.begin() as connection:
                 connection.execute(text("""
@@ -308,7 +322,7 @@ def _publish_janis_v2_stock(**kwargs):
                     WHERE ref_id = ANY(:ref_ids);
                 """), {"ref_ids": list(batch_ref_ids)})
         except Exception as e:
-            print(f"Error sending batch of {len(batch)} items to Janis v2: {e}")
+            print(f"❌ [Janis WMS v2] Exception sending batch: {e}")
             with engine.begin() as connection:
                 connection.execute(text("""
                     UPDATE ecommdata.stock_trapenses_v2
@@ -324,8 +338,14 @@ def send_single_vtex_stock(session, url, headers, ref_id, vtex_id, stock):
         "quantity": int(stock)
     }
     try:
+        print(f"📤 [VTEX] Sending SKU: {vtex_id} | RefId: {ref_id} | Stock: {stock}")
         response = session.put(url, headers=headers, json=payload, timeout=10)
+        
+        if response.status_code >= 400:
+            print(f"❌ [VTEX] Error response body for SKU {vtex_id}: {response.text}")
+            
         response.raise_for_status()
+        print(f"✅ [VTEX] Stock update success. SKU: {vtex_id} | Stock: {stock}")
         return ref_id, True, None
     except Exception as e:
         return ref_id, False, str(e)
