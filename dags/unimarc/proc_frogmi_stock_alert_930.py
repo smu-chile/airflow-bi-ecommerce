@@ -108,7 +108,7 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = cpf.id_tienda
                 left join (
                     select id_tienda, lpad(material, 18, '0') as material, max(fecha_inicio::timestamp) as max_fecha_inicio
-                    from ecommdata.frogmi_alerta_reposicion
+                    from ecommdata.frogmi_alerta_found_rate
                     where fecha_inicio::date >= '{exec_date_local}'::date - interval '1 day'
                     group by id_tienda, lpad(material, 18, '0')
                 ) far 
