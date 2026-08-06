@@ -8,7 +8,7 @@ from airflow.models import Variable
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
-
+#tiendas activas de peya
 def _get_peya_active_stores():
     peya_stores_query = """
         SELECT id, id_peya
