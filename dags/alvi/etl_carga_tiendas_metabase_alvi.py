@@ -52,7 +52,7 @@ def producto_tienda_janis():
     # Leer el catálogo real desde nuestra nueva réplica productos_janis_api
     productos_tienda_query = """select ref_id, id_tienda, activo
                         from ecommdata_alvi.productos_janis_api
-                        where activo is true"""
+                        where activo is true or show_without_stock is true"""
     results = query_to_df(productos_tienda_query)
     results.columns = ["ref_id","id_tienda","activo"]
     results = results[["ref_id","id_tienda"]]
@@ -90,8 +90,10 @@ def load_tables_to_s3(ts, ds, ti):
     df_lista8_active = df_lista_8[df_lista_8['excluido'] == False].copy()
     df_lista8_excluded = df_lista_8[(df_lista_8['excluido'] == True) & (df_lista_8['umv'].isin(['UN', 'KG', 'KGV']))].copy()
     
-    # 5. Obtener mapeo de tiendas actual en Janis (productos_janis_api)
-    df_producto_tienda_janis = df_producto_tienda_janis[df_producto_tienda_janis['id_tienda'].isin(series_active_stores)]
+    df_producto_tienda_janis = df_producto_tienda_janis[
+        df_producto_tienda_janis['id_tienda'].isin(series_active_stores) |
+        (df_producto_tienda_janis['id_tienda'] == '3188')
+    ]
     df_producto_tienda_janis_sorted = df_producto_tienda_janis.sort_values(by=['ref_id', 'id_tienda'])
     df_janis_grouped = df_producto_tienda_janis_sorted.groupby('ref_id')['id_tienda'].apply(
         lambda x: ','.join(sorted(x.dropna().unique()))
@@ -110,6 +112,7 @@ def load_tables_to_s3(ts, ds, ti):
     # 7. Calcular Altas y Cambios de Tienda (Caso A)
     df_merge = df_active_grouped.merge(df_janis_grouped, on='ref_id', how='left')
     df_merge = df_merge.merge(df_janis_full, on='ref_id', how='left')
+    df_merge = df_merge[df_merge['ref_id'].isin(df_janis_full['ref_id'])]
     
     df_to_update = df_merge[
         (df_merge['stores_janis'].isna()) | 
