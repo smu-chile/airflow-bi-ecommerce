@@ -148,10 +148,18 @@ def _fetch_janis_api_stock(**kwargs):
                 ref_id = item.get("skuRefId")
                 stock = item.get("stock", 0)
                 if ref_id:
-                    if ref_id not in seen_ref_ids:
-                        seen_ref_ids.add(ref_id)
-                        # El tercer elemento es "not_found = False"
-                        all_stock.append((ref_id, stock, False))
+                    material = ref_id.split('-')[0]
+                    # Map to check if it matches catalog ref_ids
+                    for possible_ref_id in (ref_id, f"{material}-KG", f"{material}-KGV"):
+                        if possible_ref_id in catalog_ref_ids:
+                            if possible_ref_id not in seen_ref_ids:
+                                seen_ref_ids.add(possible_ref_id)
+                                all_stock.append({
+                                    "ref_id": possible_ref_id,
+                                    "stock": stock,
+                                    "not_found": False
+                                })
+                            break
                     
         page += batch_size
         
@@ -167,7 +175,10 @@ def _fetch_janis_api_stock(**kwargs):
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
             for sku_ref_id in missing_ref_ids:
-                single_url = f"{base_url}stock?warehouseRefId={warehouse_ref_id}&skuRefId={sku_ref_id}"
+                material = sku_ref_id.split('-')[0]
+                # Consultamos la API con la versión -UN (ya que Janis V1 no tiene -KG/-KGV)
+                sku_query_id = f"{material}-UN"
+                single_url = f"{base_url}stock?warehouseRefId={warehouse_ref_id}&skuRefId={sku_query_id}"
                 futures.append(
                     executor.submit(fetch_single_sku, session, single_url, headers, sku_ref_id)
                 )
@@ -175,16 +186,28 @@ def _fetch_janis_api_stock(**kwargs):
             for future in as_completed(futures):
                 sku_ref_id, stock, found = future.result()
                 if found:
-                    all_stock.append((sku_ref_id, stock, False))
+                    all_stock.append({
+                        "ref_id": sku_ref_id,
+                        "stock": stock,
+                        "not_found": False
+                    })
                     print(f"Resolved missing SKU {sku_ref_id}: stock {stock}")
                 else:
-                    all_stock.append((sku_ref_id, 0, True)) # Not found in Janis stock list, default to 0 and not_found=True
+                    all_stock.append({
+                        "ref_id": sku_ref_id,
+                        "stock": 0,
+                        "not_found": True
+                    })
                     print(f"Missing SKU {sku_ref_id} NOT found in Janis stock. Defaulted to 0 with not_found=True.")
     elif len(missing_ref_ids) > 500:
         print(f"Warning: Too many missing SKUs ({len(missing_ref_ids)}). Skipping individual checks to avoid API lock.")
         # Default all missing SKUs to 0 and not_found=True for safety
         for sku_ref_id in missing_ref_ids:
-            all_stock.append((sku_ref_id, 0, True))
+            all_stock.append({
+                "ref_id": sku_ref_id,
+                "stock": 0,
+                "not_found": True
+            })
 
     print(f"Total items fetched from Janis API (including resolved): {len(all_stock)}")
 
@@ -203,7 +226,7 @@ def _fetch_janis_api_stock(**kwargs):
         
         # Batch insert
         if all_stock:
-            df = pd.DataFrame(all_stock, columns=["ref_id", "stock", "not_found"])
+            df = pd.DataFrame(all_stock)
             # Remove any last duplicates to ensure unique primary key before database copy
             df = df.drop_duplicates(subset=["ref_id"], keep="first")
             df.to_sql(
@@ -271,6 +294,16 @@ def _publish_janis_v2_stock(**kwargs):
 
     print(f"Found {len(pending_items)} pending updates for Janis v2 WMS.")
 
+    # 4.5 Cargar factores de conversión de pesables (multiplicador_unidad_medida)
+    multipliers_dict = {}
+    with engine.connect() as connection:
+        result_multipliers = connection.execute(text("""
+            SELECT DISTINCT split_part(ref_id, '-', 1) AS material, COALESCE(multiplicador_unidad_medida, 1.0)
+            FROM ecommdata.skus
+            WHERE ref_id ILIKE '%-KG' OR ref_id ILIKE '%-KGV';
+        """))
+        multipliers_dict = {row[0]: float(row[1]) for row in result_multipliers.fetchall()}
+
     # 5. Setup API session
     session = requests.Session()
     retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
@@ -286,14 +319,31 @@ def _publish_janis_v2_stock(**kwargs):
 
     url = "https://wms.janis.in/api/stored-good-batch"
 
-    # Build payload
-    payload = []
+    # Build payload and map database ref_ids
+    items_to_send = []
     for ref_id, stock in pending_items:
-        payload.append({
-            "quantity": int(stock),
-            "skuReferenceId": ref_id,
-            "warehouseReferenceId": "unimarc-0917",
-            "operation": "set"
+        material = ref_id.split('-')[0]
+        umv = ref_id.split('-')[1] if '-' in ref_id else 'UN'
+        
+        quantity = int(stock)
+        sku_api = ref_id
+        
+        if umv in ('KG', 'KGV'):
+            factor = multipliers_dict.get(material, 1.0)
+            # Calculamos el peso correspondiente en kilos
+            quantity = round(int(stock) * factor, 2)
+            # Reemplazamos el sufijo a -UN para Janis v2 WMS
+            sku_api = f"{material}-UN"
+            print(f"[Janis WMS v2] Conversión Pesable: SKU {ref_id} -> {sku_api} | Unidades: {stock} | Factor: {factor} | Kilos: {quantity}")
+            
+        items_to_send.append({
+            "payload": {
+                "quantity": quantity,
+                "skuReferenceId": sku_api,
+                "warehouseReferenceId": "unimarc-0917",
+                "operation": "set"
+            },
+            "original_ref_id": ref_id
         })
 
     def chunk_list(lst, n):
@@ -301,11 +351,14 @@ def _publish_janis_v2_stock(**kwargs):
             yield lst[i:i + n]
 
     # Send in batches of 500
-    for batch in chunk_list(payload, 500):
-        batch_ref_ids = [item["skuReferenceId"] for item in batch]
+    for chunk in chunk_list(items_to_send, 500):
+        batch_payload = [item["payload"] for item in chunk]
+        batch_ref_ids = [item["payload"]["skuReferenceId"] for item in chunk]
+        batch_original_ref_ids = [item["original_ref_id"] for item in chunk]
+        
         try:
-            print(f"📤 [Janis WMS v2] Sending batch of {len(batch)} items. SKUs: {batch_ref_ids}")
-            response = session.post(url, headers=headers, json=batch, timeout=15)
+            print(f"📤 [Janis WMS v2] Sending batch of {len(chunk)} items. SKUs: {batch_ref_ids}")
+            response = session.post(url, headers=headers, json=batch_payload, timeout=15)
             
             if response.status_code >= 400:
                 print(f"❌ [Janis WMS v2] Error response body: {response.text}")
@@ -320,7 +373,7 @@ def _publish_janis_v2_stock(**kwargs):
                         intentos_janis = 0,
                         fecha_actualizacion = CURRENT_TIMESTAMP
                     WHERE ref_id = ANY(:ref_ids);
-                """), {"ref_ids": list(batch_ref_ids)})
+                """), {"ref_ids": list(batch_original_ref_ids)})
         except Exception as e:
             print(f"❌ [Janis WMS v2] Exception sending batch: {e}")
             with engine.begin() as connection:
@@ -329,7 +382,7 @@ def _publish_janis_v2_stock(**kwargs):
                     SET intentos_janis = intentos_janis + 1,
                         fecha_actualizacion = CURRENT_TIMESTAMP
                     WHERE ref_id = ANY(:ref_ids);
-                """), {"ref_ids": list(batch_ref_ids)})
+                """), {"ref_ids": list(batch_original_ref_ids)})
 
 def send_single_vtex_stock(session, url, headers, ref_id, vtex_id, stock):
     payload = {
