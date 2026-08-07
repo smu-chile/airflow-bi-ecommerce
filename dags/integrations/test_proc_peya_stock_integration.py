@@ -8,12 +8,12 @@ from airflow.models import Variable
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
 import pendulum
-
+#tiendas activas de peya
 def _get_peya_active_stores():
     peya_stores_query = """
         SELECT id, id_peya
         FROM integraciones.tiendas_last_millers
-        WHERE id_peya in ('512089','277730');
+        WHERE id_peya is not null;
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()

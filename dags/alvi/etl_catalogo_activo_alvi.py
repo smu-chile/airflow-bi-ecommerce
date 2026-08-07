@@ -768,7 +768,7 @@ with DAG(
     'etl_catalogo_activo_alvi',
     default_args=default_args,
     description="Actualiza el catálogo activo de Alvi, homologa precios Janis en S3, audita VTEX e inyecta actualizaciones.",
-    schedule_interval="0 6 * * *",
+    schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2023, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
@@ -794,7 +794,7 @@ with DAG(
         external_task_id=None,
         allowed_states=['success'],
         failed_states=['failed'],
-        timeout=3600,
+        timeout=14400,
         poke_interval=60,
         mode='reschedule'
     )
