@@ -112,16 +112,23 @@ def _post_request_to_publish_task_endpoint(ts):
                 left join catalogo.cantidad_productos_frogmi cpf
                     on frp.id_tienda = cpf.id_tienda
                 left join (
-                    select id_tienda, lpad(material, 18, '0') as material, max(fecha_inicio::timestamp) as max_fecha_inicio
-                    from ecommdata_alvi.frogmi_alerta_found_rate
-                    where fecha_inicio::date >= '{exec_date_local}'::date - interval '1 day'
-                    group by id_tienda, lpad(material, 18, '0')
+                    select id_tienda, material, max_fecha_inicio, fue_resuelto
+                    from (
+                        select id_tienda,
+                               lpad(material, 18, '0') as material,
+                               fecha_inicio::timestamp as max_fecha_inicio,
+                               (gondola is true or repuesto is true) as fue_resuelto,
+                               row_number() over (partition by id_tienda, lpad(material, 18, '0') order by fecha_inicio::timestamp desc) as rn
+                        from ecommdata_alvi.frogmi_alerta_found_rate
+                        where fecha_inicio::date >= '{exec_date_local}'::date - interval '90 days'
+                    ) t_last
+                    where rn = 1
                 ) far 
                     on lpad(split_part(frp.ref_id, '-', 1), 18, '0') = far.material 
                    and frp.id_tienda = far.id_tienda
                 where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
-                and (far.max_fecha_inicio is null or frp.fecha_picking > far.max_fecha_inicio)
+                and (far.max_fecha_inicio is null or (far.fue_resuelto is true and frp.fecha_picking > far.max_fecha_inicio))
                 group by ref_id, frp.descripcion, id_frogmi, cpf.id_tienda, cpf.cantidad
             ) _t
         ) _resultado
@@ -171,7 +178,7 @@ def _post_request_to_publish_task_endpoint(ts):
             accountable_area_code='ADMIN_LOCAL_PILOTO'))
 
     # Send payloads to S3
-    print(payloads)
+    # print(payloads)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
