@@ -11,26 +11,27 @@ import pendulum
 
 def _get_time_interval(ts):
     # Data ranges:
-    # 13:00 run: curr_date at 09:30 to curr_date at 13:00 (base: 10:30 - 1h = 09:30, + 2h 30m = 13:00)
-    # 17:00 run: curr_date at 12:00 to curr_date at 17:00 (base: 13:00 - 1h = 12:00, + 4h = 17:00)
+    # 13:00 -  curr_date at 09:30 to curr_date at 13:00 (+3 hrs 30 min)
+    # 17:00 -  curr_date at 13:00 to curr_date at 17:00 (+4 hrs)
 
     exec_datetime = datetime.strptime(ts[:16], "%Y-%m-%dT%H:%M")
     exec_datetime_utc = pendulum.timezone("utc").convert(exec_datetime)
     local_tz = pendulum.timezone("America/Santiago")
     exec_datetime_local = local_tz.convert(exec_datetime_utc)
-    task_start_date = exec_datetime_local
+    exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+    print(exec_datetime_local_str)
 
-    current_exec_hour = exec_datetime_local.strftime("%H")
+    current_exec_hour = exec_datetime_local_str.split("T")[1][:2]
     if current_exec_hour == "17":
-        interval_base_date = exec_datetime_local.replace(hour=13, minute=0, second=0)
-        interval_base_str = interval_base_date.strftime("%Y-%m-%dT%H:%M")
-        task_start_date = (exec_datetime_local + timedelta(days=1)).replace(hour=13, minute=0, second=0)
-        return interval_base_str, "interval '4 hours'", task_start_date
+        task_start_date = exec_datetime_local + timedelta(days=1)
+        task_start_date = task_start_date.replace(hour=13, minute=0, second=0)
+        exec_datetime_local = exec_datetime_local.replace(hour=9, minute=30, second=0) + timedelta(days=1)
+        exec_datetime_local_str = exec_datetime_local.strftime("%Y-%m-%dT%H:%M")
+        return exec_datetime_local_str, "interval '3 hours 30 minutes'", task_start_date
     else:
-        interval_base_date = exec_datetime_local.replace(hour=10, minute=30, second=0)
-        interval_base_str = interval_base_date.strftime("%Y-%m-%dT%H:%M")
-        task_start_date = exec_datetime_local.replace(hour=17, minute=0, second=0)
-        return interval_base_str, "interval '2 hours 30 minutes'", task_start_date
+        task_start_date = exec_datetime_local
+        task_start_date = task_start_date.replace(hour=17, minute=0, second=0)
+        return exec_datetime_local_str, "interval '4 hours'", task_start_date
 
 def _pre_payload(id_tienda, product, descr, task_start_date, template, accountable_area_code):
     if Variable.get("FROGMI_ENV") != "prod":
@@ -114,24 +115,11 @@ def _post_request_to_publish_task_endpoint(ts):
                     on frp.id_tienda = t.id and t.id_frogmi is not null
                 left join catalogo.cantidad_productos_frogmi cpf
                     on frp.id_tienda = cpf.id_tienda
-                left join (
-                    select id_tienda, material, max_fecha_inicio, fue_resuelto
-                    from (
-                        select id_tienda,
-                               lpad(material, 18, '0') as material,
-                               fecha_inicio::timestamp as max_fecha_inicio,
-                               (gondola is true or repuesto is true) as fue_resuelto,
-                               row_number() over (partition by id_tienda, lpad(material, 18, '0') order by fecha_inicio::timestamp desc) as rn
-                        from ecommdata.frogmi_alerta_found_rate
-                        where fecha_inicio::date >= '{exec_date_local}'::date - interval '90 days'
-                    ) t_last
-                    where rn = 1
-                ) far 
-                    on lpad(split_part(frp.ref_id, '-', 1), 18, '0') = far.material 
-                   and frp.id_tienda = far.id_tienda
-                where fecha_picking between '{exec_date_local}'::timestamp - interval '1 hour' and '{exec_date_local}'::timestamp + {time_interval}
+                left join ecommdata.frogmi_alerta_reposicion far
+                    on substring(frp.ref_id,1,18) = lpad(far.material, 18, '0') and frp.id_tienda = far.id_tienda
+                where fecha_picking between '{exec_date_local}'::timestamp and '{exec_date_local}'::timestamp + {time_interval}
                 and estado_foundrate <> 3
-                and (far.max_fecha_inicio is null or (far.fue_resuelto is true and frp.fecha_picking > far.max_fecha_inicio))
+                and ((far.fecha_inicio not between '{exec_date_local}'::timestamp + interval '3 hours' and '{exec_date_local}'::timestamp + {time_interval} + interval '3 hours') or far.fecha_inicio is null)
                 group by ref_id, frp.descripcion, id_frogmi, cpf.id_tienda, cpf.cantidad
             ) _t
         ) _resultado
@@ -184,7 +172,7 @@ def _post_request_to_publish_task_endpoint(ts):
         print(f"[DEBUG] Primer product_code enviado: {primer_product_code}")
 
     # Send payloads to S3
-    # print(payloads)
+    print(payloads)
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
