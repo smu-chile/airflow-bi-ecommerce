@@ -100,10 +100,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
             '' AS barcode,
             CONCAT(c.material, '-', c.unidad_de_medida) AS sku,
             COALESCE(
-                CASE
-                    WHEN c.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(COALESCE(lspp.precio, c.precio_referencial))
-                    WHEN c.unidad_de_medida IN ('KG','KGV') THEN ROUND(COALESCE(lspp.precio, c.precio_referencial) * COALESCE(s.multiplicador_unidad_medida, 1))
-                END,
+                ROUND(COALESCE(lspp.precio, c.precio_referencial)),
                 ROUND(c.precio_referencial),
                 1
             ) AS price,
@@ -216,10 +213,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 'PedidosYa' AS reason,
                 current_date AS start_date,
                 current_date + 1 AS end_date,
-                CASE
-    				WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
-                    WHEN lspp.unidad_de_medida in ('KG','KGV') then ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida)) 
-				END AS discounted_price,
+                ROUND(lspp.precio_promocional) AS discounted_price,
                 --s.multiplicador_unidad_medida,
                 999 AS max_no_of_orders,
                 1 AS campaign_status
