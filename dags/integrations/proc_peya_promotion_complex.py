@@ -223,10 +223,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     'Promociones Simples' AS reason,
                     concat(current_date ,' 09:00:00') AS start_date,
                     concat(wp.fecha_fin_de_promocion ,' 09:00:00') AS end_date,
-                    CASE
-                        WHEN lspp.unidad_de_medida NOT IN ('KG', 'KGV') THEN ROUND(lspp.precio_promocional)
-                        WHEN lspp.unidad_de_medida in ('KG','KGV') then ROUND(lspp.precio_promocional * (s.multiplicador_unidad_medida)) 
-                    END AS discounted_price,
+                    ROUND(lspp.precio_promocional) AS discounted_price,
                     999 AS max_no_of_orders,
                     1 AS campaign_status,
                     'strikethrough' AS promotion_type,
