@@ -1,21 +1,12 @@
 from airflow import DAG
-from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
-from airflow.providers.postgres.operators.postgres import PostgresOperator
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
 
-from datetime import datetime
-
 import pendulum
 
-def divide_chunks(l, n): 
-    for i in range(0, len(l), n):  
-        yield l[i:i + n] 
-
 def _send_stock_999_to_janis_pan(ds):
-    import pandas as pd
     import sqlalchemy
     import requests
     import json
