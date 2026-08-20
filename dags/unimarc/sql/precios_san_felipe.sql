@@ -29,7 +29,7 @@ WITH RankedPrices AS (
         ON p.ref_id = CONCAT(l.material, '-', l.umv) 
         AND p.id_tienda_janis = t.id_janis
     WHERE 
-        t.id IN ('0469', '0917', '0581', '0347', '0336', '0034', '0053', '0054', '0398')
+        t.id IN ('0469', '0917', '0581', '0034', '0053', '0054', '0398')
         AND t.status = 1
         AND (p.valido_desde IS NULL OR p.valido_hasta IS NULL OR p.valido_desde <= p.valido_hasta)
         AND p.precio IS NOT NULL
