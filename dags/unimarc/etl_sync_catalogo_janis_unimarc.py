@@ -2,6 +2,7 @@ from airflow import DAG
 from airflow.models import Variable
 from airflow.operators.python import PythonOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
+from airflow.hooks.S3_hook import S3Hook
 from utils.slack_utils import dag_failure_slack, dag_success_slack
 import pendulum
 import requests
@@ -153,13 +154,18 @@ def _extraer_catalogo_janis_api(**kwargs):
     if len(products_extracted) == 0:
         raise Exception("No se extrajeron registros desde la API de Janis.")
 
-    # Guardar en archivo parquet temporal para el siguiente paso
-    raw_file = f"/tmp/janis_raw_unimarc_{ts_nodash}.parquet"
-    df_raw = pd.DataFrame(products_extracted)
-    df_raw.to_parquet(raw_file, index=False)
-    print(f"Datos crudos guardados temporalmente en: {raw_file}")
+    # Guardar en S3 para compartir datos entre workers en cluster Kubernetes/Celery
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    raw_s3_key = f"staging/janis_unimarc/raw_{ts_nodash}.parquet"
 
-    return raw_file
+    df_raw = pd.DataFrame(products_extracted)
+    buf_raw = io.BytesIO()
+    df_raw.to_parquet(buf_raw, index=False)
+    s3_hook.load_bytes(buf_raw.getvalue(), key=raw_s3_key, bucket_name=s3_bucket, replace=True)
+    print(f"Datos crudos guardados en S3: s3://{s3_bucket}/{raw_s3_key}")
+
+    return raw_s3_key
 
 
 # -------------------------------------------------------------------------
@@ -168,13 +174,18 @@ def _extraer_catalogo_janis_api(**kwargs):
 def _transformar_catalogo_unimarc(**kwargs):
     ti = kwargs["ti"]
     ts_nodash = kwargs.get("ts_nodash", str(int(time.time())))
-    raw_file = ti.xcom_pull(task_ids="extraer_catalogo_janis_api")
+    raw_s3_key = ti.xcom_pull(task_ids="extraer_catalogo_janis_api")
 
-    if not raw_file or not os.path.exists(raw_file):
-        raise FileNotFoundError(f"Archivo raw no encontrado: {raw_file}")
+    if not raw_s3_key:
+        raise ValueError("No se recibió la clave de S3 desde la tarea de extracción.")
 
-    print(f"Leyendo archivo de extracción: {raw_file}")
-    df = pd.read_parquet(raw_file)
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    print(f"Descargando archivo de extracción desde S3: s3://{s3_bucket}/{raw_s3_key}")
+    obj = s3_hook.get_key(key=raw_s3_key, bucket_name=s3_bucket)
+    raw_data = obj.get()["Body"].read()
+    df = pd.read_parquet(io.BytesIO(raw_data))
     total_raw = len(df)
 
     # 1. Limpieza de nulos y estandarización
@@ -208,16 +219,20 @@ def _transformar_catalogo_unimarc(**kwargs):
     print(f"  - SKUs sin tiendas (huérfanos): {sin_tiendas}")
     print(f"==================================================\n")
 
-    transformed_file = f"/tmp/janis_transformed_unimarc_{ts_nodash}.parquet"
-    df_unique.to_parquet(transformed_file, index=False)
+    # Guardar transformado en S3
+    transformed_s3_key = f"staging/janis_unimarc/transformed_{ts_nodash}.parquet"
+    buf_tr = io.BytesIO()
+    df_unique.to_parquet(buf_tr, index=False)
+    s3_hook.load_bytes(buf_tr.getvalue(), key=transformed_s3_key, bucket_name=s3_bucket, replace=True)
+    print(f"Catálogo transformado guardado en S3: s3://{s3_bucket}/{transformed_s3_key}")
 
-    # Limpiar archivo crudo temporal
+    # Limpiar raw de S3
     try:
-        os.remove(raw_file)
+        s3_hook.delete_objects(bucket=s3_bucket, keys=[raw_s3_key])
     except Exception:
         pass
 
-    return transformed_file
+    return transformed_s3_key
 
 
 # -------------------------------------------------------------------------
@@ -225,13 +240,18 @@ def _transformar_catalogo_unimarc(**kwargs):
 # -------------------------------------------------------------------------
 def _cargar_postgres_productos_janis(**kwargs):
     ti = kwargs["ti"]
-    transformed_file = ti.xcom_pull(task_ids="transformar_catalogo_unimarc")
+    transformed_s3_key = ti.xcom_pull(task_ids="transformar_catalogo_unimarc")
 
-    if not transformed_file or not os.path.exists(transformed_file):
-        raise FileNotFoundError(f"Archivo transformado no encontrado: {transformed_file}")
+    if not transformed_s3_key:
+        raise ValueError("No se recibió la clave de S3 desde la tarea de transformación.")
 
-    print(f"Leyendo catálogo transformado desde: {transformed_file}")
-    df = pd.read_parquet(transformed_file)
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+
+    print(f"Descargando catálogo transformado desde S3: s3://{s3_bucket}/{transformed_s3_key}")
+    obj = s3_hook.get_key(key=transformed_s3_key, bucket_name=s3_bucket)
+    tr_data = obj.get()["Body"].read()
+    df = pd.read_parquet(io.BytesIO(tr_data))
     total_rows = len(df)
 
     host = Variable.get("POSTGRESQL_HOST")
@@ -293,9 +313,9 @@ def _cargar_postgres_productos_janis(**kwargs):
 
     engine.dispose()
 
-    # Limpiar archivo temporal
+    # Limpiar transformed de S3
     try:
-        os.remove(transformed_file)
+        s3_hook.delete_objects(bucket=s3_bucket, keys=[transformed_s3_key])
     except Exception:
         pass
 
