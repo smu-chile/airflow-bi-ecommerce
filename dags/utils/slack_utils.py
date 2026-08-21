@@ -256,7 +256,10 @@ def get_slack_token() -> str:
 
 
 def get_channel_id(channel_var_name: str) -> str:
-    return Variable.get(channel_var_name)
+    try:
+        return Variable.get(channel_var_name, default_var=channel_var_name)
+    except Exception:
+        return channel_var_name
 
 
 def get_slack_client() -> WebClient:

@@ -12,7 +12,9 @@ import requests
 import json
 import time
 from datetime import datetime
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 default_args = {
     "owner": "ecommerce_data",
@@ -57,7 +59,7 @@ def _fetch_janis_prices_and_calculate_winners(**kwargs):
     # 🧪 MODO PRUEBA: Cambiar a None para producción con todo el catálogo
     TEST_LIMIT = None
     
-    query_catalog = "SELECT vtex_id, ref_id FROM ecommdata_alvi.catalogo_activo_alvi WHERE categoria_valida IS TRUE AND vtex_id IS NOT NULL"
+    query_catalog = "SELECT vtex_id, ref_id, nombre AS nombre_producto FROM ecommdata_alvi.catalogo_activo_alvi WHERE categoria_valida IS TRUE AND vtex_id IS NOT NULL"
     df_catalog = pg_hook.get_pandas_df(query_catalog)
     if df_catalog.empty:
         print("No hay productos válidos en el catálogo activo para auditar.")
@@ -65,39 +67,42 @@ def _fetch_janis_prices_and_calculate_winners(**kwargs):
         
     df_skus = pg_hook.get_pandas_df("SELECT id AS id_sku_janis, ref_id FROM ecommdata_alvi.skus")
     
+    # Extraer Precio Modal Regular de Lista 8
+    print("Obteniendo precios modales de Lista 8 desde Postgres...")
+    query_modal = """
+        SELECT (l.material || '-' || l.umv) AS ref_id,
+               MODE() WITHIN GROUP (ORDER BY l.precio_regular) AS precio_modal_lista8
+        FROM ecommdata_alvi.lista8 l
+        JOIN ecommdata_alvi.tiendas t ON l.id_tienda = t.id
+        WHERE t.status = 1 AND t.id <> '1' AND l.precio_regular > 0
+        GROUP BY l.material, l.umv
+    """
+    df_modal = pg_hook.get_pandas_df(query_modal)
+    
     print("Obteniendo precios en vivo desde MariaDB (Janis)...")
     query_maria = """
         SELECT item_id as id_sku_janis, store_id as id_tienda_janis, 
                sku_min_quantity as skuminquantity, price, list_price, 
-               cost_price, valid_from, valid_to 
+               cost_price, date_modified, valid_from, valid_to 
         FROM janis_alvicl.price
     """
     results, columns = _execute_mariadb_query(query_maria)
     df_prices = pd.DataFrame(results, columns=columns)
     
-    num_cols = ['id_sku_janis', 'id_tienda_janis', 'skuminquantity', 'price', 'list_price', 'cost_price', 'valid_from', 'valid_to']
+    num_cols = ['id_sku_janis', 'id_tienda_janis', 'skuminquantity', 'price', 'list_price', 'cost_price', 'date_modified', 'valid_from', 'valid_to']
     for col in num_cols:
         df_prices[col] = pd.to_numeric(df_prices[col], errors='coerce')
         
-    # Filter date validity
-    current_time = int(time.time())
-    df_prices = df_prices[
-        (df_prices['valid_from'] <= current_time) & 
-        ((df_prices['valid_to'] >= current_time) | (df_prices['valid_to'] == 0) | df_prices['valid_to'].isna())
-    ]
-    
     # Filter active stores (status = 1)
     df_tiendas_db = pg_hook.get_pandas_df("SELECT id_janis FROM ecommdata_alvi.tiendas WHERE status = 1 AND id <> '1'")
     active_janis_store_ids = df_tiendas_db['id_janis'].dropna().unique()
     df_prices = df_prices[df_prices['id_tienda_janis'].isin(active_janis_store_ids)]
     
     # Merge and Homologate
-    df_active_prices = df_prices.merge(df_skus, on="id_sku_janis").merge(df_catalog, on="ref_id")
+    df_active_prices = df_prices.merge(df_skus, on="id_sku_janis").merge(df_catalog, on="ref_id").merge(df_modal, on="ref_id", how="left")
     
-    # Pajaritos (id_tienda_janis == 9)
+    # Selección Tienda Ganadora: Pajaritos (id_tienda_janis == 9) primero, luego huérfanos con ranking
     df_pajaritos = df_active_prices[df_active_prices['id_tienda_janis'] == 9]
-    
-    # Huerfanos
     pajaritos_vtex_ids = df_pajaritos['vtex_id'].unique()
     df_huerfanos = df_active_prices[~df_active_prices['vtex_id'].isin(pajaritos_vtex_ids)]
     
@@ -123,43 +128,68 @@ def _fetch_janis_prices_and_calculate_winners(**kwargs):
     profile_counts = store_profiles.groupby('vtex_id')['price_tuple'].nunique().reset_index(name='unique_profiles')
     profile_counts['tiendas_igualadas_janis'] = profile_counts['unique_profiles'] == 1
     
-    # Build Expected JSONs dictionary
+    # Build Expected JSONs dictionary aplicando las reglas de cálculo validadas
     expected_data = {}
     expected_igualadas_map = {}
     if not df_expected.empty:
         grouped = df_expected.groupby('vtex_id')
         for vtex_id, group in grouped:
-            base_record = group.sort_values(by='skuminquantity').iloc[0]
-            fecha_inicio = base_record['validfrom_str']
-            fecha_termino = base_record['validto_str']
-            precio_lista = str(int(base_record['list_price']) if pd.notnull(base_record['list_price']) else 0)
+            max_date_mod = group['date_modified'].max()
+            g_vig = group[group['date_modified'] == max_date_mod].sort_values(by='skuminquantity')
             
-            group_escalas = group[group['skuminquantity'] > 1].sort_values(by='skuminquantity')
-            if not group_escalas.empty:
-                escalas_dict = {}
-                for idx, row in enumerate(group_escalas.itertuples()):
-                    nivel_key = f"nivel{idx+1}"
-                    escalas_dict[nivel_key] = {
-                        "precio": str(int(row.price) if pd.notnull(row.price) else 0),
-                        "cantidad": str(int(row.skuminquantity) if pd.notnull(row.skuminquantity) else 1)
-                    }
-                escala_json_obj = {
+            qty1_row = g_vig[g_vig['skuminquantity'] == 1]
+            p1 = qty1_row.iloc[0]['price'] if not qty1_row.empty else None
+            p_modal = group.iloc[0]['precio_modal_lista8']
+            ref_id = group.iloc[0]['ref_id']
+            
+            # Filtrar escalas mayoristas con descuento real
+            g_escalas_desc = g_vig[(g_vig['skuminquantity'] > 1) & (g_vig['price'] < (p1 if p1 else 999999))].sort_values(by='skuminquantity')
+            cant_escalas = len(g_escalas_desc)
+            
+            fecha_inicio = format_unixtime(g_vig.iloc[0]['valid_from'])
+            fecha_termino = format_unixtime(g_vig.iloc[0]['valid_to'])
+            
+            if cant_escalas == 0:
+                # 0 escalas: Producto simple
+                calc_precio_lista = str(int(p1)) if p1 is not None and not pd.isna(p1) else (str(int(p_modal)) if p_modal is not None and not pd.isna(p_modal) else "0")
+                calc_escala_json = None
+            elif cant_escalas == 1:
+                # 1 escala mayorista (2 precios totales: base + 1 tramo)
+                calc_precio_lista = str(int(p_modal)) if p_modal is not None and not pd.isna(p_modal) else (str(int(p1)) if p1 is not None else "0")
+                row_mayor = g_escalas_desc.iloc[0]
+                calc_escala_json = json.dumps({
                     "escalas": [{
                         "fechaInicio": fecha_inicio,
                         "fechaTermino": fecha_termino,
-                        **escalas_dict
+                        "nivel1": {"precio": str(int(p1)), "cantidad": "1"},
+                        "nivel2": {"precio": str(int(row_mayor["price"])), "cantidad": str(int(row_mayor["skuminquantity"]))}
                     }]
-                }
-                json_escala_precio = json.dumps(escala_json_obj)
+                })
             else:
-                json_escala_precio = None
+                # 2 o más escalas mayoristas (3+ precios totales: base + 2 tramos)
+                calc_precio_lista = str(int(p1)) if p1 is not None and not pd.isna(p1) else (str(int(p_modal)) if p_modal is not None and not pd.isna(p_modal) else "0")
+                row_n1 = g_escalas_desc.iloc[0]
+                row_n2 = g_escalas_desc.iloc[1]
+                calc_escala_json = json.dumps({
+                    "escalas": [{
+                        "fechaInicio": fecha_inicio,
+                        "fechaTermino": fecha_termino,
+                        "nivel1": {"precio": str(int(row_n1["price"])), "cantidad": str(int(row_n1["skuminquantity"]))},
+                        "nivel2": {"precio": str(int(row_n2["price"])), "cantidad": str(int(row_n2["skuminquantity"]))}
+                    }]
+                })
                 
             igualadas = profile_counts[profile_counts['vtex_id'] == vtex_id]['tiendas_igualadas_janis']
             is_igualadas = bool(igualadas.iloc[0]) if not igualadas.empty else False
 
             expected_data[str(vtex_id)] = {
-                "precio_lista": precio_lista,
-                "escala_precio": json_escala_precio,
+                "vtex_id": str(vtex_id),
+                "ref_id": ref_id,
+                "precio_modal_lista8": float(p_modal) if p_modal is not None and not pd.isna(p_modal) else None,
+                "janis_precio_base": float(p1) if p1 is not None and not pd.isna(p1) else None,
+                "janis_cant_escalas": cant_escalas,
+                "precio_lista": calc_precio_lista,
+                "escala_precio": calc_escala_json,
                 "tiendas_igualadas_janis": is_igualadas
             }
             expected_igualadas_map[str(vtex_id)] = is_igualadas
@@ -201,11 +231,19 @@ def _generate_and_upload_janis_s3_payloads(**kwargs):
     janis_backups_updates = []
     cnt_janis_skus = 0
 
+    # Agrupar dataframes para búsqueda O(1) ultra rápida
+    df_expected['vtex_id_str'] = df_expected['vtex_id'].astype(str)
+    df_active_prices['vtex_id_str'] = df_active_prices['vtex_id'].astype(str)
+    expected_grouped = {str(k): v for k, v in df_expected.groupby('vtex_id_str')}
+    active_grouped = {str(k): v for k, v in df_active_prices.groupby('vtex_id_str')}
+
     for vtex_id, is_igualadas in expected_igualadas_map.items():
+        vtex_id_str = str(vtex_id)
         if not is_igualadas:
-            group = df_expected[df_expected['vtex_id'].astype(str) == str(vtex_id)].sort_values(by='skuminquantity')
-            if group.empty:
+            group = expected_grouped.get(vtex_id_str)
+            if group is None or group.empty:
                 continue
+            group = group.sort_values(by='skuminquantity')
             
             winner_tiers = {safe_int(row.skuminquantity): row for row in group.itertuples()}
             
@@ -215,7 +253,9 @@ def _generate_and_upload_janis_s3_payloads(**kwargs):
             umv = parts[1] if len(parts) > 1 else 'UN'
             
             sku_had_mismatch = False
-            df_curr_prod = df_active_prices[df_active_prices['vtex_id'].astype(str) == str(vtex_id)]
+            df_curr_prod = active_grouped.get(vtex_id_str, pd.DataFrame())
+            if df_curr_prod.empty:
+                continue
             
             active_janis_store_ids = set(df_tiendas['id_janis'].unique())
             product_stores = df_curr_prod[df_curr_prod['id_tienda_janis'].isin(active_janis_store_ids)]
@@ -366,7 +406,7 @@ def _generate_and_upload_janis_s3_payloads(**kwargs):
             
             s3_hook.load_string(json.dumps(janis_update_payload), key=janis_update_key, bucket_name=s3_bucket, replace=True)
             s3_hook.load_string(json.dumps(janis_backup_payload), key=janis_backup_key, bucket_name=s3_bucket, replace=True)
-            print(f"✅ Se subieron los payloads de Janis a S3.")
+            print(f"✅ Se subieron los payloads de Janis a S3 para respaldo.")
             print(f"   Update Janis: {janis_update_key}")
             print(f"   Backup Janis: {janis_backup_key}")
         except Exception as e:
@@ -377,6 +417,23 @@ def _generate_and_upload_janis_s3_payloads(**kwargs):
 # -------------------------------------------------------------------------
 # TASK 4: Audit VTEX specifications via REST API and upload S3 payloads
 # -------------------------------------------------------------------------
+def extract_levels_from_escala(escala_str):
+    if not escala_str or pd.isna(escala_str) or str(escala_str).strip() in ["", "null", "None"]:
+        return None
+    try:
+        data = json.loads(escala_str) if isinstance(escala_str, str) else escala_str
+        if isinstance(data, dict) and "escalas" in data and len(data["escalas"]) > 0:
+            e0 = data["escalas"][0]
+            res = {}
+            if "nivel1" in e0 and e0["nivel1"].get("precio"):
+                res["nivel1"] = {"precio": str(int(float(e0["nivel1"]["precio"]))), "cantidad": str(int(float(e0["nivel1"]["cantidad"])))}
+            if "nivel2" in e0 and e0["nivel2"].get("precio"):
+                res["nivel2"] = {"precio": str(int(float(e0["nivel2"]["precio"]))), "cantidad": str(int(float(e0["nivel2"]["cantidad"])))}
+            return res if res else None
+    except:
+        pass
+    return None
+
 def _audit_and_upload_vtex_s3_payloads(**kwargs):
     ti = kwargs['ti']
     janis_data = ti.xcom_pull(task_ids='fetch_janis_prices_and_calculate_winners')
@@ -385,18 +442,14 @@ def _audit_and_upload_vtex_s3_payloads(**kwargs):
         return {}
 
     expected_data = janis_data['expected_data']
-    
-    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    
-    # Restringir a los VTEX IDs recibidos del filtro inicial
     vtex_ids_filtrados = list(expected_data.keys())
     if not vtex_ids_filtrados:
         print("No hay VTEX IDs para auditar.")
         return {}
 
     unique_vtex_ids = [str(x) for x in vtex_ids_filtrados]
-    
     print(f"Auditando {len(unique_vtex_ids)} productos en VTEX...")
+    
     vtex_app_key = Variable.get("X_VTEX_ALVI_API_Appkey")
     vtex_app_token = Variable.get("X_VTEX_ALVI_API_Apptoken")
     headers = {
@@ -405,6 +458,10 @@ def _audit_and_upload_vtex_s3_payloads(**kwargs):
         "X-VTEX-API-AppKey": vtex_app_key,
         "X-VTEX-API-AppToken": vtex_app_token
     }
+    
+    session = requests.Session()
+    retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=15, pool_maxsize=15))
     
     def fetch_and_compare(vtex_id):
         vtex_id_str = str(vtex_id)
@@ -415,42 +472,77 @@ def _audit_and_upload_vtex_s3_payloads(**kwargs):
         tiene_precio = False
         tiene_escala = False
         
-        try:
-            resp = requests.get(url, headers=headers, timeout=10)
-            if resp.status_code == 200:
-                specs = resp.json()
-                for spec in specs:
-                    if spec.get("Name") == "Precio Lista":
-                        val = spec.get("Value")
-                        vtex_precio_lista = val[0] if val and len(val) > 0 else None
-                        tiene_precio = True
-                    elif spec.get("Name") == "Escala Precios":
-                        val = spec.get("Value")
-                        raw_escala = val[0] if val and len(val) > 0 else None
-                        tiene_escala = True
-                        if raw_escala:
-                            try:
-                                vtex_escala_precio = json.dumps(json.loads(raw_escala))
-                            except Exception:
-                                vtex_escala_precio = raw_escala
-        except Exception as e:
-            print(f"Error consultando VTEX para product {vtex_id_str}: {e}")
+        for attempt in range(4):
+            try:
+                resp = session.get(url, headers=headers, timeout=15)
+                if resp.status_code == 200:
+                    specs = resp.json()
+                    for spec in specs:
+                        if spec.get("Name") == "Precio Lista":
+                            val = spec.get("Value")
+                            vtex_precio_lista = val[0] if val and len(val) > 0 else None
+                            tiene_precio = True
+                        elif spec.get("Name") == "Escala Precios":
+                            val = spec.get("Value")
+                            raw_escala = val[0] if val and len(val) > 0 else None
+                            tiene_escala = True
+                            if raw_escala:
+                                try:
+                                    vtex_escala_precio = json.dumps(json.loads(raw_escala))
+                                except Exception:
+                                    vtex_escala_precio = raw_escala
+                    break
+                elif resp.status_code == 404:
+                    break
+            except Exception as e:
+                time.sleep(1 + attempt)
             
         exp_info = expected_data.get(vtex_id_str, {})
         exp_precio = exp_info.get("precio_lista")
         exp_escala = exp_info.get("escala_precio")
         exp_igualadas = exp_info.get("tiendas_igualadas_janis", False)
+        p_modal = exp_info.get("precio_modal_lista8")
+        p_janis_base = exp_info.get("janis_precio_base")
+        cant_escalas = exp_info.get("janis_cant_escalas", 0)
         
-        coincide_precio = (vtex_precio_lista == exp_precio)
-        
-        coincide_escala = False
-        if exp_escala and vtex_escala_precio:
+        # Validar coincidencia de Precio Lista
+        coincide_precio = False
+        if vtex_precio_lista is not None and str(vtex_precio_lista).strip() != "":
             try:
-                coincide_escala = (json.loads(exp_escala) == json.loads(vtex_escala_precio))
-            except Exception:
-                coincide_escala = (vtex_escala_precio == exp_escala)
-        elif not exp_escala and not vtex_escala_precio:
-            coincide_escala = True
+                coincide_precio = (int(float(exp_precio)) == int(float(vtex_precio_lista)))
+            except:
+                coincide_precio = (str(exp_precio) == str(vtex_precio_lista))
+        elif exp_precio is None or exp_precio == "0":
+            coincide_precio = True
+            
+        # Validar coincidencia de Niveles de Escala
+        vtex_levels = extract_levels_from_escala(vtex_escala_precio)
+        exp_levels = extract_levels_from_escala(exp_escala)
+        coincide_escala = (vtex_levels == exp_levels)
+        
+        requiere_correccion = (not coincide_precio or not coincide_escala)
+        
+        # Categorizar acción descriptiva
+        if coincide_precio and coincide_escala:
+            accion_requerida = "OK"
+        elif not coincide_precio and not coincide_escala:
+            if vtex_levels is not None and exp_levels is None:
+                accion_requerida = "Actualizar Precio Lista + Eliminar Escala Obsoleta"
+            elif vtex_levels is None and exp_levels is not None:
+                accion_requerida = "Actualizar Precio Lista + Crear Escala Faltante"
+            else:
+                accion_requerida = "Actualizar Precio Lista + Ajustar Niveles de Escala"
+        elif not coincide_precio and coincide_escala:
+            accion_requerida = "Solo Actualizar Precio Lista"
+        elif coincide_precio and not coincide_escala:
+            if vtex_levels is not None and exp_levels is None:
+                accion_requerida = "Solo Eliminar Escala Obsoleta (Producto Simple)"
+            elif vtex_levels is None and exp_levels is not None:
+                accion_requerida = "Solo Crear Escala Faltante"
+            else:
+                accion_requerida = "Solo Ajustar Niveles de Escala"
+                
+        fecha_auditoria = datetime.now()
             
         return (
             vtex_precio_lista, vtex_escala_precio, 
@@ -458,13 +550,16 @@ def _audit_and_upload_vtex_s3_payloads(**kwargs):
             exp_precio, exp_escala, 
             coincide_precio, coincide_escala,
             exp_igualadas,
+            p_modal, p_janis_base, cant_escalas,
+            requiere_correccion, accion_requerida, fecha_auditoria,
             vtex_id_str
         )
 
     results = []
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        for res in executor.map(fetch_and_compare, unique_vtex_ids):
-            results.append(res)
+    with ThreadPoolExecutor(max_workers=15) as executor:
+        futures = {executor.submit(fetch_and_compare, vid): vid for vid in unique_vtex_ids}
+        for f in as_completed(futures):
+            results.append(f.result())
             
     vtex_update_key = None
     if results:
@@ -477,9 +572,9 @@ def _audit_and_upload_vtex_s3_payloads(**kwargs):
         for res in results:
             (vtex_precio_lista, vtex_escala_precio, _, _, 
              exp_precio, exp_escala, coincide_precio, coincide_escala, 
-             _, vtex_id_str) = res
+             _, _, _, _, requiere_corr, _, _, vtex_id_str) = res
             
-            if not coincide_precio or not coincide_escala:
+            if requiere_corr:
                 cnt_modificados += 1
                 update_specs = []
                 backup_specs = []
@@ -559,7 +654,7 @@ def _audit_and_upload_vtex_s3_payloads(**kwargs):
                 
                 s3_hook.load_string(json.dumps(update_payload), key=vtex_update_key, bucket_name=s3_bucket, replace=True)
                 s3_hook.load_string(json.dumps(backup_payload), key=backup_key, bucket_name=s3_bucket, replace=True)
-                print(f"✅ Se subieron los payloads de VTEX a S3.")
+                print(f"✅ Se subieron los payloads de VTEX a S3 para respaldo.")
                 print(f"   Update VTEX: {vtex_update_key}")
                 print(f"   Backup VTEX: {backup_key}")
             except Exception as e:
@@ -593,11 +688,19 @@ def _save_audit_results_to_postgres(**kwargs):
             calculated_escala_precio = v.calculated_escala_precio,
             coincide_precio_lista = CAST(v.coincide_precio_lista AS boolean),
             coincide_escala = CAST(v.coincide_escala AS boolean),
-            tiendas_igualadas_janis = CAST(v.tiendas_igualadas_janis AS boolean)
+            tiendas_igualadas_janis = CAST(v.tiendas_igualadas_janis AS boolean),
+            precio_modal_lista8 = CAST(v.precio_modal_lista8 AS numeric),
+            janis_precio_base = CAST(v.janis_precio_base AS numeric),
+            janis_cant_escalas = CAST(v.janis_cant_escalas AS integer),
+            requiere_correccion_vtex = CAST(v.requiere_correccion_vtex AS boolean),
+            accion_requerida_vtex = v.accion_requerida_vtex,
+            fecha_auditoria = CAST(v.fecha_auditoria AS timestamp)
         FROM (VALUES %s) AS v(
             vtex_precio_lista, vtex_escala_precio, tiene_precio_lista, tiene_escala,
             calculated_precio_lista, calculated_escala_precio, coincide_precio_lista, coincide_escala,
             tiendas_igualadas_janis,
+            precio_modal_lista8, janis_precio_base, janis_cant_escalas,
+            requiere_correccion_vtex, accion_requerida_vtex, fecha_auditoria,
             vtex_id
         )
         WHERE c.vtex_id = v.vtex_id;
@@ -611,155 +714,29 @@ def _save_audit_results_to_postgres(**kwargs):
     print(f"✅ Se actualizaron {len(results)} registros de auditoría en ecommdata_alvi.catalogo_activo_alvi.")
 
 # -------------------------------------------------------------------------
-# TASK 6: Execute Janis price updates by sending HTTP POST requests to Janis API
+# TASK 6: Execute Janis price updates (DRY RUN / AUDITORÍA ACTIVADA)
 # -------------------------------------------------------------------------
-def send_single_janis_price_chunk(session, janis_url, chunk_item, idx, total_chunks, headers):
-    tipo = chunk_item.get("tipo_accion", "update")
-    body = chunk_item.get("body", [])
-    if not body:
-        return
-    try:
-        resp = session.post(janis_url, json=body, headers=headers, timeout=30)
-        if resp.status_code in [200, 201]:
-            print(f"✅ [JANIS API OK] Lote {idx+1}/{total_chunks} ({tipo}): {len(body)} precios enviados | Status: {resp.status_code}")
-        else:
-            print(f"⚠️ [JANIS API ERROR] Lote {idx+1}/{total_chunks} ({tipo}): Status {resp.status_code} | Resp: {resp.text[:200]}")
-    except Exception as e:
-        print(f"❌ [JANIS API EXCEPCIÓN] Lote {idx+1}/{total_chunks} ({tipo}): Error {e}")
-
 def _execute_janis_price_updates(**kwargs):
     ti = kwargs['ti']
     janis_update_key = ti.xcom_pull(task_ids='generate_and_upload_janis_s3_payloads')
-    if not janis_update_key:
-        print("No se generó clave de actualización de Janis en S3 (o no hay cambios pendientes).")
-        return
+    print("=" * 80)
+    print("🔒 [MODO DRY-RUN / AUDITORÍA ACTIVADA] Envío de precios a Janis API DESACTIVADO.")
+    print(f"   Payload preparado y disponible en S3 para validación: {janis_update_key}")
+    print("   No se realizaron llamadas POST a https://janis.in/api/price.")
+    print("=" * 80)
 
-    from airflow.hooks.S3_hook import S3Hook
-    from requests.adapters import HTTPAdapter
-    from urllib3.util import Retry
-    from concurrent.futures import as_completed
-    try:
-        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-        
-        print(f"Leyendo payload exacto de Janis desde S3: {janis_update_key}")
-        content = s3_hook.read_key(janis_update_key, bucket_name=s3_bucket)
-        payload = json.loads(content)
-        
-        chunks = payload.get("data", [])
-        if not chunks:
-            print("El payload de Janis no contiene bloques (data) para enviar.")
-            return
-            
-        janis_api_key = Variable.get("JANIS_ALVI_API_KEY", default_var=Variable.get("JANIS_API_KEY", default_var=None))
-        janis_api_secret = Variable.get("JANIS_ALVI_API_SECRET", default_var=Variable.get("JANIS_API_SECRET", default_var=None))
-        janis_client = Variable.get("JANIS_ALVI_CLIENT", default_var="alvicl")
-        janis_base_url = Variable.get("JANIS_API_URL", default_var="https://janis.in/api")
-        janis_base_url = janis_base_url.rstrip('/')
-        if not janis_base_url.endswith('/price'):
-            janis_url = f"{janis_base_url}/price"
-        else:
-            janis_url = janis_base_url
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-        }
-        if janis_api_key:
-            headers["janis-api-key"] = janis_api_key
-        if janis_api_secret:
-            headers["janis-api-secret"] = janis_api_secret
-        if janis_client:
-            headers["janis-client"] = janis_client
-            
-        session = requests.Session()
-        retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-        session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
-        session.mount('http://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
-        
-        print(f"🚀 Iniciando inyección multihilo de {len(chunks)} bloques a la API de Janis ({janis_url})...")
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [
-                executor.submit(send_single_janis_price_chunk, session, janis_url, chunk_item, idx, len(chunks), headers)
-                for idx, chunk_item in enumerate(chunks)
-            ]
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Error procesando lote de Janis: {e}")
-                    
-    except Exception as e:
-        print(f"Error procesando la ejecución de precios en Janis: {e}")
-
-def send_single_vtex_spec_update(session, item, idx, total_items, headers):
-    vtex_id = item.get("vtex_id")
-    url = item.get("url")
-    body = item.get("body", [])
-    if not body:
-        return
-    try:
-        resp = session.post(url, json=body, headers=headers, timeout=15)
-        if resp.status_code in [200, 204]:
-            print(f"✅ [VTEX API OK] Producto {vtex_id} ({idx+1}/{total_items}): Especificaciones actualizadas | Status: {resp.status_code}")
-        else:
-            print(f"⚠️ [VTEX API ERROR] Producto {vtex_id} ({idx+1}/{total_items}): Status {resp.status_code} | Resp: {resp.text[:200]}")
-    except Exception as e:
-        print(f"❌ [VTEX API EXCEPCIÓN] Producto {vtex_id}: Error {e}")
-
+# -------------------------------------------------------------------------
+# TASK 7: Execute VTEX specification updates (DRY RUN / AUDITORÍA ACTIVADA)
+# -------------------------------------------------------------------------
 def _execute_vtex_specification_updates(**kwargs):
     ti = kwargs['ti']
     vtex_res = ti.xcom_pull(task_ids='audit_and_upload_vtex_s3_payloads')
-    if not vtex_res or not vtex_res.get("vtex_update_key"):
-        print("No se generó clave de actualización de VTEX en S3 (o no hay cambios pendientes).")
-        return
-    vtex_update_key = vtex_res["vtex_update_key"]
-
-    from airflow.hooks.S3_hook import S3Hook
-    from requests.adapters import HTTPAdapter
-    from urllib3.util import Retry
-    from concurrent.futures import as_completed
-    try:
-        s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
-        s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
-        
-        print(f"Leyendo payload exacto de VTEX desde S3: {vtex_update_key}")
-        content = s3_hook.read_key(vtex_update_key, bucket_name=s3_bucket)
-        payload = json.loads(content)
-        
-        items = payload.get("data", [])
-        if not items:
-            print("El payload de VTEX no contiene productos (data) para actualizar.")
-            return
-            
-        vtex_app_key = Variable.get("X_VTEX_ALVI_API_Appkey")
-        vtex_app_token = Variable.get("X_VTEX_ALVI_API_Apptoken")
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-VTEX-API-AppKey": vtex_app_key,
-            "X-VTEX-API-AppToken": vtex_app_token
-        }
-        
-        session = requests.Session()
-        retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
-        session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
-        session.mount('http://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
-        
-        print(f"🚀 Iniciando inyección multihilo de especificaciones para {len(items)} productos a la API de VTEX...")
-        with ThreadPoolExecutor(max_workers=5) as executor:
-            futures = [
-                executor.submit(send_single_vtex_spec_update, session, item, idx, len(items), headers)
-                for idx, item in enumerate(items)
-            ]
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    print(f"Error actualizando especificación en VTEX: {e}")
-                    
-    except Exception as e:
-        print(f"Error procesando la ejecución de especificaciones en VTEX: {e}")
+    vtex_update_key = vtex_res.get("vtex_update_key") if vtex_res else None
+    print("=" * 80)
+    print("🔒 [MODO DRY-RUN / AUDITORÍA ACTIVADA] Envío de especificaciones a VTEX Catalog DESACTIVADO.")
+    print(f"   Payload preparado y disponible en S3 para validación: {vtex_update_key}")
+    print("   No se realizaron llamadas POST/PUT a la API de VTEX Specifications.")
+    print("=" * 80)
 
 # -------------------------------------------------------------------------
 # DAG DEFINITION & TASK FLOW
@@ -767,7 +744,7 @@ def _execute_vtex_specification_updates(**kwargs):
 with DAG(
     'etl_catalogo_activo_alvi',
     default_args=default_args,
-    description="Actualiza el catálogo activo de Alvi, homologa precios Janis en S3, audita VTEX e inyecta actualizaciones.",
+    description="Actualiza el catálogo activo de Alvi, audita precios y escalas en Postgres y genera respaldos S3 (Dry-Run).",
     schedule_interval="0 7 * * *",
     start_date=pendulum.datetime(2023, 1, 1, tz="America/Santiago"),
     catchup=False,
@@ -778,14 +755,14 @@ with DAG(
 ) as dag:
 
     dag.doc_md = """
-    ## Catálogo Activo Alvi, Homologación Janis, Auditoría VTEX e Inyección de Precios
+    ## Catálogo Activo Alvi, Homologación Janis, Auditoría VTEX e Inyección de Precios (Modo Dry-Run)
     1. `load_active_catalog_base`: Cruza `lista8` con `productos` y `categorias` en Postgres.
-    2. `fetch_janis_prices_and_calculate_winners`: Consulta MariaDB Janis en vivo (Modo Prueba: 5 SKUs) y calcula perfiles ganadores.
-    3. `generate_and_upload_janis_s3_payloads`: Compara escalas delta (Opción A) con salvaguardas y sube JSONs a S3.
-    4. `audit_and_upload_vtex_s3_payloads`: Consulta API VTEX por especificaciones de precio y sube JSONs a S3.
-    5. `save_audit_results_to_postgres`: Guarda los indicadores finales de coincidencia en Postgres.
-    6. `execute_janis_price_updates`: Lee el payload exacto de S3 vía XCom y ejecuta POST HTTP real a la API de Janis (`https://janis.in/api/price`).
-    7. `execute_vtex_specification_updates`: Lee el payload exacto de S3 vía XCom y ejecuta POST/PUT HTTP real a la API de VTEX Catalog.
+    2. `fetch_janis_prices_and_calculate_winners`: Consulta MariaDB Janis y Lista 8, calculando perfiles ganadores y escalas esperadas.
+    3. `generate_and_upload_janis_s3_payloads`: Genera payloads de respaldo y auditoría para Janis en S3.
+    4. `audit_and_upload_vtex_s3_payloads`: Consulta API VTEX por especificaciones de precio y genera respaldos S3.
+    5. `save_audit_results_to_postgres`: Guarda los indicadores completos de auditoría en Postgres (`catalogo_activo_alvi`).
+    6. `execute_janis_price_updates`: [MODO DRY-RUN] Validación de auditoría sin inyección a Janis.
+    7. `execute_vtex_specification_updates`: [MODO DRY-RUN] Validación de auditoría sin inyección a VTEX.
     """ 
 
     t0 = ExternalTaskSensor(
