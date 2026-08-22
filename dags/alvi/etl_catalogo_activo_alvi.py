@@ -542,7 +542,7 @@ def _audit_and_upload_vtex_s3_payloads(**kwargs):
             else:
                 accion_requerida = "Solo Ajustar Niveles de Escala"
                 
-        fecha_auditoria = datetime.now()
+        fecha_auditoria = pendulum.now("America/Santiago").format("YYYY-MM-DD HH:mm:ss")
             
         return (
             vtex_precio_lista, vtex_escala_precio, 

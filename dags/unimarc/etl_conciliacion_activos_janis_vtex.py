@@ -244,36 +244,36 @@ def _notificar_slack(**kwargs):
     print(f"  - Con imagen (aptos para encender): {len(items_con_imagen)}")
     print(f"  - Sin imagen (omitidos de encendido): {len(items_sin_imagen)}")
 
-    # 1. Registrar productos sin imagen en Postgres
+    # 1. Registrar productos sin imagen en Postgres (Snapshot actual sin duplicados)
+    host = Variable.get("POSTGRESQL_HOST")
+    database = Variable.get("POSTGRESQL_DB")
+    username = Variable.get("POSTGRESQL_USER")
+    password = Variable.get("POSTGRESQL_PASSWORD")
+
+    conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
+    engine = sqlalchemy.create_engine(conn_url)
+
+    create_tbl_sql = """
+        CREATE TABLE IF NOT EXISTS ecommdata.productos_sin_imagen_vtex (
+            ref_id TEXT,
+            material TEXT,
+            nombre_producto TEXT,
+            motivo TEXT,
+            fecha_consulta TIMESTAMP
+        );
+    """
+    with engine.begin() as conn:
+        conn.execute(create_tbl_sql)
+        conn.execute("TRUNCATE TABLE ecommdata.productos_sin_imagen_vtex;")
+
     if len(items_sin_imagen) > 0:
         print(f"Registrando {len(items_sin_imagen)} productos sin imagen en ecommdata.productos_sin_imagen_vtex...")
-        host = Variable.get("POSTGRESQL_HOST")
-        database = Variable.get("POSTGRESQL_DB")
-        username = Variable.get("POSTGRESQL_USER")
-        password = Variable.get("POSTGRESQL_PASSWORD")
-
-        conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
-        engine = sqlalchemy.create_engine(conn_url)
-
         df_sin_img = pd.DataFrame(items_sin_imagen)
         df_sin_img["material"] = df_sin_img["ref_id"].apply(lambda r: str(r).split("-")[0].zfill(18) if "-" in str(r) else str(r).zfill(18))
         df_sin_img["motivo"] = "Sin imagen en VTEX"
         df_sin_img["fecha_consulta"] = fecha_chile.format("YYYY-MM-DD HH:mm:ss")
 
-        # Guardar en tabla histórica/registro
-        create_tbl_sql = """
-            CREATE TABLE IF NOT EXISTS ecommdata.productos_sin_imagen_vtex (
-                ref_id TEXT,
-                material TEXT,
-                nombre_producto TEXT,
-                motivo TEXT,
-                fecha_consulta TIMESTAMP
-            );
-        """
-        with engine.begin() as conn:
-            conn.execute(create_tbl_sql)
-
-        df_sin_img_db = df_sin_img[["ref_id", "material", "nombre_producto", "motivo", "fecha_consulta"]]
+        df_sin_img_db = df_sin_img[["ref_id", "material", "nombre_producto", "motivo", "fecha_consulta"]].drop_duplicates(subset=["ref_id"])
         df_sin_img_db.to_sql(
             name="productos_sin_imagen_vtex",
             con=engine,
@@ -282,8 +282,9 @@ def _notificar_slack(**kwargs):
             index=False,
             chunksize=2000,
         )
-        engine.dispose()
-        print("✅ Registro de productos sin imagen guardado en Postgres exitosamente.")
+        print(f"✅ Snapshot de {len(df_sin_img_db)} productos sin imagen guardado en Postgres exitosamente.")
+
+    engine.dispose()
 
     # 2. Si no hay productos con imagen para encender, notificar y salir
     if len(items_con_imagen) == 0:
