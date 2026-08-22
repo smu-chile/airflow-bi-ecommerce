@@ -12,22 +12,67 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 import sqlalchemy
 import time
+import random
 import io
 import os
 
 
 def fetch_products_page(session, url, headers, page, page_size):
-    """Consulta una página de productos desde la API de Janis."""
+    """
+    Consulta una página de productos desde la API de Janis con reintentos robustos,
+    exponential backoff y jitter ante respuestas 429 (Too Many Requests) o 5xx.
+    """
     page_headers = headers.copy()
     page_headers["X-Janis-Page"] = str(page)
     page_headers["X-Janis-Page-Size"] = str(page_size)
 
-    response = session.get(url, headers=page_headers, timeout=60)
-    if response.status_code != 200:
-        raise Exception(
-            f"Fallo al consultar la API de Janis. Código: {response.status_code} | Respuesta: {response.text}"
-        )
-    return page, response.json()
+    max_attempts = 8
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = session.get(url, headers=page_headers, timeout=45)
+
+            if response.status_code == 200:
+                return page, response.json()
+
+            elif response.status_code == 429:
+                # Rate limit de Janis: esperar exponencialmente con jitter aleatorio para evitar estampida
+                wait_seconds = (2 ** attempt) + random.uniform(1.0, 3.5)
+                # Si Janis envía header Retry-After, respetarlo
+                retry_after = response.headers.get("Retry-After")
+                if retry_after and retry_after.isdigit():
+                    wait_seconds = max(float(retry_after), wait_seconds)
+
+                print(
+                    f"⚠️ [Rate Limit 429] Página {page} (Intento {attempt}/{max_attempts}). "
+                    f"Esperando {wait_seconds:.2f}s antes de reintentar..."
+                )
+                time.sleep(wait_seconds)
+
+            elif response.status_code in [500, 502, 503, 504]:
+                wait_seconds = 2 * attempt + random.uniform(0.5, 2.0)
+                print(
+                    f"⚠️ [Error Servidor {response.status_code}] Página {page} (Intento {attempt}/{max_attempts}). "
+                    f"Esperando {wait_seconds:.2f}s..."
+                )
+                time.sleep(wait_seconds)
+
+            else:
+                raise Exception(
+                    f"Fallo al consultar la API de Janis en página {page}. "
+                    f"Código: {response.status_code} | Respuesta: {response.text}"
+                )
+
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as conn_err:
+            wait_seconds = 2 * attempt + random.uniform(1.0, 3.0)
+            print(
+                f"⚠️ [Error Conexión/Timeout] Página {page} (Intento {attempt}/{max_attempts}): {conn_err}. "
+                f"Esperando {wait_seconds:.2f}s..."
+            )
+            time.sleep(wait_seconds)
+
+    raise Exception(
+        f"❌ Se agotaron los {max_attempts} reintentos para la página {page} en la API de Janis debido a 429/Timeout."
+    )
 
 
 # -------------------------------------------------------------------------
@@ -51,16 +96,10 @@ def _extraer_catalogo_janis_api(**kwargs):
     url = f"{janis_base_url.rstrip('/')}/products"
     print(f"🚀 Iniciando extracción multihilo del catálogo Unimarc desde la API de Janis: {url}")
 
-    # Configurar sesión HTTP con retries exponenciales ante 429/5xx y pool de conexiones optimizado
+    # Configurar sesión HTTP optimizada con pool de conexiones
     session = requests.Session()
-    retries = Retry(
-        total=5,
-        backoff_factor=1.5,
-        status_forcelist=[429, 500, 502, 503, 504],
-        raise_on_status=True,
-    )
-    session.mount("https://", HTTPAdapter(max_retries=retries, pool_connections=25, pool_maxsize=25))
-    session.mount("http://", HTTPAdapter(max_retries=retries, pool_connections=25, pool_maxsize=25))
+    session.mount("https://", HTTPAdapter(pool_connections=15, pool_maxsize=15))
+    session.mount("http://", HTTPAdapter(pool_connections=15, pool_maxsize=15))
 
     headers = {
         "janis-api-key": janis_api_key,
@@ -72,11 +111,11 @@ def _extraer_catalogo_janis_api(**kwargs):
     products_extracted = []
     page = 1
     page_size = 100
-    batch_size = 20
-    max_workers = 20
+    batch_size = 10
+    max_workers = 10
     stop_fetching = False
 
-    # Bucle de paginación multihilo (lotes paralelos de 20 páginas)
+    # Bucle de paginación multihilo (lotes paralelos de 10 páginas)
     while not stop_fetching:
         pages_to_fetch = list(range(page, page + batch_size))
         batch_results = {}
@@ -143,7 +182,7 @@ def _extraer_catalogo_janis_api(**kwargs):
 
         page += batch_size
         if not stop_fetching:
-            time.sleep(0.05)
+            time.sleep(0.15)
 
     elapsed = time.time() - t_start
     print(f"\n==================================================")
