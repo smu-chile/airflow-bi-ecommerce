@@ -15,9 +15,18 @@ def _choose_branch(ds, **kwargs):
         print(f"➡️ Forzando rama manualmente por config: {conf['force_branch']}")
         return conf['force_branch']
 
-    execution_date = kwargs['logical_date']
-    hora_chile = execution_date.in_tz('America/Santiago').hour
-    print(f"Hora Chile evaluada: {hora_chile}")
+    dag_run = kwargs.get('dag_run')
+    is_manual = dag_run.external_trigger if dag_run else False
+
+    # Para ejecuciones programadas usamos el fin del intervalo (hora real de disparo).
+    # Para ejecuciones manuales usamos logical_date.
+    if is_manual:
+        ref_date = dag_run.logical_date
+    else:
+        ref_date = kwargs.get('data_interval_end') or kwargs['logical_date']
+
+    hora_chile = pendulum.instance(ref_date).in_timezone('America/Santiago').hour
+    print(f"Hora Chile evaluada (ref: {ref_date}, manual={is_manual}): {hora_chile}")
     
     if hora_chile < 16:
         print("➡️ Ejecutando rama: 999 (AM)")

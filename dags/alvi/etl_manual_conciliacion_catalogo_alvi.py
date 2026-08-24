@@ -215,7 +215,7 @@ def generate_reconciliation_csvs(ds):
                 "updatePending": 1,
                 "visible": 1,
                 "active": 1,
-                "showUnavailable": 0
+                "showUnavailable": 1
             })
             reconciled_skus.append({
                 "refId": sku_ref_id,
