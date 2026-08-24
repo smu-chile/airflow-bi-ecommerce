@@ -1,3 +1,8 @@
+SET work_mem = '256MB';
+
+CREATE INDEX IF NOT EXISTS idx_staging_stock_unimarc ON staging.stock_unimarc (item_id, store_id, warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_staging_stock_vtex ON staging.stock_vtex_unimarc (vtex_id, id_warehouse);
+
 ANALYZE staging.stock_vtex_unimarc;
 ANALYZE staging.stock_unimarc;
 
@@ -44,7 +49,7 @@ left join ecommdata.skus s on svu.vtex_id = s.vtex_id
 left join staging.stock_unimarc su on s.id = su.item_id and t.id_janis = su.store_id and b.id_janis = su.warehouse_id
 left join ecommdata.productos p on s.ref_id = p.ref_id
 left join ecommdata.categorias c on p.id_categoria = c.id
-left join ecommdata.lista8 l on concat(l.material, '-', l.umv) = s.ref_id and t.id = l.id_tienda
+left join ecommdata.lista8 l on l.material = split_part(s.ref_id, '-', 1) and l.umv = split_part(s.ref_id, '-', 2) and t.id = l.id_tienda
 left join ecommdata.lista_infaltables li on p.material = li.material
 where t.status = 1 and (b.dock_activo is true)
 and NOT (

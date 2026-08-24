@@ -35,7 +35,8 @@ def _get_table_stock_janis_from_S3(ts, ti):
 def _save_table_stock_janis(ts, ti):
     import pandas as pd
     import sqlalchemy
-    import numpy as np
+    from io import StringIO
+    import csv
 
     df = _get_table_stock_janis_from_S3(ts, ti)
     df = df[['id', 'item_id', 'store_id','warehouse_id', 'stock', 'min_stock', 'infinite_stock', 'date_published', 'date_modified', 'operation_type']]
@@ -51,17 +52,22 @@ def _save_table_stock_janis(ts, ti):
     conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:5432/{database}"
     engine = sqlalchemy.create_engine(conn_url)
 
-    df_array = np.array_split(df,5)
+    buffer = StringIO()
+    df.to_csv(buffer, index=False, header=False, quoting=csv.QUOTE_MINIMAL)
+    buffer.seek(0)
 
-    for i in df_array:
-
-        i.to_sql(name="stock_unimarc",
-                    con=engine,         
-                    schema="staging",         
-                    if_exists='append',         
-                    index=False,         
-                    chunksize=20000,         
-                    method='multi')
+    conn = engine.raw_connection()
+    try:
+        cursor = conn.cursor()
+        cursor.copy_expert("COPY staging.stock_unimarc (id, item_id, store_id, warehouse_id, stock, min_stock, infinite_stock, date_published, date_modified, operation_type) FROM STDIN WITH CSV", buffer)
+        conn.commit()
+        cursor.close()
+    except Exception as e:
+        print(f"Error executing COPY for stock_unimarc: {e}")
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
     
     return
 
@@ -93,37 +99,31 @@ def load_full_table_from_staging_to_s3(table_name, df, ts):
 
     return file_name
 
-def get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken, max_retries=5):
+def fetch_vtex_stock(url, session, X_VTEX_API_AppKey, X_VTEX_API_AppToken, max_retries=4):
     import time
     import random
+    headers = {
+        "X-VTEX-API-AppKey": X_VTEX_API_AppKey,
+        "X-VTEX-API-AppToken": X_VTEX_API_AppToken,
+        "Accept": "application/json"
+    }
     for attempt in range(max_retries):
         try:
-            r = session.get(url, headers={"X-VTEX-API-AppKey": X_VTEX_API_AppKey, "X-VTEX-API-AppToken": X_VTEX_API_AppToken}, timeout=10)
+            r = session.get(url, headers=headers, timeout=10)
             if r.status_code == 429:
-                print(f"[429 Rate Limit] Retrying {url} in attempt {attempt+1}")
-                time.sleep((2 ** attempt) + random.uniform(0, 1))
+                retry_after = r.headers.get("Retry-After")
+                sleep_time = float(retry_after) if retry_after else (0.5 * (attempt + 1) + random.uniform(0.1, 0.3))
+                time.sleep(sleep_time)
                 continue
             r.raise_for_status()
-            responses.append({'json': r.json(), 'url': url})
-            return
+            return {"status": "ok", "json": r.json(), "url": url}
         except Exception as e:
-            print(e)
-            print(url)
-            if 'r' in locals() and r is not None:
-                print(r.status_code)
-                if r.status_code == 429:
-                    time.sleep((2 ** attempt) + random.uniform(0, 1))
-                    continue
-            print(f"Failed to fetch {url} after {attempt} attempts")
-            exception_cases.append(url)
-            return
-    exception_cases.append(url)
-
-
-def bulk_get(url_sublist, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken):
-    for url in url_sublist:
-        get(url, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
-    return
+            if 'r' in locals() and r is not None and r.status_code == 429:
+                sleep_time = 0.5 * (attempt + 1) + random.uniform(0.1, 0.3)
+                time.sleep(sleep_time)
+                continue
+            time.sleep(0.3)
+    return {"status": "error", "url": url}
 
 def _load_vtex_id_list():
     query = """
@@ -214,7 +214,7 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
 
 def _save_vtex_stock_in_ecommdata(ti, ts):
     import requests
-    from threading import Thread
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     import pandas as pd
     import sqlalchemy
     
@@ -228,39 +228,37 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
     env = Variable.get("VTEX_ENV")
     url_list = [f"https://{accountName}.{env}.com.br/api/logistics/pvt/inventory/skus/{i[0]}" for i in l_vtex_id]
     
-    session = requests.session()
-    thread_num = 40
-    task_num = len(url_list)//thread_num # division entera
-    adapter = requests.adapters.HTTPAdapter(pool_connections=10, pool_maxsize=thread_num)
+    max_workers = 20
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(pool_connections=max_workers, pool_maxsize=max_workers)
     session.mount('https://', adapter)
-    thread_tasks = []
-    count = 0
+
     responses = []
     exception_cases = []
 
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
 
-    for thr in range(thread_num):
-        new_task = Thread(target=bulk_get, args=[url_list[task_num*count:task_num*(count+1)], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-        count = count + 1
-    # tareas resagadas:
-    if task_num*thread_num != len(url_list):
-        new_task = new_task = Thread(target=bulk_get, args=[url_list[task_num*thread_num:], responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken], daemon=True)
-        new_task.start()
-        thread_tasks.append(new_task)
-    for task in thread_tasks:
-        task.join()
-        thread_tasks = []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_url = {
+            executor.submit(fetch_vtex_stock, url, session, X_VTEX_API_AppKey, X_VTEX_API_AppToken): url
+            for url in url_list
+        }
+        for future in as_completed(future_to_url):
+            res = future.result()
+            if res["status"] == "ok":
+                responses.append({'json': res['json'], 'url': res['url']})
+            else:
+                exception_cases.append(res['url'])
     
+    session.close()
+
     final_responses = []
 
     for response in responses:
         try:
             for balance in response['json']['balance']:
-                aux = balance
+                aux = balance.copy()
                 aux['skuId'] = response['json']['skuId']
                 final_responses.append(aux)
         except KeyError as e:
@@ -284,6 +282,7 @@ def _save_vtex_stock_in_ecommdata(ti, ts):
 
 def _vtex_get_stock_retries(ti, ts):
     import requests
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     retries_file = ti.xcom_pull(key="vtex_retries", task_ids=["save_vtex_stock_in_ecommdata"])[0]
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
@@ -295,26 +294,45 @@ def _vtex_get_stock_retries(ti, ts):
 
     retries_object = s3_hook.get_key(retries_file, bucket_name=s3_bucket)
     retries_string = retries_object.get()["Body"].read().decode('utf-8')[1:-1]
-    retries_string = retries_string.replace("'","")
-    retries = retries_string.split(",") if retries_string != "" else []
+    retries_string = retries_string.replace("'","").strip()
+    retries = [x.strip() for x in retries_string.split(",") if x.strip() != ""]
 
-    session = requests.session()
-    responses = []
-    exception_cases = []
-    
     if len(retries) == 0:
+        print("No retries to process.")
         return
     
+    print(f"Retrying {len(retries)} URLs in parallel...")
+    max_workers = min(10, len(retries))
+    session = requests.Session()
+    adapter = requests.adapters.HTTPAdapter(pool_connections=max_workers, pool_maxsize=max_workers)
+    session.mount('https://', adapter)
+
+    responses = []
+    exception_cases = []
+
     X_VTEX_API_AppKey = Variable.get("X_VTEX_API_AppKey")
     X_VTEX_API_AppToken = Variable.get("X_VTEX_API_AppToken")
 
-    bulk_get(retries, responses, session, exception_cases, X_VTEX_API_AppKey, X_VTEX_API_AppToken)
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_url = {
+            executor.submit(fetch_vtex_stock, url, session, X_VTEX_API_AppKey, X_VTEX_API_AppToken, 5): url
+            for url in retries
+        }
+        for future in as_completed(future_to_url):
+            res = future.result()
+            if res["status"] == "ok":
+                responses.append({'json': res['json'], 'url': res['url']})
+            else:
+                exception_cases.append(res['url'])
+
+    session.close()
+
     final_responses = []
 
     for response in responses:
         try:
             for balance in response['json']['balance']:
-                aux = balance
+                aux = balance.copy()
                 aux['skuId'] = response['json']['skuId']
                 final_responses.append(aux)
         except KeyError as e:
@@ -323,7 +341,7 @@ def _vtex_get_stock_retries(ti, ts):
             exception_cases.append(response['url'])
 
     if len(exception_cases) > 0:
-        raise Exception('exception cases found during retry.')
+        raise Exception(f'{len(exception_cases)} exception cases found during retry.')
     
     _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
 
@@ -405,4 +423,5 @@ with DAG(
     )
 
 
-t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7
+[t0, t2] >> t3
+[t1, t3] >> t4 >> t5 >> t6 >> t7
