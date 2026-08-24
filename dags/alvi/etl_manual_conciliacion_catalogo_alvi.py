@@ -154,6 +154,7 @@ def sync_catalogo_api_manual():
 
 def generate_reconciliation_csvs(ds):
     fecha_str = str(pendulum.now("America/Santiago").date())
+    target_show_unavailable = int(Variable.get("ALVI_SHOW_UNAVAILABLE_ACTIVE", default_var="1"))
     
     # 1. Cargar datos necesarios
     # Consultar tiendas activas
@@ -215,7 +216,7 @@ def generate_reconciliation_csvs(ds):
                 "updatePending": 1,
                 "visible": 1,
                 "active": 1,
-                "showUnavailable": 1
+                "showUnavailable": target_show_unavailable
             })
             reconciled_skus.append({
                 "refId": sku_ref_id,
