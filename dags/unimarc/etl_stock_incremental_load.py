@@ -44,6 +44,11 @@ def _save_table_stock_janis(ts, ti):
     df["date_published"] = pd.to_datetime(df["date_published"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
     df["date_modified"] = pd.to_datetime(df["date_modified"], unit="s").dt.tz_localize('UTC').dt.tz_convert("America/Santiago")
 
+    int_cols = ['id', 'item_id', 'stock', 'min_stock', 'infinite_stock']
+    for c in int_cols:
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors='coerce').astype('Int64')
+
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
     username = Variable.get("POSTGRESQL_USER")
@@ -53,13 +58,13 @@ def _save_table_stock_janis(ts, ti):
     engine = sqlalchemy.create_engine(conn_url)
 
     buffer = StringIO()
-    df.to_csv(buffer, index=False, header=False, quoting=csv.QUOTE_MINIMAL)
+    df.to_csv(buffer, index=False, header=False, na_rep='\\N', quoting=csv.QUOTE_MINIMAL)
     buffer.seek(0)
 
     conn = engine.raw_connection()
     try:
         cursor = conn.cursor()
-        cursor.copy_expert("COPY staging.stock_unimarc (id, item_id, store_id, warehouse_id, stock, min_stock, infinite_stock, date_published, date_modified, operation_type) FROM STDIN WITH CSV", buffer)
+        cursor.copy_expert("COPY staging.stock_unimarc (id, item_id, store_id, warehouse_id, stock, min_stock, infinite_stock, date_published, date_modified, operation_type) FROM STDIN WITH CSV NULL '\\N'", buffer)
         conn.commit()
         cursor.close()
     except Exception as e:
@@ -191,14 +196,14 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
 
     # Escribir el DataFrame en memoria como CSV
     buffer = StringIO()
-    df.to_csv(buffer, index=False, header=False, quoting=csv.QUOTE_MINIMAL)
+    df.to_csv(buffer, index=False, header=False, na_rep='\\N', quoting=csv.QUOTE_MINIMAL)
     buffer.seek(0)
 
     # Inyectar a Postgres usando COPY para máximo rendimiento
     conn = engine.raw_connection()
     try:
         cursor = conn.cursor()
-        cursor.copy_expert("COPY staging.stock_vtex_unimarc (vtex_id, id_warehouse, cantidad_total, cantidad_reservada, cantidad_ilimitada) FROM STDIN WITH CSV", buffer)
+        cursor.copy_expert("COPY staging.stock_vtex_unimarc (vtex_id, id_warehouse, cantidad_total, cantidad_reservada, cantidad_ilimitada) FROM STDIN WITH CSV NULL '\\N'", buffer)
         conn.commit()
         cursor.close()
     except Exception as e:
