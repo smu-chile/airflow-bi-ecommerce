@@ -110,6 +110,9 @@ def load_tables_to_s3(ts, ds, ti):
     ).reset_index(name='stores_target')
     
     # 7. Calcular Altas y Cambios de Tienda (Caso A)
+    target_show_unavailable = int(Variable.get("ALVI_SHOW_UNAVAILABLE_ACTIVE", default_var="1"))
+    target_show_without_stock_bool = bool(target_show_unavailable == 1)
+
     df_merge = df_active_grouped.merge(df_janis_grouped, on='ref_id', how='left')
     df_merge = df_merge.merge(df_janis_full, on='ref_id', how='left')
     df_merge = df_merge[df_merge['ref_id'].isin(df_janis_full['ref_id'])]
@@ -117,7 +120,7 @@ def load_tables_to_s3(ts, ds, ti):
     df_to_update = df_merge[
         (df_merge['stores_janis'].isna()) | 
         (df_merge['stores_janis'] != df_merge['stores_target']) |
-        (df_merge['show_without_stock'] == True)
+        (df_merge['show_without_stock'].fillna(not target_show_without_stock_bool).astype(bool) != target_show_without_stock_bool)
     ]
     
     df_changes_final = pd.DataFrame()
@@ -128,7 +131,7 @@ def load_tables_to_s3(ts, ds, ti):
         df_changes_final['updatePending'] = 1
         df_changes_final['visible'] = 1
         df_changes_final['active'] = 1
-        df_changes_final['showUnavailable'] = 0
+        df_changes_final['showUnavailable'] = target_show_unavailable
     else:
         df_changes_final['refId'] = pd.Series(dtype='str')
         df_changes_final['stores'] = pd.Series(dtype='str')
