@@ -23,8 +23,8 @@ WITH TiendasSeleccionadas AS (
     FROM ecommdata.tiendas
     WHERE status = 1
       AND (
-             id::text IN ('0336', '0034', '0333', '0581', '0917', '0469')
-          OR LPAD(id::text, 4, '0') IN ('0336', '0034', '0333', '0581', '0917', '0469')
+             id::text IN ('0034', '0581', '0917', '0469')
+          OR LPAD(id::text, 4, '0') IN ('0034', '0581', '0917', '0469')
       )
 ),
 PromocionesVigentes AS (
@@ -156,10 +156,8 @@ def _comparar_precios_lista8(ts, **kwargs):
     df_pivot["precios_distintos"] = df_pivot[present_stores].nunique(axis=1)
     df_pivot["nulos_count"] = df_pivot[present_stores].isnull().sum(axis=1)
 
-    # Detección de diferencias (precios distintos o faltantes en alguna tienda)
-    is_different = (df_pivot["precios_distintos"] > 1) | (
-        (df_pivot["nulos_count"] > 0) & (df_pivot["nulos_count"] < len(present_stores))
-    )
+    # Detección de diferencias (precios distintos en alguna tienda)
+    is_different = df_pivot["precios_distintos"] > 1
 
     df_diferencias = df_pivot[is_different].copy()
     
