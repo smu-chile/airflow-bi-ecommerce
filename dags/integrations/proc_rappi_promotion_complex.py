@@ -63,6 +63,14 @@ def extract_promotions(ds, store_ids):
         INNER JOIN ecommdata.workflow_promociones wp 
             ON wp.material = lspp.material 
             AND (CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = lspp.unidad_de_medida
+        LEFT JOIN ecommdata.lista8 l 
+            ON l.material = lspp.material 
+            AND l.umv = lspp.unidad_de_medida 
+            AND l.id_tienda = lspp.id_tienda
+        LEFT JOIN ecommdata.productos p 
+            ON p.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
+        LEFT JOIN ecommdata.categorias ec 
+            ON p.id_categoria = ec.id
         WHERE wp.fecha_inicio_de_promocion <= '{ds}'
           AND wp.fecha_fin_de_promocion >= '{ds}'
           AND tlm.id IN ({store_ids_str})
@@ -81,10 +89,15 @@ def extract_promotions(ds, store_ids):
           AND wp.nombre_promocion::text !~~ '%LIQ%'::text
           AND wp.nombre_promocion::text !~~ '%CYBER%'::text
           AND wp.nombre_promocion::text !~~ '%REGIO%'::text
+          AND l.excluido IS NOT TRUE
+          AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
           AND wp.n_promocion NOT IN (
               '5552392024','1120012024','1120022024','1120032024','1120042024',
               '1120052024','1120062024','1120082024','1120092024','1120102024',
-              '1120112024','1120122024','4000512024','5552792024','5552852024'
+              '1120112024','1120122024','4000512024','5552792024','5552852024',
+              '1120012025','1120022025','1120032025','1120042025','1120212025','5551272026',
+              '5720882025','5552152024','4040162024','4060322024','5553242024','4000952026',
+              '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025'
           )
     )
     SELECT 
