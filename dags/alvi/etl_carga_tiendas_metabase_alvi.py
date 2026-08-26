@@ -48,6 +48,35 @@ def skus():
     results.columns = ["ref_id","nombre_sku"]
     return results
 
+def productos_manuales_exclusion():
+    """
+    Obtiene la lista de SKUs/RefIds creados manualmente que están excluidos
+    de la desactivación automática (lista blanca / whitelist).
+    Crea la tabla si aún no existe en la base de datos.
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    with pg_hook.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ecommdata_alvi.productos_manuales_exclusion (
+                    ref_id VARCHAR(50) PRIMARY KEY,
+                    descripcion TEXT,
+                    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    activo BOOLEAN DEFAULT TRUE
+                );
+            """)
+        conn.commit()
+
+    query = """
+        SELECT ref_id 
+        FROM ecommdata_alvi.productos_manuales_exclusion 
+        WHERE activo IS TRUE
+    """
+    results = query_to_df(query)
+    if results.empty:
+        return []
+    return results["ref_id"].dropna().astype(str).str.strip().tolist()
+
 def producto_tienda_janis():
     # Leer el catálogo real desde nuestra nueva réplica productos_janis_api
     productos_tienda_query = """select ref_id, id_tienda, activo
@@ -71,6 +100,7 @@ def load_tables_to_s3(ts, ds, ti):
     df_productos = productos()
     df_skus = skus()
     df_tiendas = tiendas()
+    lista_exclusiones_manuales = productos_manuales_exclusion()
     
     # 2. Identificar SKUs huérfanos/inválidos en base de datos para filtro de seguridad
     df_productos_sin_skus = df_productos.merge(df_lista_8, on=["ref_id"], how='left')
@@ -89,6 +119,10 @@ def load_tables_to_s3(ts, ds, ti):
     df_lista_8['excluido'] = df_lista_8['excluido'].fillna(False)
     df_lista8_active = df_lista_8[df_lista_8['excluido'] == False].copy()
     df_lista8_excluded = df_lista_8[(df_lista_8['excluido'] == True) & (df_lista_8['umv'].isin(['UN', 'KG', 'KGV']))].copy()
+    
+    # Rellenar tiendas nulas o vacías con la tienda de despublicación '3188'
+    # para asegurar que productos activos en Janis sin tiendas asignadas no sean descartados
+    df_producto_tienda_janis['id_tienda'] = df_producto_tienda_janis['id_tienda'].fillna('3188').replace('', '3188')
     
     df_producto_tienda_janis = df_producto_tienda_janis[
         df_producto_tienda_janis['id_tienda'].isin(series_active_stores) |
@@ -143,7 +177,11 @@ def load_tables_to_s3(ts, ds, ti):
 
     # 8. Calcular Bajas / Desactivaciones (Caso B & C)
     # Productos activos en Janis que ya no tienen tiendas permitidas en la lista8
-    df_to_deactivate = df_janis_grouped[~df_janis_grouped['ref_id'].isin(df_active_grouped['ref_id'])].copy()
+    # EXCLUYENDO productos manuales autorizados en la lista blanca
+    df_to_deactivate = df_janis_grouped[
+        (~df_janis_grouped['ref_id'].isin(df_active_grouped['ref_id'])) &
+        (~df_janis_grouped['ref_id'].isin(lista_exclusiones_manuales))
+    ].copy()
     
     df_desactivados_productos = pd.DataFrame()
     df_desactivados_sku = pd.DataFrame()
