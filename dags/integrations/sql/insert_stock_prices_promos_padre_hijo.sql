@@ -67,7 +67,7 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-	and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84 93, 99, 123,124)
+	and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123,124)
 	and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
 	AND wp.nombre_promocion::text !~~ '%ZONA%'::text
 	AND wp.nombre_promocion::text !~~ '%MFC%'::text
