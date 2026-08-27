@@ -62,7 +62,13 @@ def _join_promo_prices_from_s3(ds, ti):
                         'Promociones Unimarc {n}' AS campaign_name,
                         'Promociones Complejas NXM' AS reason,
                         concat(current_date ,' 09:00:00') AS start_date,
-                        concat(wp.fecha_fin_de_promocion ,' 09:00:00') AS end_date,
+                        concat(
+                            CASE 
+                                WHEN wp.fecha_fin_de_promocion::date = CURRENT_DATE THEN wp.fecha_fin_de_promocion::date + 1
+                                ELSE wp.fecha_fin_de_promocion::date
+                            END, 
+                            ' 09:00:00'
+                        ) AS end_date,
                         1 AS campaign_status,
                         'same_item_bundle' AS promotion_type,
                         'free_item' AS promotion_sub_type,
@@ -143,7 +149,13 @@ def _join_promo_prices_from_s3(ds, ti):
                     'Promociones UnimarcNXS{n}' AS campaign_name,
                     'Promociones Complejas NX$' AS reason,
                     concat(current_date ,' 09:00:00') AS start_date,
-                    concat(wp.fecha_fin_de_promocion ,' 09:00:00') AS end_date,
+                    concat(
+                        CASE 
+                            WHEN wp.fecha_fin_de_promocion::date = CURRENT_DATE THEN wp.fecha_fin_de_promocion::date + 1
+                            ELSE wp.fecha_fin_de_promocion::date
+                        END, 
+                        ' 09:00:00'
+                    ) AS end_date,
                     1 AS campaign_status,
                     'same_item_bundle' AS promotion_type,
                     'percentage_value_off' AS promotion_sub_type,
@@ -228,7 +240,13 @@ def _join_promo_prices_from_s3(ds, ti):
                     'Promociones' AS campaign_name,
                     'Promociones Simples' AS reason,
                     concat(current_date ,' 09:00:00') AS start_date,
-                    concat(wp.fecha_fin_de_promocion ,' 09:00:00') AS end_date,
+                    concat(
+                        CASE 
+                            WHEN wp.fecha_fin_de_promocion::date = CURRENT_DATE THEN wp.fecha_fin_de_promocion::date + 1
+                            ELSE wp.fecha_fin_de_promocion::date
+                        END, 
+                        ' 09:00:00'
+                    ) AS end_date,
                     ROUND(lspp.precio_promocional) AS discounted_price,
                     999 AS max_no_of_orders,
                     1 AS campaign_status,
