@@ -137,12 +137,9 @@ def update_bundle_prices():
             if envase_base_price is None:
                 raise Exception(f"Envase SKU {vtex_id_envase} has no basePrice.")
                 
-            # 5. Calcular precio residual
-            target_bebida_price = original_base_price - envase_base_price
-            
-            if target_bebida_price < 0:
-                logging.error(f"ALERTA CRÍTICA: El residual para {vtex_id_bundle} es negativo ({target_bebida_price}). Total={original_base_price}, Envase={envase_base_price}. Omitiendo.")
-                continue
+            # 5. Calcular precio del bundle y componentes
+            target_bebida_price = original_base_price
+            total_bundle_price = original_base_price + envase_base_price
                 
             # 6. Actualizar componentes si es necesario
             current_envase_price = envase_comp.get('UnitPrice')
@@ -198,14 +195,14 @@ def update_bundle_prices():
             put_payload = {
                 "itemId": vtex_id_bundle,
                 "listPrice": None,
-                "basePrice": original_base_price,
-                "costPrice": original_base_price
+                "basePrice": total_bundle_price,
+                "costPrice": total_bundle_price
             }
             resp_put = retry_request('PUT', put_url, json=put_payload, headers=headers, timeout=30)
             if resp_put.status_code not in [200, 204]:
                  raise Exception(f"Fallo al actualizar el precio final del bundle {vtex_id_bundle}. RESP: {resp_put.text}")
                  
-            logging.info(f"Bundle {vtex_id_bundle} sincronizado exitosamente con total {original_base_price}.")
+            logging.info(f"Bundle {vtex_id_bundle} sincronizado exitosamente con total {total_bundle_price} (Bebida: {original_base_price} + Envase: {envase_base_price}).")
             
         except Exception as e:
             logging.error(f"Error procesando bundle {vtex_id_bundle}: {str(e)}")
@@ -226,7 +223,7 @@ default_args = {
 with DAG(
     'etl_precios_bundles_retornables',
     default_args=default_args,
-    description="Sincroniza y cuadra el precio de los bundles retornables restando el costo del envase al precio de la bebida original.",
+    description="Sincroniza y cuadra el precio de los bundles retornables sumando el costo del envase al precio de la bebida original.",
     schedule_interval="0 4 * * *",
     start_date=pendulum.datetime(2022, 1, 1, tz="America/Santiago"),
     catchup=False,
@@ -240,16 +237,16 @@ with DAG(
     
     A las 04:00 AM, este DAG revisa la tabla `ecommdata.sku_bundles_retornables`.
     Para cada bundle activo:
-    1. Obtiene el precio total de la bebida original de VTEX.
-    2. Obtiene el precio del envase de VTEX.
-    3. Garantiza que los componentes del bundle sumen el total, ajustando el precio artificial de la bebida dentro del kit.
-    4. Setea el precio total del bundle en VTEX para que haga match perfecto.
+    1. Obtiene el precio base de la bebida original de VTEX.
+    2. Obtiene el precio base del envase de VTEX.
+    3. Garantiza que los componentes del bundle tengan sus precios respectivos (Bebida = precio base bebida, Envase = precio base envase).
+    4. Setea el precio total del bundle en VTEX a la suma de ambos (Bebida + Envase).
     
     Protecciones incorporadas:
     - Retries exponenciales para peticiones HTTP.
-    - Aborto seguro si el bundle tiene != 2 componentes o si el precio diferencial da negativo.
+    - Aborto seguro si el bundle tiene != 2 componentes.
     - Prevención de desarmado masivo mediante Try/Catch aislado.
-    """ 
+    """  
     
     update_task = PythonOperator(
         task_id = "update_bundle_prices",
