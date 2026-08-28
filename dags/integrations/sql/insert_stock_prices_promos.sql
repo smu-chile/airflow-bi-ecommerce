@@ -97,5 +97,17 @@ left join (
 ) _t3
 on _t.ean = _t3.ean
 where floor(_t.stock_unitario/_t.multiplicador_unidad) > 0
+and not exists (
+	select 1 
+	from ecommdata.sku_bundles_dinamicos sbd 
+	where sbd.active = true 
+	  and split_part(sbd.ref_id_bundle, '-', 1) = _t.material
+)
+and not exists (
+	select 1 
+	from ecommdata.sku_bundles_retornables sbr 
+	where sbr.active = true 
+	  and split_part(sbr.sku_original, '-', 1) = _t.material
+)
 ;
 COMMIT
