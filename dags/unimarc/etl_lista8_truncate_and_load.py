@@ -179,6 +179,7 @@ def _load_lista8(ts):
     df_full["id_tienda"] = df_full["id_tienda"].astype(str).str.zfill(4)
     df_full["material"] = df_full["material"].astype(str).str.zfill(18)
     df_full["excluido"] = False
+    df_full["desbloqueado"] = False
     
     # Limpieza de nulos reales para evitar que strings vacíos de SAP se salten el enriquecimiento
     for b_col in ["bloq_centro", "bloq_formato"]:
@@ -360,10 +361,22 @@ def _load_lista8(ts):
     # extraemos las exclusiones a memoria y las procesamos con Pandas antes de subir la información.
     print("Iniciando exclusiones en memoria (Pandas)...")
     try:
-        # 1. Cargar las tablas de configuración (excluidos globales, excepciones locales, excluidos por tienda)
+        # 1. Cargar las tablas de configuración (excluidos globales, excepciones locales, excluidos por tienda y productos desbloqueados)
+        with engine.begin() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS catalogo.productos_desbloqueados (
+                    material VARCHAR(18) NOT NULL,
+                    umv VARCHAR(10) DEFAULT 'UN',
+                    id_tienda VARCHAR(4),
+                    fecha_carga TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    motivo TEXT
+                );
+            """)
+        
         df_pe = pd.read_sql("SELECT material, umv FROM catalogo.productos_excluidos", engine)
         df_ex = pd.read_sql("SELECT material, umv, id_tienda FROM catalogo.productos_excluidos_excepciones", engine)
         df_pet = pd.read_sql("SELECT material, umv, id_tienda FROM catalogo.productos_excluidos_x_tienda", engine)
+        df_desbloq = pd.read_sql("SELECT material, umv, id_tienda FROM catalogo.productos_desbloqueados", engine)
         
         # 2. Formatear y estandarizar IDs para evitar fallos de cruce por ceros faltantes
         df_pe['material'] = df_pe['material'].astype(str).str.zfill(18)
@@ -387,23 +400,51 @@ def _load_lista8(ts):
         df_full = df_full.merge(df_ex, on=['material', 'umv', 'id_tienda'], how='left')
         df_full = df_full.merge(df_pet, on=['material', 'umv', 'id_tienda'], how='left')
         
+        # Cruzar con catalogo.productos_desbloqueados (Globales y por Tienda)
+        if not df_desbloq.empty:
+            df_desbloq['material'] = df_desbloq['material'].astype(str).str.zfill(18)
+            df_desbloq['umv'] = df_desbloq['umv'].fillna('UN').astype(str).str.strip().str.upper()
+            
+            mask_dg = df_desbloq['id_tienda'].isna() | (df_desbloq['id_tienda'].astype(str).str.strip() == '') | (df_desbloq['id_tienda'].astype(str).str.upper() == 'ALL')
+            df_dg = df_desbloq[mask_dg].copy()
+            df_dt = df_desbloq[~mask_dg].copy()
+            
+            if not df_dg.empty:
+                df_dg['_in_desbloq_g'] = True
+                df_full = df_full.merge(df_dg[['material', 'umv', '_in_desbloq_g']].drop_duplicates(subset=['material', 'umv']), on=['material', 'umv'], how='left')
+                
+            if not df_dt.empty:
+                df_dt['id_tienda'] = df_dt['id_tienda'].astype(str).str.zfill(4)
+                df_dt['_in_desbloq_t'] = True
+                df_full = df_full.merge(df_dt[['material', 'umv', 'id_tienda', '_in_desbloq_t']].drop_duplicates(subset=['material', 'umv', 'id_tienda']), on=['material', 'umv', 'id_tienda'], how='left')
+        
         # 6. Lógica de negocio:
         # - mask_pe: El producto está en la lista global de excluidos PERO NO es una excepción para esta tienda.
         # - mask_pet: El producto está explícitamente excluido para esta tienda.
         mask_pe = (df_full['_in_pe'] == True) & (df_full['_in_ex'].isna())
         mask_pet = (df_full['_in_pet'] == True)
         
-        # Log exception cases where a globally excluded product will NOT be excluded for a specific store
-        mask_exception = (df_full['_in_pe'] == True) & (df_full['_in_ex'] == True)
-        exceptions_df = df_full[mask_exception]
-        if not exceptions_df.empty:
-            print(f"⚠️ Se detectaron {len(exceptions_df)} excepciones de exclusión:")
-            for _, row in exceptions_df.iterrows():
-                print(f"   - Material: {row['material']}, UMV: {row['umv']}, Tienda: {row['id_tienda']} (NO será excluido)")
-
+        # Aplicar exclusiones
         df_full.loc[mask_pe | mask_pet, 'excluido'] = True
+
+        # Aplicar excepciones y desbloqueos:
+        # - Si está en catalogo.productos_desbloqueados (global o tienda) o catalogo.productos_excluidos_excepciones
+        # se fuerza excluido = False, se limpian los bloqueos (formato y centro) y se marca desbloqueado = True
+        in_dg = df_full['_in_desbloq_g'] == True if '_in_desbloq_g' in df_full.columns else pd.Series(False, index=df_full.index)
+        in_dt = df_full['_in_desbloq_t'] == True if '_in_desbloq_t' in df_full.columns else pd.Series(False, index=df_full.index)
+        in_ex = df_full['_in_ex'] == True if '_in_ex' in df_full.columns else pd.Series(False, index=df_full.index)
         
-        df_full = df_full.drop(columns=['_in_pe', '_in_ex', '_in_pet'])
+        mask_desbloqueado = in_dg | in_dt | in_ex
+        if mask_desbloqueado.any():
+            desbloq_count = int(mask_desbloqueado.sum())
+            print(f"🔓 Se aplicó desbloqueo a {desbloq_count} registros (Excluido=False, Bloqueos limpiados, Desbloqueado=True)")
+            df_full.loc[mask_desbloqueado, 'excluido'] = False
+            df_full.loc[mask_desbloqueado, 'bloq_centro'] = pd.NA
+            df_full.loc[mask_desbloqueado, 'bloq_formato'] = pd.NA
+            df_full.loc[mask_desbloqueado, 'desbloqueado'] = True
+
+        cols_to_drop = [c for c in ['_in_pe', '_in_ex', '_in_pet', '_in_desbloq_g', '_in_desbloq_t'] if c in df_full.columns]
+        df_full = df_full.drop(columns=cols_to_drop)
         
         materiales_delete = ['000000000000655232','000000000000671384','000000000000671581','000000000000671582','000000000000671583','000000000000671584','000000000000671585','000000000000671586','000000000000671587','000000000000671588','000000000000671589','000000000000671590','000000000000671591','000000000000671592','000000000000671593','000000000000671594','000000000000671595','000000000000671596','000000000000671646','000000000000671649','000000000000671650','000000000000671671','000000000000671672','000000000000671673','000000000000671674','000000000000671675','000000000000671676','000000000000671677','000000000000671678','000000000000671679','000000000000671680','000000000000671683','000000000000671753','000000000000671754','000000000000671755','000000000000671756','000000000000671757','000000000000671765','000000000000672059','000000000000672089','000000000000673021','000000000000673649','000000000000673650','000000000000673711','000000000000673712','000000000000674028','000000000000674029','000000000000674030','000000000000674031','000000000000674032','000000000000675333','000000000000675334','000000000000675353','000000000000675354','000000000000675355','000000000000675356','000000000000675357','000000000000675421','000000000000675738','000000000000675739','000000000000675740','000000000000675751','000000000000675752','000000000000676042','000000000000676043','000000000000676044','000000000000676045','000000000000676046','000000000673517002','000000000673517004']
         df_full = df_full[~df_full['material'].isin(materiales_delete)]
@@ -425,6 +466,7 @@ def _load_lista8(ts):
     raw_conn = engine.raw_connection()
     try:
         with raw_conn.cursor() as cursor:
+            cursor.execute("ALTER TABLE ecommdata.lista8 ADD COLUMN IF NOT EXISTS desbloqueado BOOLEAN DEFAULT FALSE;")
             cursor.execute("TRUNCATE ecommdata.lista8;")
             columns_str = ','.join(df_full.columns)
             cursor.copy_expert(f"COPY ecommdata.lista8 ({columns_str}) FROM STDIN WITH CSV DELIMITER '\t' NULL '\\N'", buffer)

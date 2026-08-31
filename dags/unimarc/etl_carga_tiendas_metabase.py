@@ -44,6 +44,20 @@ def lista8():
     import pandas as pd
     from airflow.providers.postgres.hooks.postgres import PostgresHook
     
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    with pg_hook.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS catalogo.productos_desbloqueados (
+                    material VARCHAR(18) NOT NULL,
+                    umv VARCHAR(10) DEFAULT 'UN',
+                    id_tienda VARCHAR(4),
+                    fecha_carga TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                    motivo TEXT
+                );
+            """)
+        conn.commit()
+
     # Obtenemos tiendas activas para el filtro estricto en SQL
     promociones_query = """
     WITH active_stores AS (
@@ -51,6 +65,13 @@ def lista8():
     ),
     exceptions AS (
         SELECT material, umv, id_tienda FROM catalogo.productos_excluidos_excepciones
+        UNION ALL
+        SELECT material, umv, id_tienda FROM catalogo.productos_desbloqueados 
+        WHERE id_tienda IS NOT NULL AND id_tienda NOT IN ('', 'ALL')
+    ),
+    global_desbloqueados AS (
+        SELECT DISTINCT material, umv FROM catalogo.productos_desbloqueados 
+        WHERE id_tienda IS NULL OR id_tienda IN ('', 'ALL')
     )
     SELECT ref_id, id_tienda FROM (
         -- 1. TIENDAS FISICAS (BASE ORIGINAL)
@@ -62,11 +83,17 @@ def lista8():
                     on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
         where (l.id_tienda = '1917' OR ubi.ref_id is null) 
         -- Misión Original: Bypass de Excepciones ESTRICTO POR TIENDA
-        and (l.excluido is not true OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv AND ex.id_tienda = l.id_tienda))
+        and (
+            l.excluido is not true 
+            OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv AND ex.id_tienda = l.id_tienda)
+            OR EXISTS (SELECT 1 FROM global_desbloqueados gd WHERE gd.material = l.material AND gd.umv = l.umv)
+        )
         and not (
             ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
             OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
             AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN', '000000000000638773-UN')
+            AND NOT EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv AND ex.id_tienda = l.id_tienda)
+            AND NOT EXISTS (SELECT 1 FROM global_desbloqueados gd WHERE gd.material = l.material AND gd.umv = l.umv)
             )
         
         union
@@ -75,11 +102,17 @@ def lista8():
         select distinct concat(l.material,'-',l.umv) as ref_id, '0053' as id_tienda
         from ecommdata.lista8 l 
         -- Misión Original: Bypass de Excepciones GENERAL (0053 siempre las tiene)
-        where (l.excluido is not true OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv))
+        where (
+            l.excluido is not true 
+            OR EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv)
+            OR EXISTS (SELECT 1 FROM global_desbloqueados gd WHERE gd.material = l.material AND gd.umv = l.umv)
+        )
         and not (
             ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
             OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
             AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN', '000000000000638773-UN')
+            AND NOT EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv)
+            AND NOT EXISTS (SELECT 1 FROM global_desbloqueados gd WHERE gd.material = l.material AND gd.umv = l.umv)
             )
         
         union
@@ -101,6 +134,7 @@ def lista8():
         AND l.excluido is not true
         -- Las excepciones manuales no deben ir a la tienda 0054
         AND NOT EXISTS (SELECT 1 FROM exceptions ex WHERE ex.material = l.material AND ex.umv = l.umv)
+        AND NOT EXISTS (SELECT 1 FROM global_desbloqueados gd WHERE gd.material = l.material AND gd.umv = l.umv)
         AND NOT (
             ((coalesce(l.bloq_centro,0) in (1,2,6,9) and l.linea not in ('ELECTRO'))
             OR (coalesce(l.bloq_formato,0) in (1,2,6,9) and l.linea not in ('ELECTRO')))
