@@ -85,7 +85,7 @@ def _join_promo_prices_from_s3(ds, ti):
                         COALESCE(wp.cantidad_m, 0) AS qty_m
                     FROM integraciones.lm_stock_precio_promo lspp 
                     INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                    LEFT JOIN ecommdata.workflow_promociones wp ON concat(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = concat(lspp.material, '-', lspp.unidad_de_medida) 
+                    LEFT JOIN ecommdata.workflow_promociones wp ON concat(wp.material, '-', CASE WHEN UPPER(TRIM(wp.umv)) = 'ST' THEN 'UN' ELSE UPPER(TRIM(wp.umv)) END) = concat(lspp.material, '-', lspp.unidad_de_medida) 
                     LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                     LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                     LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
@@ -98,16 +98,24 @@ def _join_promo_prices_from_s3(ds, ti):
                       AND wp.organizacion_ventas = '1000'
                       AND wp.canal_distribucion = '10'
                       AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+                      AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+                      AND wp.nombre_promocion::text !~~ '%ZONA%'::text
                       AND wp.nombre_promocion::text !~~ '%MFC%'::text
                       AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
                       AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
                       AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
                       AND wp.nombre_promocion::text !~~ '%917%'::text
                       AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-                      AND wp.nombre_promocion::text !~~ '% LOC%'::text
-                      AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                      AND wp.nombre_promocion::text !~~ '%LOC%'::text
+                      AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
+                      AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
+                      AND wp.nombre_promocion::text !~~ '%MEMB%'::text
+                      AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
                       AND wp.nombre_promocion::text !~~ '%CYBER%'::text
-                      AND wp.nombre_promocion::text !~~ '%REGIO%'::text
+                      AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
+                      AND wp.nombre_promocion::text !~~ '%BLACK%'::text
+                      AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                      AND wp.nombre_promocion NOT ILIKE '%REGIO%'
                       AND lspp.ean IS NOT NULL
                       AND WP.desc_promocion = 'COMBINACION NXM'
                       AND wp.n_promocion NOT IN ('5552392024',
@@ -180,7 +188,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     COALESCE(wp.cantidad_m, 0) AS qty_m
                 FROM integraciones.lm_stock_precio_promo lspp 
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
+                LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN UPPER(TRIM(wp.umv)) = 'ST' THEN 'UN' ELSE UPPER(TRIM(wp.umv)) END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
                 LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                 LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                 LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
@@ -193,16 +201,24 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.organizacion_ventas = '1000'
                 AND wp.canal_distribucion = '10'
                 AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+                AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+                AND wp.nombre_promocion::text NOT LIKE '%ZONA%'
                 AND wp.nombre_promocion::text NOT LIKE '%MFC%'
                 AND wp.nombre_promocion::text NOT LIKE '%BANCO%'
                 AND wp.nombre_promocion::text NOT LIKE '%UNIPAY%'
                 AND wp.nombre_promocion::text NOT LIKE '%TERCERA%'
                 AND wp.nombre_promocion::text NOT LIKE '%917%'
                 AND wp.nombre_promocion::text NOT LIKE '%ESTADO%'
-                AND wp.nombre_promocion::text NOT LIKE '% LOC%'
-                AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
+                AND wp.nombre_promocion::text NOT LIKE '%LOC%'
+                AND wp.nombre_promocion::text NOT LIKE '%HUACHALALUME%'
+                AND wp.nombre_promocion::text NOT LIKE '%LOCAL%'
+                AND wp.nombre_promocion::text NOT LIKE '%MEMB%'
+                AND wp.nombre_promocion::text NOT LIKE '%REGIONAL%'
                 AND wp.nombre_promocion::text NOT LIKE '%CYBER%'
-                AND wp.nombre_promocion::text NOT LIKE '%REGIO%'
+                AND wp.nombre_promocion::text NOT LIKE '%CUMPLEANOS%'
+                AND wp.nombre_promocion::text NOT LIKE '%BLACK%'
+                AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
+                AND wp.nombre_promocion NOT ILIKE '%REGIO%'
                 AND lspp.ean IS NOT NULL
                 AND wp.ahorro_total IS NOT NULL
                 AND WP.desc_promocion = 'COMBINACION NX$'
@@ -260,7 +276,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     0 AS qty_m
                 FROM integraciones.lm_stock_precio_promo lspp
                 INNER JOIN ecommdata.skus s ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
-                LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN wp.umv = 'ST' THEN 'UN' ELSE wp.umv END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
+                LEFT JOIN ecommdata.workflow_promociones wp ON CONCAT(wp.material, '-', CASE WHEN UPPER(TRIM(wp.umv)) = 'ST' THEN 'UN' ELSE UPPER(TRIM(wp.umv)) END) = CONCAT(lspp.material, '-', lspp.unidad_de_medida) 
                 LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                 LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                 LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
@@ -275,6 +291,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.organizacion_ventas = '1000'
                 AND wp.canal_distribucion = '10'
                 AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+                AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
                 AND wp.nombre_promocion::text !~~ '%ZONA%'::text
                 AND wp.nombre_promocion::text !~~ '%MFC%'::text
                 AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
@@ -282,10 +299,16 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
                 AND wp.nombre_promocion::text !~~ '%917%'::text
                 AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-                AND wp.nombre_promocion::text !~~ '% LOC%'::text
-                AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                AND wp.nombre_promocion::text !~~ '%LOC%'::text
+                AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
+                AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
+                AND wp.nombre_promocion::text !~~ '%MEMB%'::text
+                AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
                 AND wp.nombre_promocion::text !~~ '%CYBER%'::text
-                AND wp.nombre_promocion::text !~~ '%REGIO%'::text
+                AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
+                AND wp.nombre_promocion::text !~~ '%BLACK%'::text
+                AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                AND wp.nombre_promocion NOT ILIKE '%REGIO%'
                 AND wp.n_promocion NOT IN ('5552392024',
                   '1120012024',
                   '1120022024',
