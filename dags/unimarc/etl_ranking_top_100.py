@@ -103,7 +103,7 @@ def load_collection(vtex_ids, id_coleccion, account_name, environment):
         'X-VTEX-API-AppToken': X_VTEX_API_AppToken,
         'Accept': 'application/json'
     }
-    vtex_ids = list(set(vtex_ids))
+    vtex_ids = list(dict.fromkeys(vtex_ids))
     if not vtex_ids:
         print(f"No hay SKUs válidos para cargar en la colección {id_coleccion}")
         return
@@ -169,31 +169,56 @@ def sync_ranking_top_100_vtex_collection(**kwargs):
     collection_id = int(Variable.get("RANKING_TOP_100_COLLECTION_ID", default_var=COLLECTION_ID))
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
-    query = "SELECT DISTINCT vtex_id FROM ecommdata.ranking_top_100 WHERE vtex_id IS NOT NULL AND TRIM(vtex_id) <> '';"
+    query = """
+        SELECT vtex_id
+        FROM ecommdata.ranking_top_100
+        WHERE vtex_id IS NOT NULL AND TRIM(vtex_id) <> ''
+        ORDER BY ranking ASC;
+    """
     records = pg_hook.get_records(query)
     
-    vtex_ids_nuevos = set([str(int(float(r[0]))) for r in records if r[0]])
-    print(f"📦 SKUs únicos a cargar en colección {collection_id}: {len(vtex_ids_nuevos)}")
+    # Preservar el orden según el ranking (1 al 100) sin duplicados
+    vtex_ids_ordenados = []
+    for r in records:
+        if r[0]:
+            try:
+                sku_id = str(int(float(r[0])))
+                if sku_id not in vtex_ids_ordenados:
+                    vtex_ids_ordenados.append(sku_id)
+            except (ValueError, TypeError):
+                pass
+
+    # Garantizar que el SKU 61690 (café) esté sí o sí en el Top 5 (posición 1)
+    target_sku = "61690"
+    if target_sku in vtex_ids_ordenados:
+        vtex_ids_ordenados.remove(target_sku)
+    vtex_ids_ordenados.insert(0, target_sku)
+
+    print(f"📦 SKUs únicos a cargar en colección {collection_id}: {len(vtex_ids_ordenados)}")
     
-    if not vtex_ids_nuevos:
+    if not vtex_ids_ordenados:
         print(f"⚠️ No se encontraron SKUs válidos en ecommdata.ranking_top_100 para actualizar la colección {collection_id}.")
         return
+
+    vtex_ids_set = set(vtex_ids_ordenados)
 
     # 1. Obtener SKUs actuales de la colección en VTEX
     skus_actuales = get_collection_skus(collection_id, account_name, environment)
     print(f"🔎 SKUs actualmente en la colección {collection_id}: {len(skus_actuales)}")
 
     # 2. Excluir SKUs obsoletos que ya no estén en el Top 100
-    skus_a_excluir = skus_actuales - vtex_ids_nuevos
+    skus_a_excluir = skus_actuales - vtex_ids_set
     if skus_a_excluir:
         print(f"🧹 Excluyendo {len(skus_a_excluir)} SKUs obsoletos de la colección {collection_id}...")
         remove_skus_from_collection(list(skus_a_excluir), collection_id, account_name, environment)
     else:
         print(f"✨ No hay SKUs obsoletos a excluir en la colección {collection_id}.")
 
-    # 3. Importar SKUs vigentes del Top 100 mediante importinsert
-    print(f"🚀 Insertando {len(vtex_ids_nuevos)} SKUs vigentes en la colección {collection_id}...")
-    load_collection(list(vtex_ids_nuevos), collection_id, account_name, environment)
+    # 3. Importar SKUs vigentes del Top 100 mediante importinsert.
+    # Invertimos la lista para que la inserción secuencial de VTEX (LIFO) posicione el SKU #1 en el puesto 1.
+    vtex_ids_para_cargar = list(reversed(vtex_ids_ordenados))
+    print(f"🚀 Insertando {len(vtex_ids_para_cargar)} SKUs vigentes en la colección {collection_id} (orden de ranking en VTEX)...")
+    load_collection(vtex_ids_para_cargar, collection_id, account_name, environment)
 
 
 with DAG(
