@@ -51,7 +51,7 @@ join (
 	and l.material <> '000000000000167429'
 	and l.bloq_formato is null
 	and l.bloq_centro is null
-	and (ec.n1 NOT IN ('No Trabajar', 'Inactivos') OR ec.n1 IS NULL)
+	and (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración', 'Integracion') OR ec.n1 IS NULL)
 ) _t2
 on _t.material = _t2.material 
 and _t.unidad_de_medida = _t2.umv
@@ -70,14 +70,20 @@ left join (
 	and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
 	AND wp.nombre_promocion::text !~~ '%ZONA%'::text
 	AND wp.nombre_promocion::text !~~ '%MFC%'::text
-    AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-    AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+	AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+	AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
 	AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
 	AND wp.nombre_promocion::text !~~ '%917%'::text
 	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-	and wp.nombre_promocion::text !~~ '% LOC%'::text
-	and wp.nombre_promocion::text !~~ '%CYBER%'::text
-	and wp.nombre_promocion::text !~~ '%LIQ%'::text
+	AND wp.nombre_promocion::text !~~ '%LOC%'::text
+	AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
+	AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
+	AND wp.nombre_promocion::text !~~ '%MEMB%'::text
+	AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
+	AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+	AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
+	AND wp.nombre_promocion::text !~~ '%BLACK%'::text
+	AND wp.nombre_promocion::text !~~ '%LIQ%'::text
 	AND wp.nombre_promocion NOT ILIKE '%REGIO%'
 	and wp.n_promocion  not in  ('5720882025','5640502024','5552392024','1120012024',
 '1120022024',

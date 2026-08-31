@@ -1076,22 +1076,22 @@ with DAG(
         python_callable = carga_stock_seguridad_janis_pm
     )
 
-    t4_am = PythonOperator(
-        task_id="carga_stock_seguridad_publisher_1917_am",
-        python_callable=carga_stock_seguridad_oms_1917,
-        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_am"},
-    )
+#    t4_am = PythonOperator(
+#        task_id="carga_stock_seguridad_publisher_1917_am",
+#        python_callable=carga_stock_seguridad_oms_1917,
+#        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_am"},
+#    )
 
-    t4_pm = PythonOperator(
-        task_id="carga_stock_seguridad_publisher_1917_pm",
-        python_callable=carga_stock_seguridad_oms_1917,
-        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_pm"},
-    )
+#    t4_pm = PythonOperator(
+#        task_id="carga_stock_seguridad_publisher_1917_pm",
+#        python_callable=carga_stock_seguridad_oms_1917,
+#        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_pm"},
+#    )
 
     t0 >> t1_am >> t2_am >> t3_am
-    t2_am >> t4_am
+#    t2_am >> t4_am
 
     t0 >> t1_pm >> t2_pm >> t3_pm
-    t2_pm >> t4_pm
+#    t2_pm >> t4_pm
 
     t0 >> t_dummy
