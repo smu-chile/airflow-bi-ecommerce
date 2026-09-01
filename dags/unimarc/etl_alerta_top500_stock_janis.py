@@ -64,7 +64,7 @@ def _send_slack_alert(**kwargs):
     print(f"• Total de quiebres (Stock 0 en Janis): {total_quiebres}")
     print(f"• Quiebres con Promoción Activa hoy: {quiebres_con_promo}")
 
-    channel_var_name = "SLACK_PROMOTION_ALERT_CHANNEL"
+    channel_var_name = "SLACK_TOP_500_ALERT"
     channel_id = Variable.get(channel_var_name, default_var=None)
     if not channel_id:
         print(f"⚠️ Variable de Airflow '{channel_var_name}' no configurada. Omitiendo alerta en Slack.")
