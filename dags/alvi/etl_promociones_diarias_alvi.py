@@ -426,6 +426,14 @@ def load_json_to_publisher(ti):
     df['secondPromotionalPrice'] = df['secondPromotionalPrice'].apply(lambda x: None if x == 0 else x)
     df['secondMinQuantity'] = df['secondMinQuantity'].apply(lambda x: None if x == 0 else x)
 
+    # Para productos pesables (KG o KGV) con una sola escala (secondPromotionalPrice nulo),
+    # se envia el precio de esa escala en modalPrice
+    pesable_single_scale_mask = (
+        df['refId'].astype(str).str.upper().str.endswith(('-KG', '-KGV')) &
+        df['secondPromotionalPrice'].isna()
+    )
+    df.loc[pesable_single_scale_mask, 'modalPrice'] = df.loc[pesable_single_scale_mask, 'firstPromotionalPrice']
+
     main_cols = ['promotionType'] + list(column_mapping.values()) + ['local', 'isRemoved']
     df = df[main_cols]
     result = df.to_json(orient="records")
