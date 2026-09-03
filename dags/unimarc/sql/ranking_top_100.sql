@@ -41,6 +41,26 @@ WITH promo_products AS (
         ON s.ref_id = rp.ref_id_sku
     WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
       AND wp.fecha_fin_de_promocion >= CURRENT_DATE
+      and wp.nombre_promocion not like '%UNIPAY%'
+      and wp.n_promocion not in (
+        1120012024,
+        1120012025,
+        1120022024,
+        1120032024,
+        1120032025,
+        1120042024,
+        1120052024,
+        1120052025,
+        1120062024,
+        1120062025,
+        1120082024,
+        1120092024,
+        1120112025,
+        1120122025,
+        1120132025,
+        1120152025,
+        1120162025
+      )
     ORDER BY rp.ref_id_sku, wp.fecha_inicio_de_promocion DESC
 ),
 cafe_sku AS (
