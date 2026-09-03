@@ -75,7 +75,66 @@ def get_price_info(vtex_id):
     else:
         raise Exception(f"Failed to get price for {vtex_id}. Status: {resp.status_code}")
 
+def get_unit_multiplier(sku_id, sku_info_map, headers):
+    """
+    Retorna el factor multiplicador ÚNICA Y EXCLUSIVAMENTE si el SKU es pesable (KG o KGV).
+    Para cualquier otro producto/unidad, retorna estrictamente 1.0.
+    """
+    sku_str = str(sku_id)
+    if sku_str in sku_info_map:
+        info = sku_info_map[sku_str]
+        if info.get("is_pesable", False):
+            return info.get("multiplier", 1.0)
+        return 1.0
+    
+    # Fallback a la API de catálogo de VTEX si el SKU no está en ecommdata.skus
+    try:
+        url = f"https://unimarc.myvtex.com/api/catalog/pvt/stockkeepingunit/{sku_id}"
+        resp = retry_request('GET', url, headers=headers, timeout=20)
+        if resp.status_code == 200:
+            data = resp.json()
+            measurement_unit = str(data.get("MeasurementUnit") or "").strip().upper()
+            mult = float(data.get("UnitMultiplier") or 1.0)
+            is_pesable = measurement_unit in ["KG", "KGV"]
+            
+            sku_info_map[sku_str] = {
+                "is_pesable": is_pesable,
+                "multiplier": mult if mult > 0 else 1.0
+            }
+            return mult if is_pesable else 1.0
+    except Exception as e:
+        logging.warning(f"Error consultando UnitMultiplier en VTEX para SKU {sku_id}: {e}")
+    
+    return 1.0
+
 def update_dynamic_bundle_prices():
+    # 0. Cargar mapa de SKUs desde ecommdata.skus (filtrando estrictamente pesables KG y KGV)
+    try:
+        query_skus = """
+            SELECT 
+                vtex_id::text, 
+                COALESCE(multiplicador_unidad_medida, 1.0) as multiplicador,
+                UPPER(COALESCE(unidad_de_venta, '')) as unidad_de_venta,
+                ref_id
+            FROM ecommdata.skus
+            WHERE vtex_id IS NOT NULL;
+        """
+        df_skus = query_to_df(query_skus)
+        sku_info_map = {}
+        for _, r in df_skus.iterrows():
+            vid = str(r['vtex_id'])
+            umv = str(r['unidad_de_venta']).strip().upper()
+            ref = str(r['ref_id']).strip().upper()
+            # Filtro estricto: solo KG y KGV
+            is_pesable = (umv in ['KG', 'KGV']) or ref.endswith('-KG') or ref.endswith('-KGV')
+            sku_info_map[vid] = {
+                "is_pesable": is_pesable,
+                "multiplier": float(r['multiplicador']) if r['multiplicador'] else 1.0
+            }
+    except Exception as e:
+        logging.warning(f"No se pudo cargar ecommdata.skus para identificacion de pesables, se usará fallback VTEX/1.0: {e}")
+        sku_info_map = {}
+
     # 1. Obtener bundles activos
     query = """
         SELECT 
@@ -118,7 +177,7 @@ def update_dynamic_bundle_prices():
             
             components_to_update = []
             
-            # 3. Iterar componentes, buscar sus precios y calcular totales
+            # 3. Iterar componentes, buscar sus precios, aplicar multiplicador SOLO a KG/KGV y calcular totales
             for comp in components:
                 sku_id = str(comp['StockKeepingUnitId'])
                 quantity = int(comp.get('Quantity', 1))
@@ -129,22 +188,31 @@ def update_dynamic_bundle_prices():
                 if not prices or prices['basePrice'] is None:
                     raise Exception(f"El componente {sku_id} no tiene basePrice en VTEX.")
                     
+                multiplier = get_unit_multiplier(sku_id, sku_info_map, headers)
                 comp_base = float(prices['basePrice'])
+                comp_base_adjusted = round(comp_base * multiplier, 2)
+                
                 comp_list = prices.get('listPrice')
-                
-                total_base_price += (comp_base * quantity)
-                
                 if comp_list is not None:
-                    total_list_price += (float(comp_list) * quantity)
+                    comp_list_adjusted = round(float(comp_list) * multiplier, 2)
+                    total_list_price += (comp_list_adjusted * quantity)
                 else:
                     has_valid_list_price = False
+                
+                total_base_price += (comp_base_adjusted * quantity)
+                
+                if multiplier != 1.0:
+                    logging.info(
+                        f"Componente PESABLE detectado SKU={sku_id}: "
+                        f"basePrice={comp_base} x multiplicador={multiplier} -> target_price={comp_base_adjusted}"
+                    )
                 
                 components_to_update.append({
                     "sku_id": sku_id,
                     "kit_rel_id": kit_rel_id,
                     "quantity": quantity,
                     "current_price": current_unit_price,
-                    "target_price": comp_base
+                    "target_price": comp_base_adjusted
                 })
                 
             # 4. Actualizar los componentes del kit
