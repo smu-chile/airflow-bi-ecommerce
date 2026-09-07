@@ -188,11 +188,25 @@ def sync_ranking_top_100_vtex_collection(**kwargs):
             except (ValueError, TypeError):
                 pass
 
-    # Garantizar que el SKU 61690 (café) esté sí o sí en el Top 5 (posición 1)
-    target_sku = "61690"
-    if target_sku in vtex_ids_ordenados:
-        vtex_ids_ordenados.remove(target_sku)
-    vtex_ids_ordenados.insert(0, target_sku)
+    # Garantizar que los SKUs forzados estén en las primeras posiciones en el orden especificado
+    forced_skus = [
+        "59865",  # 1. Pan ciabatta granel Amada Masa 500 g (000000000000638771-KG)
+        "279",    # 2. Palta hass granel 500 g (000000000000038037-KG)
+        "9720",   # 3. Plátano granel 500 g (000000000000038087-KG)
+        "57399",  # 4. Bebida Coca Cola zero 1 L (000000000000175602-UN)
+        "365",    # 5. Trutro entero de pollo Super Pollo granel 800 g (000000000000051802-KGV)
+        "2896",   # 6. Leche entera natural Colun sin tapa 1 L (000000000000007390-UN)
+        "93426",  # 7. Marraqueta precocida amada masa 4un (000000000000690730-UN)
+        "479",    # 8. Limón malla 1 Kg (000000000000119011-UN)
+        "324",    # 9. Tomate larga vida granel 500 g (000000000000038314-KG)
+        "3269",   # 10. Pack Bebida Coca Cola original lata 6 un de 350 ml (000000000000022938-DIS)
+        "83483",  # 11. Naranja malla 2 Kg (000000000000317347-UN)
+        "9973",   # 12. Pechuga de pollo deshuesada Super Pollo 850 g (000000000000626638-UN)
+        "76772",  # 13. Aceite Nuestra Cocina 100% maravilla 900 ml (000000000000651342-UN)
+        "59429",  # 14. Yoghurt Loncoleche protein natural endulzado 140 g (000000000638426001-UN)
+        "61690",  # 15. Café Nescafé fina selección frasco 100 gr (000000000000639787-UN)
+    ]
+    vtex_ids_ordenados = forced_skus + [sku for sku in vtex_ids_ordenados if sku not in forced_skus]
 
     print(f"📦 SKUs únicos a cargar en colección {collection_id}: {len(vtex_ids_ordenados)}")
     
@@ -206,17 +220,16 @@ def sync_ranking_top_100_vtex_collection(**kwargs):
     skus_actuales = get_collection_skus(collection_id, account_name, environment)
     print(f"🔎 SKUs actualmente en la colección {collection_id}: {len(skus_actuales)}")
 
-    # 2. Excluir SKUs obsoletos que ya no estén en el Top 100
-    skus_a_excluir = skus_actuales - vtex_ids_set
-    if skus_a_excluir:
-        print(f"🧹 Excluyendo {len(skus_a_excluir)} SKUs obsoletos de la colección {collection_id}...")
-        remove_skus_from_collection(list(skus_a_excluir), collection_id, account_name, environment)
+    # 2. Excluir TODOS los SKUs actuales de la colección para forzar el reordenamiento exacto (VTEX solo ordena SKUs que son recién insertados)
+    if skus_actuales:
+        print(f"🧹 Vaciando {len(skus_actuales)} SKUs de la colección {collection_id} para forzar la reordenación completa...")
+        remove_skus_from_collection(list(skus_actuales), collection_id, account_name, environment)
+        time.sleep(5)
     else:
-        print(f"✨ No hay SKUs obsoletos a excluir en la colección {collection_id}.")
+        print(f"✨ La colección {collection_id} ya está vacía.")
 
-    # 3. Importar SKUs vigentes del Top 100 mediante importinsert.
-    # Invertimos la lista para que la inserción secuencial de VTEX (LIFO) posicione el SKU #1 en el puesto 1.
-    vtex_ids_para_cargar = list(reversed(vtex_ids_ordenados))
+    # 3. Importar SKUs vigentes del Top 100 mediante importinsert en orden directo (Fila 1 -> Posición 1 en VTEX)
+    vtex_ids_para_cargar = list(vtex_ids_ordenados)
     print(f"🚀 Insertando {len(vtex_ids_para_cargar)} SKUs vigentes en la colección {collection_id} (orden de ranking en VTEX)...")
     load_collection(vtex_ids_para_cargar, collection_id, account_name, environment)
 
