@@ -149,6 +149,7 @@ def _send_slack_alert(**kwargs):
         ]
     })
 
+    thread_ts = None
     if slack_token:
         headers = {
             "Authorization": f"Bearer {slack_token}",
@@ -160,10 +161,12 @@ def _send_slack_alert(**kwargs):
             "text": f"Alerta Top 500 Janis: {total_quiebres} quiebres detectados ({quiebres_con_promo} con promoción activa)."
         }
         res = requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=payload)
-        if not res.ok or not res.json().get("ok"):
+        res_json = res.json() if res.ok else {}
+        if not res.ok or not res_json.get("ok"):
             print(f"⚠️ Error al enviar mensaje Block Kit a Slack: {res.text}")
         else:
             print(" Notificación de alerta Block Kit enviada a Slack.")
+            thread_ts = res_json.get("ts")
     else:
         print("⚠️ No se encontró token de Slack para enviar mensaje Block Kit. Se procederá con la subida del CSV.")
 
@@ -181,7 +184,8 @@ def _send_slack_alert(**kwargs):
                 data_bytes=csv_bytes,
                 channel_id=channel_id,
                 token=slack_token,
-                initial_comment=f"📄 Adjunto reporte completo con los {total_quiebres} quiebres de stock Janis detectados en el Top 500."
+                initial_comment=f"📄 Adjunto reporte completo con los {total_quiebres} quiebres de stock Janis detectados en el Top 500.",
+                thread_ts=thread_ts
             )
             print(" Reporte CSV de quiebres enviado a Slack.")
         except Exception as e:
@@ -190,7 +194,7 @@ def _send_slack_alert(**kwargs):
         print("⚠️ No se encontró token de Slack para adjuntar el CSV.")
 
 
-def _upload_csv_file_to_slack(file_name: str, data_bytes: bytes, channel_id: str, token: str, initial_comment: str = ""):
+def _upload_csv_file_to_slack(file_name: str, data_bytes: bytes, channel_id: str, token: str, initial_comment: str = "", thread_ts: str = None):
     """
     Sube un archivo a Slack utilizando la API v2 de archivos.
     """
@@ -221,6 +225,9 @@ def _upload_csv_file_to_slack(file_name: str, data_bytes: bytes, channel_id: str
         "channel_id": channel_id,
         "initial_comment": initial_comment,
     }
+    if thread_ts:
+        complete_payload["thread_ts"] = thread_ts
+
     comp = requests.post(
         "https://slack.com/api/files.completeUploadExternal",
         headers={
