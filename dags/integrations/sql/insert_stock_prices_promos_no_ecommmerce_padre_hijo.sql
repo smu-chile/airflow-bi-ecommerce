@@ -41,10 +41,14 @@ from (
 		, s.ou_id as id_tienda 
 		, s.nbr_itm as stock_unitario
 		, s2.ean_primario as ean
-		, p.cont_conv_umb as multiplicador_unidad
+		, coalesce(s2.multiplicador_unidad_medida, p.cont_conv_umb) as multiplicador_unidad
 		, s2.nombre_sku as nombre
 		, p.brand_desc as trademark 
-		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida
+		, case 
+			when upper(trim(split_part(s2.ref_id, '-', 2))) in ('ST', 'UN') then 'UN'
+			when upper(trim(split_part(s2.ref_id, '-', 2))) in ('CS', 'CJ', 'CJA') then 'CJ'
+			else upper(trim(split_part(s2.ref_id, '-', 2))) 
+		  end as unidad_de_medida
 	from integraciones.stock s 
 	left join integraciones.productos p 
 		on p.sku_key = s.sku_key
@@ -96,6 +100,8 @@ left join (
 	AND wp.nombre_promocion::text !~~ '%BLACK%'::text
 	AND wp.nombre_promocion::text !~~ '%LIQ%'::text
 	AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+	AND wp.nombre_promocion NOT ILIKE '%BCO%'
+	AND wp.nombre_promocion NOT ILIKE '%EST%'
 	and wp.n_promocion not in ('5720882025','5640502024','5552392024','1120012024',
 '1120022024',
 '1120032024',
@@ -109,7 +115,7 @@ left join (
 '1120122024',
 '4000512024','5552792024','5552852024','4000662024','4000942024','4000962024','4000972024','4000952024','1120012025','1120022025','1120032025','1120042025',
 '5770232025','1120162025','1120062025','1120092025','1120212025','5551272026','5552152024','4040162024','4060322024','5553242024','4000952026',
-'4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025')
+'4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025','1020052026')
     group by wp.ean , wp.material
 ) _t3
 on _t.material = _t3.material
