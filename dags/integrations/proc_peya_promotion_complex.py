@@ -116,6 +116,8 @@ def _join_promo_prices_from_s3(ds, ti):
                       AND wp.nombre_promocion::text !~~ '%BLACK%'::text
                       AND wp.nombre_promocion::text !~~ '%LIQ%'::text
                       AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                      AND wp.nombre_promocion NOT ILIKE '%BCO%'
+                      AND wp.nombre_promocion NOT ILIKE '%EST%'
                       AND lspp.ean IS NOT NULL
                       AND WP.desc_promocion = 'COMBINACION NXM'
                       AND wp.n_promocion NOT IN ('5552392024',
@@ -133,7 +135,7 @@ def _join_promo_prices_from_s3(ds, ti):
                       '4000512024','5552792024','5552852024',
                       '1120012025','1120022025','1120032025','1120042025','1120212025','5551272026',
                       '5720882025','5552152024','4040162024','4060322024','5553242024','4000952026',
-                      '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025')
+                      '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025','1020052026')
                       AND l.excluido IS NOT TRUE
                       AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
             """
@@ -228,7 +230,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 '1120112024', '1120122024', '4000512024','5552792024','5552852024',
                 '1120012025','1120022025','1120032025','1120042025','1120212025','5551272026',
                 '5720882025','5552152024','4040162024','4060322024','5553242024','4000952026',
-                '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025'
+                '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025','1020052026'
                 )
                AND lspp.unidad_de_medida NOT IN ('KG', 'KGV')
                 AND l.excluido IS NOT TRUE
@@ -309,6 +311,8 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.nombre_promocion::text !~~ '%BLACK%'::text
                 AND wp.nombre_promocion::text !~~ '%LIQ%'::text
                 AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                AND wp.nombre_promocion NOT ILIKE '%BCO%'
+                AND wp.nombre_promocion NOT ILIKE '%EST%'
                 AND wp.n_promocion NOT IN ('5552392024',
                   '1120012024',
                   '1120022024',
@@ -324,7 +328,7 @@ def _join_promo_prices_from_s3(ds, ti):
                   '4000512024','5552792024','5552852024',
                   '1120012025','1120022025','1120032025','1120042025','1120212025','5551272026',
                   '5720882025','5552152024','4040162024','4060322024','5553242024','4000952026',
-                  '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025')
+                  '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025','1020052026')
             """
         cursor.execute(peya_promotion_query)
         results = cursor.fetchall()
