@@ -188,24 +188,25 @@ def sync_ranking_top_100_vtex_collection(**kwargs):
             except (ValueError, TypeError):
                 pass
 
-    # Garantizar que los SKUs forzados estén en las primeras posiciones en el orden especificado
-    forced_skus = [
-        "59865",  # 1. Pan ciabatta granel Amada Masa 500 g (000000000000638771-KG)
-        "279",    # 2. Palta hass granel 500 g (000000000000038037-KG)
-        "9720",   # 3. Plátano granel 500 g (000000000000038087-KG)
-        "57399",  # 4. Bebida Coca Cola zero 1 L (000000000000175602-UN)
-        "365",    # 5. Trutro entero de pollo Super Pollo granel 800 g (000000000000051802-KGV)
-        "2896",   # 6. Leche entera natural Colun sin tapa 1 L (000000000000007390-UN)
-        "93426",  # 7. Marraqueta precocida amada masa 4un (000000000000690730-UN)
-        "479",    # 8. Limón malla 1 Kg (000000000000119011-UN)
-        "324",    # 9. Tomate larga vida granel 500 g (000000000000038314-KG)
-        "3269",   # 10. Pack Bebida Coca Cola original lata 6 un de 350 ml (000000000000022938-DIS)
-        "83483",  # 11. Naranja malla 2 Kg (000000000000317347-UN)
-        "9973",   # 12. Pechuga de pollo deshuesada Super Pollo 850 g (000000000000626638-UN)
-        "76772",  # 13. Aceite Nuestra Cocina 100% maravilla 900 ml (000000000000651342-UN)
-        "59429",  # 14. Yoghurt Loncoleche protein natural endulzado 140 g (000000000638426001-UN)
-        "61690",  # 15. Café Nescafé fina selección frasco 100 gr (000000000000639787-UN)
-    ]
+    # Obtener SKUs forzados desde ecommdata.ranking_top_100_forzado ordenados según la posición especificada
+    query_forced = """
+        SELECT vtex_id
+        FROM ecommdata.ranking_top_100_forzado
+        ORDER BY posicion ASC;
+    """
+    try:
+        forced_records = pg_hook.get_records(query_forced)
+        forced_skus = []
+        for r in forced_records:
+            if r[0]:
+                try:
+                    forced_skus.append(str(int(float(r[0]))))
+                except (ValueError, TypeError):
+                    forced_skus.append(str(r[0]).strip())
+    except Exception as e:
+        print(f"⚠️ Error al consultar ecommdata.ranking_top_100_forzado: {e}")
+        forced_skus = []
+
     vtex_ids_ordenados = forced_skus + [sku for sku in vtex_ids_ordenados if sku not in forced_skus]
 
     print(f"📦 SKUs únicos a cargar en colección {collection_id}: {len(vtex_ids_ordenados)}")
@@ -249,6 +250,7 @@ with DAG(
 
     dag.doc_md = """
     Carga de ranking top 100 productos en promociones vigentes en la tabla ecommdata.ranking_top_100 y actualización de la colección VTEX Carrusel Unimarc (ID 10385).
+    Los SKUs forzados en las primeras posiciones se gestionan dinámicamente desde `ecommdata.ranking_top_100_forzado` manteniendo su posición explícita.
     """
 
     t0 = PostgresOperator(
