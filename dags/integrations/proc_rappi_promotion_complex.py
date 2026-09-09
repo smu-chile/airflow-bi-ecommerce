@@ -97,6 +97,8 @@ def extract_promotions(ds, store_ids):
           AND wp.nombre_promocion::text !~~ '%BLACK%'::text
           AND wp.nombre_promocion::text !~~ '%LIQ%'::text
           AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+          AND wp.nombre_promocion NOT ILIKE '%BCO%'
+          AND wp.nombre_promocion NOT ILIKE '%EST%'
           AND l.excluido IS NOT TRUE
           AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
           AND wp.n_promocion NOT IN (
@@ -105,7 +107,7 @@ def extract_promotions(ds, store_ids):
               '1120112024','1120122024','4000512024','5552792024','5552852024',
               '1120012025','1120022025','1120032025','1120042025','1120212025','5551272026',
               '5720882025','5552152024','4040162024','4060322024','5553242024','4000952026',
-              '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025'
+              '4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025','1020052026'
           )
     )
     SELECT 
