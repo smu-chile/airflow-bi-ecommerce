@@ -5,25 +5,6 @@ CREATE TABLE IF NOT EXISTS ecommdata.ranking_top_100_forzado (
     fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO ecommdata.ranking_top_100_forzado (vtex_id, posicion, nombre)
-VALUES
-    ('59865', 1, 'Pan ciabatta granel Amada Masa 500 g'),
-    ('279', 2, 'Palta hass granel 500 g'),
-    ('9720', 3, 'Plátano granel 500 g'),
-    ('57399', 4, 'Bebida Coca Cola zero 1 L'),
-    ('365', 5, 'Trutro entero de pollo Super Pollo granel 800 g'),
-    ('2896', 6, 'Leche entera natural Colun sin tapa 1 L'),
-    ('93426', 7, 'Marraqueta precocida amada masa 4un'),
-    ('479', 8, 'Limón malla 1 Kg'),
-    ('324', 9, 'Tomate larga vida granel 500 g'),
-    ('3269', 10, 'Pack Bebida Coca Cola original lata 6 un de 350 ml'),
-    ('83483', 11, 'Naranja malla 2 Kg'),
-    ('9973', 12, 'Pechuga de pollo deshuesada Super Pollo 850 g'),
-    ('76772', 13, 'Aceite Nuestra Cocina 100% maravilla 900 ml'),
-    ('59429', 14, 'Yoghurt Loncoleche protein natural endulzado 140 g'),
-    ('61690', 15, 'Café Nescafé fina selección frasco 100 gr')
-ON CONFLICT (vtex_id) DO NOTHING;
-
 DROP TABLE IF EXISTS ecommdata.ranking_top_100;
 
 CREATE TABLE ecommdata.ranking_top_100 (
