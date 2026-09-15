@@ -4,12 +4,54 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
+from utils.bigquery_utils import bq_query_to_df
 from datetime import datetime
 import pendulum
 import io
 import json
 import pandas as pd
 import requests
+
+def _validar_promociones_en_bigquery(promociones_list):
+    """
+    Valida la vigencia de un conjunto de n_promocion en BigQuery en la vista
+    cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW con los parámetros:
+      - FECHA_INICIO_DE_PROMOCION <= CURRENT_DATE() + 3
+      - FECHA_FIN_DE_PROMOCION >= CURRENT_DATE()
+      - ORGANIZACION_VENTAS = '1000'
+      - REGISTRO_VALIDO = 'X'
+    Retorna un DataFrame con las promociones que SÍ existen/están vigentes en BigQuery.
+    """
+    if not promociones_list:
+        return pd.DataFrame()
+
+    promos_clean = [int(p) for p in set(promociones_list) if pd.notnull(p)]
+    if not promos_clean:
+        return pd.DataFrame()
+
+    promos_str = ",".join(str(p) for p in promos_clean)
+
+    query = f"""
+        SELECT DISTINCT 
+            CAST(MATERIAL AS STRING) AS material,
+            CAST(N_PROMOCION AS INT64) AS n_promocion,
+            REGISTRO_VALIDO
+        FROM `cl-cda-prod.DS_CDA_VW_SMU.DW_VW_FACT_WORKFLOW`
+        WHERE FECHA_INICIO_DE_PROMOCION <= DATE_ADD(CURRENT_DATE(), INTERVAL 3 DAY)
+          AND FECHA_FIN_DE_PROMOCION >= CURRENT_DATE()
+          AND ORGANIZACION_VENTAS = '1000'
+          AND REGISTRO_VALIDO = 'X'
+          AND N_PROMOCION IN ({promos_str})
+    """
+    print(f"🔍 Consultando BigQuery para validar {len(promos_clean)} promociones...")
+    try:
+        df_bq = bq_query_to_df(query)
+        print(f"📊 BigQuery retornó {len(df_bq)} promociones/SKUs vigentes.")
+        return df_bq
+    except Exception as e:
+        print(f"⚠️ Error al consultar BigQuery para validación de promociones: {e}")
+        return pd.DataFrame()
+
 
 def _auditar_y_registrar_precios_fijos_retirados(**kwargs):
     print("🔍 Iniciando auditoría de precios fijos retirados prematuramente...")
@@ -136,8 +178,19 @@ def _auditar_y_registrar_precios_fijos_retirados(**kwargs):
     if df_retirados.empty:
         print("✅ No se detectaron precios fijos retirados prematuramente en workflow_promociones.")
     else:
-        print(f"🚨 Se detectaron {len(df_retirados)} SKUs con precio fijo retirado prematuramente. Consultando API de VTEX...")
-        
+        print(f"🚨 Se detectaron {len(df_retirados)} SKUs con precio fijo retirado prematuramente. Validando en BigQuery y VTEX...")
+
+        # 3.1 Consultar BigQuery para validar si la promoción sigue activa en la vista maestro
+        promos_afectadas = df_retirados["n_promocion"].tolist()
+        df_bq_vigentes = _validar_promociones_en_bigquery(promos_afectadas)
+
+        bq_set = set()
+        if not df_bq_vigentes.empty and "material" in df_bq_vigentes.columns and "n_promocion" in df_bq_vigentes.columns:
+            for _, bq_row in df_bq_vigentes.iterrows():
+                mat_str = str(bq_row["material"]).strip().lstrip("0")
+                p_id = int(bq_row["n_promocion"])
+                bq_set.add((mat_str, p_id))
+
         account_name = Variable.get("VTEX_ACCOUNT_NAME", default_var="unimarc")
         vtex_key = Variable.get("X_VTEX_API_AppKey", default_var=None)
         vtex_token = Variable.get("X_VTEX_API_AppToken", default_var=None)
@@ -156,7 +209,16 @@ def _auditar_y_registrar_precios_fijos_retirados(**kwargs):
             nombre_prom = str(row["nombre_promocion"]) if pd.notnull(row["nombre_promocion"]) else ""
             nombre_lista_precio = nombre_prom.replace(" ", "").replace(",", "").replace(".", "")
             precio_vtex = None
-            observacion = ""
+            vtex_obs = ""
+
+            # Validar si existe en BigQuery
+            mat_clean = str(row["material"]).strip().lstrip("0") if pd.notnull(row["material"]) else ""
+            p_id = int(row["n_promocion"]) if pd.notnull(row["n_promocion"]) else 0
+
+            if (mat_clean, p_id) in bq_set or (str(row["material"]), p_id) in bq_set:
+                bq_obs = "BQ: Promo SIGUE ACTIVA en BigQuery (desfase Postgres)"
+            else:
+                bq_obs = "BQ: Promo dada de baja confirmada en BigQuery"
 
             if vtex_id and vtex_id != "None" and vtex_key and vtex_token:
                 try:
@@ -174,16 +236,18 @@ def _auditar_y_registrar_precios_fijos_retirados(**kwargs):
                         
                         if matched_price is not None:
                             precio_vtex = matched_price
-                            observacion = "Precio encontrado en VTEX"
+                            vtex_obs = "Precio encontrado en VTEX"
                         else:
                             precio_vtex = data.get("basePrice") or data.get("listPrice")
-                            observacion = f"Lista '{nombre_lista_precio}' no hallada directamente; retornado precio base/lista de VTEX"
+                            vtex_obs = f"Lista '{nombre_lista_precio}' no hallada directamente; retornado precio base/lista de VTEX"
                     else:
-                        observacion = f"Error GET API VTEX ({resp.status_code})"
+                        vtex_obs = f"Error GET API VTEX ({resp.status_code})"
                 except Exception as ex:
-                    observacion = f"Excepción API VTEX: {str(ex)}"
+                    vtex_obs = f"Excepción API VTEX: {str(ex)}"
             else:
-                observacion = "Sin VTEX ID o credenciales de API omitidas"
+                vtex_obs = "Sin VTEX ID o credenciales de API omitidas"
+
+            observacion = f"{bq_obs} | {vtex_obs}"
 
             registros_a_insertar.append((
                 row["ref_id"],
@@ -285,10 +349,17 @@ def _notificar_slack(df_retirados, registros_a_insertar):
     for _, row in top_casos.iterrows():
         prod_name = row['nombre_producto'] or 'Desconocido'
         vtex_str = row['vtex_id'] or 'N/A'
+        obs_str = ""
+        for reg in registros_a_insertar:
+            if reg[0] == row['ref_id'] and reg[4] == row['n_promocion']:
+                obs_str = reg[10]
+                break
+
         item_text = (
             f"🛍️ *{prod_name}* (Ref: `{row['ref_id']}` | VTEX ID: `{vtex_str}`)\n"
             f"• *Promo:* `{row['n_promocion']}` - {row['nombre_promocion']}\n"
-            f"• *Vencimiento:* `{row['fecha_fin_de_promocion']}`"
+            f"• *Vencimiento:* `{row['fecha_fin_de_promocion']}`\n"
+            f"• *Detalle:* _{obs_str}_"
         )
         slack_blocks.append({
             "type": "section",
