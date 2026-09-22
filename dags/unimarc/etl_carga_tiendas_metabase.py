@@ -58,10 +58,10 @@ def lista8():
             """)
         conn.commit()
 
-    # Obtenemos tiendas activas para el filtro estricto en SQL
+    # Obtenemos tiendas activas para el filtro estricto en SQL (excluyendo 0486)
     promociones_query = """
     WITH active_stores AS (
-        SELECT id FROM ecommdata.tiendas WHERE status = 1
+        SELECT id FROM ecommdata.tiendas WHERE status = 1 AND id != '0486'
     ),
     exceptions AS (
         SELECT material, umv, id_tienda FROM catalogo.productos_excluidos_excepciones
@@ -82,6 +82,7 @@ def lista8():
                     where mfc_is_item_side = 'REG') as ubi
                     on concat(l.material,'-',l.umv) = ubi.ref_id and l.id_tienda = ubi.id_tienda
         where (l.id_tienda = '1917' OR ubi.ref_id is null) 
+        and l.id_tienda != '0486'
         -- Misión Original: Bypass de Excepciones ESTRICTO POR TIENDA
         and (
             l.excluido is not true 
@@ -141,8 +142,9 @@ def lista8():
             AND concat(l.material, '-', l.umv) not in ('000000000000661989-UN', '000000000000661988-UN', '000000000000638773-UN')
         )
     ) candidates
-    -- Solo cargamos si la tienda existe en ecommdata.tiendas (status=1)
+    -- Solo cargamos si la tienda existe en ecommdata.tiendas (status=1) y NO es la tienda basurero 0486
     WHERE candidates.id_tienda IN (SELECT id FROM active_stores)
+      AND candidates.id_tienda != '0486'
     """
     results = query_to_df(promociones_query)
     import pandas as pd
@@ -212,7 +214,7 @@ def tiendas():
     import pandas as pd
     tiendas_query = """select id, status, nombre_tienda_janis
                     from ecommdata.tiendas t 
-                    where status = 1"""
+                    where status = 1 and id != '0486'"""
     results = query_to_df(tiendas_query)
     results.columns = ["id_tienda","status","nombre_tienda_janis"]
     return results
@@ -266,6 +268,21 @@ def get_bundles_dinamicos():
         print(f"Error querying sku_bundles_dinamicos: {e}")
         import pandas as pd
         return pd.DataFrame(columns=["skuid_bundle", "ref_id_bundle", "skus_componentes"])
+
+def get_productos_janis_api_activos():
+    query = """
+        SELECT ref_id, tiendas 
+        FROM ecommdata.productos_janis_api 
+        WHERE activo IS TRUE
+    """
+    try:
+        results = query_to_df(query)
+        results.columns = ["ref_id", "tiendas"]
+        return results
+    except Exception as e:
+        print(f"Error querying ecommdata.productos_janis_api: {e}")
+        import pandas as pd
+        return pd.DataFrame(columns=["ref_id", "tiendas"])
 
 def publicacion_1917_today(ts):
     import pandas as pd
@@ -412,13 +429,13 @@ def load_tables_to_s3(ts,ds):
     print(f"\ncantidad de registros en excluidos con skus validos: {len(df_exclusions.index)}\n")
     ##tiendas activcas
     df_tiendas = df_tiendas[["id_tienda"]]
-    series_active_stores = df_tiendas['id_tienda'].unique()
+    series_active_stores = [str(s) for s in df_tiendas['id_tienda'].unique() if str(s) != '0486']
 
-    # transformacion de datos: Solo procesamos tiendas con status=1 en ecommdata.tiendas
+    # transformacion de datos: Solo procesamos tiendas con status=1 en ecommdata.tiendas (excluyendo estrictamente la 0486)
     # Esto evita que tiendas que se "adelantaron" (status=0) generen deltas de carga
-    # y evita que tiendas inactivas (como la 0486) se desactiven masivamente.
-    df_lista8 = df_lista8[df_lista8['id_tienda'].isin(series_active_stores)]
-    df_productos_janis_tienda = df_productos_janis_tienda[df_productos_janis_tienda['id_tienda'].isin(series_active_stores)]
+    # y evita que la tienda basurero 0486 sea cargada como tienda activa.
+    df_lista8 = df_lista8[df_lista8['id_tienda'].isin(series_active_stores) & (df_lista8['id_tienda'] != '0486')]
+    df_productos_janis_tienda = df_productos_janis_tienda[df_productos_janis_tienda['id_tienda'].isin(series_active_stores) & (df_productos_janis_tienda['id_tienda'] != '0486')]
 
     # OPTIMIZACION OOM: Hacemos el merge solo con valores unicos para no generar producto cartesiano infinito
     df_janis_unique = df_productos_janis_tienda[['ref_id']].drop_duplicates()
@@ -612,6 +629,49 @@ def load_tables_to_s3(ts,ds):
     df_excluidos = pd.DataFrame(columns=["refId"])
     print("\ndf_excluidos: ",len(df_excluidos.index))
 
+    # === RED DE SEGURIDAD / AUDITORÍA CON JANIS API ===
+    # Detecta productos que en Janis figuran como activos (IsActive=True),
+    # pero que NO existen en el universo COMPLETO de lista8 (no solo el delta diario).
+    # IMPORTANTE: comparar contra lista8 completa (df_lista_8), no contra el delta diario,
+    # para evitar desactivaciones masivas incorrectas de productos que simplemente no cambiaron hoy.
+    try:
+        df_janis_api_activos = get_productos_janis_api_activos()
+        if not df_janis_api_activos.empty:
+            # Universo completo de ref_ids válidos en lista8 (todos los productos activos, no solo el delta)
+            todos_ref_ids_lista8 = set(df_lista_8['ref_id'].dropna().astype(str).unique())
+
+            # Whitelist de bundles y envases
+            envases_skus = {'000000000000167429-UN', '000000000000163603-UN'}
+            whitelist_bundles = set(df_bundles_activos['sku_bundle'].dropna().astype(str)).union(
+                set(df_bundles_activos['sku_original'].dropna().astype(str)),
+                set(df_bundles_din['skuid_bundle'].dropna().astype(str)),
+                set(df_bundles_din['ref_id_bundle'].dropna().astype(str)),
+                envases_skus
+            )
+
+            # Bases normalizadas para proteger casos de ceros a la izquierda (ej: 17 vs 18 dígitos)
+            bases_lista8 = {str(s).split('-')[0].lstrip('0') for s in todos_ref_ids_lista8 if '-' in str(s)}
+
+            # Solo son huérfanos los que NO están en lista8 completa Y NO son bundles/envases
+            candidatos_janis = df_janis_api_activos[
+                (~df_janis_api_activos['ref_id'].isin(todos_ref_ids_lista8)) &
+                (~df_janis_api_activos['ref_id'].isin(whitelist_bundles))
+            ].copy()
+
+            candidatos_janis = candidatos_janis[
+                ~candidatos_janis['ref_id'].apply(lambda r: str(r).split('-')[0].lstrip('0') in bases_lista8 if '-' in str(r) else False)
+            ]
+
+            if not candidatos_janis.empty:
+                print(f"\n[AUDITORÍA JANIS API] Se detectaron {len(candidatos_janis)} productos activos en Janis huérfanos/bloqueados (no existen en lista8 completa).")
+                df_huerfanos = pd.DataFrame({'ref_id': candidatos_janis['ref_id'].unique()})
+                df_desactivados = pd.concat([df_desactivados, df_huerfanos], ignore_index=True)
+                df_desactivados = df_desactivados.drop_duplicates(subset=['ref_id']).reset_index(drop=True)
+            else:
+                print("\n[AUDITORÍA JANIS API] No se detectaron productos huérfanos en Janis.")
+    except Exception as e:
+        print(f"\n[AUDITORÍA JANIS API] Error al auditar productos huérfanos con Janis API: {e}")
+
     df_desactivados_sku = df_desactivados[["ref_id"]]
     df_desactivados_sku.columns = ["refId"]
     df_desactivados_sku = pd.concat([df_desactivados_sku, df_excluidos], axis=0)
@@ -638,6 +698,22 @@ def load_tables_to_s3(ts,ds):
 
     #lógica de excluir por tienda en carga_productos
     df_final_productos = aplicar_exclusiones_mfc(df_final_productos)
+
+    # Candado de seguridad estricto: Asegurar que ningún producto activo (active = 1) tenga '0486' en su lista de tiendas
+    mask_activos = df_final_productos['active'] == 1
+    if mask_activos.any():
+        df_final_productos.loc[mask_activos, 'stores'] = (
+            df_final_productos.loc[mask_activos, 'stores']
+            .fillna('')
+            .astype(str)
+            .apply(lambda s: ','.join([t.strip() for t in s.split(',') if t.strip() and t.strip() != '0486']))
+        )
+        # Eliminar filas activas que quedaron sin tiendas tras el strip de 0486 (nunca debería pasar, pero por si acaso)
+        mask_stores_vacios = mask_activos & (df_final_productos['stores'].fillna('').str.strip() == '')
+        n_vacios = mask_stores_vacios.sum()
+        if n_vacios > 0:
+            print(f"[CANDADO 0486] ⚠️ Se eliminaron {n_vacios} filas activas que quedaron sin tiendas tras el strip de 0486.")
+        df_final_productos = df_final_productos[~mask_stores_vacios].reset_index(drop=True)
 
 
     buffer_1 = io.StringIO()
