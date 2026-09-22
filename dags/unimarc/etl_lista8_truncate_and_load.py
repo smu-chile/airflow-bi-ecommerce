@@ -218,7 +218,7 @@ def _load_lista8(ts):
             equiv_df['sku_venta'] = equiv_df['sku_venta'].astype(str).str.zfill(18)
             equiv_df['sku_compra'] = equiv_df['sku_compra'].astype(str).str.zfill(18)
 
-        query_tiendas = "SELECT id FROM ecommdata.tiendas WHERE status = 1"
+        query_tiendas = "SELECT id FROM ecommdata.tiendas WHERE status = 1 AND id != '0486'  -- Tienda basurero: excluida explícitamente"
         tiendas_activas_df = pg_hook_equiv.get_pandas_df(query_tiendas)
         tiendas_activas = tiendas_activas_df['id'].astype(str).str.zfill(4).unique().tolist()
 
