@@ -107,6 +107,49 @@ def get_unit_multiplier(sku_id, sku_info_map, headers):
     
     return 1.0
 
+def deactivate_expired_bundles():
+    """
+    Revisa la tabla ecommdata.sku_bundles_dinamicos y aplica las siguientes reglas:
+      - Si fecha_fin < HOY (Chile) → active = false  (bundle vencido)
+      - Si fecha_inicio <= HOY <= fecha_fin → active = true  (bundle dentro de rango)
+    Si fecha_inicio o fecha_fin son NULL, el bundle no se toca (vigencia indefinida).
+    """
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    conn = pg_hook.get_conn()
+    cursor = conn.cursor()
+
+    # Desactivar bundles expirados (fecha_fin < hoy en Chile)
+    deactivate_sql = """
+        UPDATE ecommdata.sku_bundles_dinamicos
+        SET active = false
+        WHERE fecha_fin IS NOT NULL
+          AND fecha_fin < (NOW() AT TIME ZONE 'America/Santiago')::date
+          AND active = true;
+    """
+    cursor.execute(deactivate_sql)
+    rows_deactivated = cursor.rowcount
+    logging.info(f"Bundles DESACTIVADOS por vencimiento: {rows_deactivated}")
+
+    # Activar bundles que entran en rango hoy (fecha_inicio <= hoy <= fecha_fin)
+    activate_sql = """
+        UPDATE ecommdata.sku_bundles_dinamicos
+        SET active = true
+        WHERE fecha_inicio IS NOT NULL
+          AND fecha_fin IS NOT NULL
+          AND (NOW() AT TIME ZONE 'America/Santiago')::date BETWEEN fecha_inicio AND fecha_fin
+          AND active = false;
+    """
+    cursor.execute(activate_sql)
+    rows_activated = cursor.rowcount
+    logging.info(f"Bundles ACTIVADOS por inicio de vigencia: {rows_activated}")
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    logging.info(f"Resumen vigencia bundles → desactivados: {rows_deactivated} | activados: {rows_activated}")
+
+
 def update_dynamic_bundle_prices():
     # 0. Cargar mapa de SKUs desde ecommdata.skus (filtrando estrictamente pesables KG y KGV)
     try:
@@ -135,11 +178,12 @@ def update_dynamic_bundle_prices():
         logging.warning(f"No se pudo cargar ecommdata.skus para identificacion de pesables, se usará fallback VTEX/1.0: {e}")
         sku_info_map = {}
 
-    # 1. Obtener bundles activos
+    # 1. Obtener bundles activos (ya filtrados por deactivate_expired_bundles)
     query = """
         SELECT 
             b.skuid_bundle as vtex_id_bundle,
-            COALESCE(b.discount_multiplier, 1.0) as discount_multiplier
+            COALESCE(b.discount_multiplier, 1.0) as discount_multiplier,
+            b.precio_modal
         FROM ecommdata.sku_bundles_dinamicos b
         WHERE b.active = true
     """
@@ -156,8 +200,17 @@ def update_dynamic_bundle_prices():
     headers = get_vtex_headers()
     
     for _, row in df_bundles.iterrows():
+        import pandas as pd
         vtex_id_bundle = str(row['vtex_id_bundle'])
         logging.info(f"Procesando Bundle Dinámico: {vtex_id_bundle}")
+
+        # Leer precio_modal fijo (None si es NULL en la DB)
+        precio_modal_raw = row.get('precio_modal')
+        precio_modal_fijo = (
+            float(precio_modal_raw)
+            if precio_modal_raw is not None and not pd.isna(precio_modal_raw)
+            else None
+        )
         
         try:
             # 2. Obtener componentes del kit (bundle)
@@ -170,52 +223,96 @@ def update_dynamic_bundle_prices():
             if not components:
                 logging.error(f"ALERTA: El bundle {vtex_id_bundle} no tiene componentes en VTEX. Omitiendo.")
                 continue
-            
-            total_base_price = 0.0
-            total_list_price = 0.0
-            has_valid_list_price = True
-            
+
             components_to_update = []
-            
-            # 3. Iterar componentes, buscar sus precios, aplicar multiplicador SOLO a KG/KGV y calcular totales
-            for comp in components:
-                sku_id = str(comp['StockKeepingUnitId'])
-                quantity = int(comp.get('Quantity', 1))
-                kit_rel_id = comp.get('id') or comp.get('Id')
-                current_unit_price = comp.get('UnitPrice')
-                
-                prices = get_price_info(sku_id)
-                if not prices or prices['basePrice'] is None:
-                    raise Exception(f"El componente {sku_id} no tiene basePrice en VTEX.")
+
+            if precio_modal_fijo is not None:
+                # ── FLUJO PRECIO FIJO ──────────────────────────────────────────
+                # Solo aplica a bundles de componente único (no mixtos).
+                # El precio total del bundle es precio_modal_fijo.
+                # Se distribuye equitativamente entre las unidades del componente.
+                logging.info(
+                    f"Bundle {vtex_id_bundle}: usando precio_modal fijo = {precio_modal_fijo}"
+                )
+
+                total_qty = sum(int(comp.get('Quantity', 1)) for comp in components)
+                if total_qty <= 0:
+                    raise Exception(f"El bundle {vtex_id_bundle} tiene total_qty={total_qty}. No se puede distribuir precio.")
+
+                price_per_unit = round(precio_modal_fijo / total_qty, 2)
+                logging.info(
+                    f"Bundle {vtex_id_bundle}: total_qty={total_qty}, "
+                    f"price_per_unit={price_per_unit}"
+                )
+
+                for comp in components:
+                    sku_id = str(comp['StockKeepingUnitId'])
+                    quantity = int(comp.get('Quantity', 1))
+                    kit_rel_id = comp.get('id') or comp.get('Id')
+                    current_unit_price = comp.get('UnitPrice')
+
+                    components_to_update.append({
+                        "sku_id": sku_id,
+                        "kit_rel_id": kit_rel_id,
+                        "quantity": quantity,
+                        "current_price": current_unit_price,
+                        "target_price": price_per_unit
+                    })
+
+                final_base_price = int(round(precio_modal_fijo))
+                # listPrice = basePrice (mismo valor, sin tachado)
+                final_list_price = final_base_price
+
+            else:
+                # ── FLUJO ORIGINAL (precio_modal IS NULL) ─────────────────────
+                total_base_price = 0.0
+                total_list_price = 0.0
+                has_valid_list_price = True
+
+                # 3. Iterar componentes, buscar sus precios, aplicar multiplicador SOLO a KG/KGV y calcular totales
+                for comp in components:
+                    sku_id = str(comp['StockKeepingUnitId'])
+                    quantity = int(comp.get('Quantity', 1))
+                    kit_rel_id = comp.get('id') or comp.get('Id')
+                    current_unit_price = comp.get('UnitPrice')
                     
-                multiplier = get_unit_multiplier(sku_id, sku_info_map, headers)
-                comp_base = float(prices['basePrice'])
-                comp_base_adjusted = round(comp_base * multiplier, 2)
-                
-                comp_list = prices.get('listPrice')
-                if comp_list is not None:
-                    comp_list_adjusted = round(float(comp_list) * multiplier, 2)
-                    total_list_price += (comp_list_adjusted * quantity)
-                else:
-                    has_valid_list_price = False
-                
-                total_base_price += (comp_base_adjusted * quantity)
-                
-                if multiplier != 1.0:
-                    logging.info(
-                        f"Componente PESABLE detectado SKU={sku_id}: "
-                        f"basePrice={comp_base} x multiplicador={multiplier} -> target_price={comp_base_adjusted}"
-                    )
-                
-                components_to_update.append({
-                    "sku_id": sku_id,
-                    "kit_rel_id": kit_rel_id,
-                    "quantity": quantity,
-                    "current_price": current_unit_price,
-                    "target_price": comp_base_adjusted
-                })
-                
-            # 4. Actualizar los componentes del kit
+                    prices = get_price_info(sku_id)
+                    if not prices or prices['basePrice'] is None:
+                        raise Exception(f"El componente {sku_id} no tiene basePrice en VTEX.")
+                        
+                    multiplier = get_unit_multiplier(sku_id, sku_info_map, headers)
+                    comp_base = float(prices['basePrice'])
+                    comp_base_adjusted = round(comp_base * multiplier, 2)
+                    
+                    comp_list = prices.get('listPrice')
+                    if comp_list is not None:
+                        comp_list_adjusted = round(float(comp_list) * multiplier, 2)
+                        total_list_price += (comp_list_adjusted * quantity)
+                    else:
+                        has_valid_list_price = False
+                    
+                    total_base_price += (comp_base_adjusted * quantity)
+                    
+                    if multiplier != 1.0:
+                        logging.info(
+                            f"Componente PESABLE detectado SKU={sku_id}: "
+                            f"basePrice={comp_base} x multiplicador={multiplier} -> target_price={comp_base_adjusted}"
+                        )
+                    
+                    components_to_update.append({
+                        "sku_id": sku_id,
+                        "kit_rel_id": kit_rel_id,
+                        "quantity": quantity,
+                        "current_price": current_unit_price,
+                        "target_price": comp_base_adjusted
+                    })
+
+                # 5. Aplicar descuento y calcular precio maestro
+                discount_multiplier = float(row.get('discount_multiplier', 1.0))
+                final_base_price = int(round(total_base_price * discount_multiplier))
+                final_list_price = final_base_price
+
+            # 4. Actualizar los componentes del kit (común a ambos flujos)
             for comp in components_to_update:
                 sku_id = comp['sku_id']
                 kit_rel_id = comp['kit_rel_id']
@@ -249,20 +346,9 @@ def update_dynamic_bundle_prices():
                     error_msg = f"URGENTE: Bundle {vtex_id_bundle} quedó INCOMPLETO. Falló inserción de {sku_id}."
                     logging.error(error_msg)
                     raise Exception(error_msg)
-            
-            # 5. Aplicar descuento y actualizar precio maestro del bundle
-            discount_multiplier = float(row.get('discount_multiplier', 1.0))
-            
-            final_base_price = int(round(total_base_price * discount_multiplier))
-            
-            # Si hay descuento, el precio de lista (tachado) debería ser el precio original sin descuento
-            if discount_multiplier < 1.0:
-                final_list_price = int(round(total_base_price))
-            else:
-                final_list_price = int(round(total_list_price)) if has_valid_list_price else None
-                
+
+            # 6. Actualizar precio maestro del bundle
             put_url = f"https://api.vtex.com/unimarc/pricing/prices/{vtex_id_bundle}"
-            
             put_payload = {
                 "itemId": vtex_id_bundle,
                 "basePrice": final_base_price,
@@ -273,8 +359,12 @@ def update_dynamic_bundle_prices():
             resp_put = retry_request('PUT', put_url, json=put_payload, headers=headers, timeout=30)
             if resp_put.status_code not in [200, 204]:
                  raise Exception(f"Fallo al actualizar precio final del bundle {vtex_id_bundle}. RESP: {resp_put.text}")
-                 
-            logging.info(f"Bundle {vtex_id_bundle} sincronizado. Multiplier: {discount_multiplier}. Base: {final_base_price}, List: {final_list_price}")
+
+            flujo = "precio_modal fijo" if precio_modal_fijo is not None else "dinámico"
+            logging.info(
+                f"Bundle {vtex_id_bundle} sincronizado [{flujo}]. "
+                f"Base: {final_base_price}, List: {final_list_price}"
+            )
             
         except Exception as e:
             logging.error(f"Error procesando bundle dinámico {vtex_id_bundle}: {str(e)}")
@@ -307,14 +397,29 @@ with DAG(
     **ETL Precios Bundles Dinámicos**
     
     A las 04:30 AM, este DAG revisa la tabla `ecommdata.sku_bundles_dinamicos`.
-    Para cada bundle activo:
+    
+    **Tarea 1 – deactivate_expired_bundles:**
+    Evalúa las columnas `fecha_inicio` y `fecha_fin` de cada bundle:
+    - Si `fecha_fin < HOY` → pone `active = false` (bundle vencido).
+    - Si `fecha_inicio <= HOY <= fecha_fin` → pone `active = true` (bundle entra en vigencia).
+    - Si alguna fecha es NULL → no se toca (vigencia indefinida).
+    
+    **Tarea 2 – update_dynamic_bundle_prices:**
+    Para cada bundle activo (ya con vigencia validada):
     1. Consulta a VTEX la estructura del kit (componentes y cantidades).
     2. Consulta los precios (basePrice, listPrice) de cada componente.
     3. Actualiza el valor interno del componente (UnitPrice) en el kit usando DELETE/POST para evitar bugs de VTEX.
     4. Setea el precio total maestro del bundle mediante la suma ponderada de sus componentes.
     """
     
-    update_task = PythonOperator(
-        task_id = "update_dynamic_bundle_prices",
-        python_callable = update_dynamic_bundle_prices,
+    deactivate_task = PythonOperator(
+        task_id="deactivate_expired_bundles",
+        python_callable=deactivate_expired_bundles,
     )
+
+    update_task = PythonOperator(
+        task_id="update_dynamic_bundle_prices",
+        python_callable=update_dynamic_bundle_prices,
+    )
+
+    deactivate_task >> update_task
