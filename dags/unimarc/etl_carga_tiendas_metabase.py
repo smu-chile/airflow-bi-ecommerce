@@ -203,12 +203,42 @@ def lista8():
     return results
 
 def productos():
-    productos_query = """select ref_id, nombre 
-                    from ecommdata.productos"""
+    productos_query = """
+        SELECT DISTINCT ref_id 
+        FROM ecommdata.productos_janis_api
+        WHERE categoria_valida IS TRUE
+    """
     results = query_to_df(productos_query)
-    results.columns = ["ref_id","nombre_producto"]
-    print(results.head())
+    results.columns = ["ref_id"]
+    print(f"✅ Productos válidos (categoría activa en Janis API): {len(results.index)}")
     return results
+
+def get_skus_invalidos_a_apagar():
+    """
+    Retorna SKUs con categorías inválidas o inactivas (ej: 'No Trabajar', 'Inactivos', 'Integración')
+    que figuran activos o con tiendas operativas asignadas directamente en Janis API.
+    Si ya están desactivados en Janis (activo=False y tiendas='0486'), NO se vuelven a enviar (delta=0).
+    Los bundles se excluyen porque se gestionan por su propia lógica de componentes.
+    """
+    query = """
+        SELECT DISTINCT p.ref_id 
+        FROM ecommdata.productos_janis_api p
+        WHERE COALESCE(p.categoria_valida, FALSE) IS FALSE
+          AND (p.activo IS TRUE OR (p.tiendas IS NOT NULL AND p.tiendas != '' AND p.tiendas != '0486'))
+          AND p.ref_id NOT IN (SELECT sku_bundle FROM ecommdata.sku_bundles_retornables WHERE active = true)
+          AND p.ref_id NOT IN (SELECT ref_id_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true)
+          AND p.ref_id NOT IN (SELECT skuid_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true);
+    """
+    try:
+        results = query_to_df(query)
+        results.columns = ["ref_id"]
+        return results
+    except Exception as e:
+        print(f"Error querying get_skus_invalidos_a_apagar: {e}")
+        import pandas as pd
+        return pd.DataFrame(columns=["ref_id"])
+
+
 
 def tiendas():
     import pandas as pd
@@ -220,20 +250,57 @@ def tiendas():
     return results
 
 def skus():
-    skus_query = """select ref_id, nombre_sku
-                    from ecommdata.skus"""
+    skus_query = """
+        SELECT ref_id, nombre_producto AS nombre_sku
+        FROM ecommdata.productos_janis_api
+        WHERE COALESCE(es_huerfano, FALSE) IS FALSE
+    """
     results = query_to_df(skus_query)
-    results.columns = ["ref_id","nombre_sku"]
+    results.columns = ["ref_id", "nombre_sku"]
     return results
 
 def producto_tienda_janis():
-    productos_tienda_query = """select ref_id, id_tienda, activo
-                        from ecommdata.productos_tienda"""
-    results = query_to_df(productos_tienda_query)
-    results.columns = ["ref_id","id_tienda","activo"]
-    results = results[["ref_id","id_tienda"]]
+    import gc
+    query = """
+        SELECT DISTINCT 
+            p.ref_id, 
+            lpad(trim(store_id), 4, '0') AS id_tienda
+        FROM ecommdata.productos_janis_api p,
+        LATERAL unnest(string_to_array(p.tiendas, ',')) AS store_id
+        WHERE p.activo IS TRUE 
+          AND p.tiendas IS NOT NULL 
+          AND p.tiendas != '' 
+          AND trim(store_id) != '0486'
+          AND trim(store_id) != ''
+          AND COALESCE(p.es_huerfano, FALSE) IS FALSE
+    """
+    results = query_to_df(query)
+    gc.collect()
+    print(f"✅ Productos por tienda reales cargados desde Janis API: {len(results.index)} combinaciones.")
     print(results.head())
     return results
+
+def get_productos_huerfanos():
+    """
+    Retorna los ref_id de productos huérfanos (productos que no tienen SKU relacionado) directamente desde Janis API.
+    Estos productos NUNCA pueden incluirse en carga_skus (tabla ni CSV) y DEBEN ser apagados
+    obligatoriamente en carga_productos (active=0, visible=0, stores='0486') independiente de lista8.
+    """
+    query = """
+        SELECT DISTINCT ref_id FROM ecommdata.productos_janis_api WHERE es_huerfano IS TRUE
+    """
+    try:
+        results = query_to_df(query)
+        results.columns = ["ref_id"]
+        return results
+    except Exception as e:
+        print(f"Error querying get_productos_huerfanos: {e}")
+        import pandas as pd
+        return pd.DataFrame(columns=["ref_id"])
+
+
+
+
 
 def excluidos_x_tiendas():
     excluidos_query = """select ref_id,id_tienda,is_mfc,all_stores,fecha_carga
@@ -274,10 +341,15 @@ def get_productos_janis_api_activos():
         SELECT ref_id, tiendas 
         FROM ecommdata.productos_janis_api 
         WHERE activo IS TRUE
+          AND tiendas IS NOT NULL 
+          AND tiendas != '' 
+          AND tiendas != '0486'
     """
     try:
         results = query_to_df(query)
         results.columns = ["ref_id", "tiendas"]
+        # Filtrar en python para asegurar que no quede ninguna fila que solo tenga '0486'
+        results = results[results["tiendas"].astype(str).str.strip() != "0486"].reset_index(drop=True)
         return results
     except Exception as e:
         print(f"Error querying ecommdata.productos_janis_api: {e}")
@@ -395,6 +467,11 @@ def load_tables_to_s3(ts,ds):
     df_bundles_activos = get_bundles_retornables()
     print("Ready bundles retornables activos\n")
 
+    # Identificar productos huérfanos (sin SKU asociado en Janis API o catálogo)
+    df_huerfanos = get_productos_huerfanos()
+    set_huerfanos = set(df_huerfanos['ref_id'].dropna().astype(str).unique()) if not df_huerfanos.empty else set()
+    print(f"🛑 Total productos huérfanos (sin SKU) detectados: {len(set_huerfanos)}\n")
+
     df_productos_sin_skus = df_productos.merge(df_lista_8, on = ["ref_id"], how = 'left')
     df_skus_sin_producto = df_productos_sin_skus.merge(df_skus, on = ["ref_id"], how = 'left')
     df_skus_sin_producto = df_skus_sin_producto[(df_skus_sin_producto["id_tienda"].notna()) &
@@ -410,18 +487,26 @@ def load_tables_to_s3(ts,ds):
     print(f"\ncantidad de registros de productos por tiendas en janis: {len(df_producto_tienda_janis.index)}\n")
     df_productos_janis_tienda = df_producto_tienda_janis
     #lista8 con productos validos
-    lista_productos = df_productos['ref_id'].unique()
+    lista_productos = set(df_productos['ref_id'].unique())
     df_not_in_janis = df_lista_8[~df_lista_8['ref_id'].isin(lista_productos)]
     df_not_in_janis = df_not_in_janis[["ref_id"]].drop_duplicates()
-    print(f"\ncantidad de registros en lista8 con productos no validos: {len(df_not_in_janis.index)}\n")
+    print(f"\ncantidad de registros en lista8 con productos no validos (cat inactiva/no trabajar): {len(df_not_in_janis.index)}\n")
     #lista8+mfc
     df_lista8 = pd.concat([df_lista_8, df_publicacion_mfc_hoy], axis=0)
+    # Filtro estricto: Solo productos válidos (con categoría activa y permitida) pueden estar en df_lista8
+    df_lista8 = df_lista8[df_lista8['ref_id'].isin(lista_productos)].copy()
+    
+    # FILTRO TOTAL DE HUÉRFANOS DE LISTA8: Ningún producto huérfano puede ingresar como candidato de carga activa
+    if set_huerfanos:
+        df_lista8 = df_lista8[~df_lista8['ref_id'].isin(set_huerfanos)].copy()
+        print(f"  -> Filtrados productos huérfanos de df_lista8. Quedan {len(df_lista8)} registros.")
+
     # Restauramos la definición para evitar el NameError
     excluidos_x_tiendas_tiendas = df_excluidos_x_tiendas[df_excluidos_x_tiendas["all_stores"]==1]
     # REMOVIDO: El filtro global por lista_excluidos ya no es necesario aquí 
     # porque la función lista8() ya filtra individualmente por tienda usando l.excluido.
     df_lista8 = df_lista8[["ref_id","id_tienda"]]
-    print(f"\ncantidad de registros en lista8 con MFC: {len(df_lista8.index)}\n")
+    print(f"\ncantidad de registros en lista8 con MFC (solo válidos): {len(df_lista8.index)}\n")
     #exclusiones con skus validos
     lista_skus = df_skus['ref_id'].unique()
     # Cambiamos a vacío para que no interfiera con excepciones en df_deact
@@ -461,28 +546,8 @@ def load_tables_to_s3(ts,ds):
     df_changes = df_changes.loc[~df_changes['ref_id'].isin(series_deact)]
     series_changes = pd.Series(df_changes['ref_id'].unique())
 
-    # --- FORZAR EVALUACION DE BUNDLES ORIGINALES ---
-    if not df_bundles_activos.empty:
-        bundle_originals = pd.Series(df_bundles_activos["sku_original"].unique())
-        series_changes = pd.concat([series_changes, bundle_originals]).drop_duplicates().reset_index(drop=True)
-
-    # --- FORZAR EVALUACION DE COMPONENTES DE BUNDLES DINAMICOS ---
-    df_bundles_din = get_bundles_dinamicos()
-    if not df_bundles_din.empty:
-        import json
-        componentes_dinamicos = []
-        for _, row in df_bundles_din.iterrows():
-            componentes = row['skus_componentes']
-            if isinstance(componentes, str):
-                try:
-                    componentes = json.loads(componentes)
-                except:
-                    componentes = []
-            if componentes and isinstance(componentes, list):
-                componentes_dinamicos.extend([str(c) for c in componentes])
-        if componentes_dinamicos:
-            series_componentes = pd.Series(componentes_dinamicos)
-            series_changes = pd.concat([series_changes, series_componentes]).drop_duplicates().reset_index(drop=True)
+    # NOTA: Ya no se fuerzan bundle_originals ni componentes_dinamicos en series_changes
+    # para evitar re-activaciones continuas innecesarias de bundles cuando sus tiendas no cambiaron.
 
     df_lista8_changes = df_lista8.loc[df_lista8['ref_id'].isin(series_changes)]
 
@@ -515,95 +580,131 @@ def load_tables_to_s3(ts,ds):
     mask_envases = df_changes_final['refId'].isin(envases_skus)
     df_changes_final.loc[mask_envases, 'visible'] = 0
 
-    # --- LOGICA DE REEMPLAZO BUNDLES RETORNABLES ---
+    # Estado actual en Janis API para comparar deltas de bundles de forma inteligente
+    df_janis_api_activos = get_productos_janis_api_activos()
+    janis_state_map = {}
+    for _, r in df_janis_api_activos.iterrows():
+        t_str = str(r['tiendas']) if pd.notna(r['tiendas']) else ''
+        st_set = {s.strip() for s in t_str.split(',') if s.strip() and s.strip() != '0486'}
+        janis_state_map[str(r['ref_id']).strip()] = st_set
+
+    # Mapa de tiendas completas por SKU desde df_lista8 (que contiene todos los productos válidos y activos)
+    stores_by_sku = df_lista8.groupby('ref_id')['id_tienda'].apply(set).to_dict()
+
+    # --- LOGICA DELTA BUNDLES RETORNABLES ---
+    retornables_a_cargar = []
+    bundles_a_desactivar = []
     if not df_bundles_activos.empty:
-        df_bundles_merge = df_changes_final.merge(
-            df_bundles_activos, 
-            left_on='refId', 
-            right_on='sku_original', 
-            how='inner'
-        )
-        if not df_bundles_merge.empty:
-            # 1. Apagamos la visibilidad del SKU original
-            mask_originals = df_changes_final['refId'].isin(df_bundles_merge['sku_original'])
-            df_changes_final.loc[mask_originals, 'visible'] = 0
-
-            # 2. Creamos los bundles copiando la data de la tienda original
-            df_new_bundles = df_bundles_merge.copy()
-            df_new_bundles['refId'] = df_new_bundles['sku_bundle']
-            df_new_bundles['visible'] = 1
+        for _, row in df_bundles_activos.iterrows():
+            sku_orig = str(row['sku_original']).strip()
+            sku_bund = str(row['sku_bundle']).strip()
             
-            cols_to_keep = ['refId', 'stores', 'publish', 'updatePending', 'visible', 'active', 'date']
-            df_new_bundles = df_new_bundles[cols_to_keep]
+            # Tiendas objetivo del bundle según el producto original en lista8
+            target_stores = stores_by_sku.get(sku_orig, set())
+            janis_stores = janis_state_map.get(sku_bund)
             
-            df_changes_final = pd.concat([df_changes_final, df_new_bundles], ignore_index=True)
+            if target_stores:
+                # Si Janis ya tiene el bundle activo con EXACTAMENTE las mismas tiendas, NO se envía
+                if janis_stores is not None and janis_stores == target_stores:
+                    pass
+                else:
+                    stores_str = ','.join(sorted(list(target_stores)))
+                    retornables_a_cargar.append({
+                        'refId': sku_bund,
+                        'stores': stores_str,
+                        'publish': 1,
+                        'updatePending': 1,
+                        'visible': 1,
+                        'active': 1,
+                        'date': pd.to_datetime('today')
+                    })
+            else:
+                # Si el original no tiene tiendas y el bundle figura activo en Janis, se desactiva
+                if janis_stores is not None and len(janis_stores) > 0:
+                    bundles_a_desactivar.append({'ref_id': sku_bund})
+            
+            # El SKU original líquido siempre debe tener visible = 0 si está en df_changes_final
+            mask_orig = df_changes_final['refId'] == sku_orig
+            if mask_orig.any():
+                df_changes_final.loc[mask_orig, 'visible'] = 0
 
-    # --- LOGICA BUNDLES DINAMICOS ---
-    # df_bundles_din ya fue consultado al inicio para forzar componentes
+        if retornables_a_cargar:
+            df_new_ret = pd.DataFrame(retornables_a_cargar)
+            print(f"📦 Bundles retornables con cambios reales a enviar: {len(df_new_ret)}")
+            df_changes_final = pd.concat([df_changes_final, df_new_ret], ignore_index=True)
+        else:
+            print("📦 Bundles retornables: Todos en sincronía exacta con Janis. 0 enviados.")
+
+    # --- LOGICA DELTA BUNDLES DINAMICOS ---
+    df_bundles_din = get_bundles_dinamicos()
+    dinamicos_a_cargar = []
     if not df_bundles_din.empty:
         import json
-        nuevos_dinamicos = []
         for _, row in df_bundles_din.iterrows():
             skuid_bundle = str(row['skuid_bundle'])
             ref_id_bundle = row.get('ref_id_bundle')
             if pd.isna(ref_id_bundle) or not ref_id_bundle or str(ref_id_bundle).lower() in ['none', 'nan', 'null']:
-                ref_id_bundle = skuid_bundle # fallback si aun no llenan el campo
+                ref_id_bundle = skuid_bundle
             else:
-                ref_id_bundle = str(ref_id_bundle)
+                ref_id_bundle = str(ref_id_bundle).strip()
                 
-            ref_id_bundle = ref_id_bundle.strip()
             if not ref_id_bundle or ref_id_bundle.lower() in ['none', 'nan', 'null']:
-                continue # Evitar generar filas sin refId valido
-
+                continue
                 
             componentes = row['skus_componentes']
-            
             if isinstance(componentes, str):
                 try:
                     componentes = json.loads(componentes)
                 except:
                     componentes = []
-                    
             if not componentes or not isinstance(componentes, list):
                 continue
                 
+            # Calculamos la intersección de tiendas usando el mapa completo de tiendas
             intersected_stores = None
             valid = True
             for comp in componentes:
-                comp_row = df_changes_final[df_changes_final['refId'] == str(comp)]
-                if comp_row.empty:
+                comp_str = str(comp).strip()
+                comp_stores = stores_by_sku.get(comp_str, set())
+                if not comp_stores:
                     valid = False
                     break
-                
-                comp_stores_str = comp_row.iloc[0]['stores']
-                if pd.isna(comp_stores_str) or not comp_stores_str:
-                    valid = False
-                    break
-                    
-                comp_stores = set(str(comp_stores_str).split(','))
                 if intersected_stores is None:
-                    intersected_stores = comp_stores
+                    intersected_stores = set(comp_stores)
                 else:
                     intersected_stores = intersected_stores.intersection(comp_stores)
-                    
                 if not intersected_stores:
                     valid = False
                     break
+                    
+            janis_stores = janis_state_map.get(ref_id_bundle)
             
             if valid and intersected_stores:
-                nuevos_dinamicos.append({
-                    'refId': ref_id_bundle,
-                    'stores': ','.join(sorted(list(intersected_stores))),
-                    'publish': 1,
-                    'updatePending': 1,
-                    'visible': 1, # Se mantiene siempre visible por ser dinamico, como pediste
-                    'active': 1,
-                    'date': pd.to_datetime('today')
-                })
-                
-        if nuevos_dinamicos:
-            df_nuevos_din = pd.DataFrame(nuevos_dinamicos)
+                # Si Janis ya tiene el bundle activo con EXACTAMENTE las mismas tiendas, NO se envía
+                if janis_stores is not None and janis_stores == intersected_stores:
+                    pass
+                else:
+                    stores_str = ','.join(sorted(list(intersected_stores)))
+                    dinamicos_a_cargar.append({
+                        'refId': ref_id_bundle,
+                        'stores': stores_str,
+                        'publish': 1,
+                        'updatePending': 1,
+                        'visible': 1,
+                        'active': 1,
+                        'date': pd.to_datetime('today')
+                    })
+            else:
+                # Si no tiene tiendas comunes y figura activo en Janis, se desactiva
+                if janis_stores is not None and len(janis_stores) > 0:
+                    bundles_a_desactivar.append({'ref_id': ref_id_bundle})
+                    
+        if dinamicos_a_cargar:
+            df_nuevos_din = pd.DataFrame(dinamicos_a_cargar)
+            print(f"📦 Bundles dinámicos con cambios reales a enviar: {len(df_nuevos_din)}")
             df_changes_final = pd.concat([df_changes_final, df_nuevos_din], ignore_index=True)
+        else:
+            print("📦 Bundles dinámicos: Todos en sincronía exacta con Janis. 0 enviados.")
 
     #desactivados
     df_lista8_desactivar = df_lista8
@@ -617,12 +718,43 @@ def load_tables_to_s3(ts,ds):
     df_desactivados = df_desactivados[df_desactivados['id_tienda'].isin(series_active_stores)]
     print(f"\nfiltro por tienda inactivas: {len(df_desactivados.index)}\n")
 
+    # APAGADO ESTRICTO DE CATEGORIAS INVALIDAS:
+    # Todo producto en 'No Trabajar', 'Inactivos', 'Integración', etc. que esté activo en Janis DEBE APAGARSE.
+    df_skus_invalidos = get_skus_invalidos_a_apagar()
+    if not df_skus_invalidos.empty:
+        print(f"🛑 SKUs con categoría no trabajar/inválida a apagar: {len(df_skus_invalidos.index)}")
+        df_desactivados = pd.concat([df_desactivados, df_skus_invalidos[['ref_id']]], ignore_index=True)
+
+    # APAGADO ESTRICTO DE PRODUCTOS HUÉRFANOS (Sin SKUs relacionados en Janis API o catálogo):
+    # Todo producto huérfano DEBE apagarse obligatoriamente en carga_productos (active=0, visible=0, stores='0486')
+    if set_huerfanos:
+        print(f"🛑 Añadiendo {len(set_huerfanos)} productos huérfanos a lista de desactivación de productos.")
+        df_desactivados = pd.concat([df_desactivados, df_huerfanos[['ref_id']]], ignore_index=True)
+
+    # EXCLUSIÓN DE BUNDLES DE TODA LA DESACTIVACIÓN (excepto si están en bundles_a_desactivar):
+    # Los bundles son productos virtuales y NO existen en ecommdata.lista8 física.
+    # Su desactivación se determina exclusivamente mediante 'bundles_a_desactivar' (cuando
+    # sus componentes se quedan sin stock o sin tiendas válidas).
+    bundle_skus_all = set()
+    if not df_bundles_activos.empty:
+        bundle_skus_all.update(set(df_bundles_activos['sku_bundle'].dropna().astype(str).unique()))
+    if not df_bundles_din.empty:
+        bundle_skus_all.update(set(df_bundles_din['ref_id_bundle'].dropna().astype(str).unique()))
+        bundle_skus_all.update(set(df_bundles_din['skuid_bundle'].dropna().astype(str).unique()))
+
+    if bundle_skus_all:
+        df_desactivados = df_desactivados[~df_desactivados['ref_id'].isin(bundle_skus_all)].reset_index(drop=True)
+
+    if bundles_a_desactivar:
+        print(f"📦 Añadiendo {len(bundles_a_desactivar)} bundles a desactivar por falta de tiendas/stock.")
+        df_desactivados = pd.concat([df_desactivados, pd.DataFrame(bundles_a_desactivar)], ignore_index=True)
+
     lista_skus_activos = df_changes_final['refId'].unique()
     df_desactivados = df_desactivados[~df_desactivados['ref_id'].isin(lista_skus_activos)]
     print(f"\nfiltro por skus activos: {len(df_desactivados.index)}\n")
 
     valores_unicos_skus = df_desactivados['ref_id'].unique()
-    print(f"\nSkus unicos: {len(valores_unicos_skus)}")
+    print(f"\nSkus unicos a desactivar: {len(valores_unicos_skus)}")
 
     # REMOVIDO: df_excluidos causaba deactivación global de productos con excepciones. 
     # El proceso de merge ya maneja las deactivaciones por tienda de forma individual.
@@ -631,14 +763,12 @@ def load_tables_to_s3(ts,ds):
 
     # === RED DE SEGURIDAD / AUDITORÍA CON JANIS API ===
     # Detecta productos que en Janis figuran como activos (IsActive=True),
-    # pero que NO existen en el universo COMPLETO de lista8 (no solo el delta diario).
-    # IMPORTANTE: comparar contra lista8 completa (df_lista_8), no contra el delta diario,
-    # para evitar desactivaciones masivas incorrectas de productos que simplemente no cambiaron hoy.
+    # pero que NO existen en el universo COMPLETO de lista8 + MFC (no solo el delta diario).
     try:
-        df_janis_api_activos = get_productos_janis_api_activos()
         if not df_janis_api_activos.empty:
-            # Universo completo de ref_ids válidos en lista8 (todos los productos activos, no solo el delta)
-            todos_ref_ids_lista8 = set(df_lista_8['ref_id'].dropna().astype(str).unique())
+            # CORRECCIÓN CLAVE: Usar df_lista8 (que incluye tiendas físicas Y MFC 1917) más df_changes_final
+            todos_ref_ids_lista8 = set(df_lista8['ref_id'].dropna().astype(str).unique())
+            todos_ref_ids_lista8.update(set(lista_skus_activos))
 
             # Whitelist de bundles y envases
             envases_skus = {'000000000000167429-UN', '000000000000163603-UN'}
@@ -664,42 +794,79 @@ def load_tables_to_s3(ts,ds):
 
             if not candidatos_janis.empty:
                 print(f"\n[AUDITORÍA JANIS API] Se detectaron {len(candidatos_janis)} productos activos en Janis huérfanos/bloqueados (no existen en lista8 completa).")
-                df_huerfanos = pd.DataFrame({'ref_id': candidatos_janis['ref_id'].unique()})
-                df_desactivados = pd.concat([df_desactivados, df_huerfanos], ignore_index=True)
+                df_huerfanos_auditoria = pd.DataFrame({'ref_id': candidatos_janis['ref_id'].unique()})
+                df_desactivados = pd.concat([df_desactivados, df_huerfanos_auditoria], ignore_index=True)
                 df_desactivados = df_desactivados.drop_duplicates(subset=['ref_id']).reset_index(drop=True)
+                # Candado estricto: Ningún producto que esté programado como activo en df_changes_final puede ser desactivado
+                df_desactivados = df_desactivados[~df_desactivados['ref_id'].isin(lista_skus_activos)].reset_index(drop=True)
             else:
                 print("\n[AUDITORÍA JANIS API] No se detectaron productos huérfanos en Janis.")
     except Exception as e:
         print(f"\n[AUDITORÍA JANIS API] Error al auditar productos huérfanos con Janis API: {e}")
 
+    # Construcción de desactivados para SKUs:
+    # REGLA ESTRICTA: Los productos huérfanos NO tienen SKU, jamás deben incluirse en carga_skus
     df_desactivados_sku = df_desactivados[["ref_id"]]
     df_desactivados_sku.columns = ["refId"]
     df_desactivados_sku = pd.concat([df_desactivados_sku, df_excluidos], axis=0)
     df_desactivados_sku = df_desactivados_sku.drop_duplicates(subset=['refId']).reset_index(drop=True)
+    if set_huerfanos:
+        df_desactivados_sku = df_desactivados_sku[~df_desactivados_sku['refId'].isin(set_huerfanos)].reset_index(drop=True)
+    # Candado estricto: eliminar cualquier SKU activo
+    df_desactivados_sku = df_desactivados_sku[~df_desactivados_sku['refId'].isin(lista_skus_activos)].reset_index(drop=True)
     df_desactivados_sku["publish"] = 1
     df_desactivados_sku["updatePending"] = 1
     df_desactivados_sku["active"] = 0
 
+    # Construcción de desactivados para PRODUCTOS:
+    # Aquí sí se incluyen los productos huérfanos para apagarlos a tienda 0486 en Janis
     df_desactivados_productos = df_desactivados[["ref_id"]]
     df_desactivados_productos.columns = ["refId"]
     df_desactivados_productos = pd.concat([df_desactivados_productos, df_excluidos], axis=0)
+    # Solo incluir productos huérfanos si realmente existen en Janis API (para apagarlos)
+    # Si no existen en Janis, no se deben enviar porque Janis daría error por entidad inexistente
+    if set_huerfanos:
+        set_huerfanos_en_janis = {ref for ref in set_huerfanos if ref in df_producto_tienda_janis['ref_id'].values}
+        if set_huerfanos_en_janis:
+            df_huerfanos_add = pd.DataFrame({'refId': list(set_huerfanos_en_janis)})
+            df_desactivados_productos = pd.concat([df_desactivados_productos, df_huerfanos_add], ignore_index=True)
     df_desactivados_productos = df_desactivados_productos.drop_duplicates(subset=['refId']).reset_index(drop=True)
+    # Candado estricto: eliminar cualquier producto activo
+    df_desactivados_productos = df_desactivados_productos[~df_desactivados_productos['refId'].isin(lista_skus_activos)].reset_index(drop=True)
     df_desactivados_productos["stores"] = "0486"
     df_desactivados_productos["publish"] = 1
     df_desactivados_productos["updatePending"] = 1
     df_desactivados_productos["visible"] = 0
     df_desactivados_productos["active"] = 0
 
+    # OPTIMIZACIÓN DELTA DESACTIVACIONES:
+    # No volver a enviar a desactivar a 0486 productos que ya estén inactivos (activo=False)
+    # y asignados exclusivamente a la tienda basurero '0486' (o sin tiendas) en Janis API.
+    df_already_off_janis = query_to_df("""
+        SELECT DISTINCT ref_id 
+        FROM ecommdata.productos_janis_api 
+        WHERE activo IS FALSE 
+          AND (tiendas = '0486' OR tiendas IS NULL OR tiendas = '')
+    """)
+    if not df_already_off_janis.empty:
+        set_already_off = set(df_already_off_janis['ref_id'].dropna().astype(str).unique())
+        n_before_p = len(df_desactivados_productos)
+        df_desactivados_productos = df_desactivados_productos[~df_desactivados_productos['refId'].isin(set_already_off)].reset_index(drop=True)
+        df_desactivados_sku = df_desactivados_sku[~df_desactivados_sku['refId'].isin(set_already_off)].reset_index(drop=True)
+        print(f"🛑 [DELTA DESACTIVACIONES] Se omitieron {n_before_p - len(df_desactivados_productos)} productos que YA están apagados en Janis (tienda 0486, activo=False).")
+
     df_changes_final = df_changes_final[["refId","stores","publish","updatePending","visible","active"]]
     df_final_skus = df_changes_final[["refId","publish","updatePending","active"]]
     df_final_productos = pd.concat([df_changes_final,df_desactivados_productos], axis=0)
     df_final_skus = pd.concat([df_final_skus,df_desactivados_sku], axis=0)
     df_final_skus = df_final_skus[~df_final_skus['refId'].isin(lista_skus_sin_producto)]
+    if set_huerfanos:
+        df_final_skus = df_final_skus[~df_final_skus['refId'].isin(set_huerfanos)].reset_index(drop=True)
 
     #lógica de excluir por tienda en carga_productos
     df_final_productos = aplicar_exclusiones_mfc(df_final_productos)
 
-    # Candado de seguridad estricto: Asegurar que ningún producto activo (active = 1) tenga '0486' en su lista de tiendas
+    # CANDADO DE SEGURIDAD 1: Asegurar que ningún producto activo (active = 1) tenga '0486' en su lista de tiendas
     mask_activos = df_final_productos['active'] == 1
     if mask_activos.any():
         df_final_productos.loc[mask_activos, 'stores'] = (
@@ -708,13 +875,77 @@ def load_tables_to_s3(ts,ds):
             .astype(str)
             .apply(lambda s: ','.join([t.strip() for t in s.split(',') if t.strip() and t.strip() != '0486']))
         )
-        # Eliminar filas activas que quedaron sin tiendas tras el strip de 0486 (nunca debería pasar, pero por si acaso)
         mask_stores_vacios = mask_activos & (df_final_productos['stores'].fillna('').str.strip() == '')
         n_vacios = mask_stores_vacios.sum()
         if n_vacios > 0:
             print(f"[CANDADO 0486] ⚠️ Se eliminaron {n_vacios} filas activas que quedaron sin tiendas tras el strip de 0486.")
         df_final_productos = df_final_productos[~mask_stores_vacios].reset_index(drop=True)
 
+    # CANDADO DE SEGURIDAD 2: Ningún producto con categoría inválida ('No Trabajar', etc.) puede quedar con active = 1
+    if not df_skus_invalidos.empty:
+        skus_invalidos_set = set(df_skus_invalidos['ref_id'].dropna().unique())
+        mask_invalido_activo = (df_final_productos['active'] == 1) & (df_final_productos['refId'].isin(skus_invalidos_set))
+        if mask_invalido_activo.any():
+            n_inv = mask_invalido_activo.sum()
+            print(f"[CANDADO NO TRABAJAR] 🚨 Corrigiendo {n_inv} productos en 'No Trabajar' que tenían active=1 -> apagando a 0486.")
+            df_final_productos.loc[mask_invalido_activo, 'active'] = 0
+            df_final_productos.loc[mask_invalido_activo, 'visible'] = 0
+            df_final_productos.loc[mask_invalido_activo, 'stores'] = '0486'
+        mask_skus_invalido_activo = (df_final_skus['active'] == 1) & (df_final_skus['refId'].isin(skus_invalidos_set))
+        if mask_skus_invalido_activo.any():
+            df_final_skus.loc[mask_skus_invalido_activo, 'active'] = 0
+
+    # CANDADO DE SEGURIDAD 3: PRODUCTOS HUÉRFANOS (Sin SKUs relacionados)
+    # 1. En df_final_productos: NINGÚN producto huérfano puede quedar activo ni con tiendas operativas
+    if set_huerfanos:
+        mask_huerfano_prod = df_final_productos['refId'].isin(set_huerfanos)
+        if mask_huerfano_prod.any():
+            df_final_productos.loc[mask_huerfano_prod, 'active'] = 0
+            df_final_productos.loc[mask_huerfano_prod, 'visible'] = 0
+            df_final_productos.loc[mask_huerfano_prod, 'stores'] = '0486'
+        
+        # 2. En df_final_skus: NINGÚN producto huérfano puede estar en df_final_skus (tabla ni CSV carga_skus)
+        mask_huerfano_sku = df_final_skus['refId'].isin(set_huerfanos)
+        if mask_huerfano_sku.any():
+            n_del = mask_huerfano_sku.sum()
+            print(f"[CANDADO HUÉRFANOS] 🛡️ Eliminando estrictamente {n_del} productos huérfanos de df_final_skus.")
+            df_final_skus = df_final_skus[~mask_huerfano_sku].reset_index(drop=True)
+
+    # CANDADO DE SEGURIDAD 4: VISIBILIDAD DE ENVASES Y BEBIDAS RETORNABLES ORIGINALES
+    # NUNCA deben publicarse con visible = 1 (deben tener visible = 0 siempre para que el cliente solo vea el bundle).
+    skus_invisibles = set(envases_skus)
+    if not df_bundles_activos.empty:
+        skus_invisibles.update(set(df_bundles_activos['sku_original'].dropna().astype(str).unique()))
+    mask_invisibles = df_final_productos['refId'].isin(skus_invisibles)
+    if mask_invisibles.any():
+        df_final_productos.loc[mask_invisibles, 'visible'] = 0
+
+    # CANDADO DE SEGURIDAD 5: VALIDACIÓN ESTRICTA DE EXISTENCIA EN JANIS API
+    # Ningún refId puede entrar a carga_productos ni a carga_skus si NO existe en Janis API (o bundles activos).
+    # Esto garantiza que el archivo exportado a Janis jamás falle por entidad inexistente.
+    df_janis_api_existentes = query_to_df("SELECT DISTINCT ref_id FROM ecommdata.productos_janis_api")
+    set_janis_validos = set(df_janis_api_existentes['ref_id'].dropna().astype(str).unique())
+    if not df_bundles_activos.empty:
+        set_janis_validos.update(set(df_bundles_activos['sku_bundle'].dropna().astype(str).unique()))
+    if not df_bundles_din.empty:
+        set_janis_validos.update(set(df_bundles_din['ref_id_bundle'].dropna().astype(str).unique()))
+        set_janis_validos.update(set(df_bundles_din['skuid_bundle'].dropna().astype(str).unique()))
+
+    # 1. En carga_productos: debe existir en Janis API
+    mask_valido_producto = df_final_productos['refId'].isin(set_janis_validos)
+    if (~mask_valido_producto).any():
+        n_invalidos = (~mask_valido_producto).sum()
+        refs_invalidos = df_final_productos.loc[~mask_valido_producto, 'refId'].tolist()
+        print(f"[CANDADO PRODUCTOS] 🛡️ Eliminando {n_invalidos} registros de df_final_productos que NO existen en Janis API: {refs_invalidos}")
+        df_final_productos = df_final_productos[mask_valido_producto].reset_index(drop=True)
+
+    # 2. En carga_skus: debe existir en Janis API
+    mask_valido_sku = df_final_skus['refId'].isin(set_janis_validos)
+    if (~mask_valido_sku).any():
+        n_invalidos_sku = (~mask_valido_sku).sum()
+        refs_invalidos_sku = df_final_skus.loc[~mask_valido_sku, 'refId'].tolist()
+        print(f"[CANDADO SKUS] 🛡️ Eliminando {n_invalidos_sku} registros de df_final_skus que NO existen en Janis API: {refs_invalidos_sku}")
+        df_final_skus = df_final_skus[mask_valido_sku].reset_index(drop=True)
 
     buffer_1 = io.StringIO()
     df_final_productos.to_csv(buffer_1, header=True, index=False, encoding="utf-8")
@@ -811,6 +1042,32 @@ def load_tables_to_postgres(ti):
                                     from catalogo.eliminados_carga_tiendas
                                     )
                             """)
+            if names[i] == "carga_productos":
+                conn.execute(text("""
+                    DELETE FROM ecommdata.carga_productos
+                    WHERE "refId" NOT IN (
+                        SELECT ref_id FROM ecommdata.productos_janis_api
+                        UNION
+                        SELECT sku_bundle FROM ecommdata.sku_bundles_retornables WHERE active = true
+                        UNION
+                        SELECT ref_id_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true
+                        UNION
+                        SELECT skuid_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true
+                    );
+                """))
+            if names[i] == "carga_skus":
+                conn.execute(text("""
+                    DELETE FROM ecommdata.carga_skus
+                    WHERE "refId" NOT IN (
+                        SELECT ref_id FROM ecommdata.productos_janis_api WHERE COALESCE(es_huerfano, FALSE) IS FALSE
+                        UNION
+                        SELECT sku_bundle FROM ecommdata.sku_bundles_retornables WHERE active = true
+                        UNION
+                        SELECT ref_id_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true
+                        UNION
+                        SELECT skuid_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true
+                    );
+                """))
 
         print("Data saved to PostgreSQL.")
 
@@ -829,25 +1086,23 @@ def get_and_send_cargas_csv():
     fecha_str = str(pendulum.now("America/Santiago").date())
 
     SQL_PRODUCTOS = """
-        select CONCAT("refId",';',stores,';',publish,';',"updatePending",';',visible,';',active)
-               as "refId;stores;publish;updatePending;visible;active"
-        from ecommdata.carga_productos
+        SELECT "refId", stores, publish, "updatePending", visible, active
+        FROM ecommdata.carga_productos
     """
     SQL_SKUS = """
-        select CONCAT("refId",';',publish,';',"updatePending",';',active)
-               as "refId;publish;updatePending;active"
-        from ecommdata.carga_skus
+        SELECT "refId", publish, "updatePending", active
+        FROM ecommdata.carga_skus
     """
 
-    # ejecutar y exportar a CSV (separador coma; el contenido ya viene con ';' embebido)
+    # Ejecutar y exportar directamente a CSV con separador ';' nativo y limpio
     df_prod = pd.read_sql(SQL_PRODUCTOS, engine)
     df_skus = pd.read_sql(SQL_SKUS, engine)
 
-    # si no hay filas, igual subimos un CSV con solo cabecera pa trazabilidad
+    # Si no hay filas, igual subimos un CSV con solo cabecera para trazabilidad
     buf_prod = io.StringIO()
     buf_skus = io.StringIO()
-    df_prod.to_csv(buf_prod, index=False)
-    df_skus.to_csv(buf_skus, index=False)
+    df_prod.to_csv(buf_prod, sep=";", index=False)
+    df_skus.to_csv(buf_skus, sep=";", index=False)
 
     # a bytes
     bytes_prod = buf_prod.getvalue().encode("utf-8")
