@@ -123,23 +123,10 @@ def _extraer_activos_janis(**kwargs):
     query_janis_activos = """
         SELECT DISTINCT j.ref_id
         FROM ecommdata.productos_janis_api j
-        JOIN ecommdata.skus s 
-            ON j.ref_id = s.ref_id
-        JOIN ecommdata.productos p 
-            ON s.id_producto = p.id
-        JOIN ecommdata.categorias c 
-            ON p.id_categoria = c.id
         WHERE j.activo IS TRUE
+          AND j.categoria_valida IS TRUE
           AND j.ref_id IS NOT NULL
-          AND j.ref_id <> ''
-          AND (
-              c.n1 IS NOT NULL
-              AND c.n1 NOT ILIKE '%No Trabajar%'
-              AND c.n1 NOT ILIKE '%Integraci%'
-              AND c.n1 NOT ILIKE '%Inactiv%'
-              AND c.n1 NOT ILIKE '%Fizzmod%'
-              AND COALESCE(c.status, 'activo') = 'activo'
-          );
+          AND j.ref_id <> '';
     """
 
     cursor.execute(query_janis_activos)
