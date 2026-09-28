@@ -29,11 +29,17 @@ def process_categories_table(ti):
 
     df = df0[["id", "ref_id", "name", "ref_parent", "status"]]
 
-    df1 = df[df["ref_parent"].isnull()].rename(columns={"id":"id1", "ref_id":"ref_id1", "name":"name1", "ref_parent":"ref_parent1", "status": "status1"})
-    df2 = pd.merge(df1, df[df["ref_parent"].notnull()], left_on="ref_id1", right_on="ref_parent", how="inner").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2", "status": "status2"})
-    df3 = pd.merge(df2, df[df["ref_parent"].notnull()], left_on="ref_id2", right_on="ref_parent", how="inner").rename(columns={"id":"id3", "ref_id":"ref_id3", "name":"name3", "ref_parent":"ref_parent3", "status": "status3"})
+    is_root = (
+        df["ref_parent"].isna()
+        | (df["ref_parent"].astype(str).str.strip().isin(["0", "0.0", "", "nan", "None"]))
+        | (df["ref_parent"] == 0)
+    )
 
-    df = df3.append(df2).append(df1)
+    df1 = df[is_root].rename(columns={"id":"id1", "ref_id":"ref_id1", "name":"name1", "ref_parent":"ref_parent1", "status": "status1"})
+    df2 = pd.merge(df1, df[~is_root], left_on="ref_id1", right_on="ref_parent", how="inner").rename(columns={"id":"id2", "ref_id":"ref_id2", "name":"name2", "ref_parent":"ref_parent2", "status": "status2"})
+    df3 = pd.merge(df2, df[~is_root], left_on="ref_id2", right_on="ref_parent", how="inner").rename(columns={"id":"id3", "ref_id":"ref_id3", "name":"name3", "ref_parent":"ref_parent3", "status": "status3"})
+
+    df = pd.concat([df3, df2, df1], ignore_index=True)
 
     print("Total records: ")
     print(len(df.index))
