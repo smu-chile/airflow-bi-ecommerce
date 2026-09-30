@@ -78,27 +78,32 @@ def extract_promotions(ds, store_ids):
           AND wp.registro_valido = TRUE
           AND wp.organizacion_ventas = '1000'
           AND wp.canal_distribucion = '10'
-          AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
-          AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
-          AND wp.nombre_promocion::text !~~ '%ZONA%'::text
-          AND wp.nombre_promocion::text !~~ '%MFC%'::text
-          AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-          AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-          AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-          AND wp.nombre_promocion::text !~~ '%917%'::text
-          AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-          AND wp.nombre_promocion::text !~~ '%LOC%'::text
-          AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
-          AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
-          AND wp.nombre_promocion::text !~~ '%MEMB%'::text
-          AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
-          AND wp.nombre_promocion::text !~~ '%CYBER%'::text
-          AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
-          AND wp.nombre_promocion::text !~~ '%BLACK%'::text
-          AND wp.nombre_promocion::text !~~ '%LIQ%'::text
-          AND wp.nombre_promocion NOT ILIKE '%REGIO%'
-          AND wp.nombre_promocion NOT ILIKE '%BCO%'
-          AND wp.nombre_promocion NOT ILIKE '%EST%'
+          AND (
+              (
+                  wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+                  AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+                  AND wp.nombre_promocion::text !~~ '%ZONA%'::text
+                  AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                  AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                  AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                  AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                  AND wp.nombre_promocion::text !~~ '%917%'::text
+                  AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                  AND wp.nombre_promocion::text !~~ '%LOC%'::text
+                  AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
+                  AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
+                  AND wp.nombre_promocion::text !~~ '%MEMB%'::text
+                  AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
+                  AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+                  AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
+                  AND wp.nombre_promocion::text !~~ '%BLACK%'::text
+                  AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                  AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                  AND wp.nombre_promocion NOT ILIKE '%BCO%'
+                  AND wp.nombre_promocion NOT ILIKE '%EST%'
+              )
+              OR wp.n_promocion::text IN ('5640792026', '5640802026', '5630492026', '5551452026')
+          )
           AND l.excluido IS NOT TRUE
           AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
           AND wp.n_promocion NOT IN (

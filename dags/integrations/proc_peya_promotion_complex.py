@@ -59,7 +59,7 @@ def _join_promo_prices_from_s3(ds, ti):
                         'all' AS vendors,
                         '' AS barcode,
                         s.ref_id AS sku,
-                        'Promociones Unimarc {n}' AS campaign_name,
+                        CONCAT('PromocionesNXM_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, '')) AS campaign_name,
                         'Promociones Complejas NXM' AS reason,
                         concat(current_date ,' 09:00:00') AS start_date,
                         concat(
@@ -97,27 +97,32 @@ def _join_promo_prices_from_s3(ds, ti):
                       AND wp.registro_valido = TRUE
                       AND wp.organizacion_ventas = '1000'
                       AND wp.canal_distribucion = '10'
-                      AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
-                      AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
-                      AND wp.nombre_promocion::text !~~ '%ZONA%'::text
-                      AND wp.nombre_promocion::text !~~ '%MFC%'::text
-                      AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-                      AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-                      AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-                      AND wp.nombre_promocion::text !~~ '%917%'::text
-                      AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-                      AND wp.nombre_promocion::text !~~ '%LOC%'::text
-                      AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
-                      AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
-                      AND wp.nombre_promocion::text !~~ '%MEMB%'::text
-                      AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
-                      AND wp.nombre_promocion::text !~~ '%CYBER%'::text
-                      AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
-                      AND wp.nombre_promocion::text !~~ '%BLACK%'::text
-                      AND wp.nombre_promocion::text !~~ '%LIQ%'::text
-                      AND wp.nombre_promocion NOT ILIKE '%REGIO%'
-                      AND wp.nombre_promocion NOT ILIKE '%BCO%'
-                      AND wp.nombre_promocion NOT ILIKE '%EST%'
+                      AND (
+                          (
+                              wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+                              AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+                              AND wp.nombre_promocion::text !~~ '%ZONA%'::text
+                              AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                              AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                              AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                              AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                              AND wp.nombre_promocion::text !~~ '%917%'::text
+                              AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                              AND wp.nombre_promocion::text !~~ '%LOC%'::text
+                              AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
+                              AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
+                              AND wp.nombre_promocion::text !~~ '%MEMB%'::text
+                              AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
+                              AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+                              AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
+                              AND wp.nombre_promocion::text !~~ '%BLACK%'::text
+                              AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                              AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                              AND wp.nombre_promocion NOT ILIKE '%BCO%'
+                              AND wp.nombre_promocion NOT ILIKE '%EST%'
+                          )
+                          OR wp.n_promocion::text IN ('5640792026', '5640802026', '5630492026', '5551452026')
+                      )
                       AND lspp.ean IS NOT NULL
                       AND WP.desc_promocion = 'COMBINACION NXM'
                       AND wp.n_promocion NOT IN ('5552392024',
@@ -156,7 +161,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     'all' as vendors,
                     '' AS barcode,
                     s.ref_id AS sku,
-                    'Promociones UnimarcNXS{n}' AS campaign_name,
+                    CONCAT('PromocionesNXS_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, '')) AS campaign_name,
                     'Promociones Complejas NX$' AS reason,
                     concat(current_date ,' 09:00:00') AS start_date,
                     concat(
@@ -175,7 +180,7 @@ def _join_promo_prices_from_s3(ds, ti):
                             CONCAT('B', wp.cantidad_n , 'G1')
                     END AS bundle_details,
                     CASE
-                        WHEN COALESCE(lspp.precio, 0) = 0 THEN 0
+                        WHEN COALESCE(lspp.precio, 0) = 0 OR COALESCE(wp.cantidad_n, 0) = 0 THEN 0
                         ELSE 
                             TRUNC(
                                 (((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / 
@@ -202,25 +207,30 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.registro_valido = TRUE
                 AND wp.organizacion_ventas = '1000'
                 AND wp.canal_distribucion = '10'
-                AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
-                AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
-                AND wp.nombre_promocion::text NOT LIKE '%ZONA%'
-                AND wp.nombre_promocion::text NOT LIKE '%MFC%'
-                AND wp.nombre_promocion::text NOT LIKE '%BANCO%'
-                AND wp.nombre_promocion::text NOT LIKE '%UNIPAY%'
-                AND wp.nombre_promocion::text NOT LIKE '%TERCERA%'
-                AND wp.nombre_promocion::text NOT LIKE '%917%'
-                AND wp.nombre_promocion::text NOT LIKE '%ESTADO%'
-                AND wp.nombre_promocion::text NOT LIKE '%LOC%'
-                AND wp.nombre_promocion::text NOT LIKE '%HUACHALALUME%'
-                AND wp.nombre_promocion::text NOT LIKE '%LOCAL%'
-                AND wp.nombre_promocion::text NOT LIKE '%MEMB%'
-                AND wp.nombre_promocion::text NOT LIKE '%REGIONAL%'
-                AND wp.nombre_promocion::text NOT LIKE '%CYBER%'
-                AND wp.nombre_promocion::text NOT LIKE '%CUMPLEANOS%'
-                AND wp.nombre_promocion::text NOT LIKE '%BLACK%'
-                AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
-                AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                AND (
+                    (
+                        wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+                        AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+                        AND wp.nombre_promocion::text NOT LIKE '%ZONA%'
+                        AND wp.nombre_promocion::text NOT LIKE '%MFC%'
+                        AND wp.nombre_promocion::text NOT LIKE '%BANCO%'
+                        AND wp.nombre_promocion::text NOT LIKE '%UNIPAY%'
+                        AND wp.nombre_promocion::text NOT LIKE '%TERCERA%'
+                        AND wp.nombre_promocion::text NOT LIKE '%917%'
+                        AND wp.nombre_promocion::text NOT LIKE '%ESTADO%'
+                        AND wp.nombre_promocion::text NOT LIKE '%LOC%'
+                        AND wp.nombre_promocion::text NOT LIKE '%HUACHALALUME%'
+                        AND wp.nombre_promocion::text NOT LIKE '%LOCAL%'
+                        AND wp.nombre_promocion::text NOT LIKE '%MEMB%'
+                        AND wp.nombre_promocion::text NOT LIKE '%REGIONAL%'
+                        AND wp.nombre_promocion::text NOT LIKE '%CYBER%'
+                        AND wp.nombre_promocion::text NOT LIKE '%CUMPLEANOS%'
+                        AND wp.nombre_promocion::text NOT LIKE '%BLACK%'
+                        AND wp.nombre_promocion::text NOT LIKE '%LIQ%'
+                        AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                    )
+                    OR wp.n_promocion::text IN ('5640792026', '5640802026', '5630492026', '5551452026')
+                )
                 AND lspp.ean IS NOT NULL
                 AND wp.ahorro_total IS NOT NULL
                 AND WP.desc_promocion = 'COMBINACION NX$'
@@ -236,7 +246,7 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND l.excluido IS NOT TRUE
                 AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
                 AND COALESCE(lspp.precio, 0) > 0
-                AND (((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)) * 100) < 99
+                AND (((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio * wp.cantidad_n, 0)) * 100) BETWEEN 1 AND 98
             """
             cursor.execute(peya_promotion_nxs_query)
             results = cursor.fetchall()
@@ -255,7 +265,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     'all' as vendors,
                     '' AS barcode,
                     s.ref_id AS sku,
-                    'Promociones' AS campaign_name,
+                    CONCAT('Promociones_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, '')) AS campaign_name,
                     'Promociones Simples' AS reason,
                     concat(current_date ,' 09:00:00') AS start_date,
                     concat(
@@ -292,27 +302,32 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND wp.registro_valido = TRUE
                 AND wp.organizacion_ventas = '1000'
                 AND wp.canal_distribucion = '10'
-                AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
-                AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
-                AND wp.nombre_promocion::text !~~ '%ZONA%'::text
-                AND wp.nombre_promocion::text !~~ '%MFC%'::text
-                AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-                AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-                AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-                AND wp.nombre_promocion::text !~~ '%917%'::text
-                AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-                AND wp.nombre_promocion::text !~~ '%LOC%'::text
-                AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
-                AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
-                AND wp.nombre_promocion::text !~~ '%MEMB%'::text
-                AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
-                AND wp.nombre_promocion::text !~~ '%CYBER%'::text
-                AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
-                AND wp.nombre_promocion::text !~~ '%BLACK%'::text
-                AND wp.nombre_promocion::text !~~ '%LIQ%'::text
-                AND wp.nombre_promocion NOT ILIKE '%REGIO%'
-                AND wp.nombre_promocion NOT ILIKE '%BCO%'
-                AND wp.nombre_promocion NOT ILIKE '%EST%'
+                AND (
+                    (
+                        wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+                        AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+                        AND wp.nombre_promocion::text !~~ '%ZONA%'::text
+                        AND wp.nombre_promocion::text !~~ '%MFC%'::text
+                        AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+                        AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+                        AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+                        AND wp.nombre_promocion::text !~~ '%917%'::text
+                        AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+                        AND wp.nombre_promocion::text !~~ '%LOC%'::text
+                        AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
+                        AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
+                        AND wp.nombre_promocion::text !~~ '%MEMB%'::text
+                        AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
+                        AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+                        AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
+                        AND wp.nombre_promocion::text !~~ '%BLACK%'::text
+                        AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+                        AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                        AND wp.nombre_promocion NOT ILIKE '%BCO%'
+                        AND wp.nombre_promocion NOT ILIKE '%EST%'
+                    )
+                    OR wp.n_promocion::text IN ('5640792026', '5640802026', '5630492026', '5551452026')
+                )
                 AND wp.n_promocion NOT IN ('5552392024',
                   '1120012024',
                   '1120022024',
@@ -434,8 +449,196 @@ def _join_promo_prices_from_s3(ds, ti):
     else:
         print("No se encontraron promociones de ningún tipo.")
 
+def _process_regional_promotions(ds):
+    import io
+    import pandas as pd
+
+    exec_date = ds.replace("-", "/")
+    reg_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/Merged/{exec_date}/SMUPromotionsCombinedReg.csv"
+
+    s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
+    s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
+
+    # Consultar Promociones Regionales (Simples, NxM y NxS)
+    print("Procesando Promociones Regionales para SMUPromotionsCombinedReg.csv...")
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    pg_connection = pg_hook.get_conn()
+    cursor = pg_connection.cursor()
+
+    peya_regional_query = """
+        WITH regional_stores AS (
+            SELECT 
+                prt.nro_promocion,
+                tlm.id AS id_tienda,
+                TRIM(tlm.id_peya) AS id_peya
+            FROM ecommdata.promociones_regionales_tiendas prt
+            CROSS JOIN LATERAL UNNEST(STRING_TO_ARRAY(prt.tiendas, ',')) AS t(id_tienda)
+            JOIN integraciones.tiendas_last_millers tlm 
+              ON TRIM(t.id_tienda) = tlm.id OR LTRIM(TRIM(t.id_tienda), '0') = LTRIM(tlm.id, '0')
+            WHERE tlm.id_peya IS NOT NULL AND tlm.id_peya != ''
+        )
+        SELECT 
+            STRING_AGG(DISTINCT rs.id_peya, ',') AS vendors,
+            '' AS barcode,
+            s.ref_id AS sku,
+            CASE 
+                WHEN wp.tipo_promocion IN (1, 4) THEN 
+                    CONCAT('Promociones_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, ''))
+                WHEN wp.tipo_promocion IN (2, 7) AND wp.desc_promocion = 'COMBINACION NXM' THEN 
+                    CONCAT('PromocionesNXM_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, ''))
+                WHEN wp.tipo_promocion IN (2, 7) AND wp.desc_promocion = 'COMBINACION NX$' THEN 
+                    CONCAT('PromocionesNXS_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, ''))
+                ELSE 
+                    CONCAT('Promociones_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, ''))
+            END AS campaign_name,
+            'Promocion Regional' AS reason,
+            CONCAT(CURRENT_DATE, ' 09:00:00') AS start_date,
+            CONCAT(
+                CASE 
+                    WHEN wp.fecha_fin_de_promocion::date = (CURRENT_DATE) THEN wp.fecha_fin_de_promocion::date + 1
+                    ELSE wp.fecha_fin_de_promocion::date
+                END, 
+                ' 09:00:00'
+            ) AS end_date,
+            1 AS campaign_status,
+            CASE 
+                WHEN wp.tipo_promocion IN (1, 4) THEN 'strikethrough'
+                WHEN wp.tipo_promocion IN (2, 7) THEN 'same_item_bundle'
+            END AS promotion_type,
+            CASE 
+                WHEN wp.tipo_promocion IN (2, 7) AND wp.desc_promocion = 'COMBINACION NXM' THEN 'free_item'
+                WHEN wp.tipo_promocion IN (2, 7) AND wp.desc_promocion = 'COMBINACION NX$' THEN 'percentage_value_off'
+                ELSE NULL
+            END AS promotion_sub_type,
+            NULL AS discount_usage_limit,
+            CASE 
+                WHEN wp.desc_promocion = 'COMBINACION NXM' THEN CONCAT('B', wp.cantidad_n - 1, 'G', wp.cantidad_n - wp.cantidad_m)
+                WHEN wp.desc_promocion = 'COMBINACION NX$' THEN CONCAT('B', wp.cantidad_n, 'G1')
+                ELSE NULL
+            END AS bundle_details,
+            CASE 
+                WHEN wp.desc_promocion = 'COMBINACION NX$' AND COALESCE(lspp.precio, 0) > 0 AND COALESCE(wp.cantidad_n, 0) > 0 THEN 
+                    TRUNC((((1.0 * COALESCE((lspp.precio * wp.cantidad_n) - wp.precio_total_promocional, wp.ahorro_total, 0)) / NULLIF(lspp.precio, 0)) * 100)::numeric)
+                ELSE NULL
+            END AS bundle_discount,
+            CASE 
+                WHEN wp.tipo_promocion IN (1, 4) THEN 
+                    ROUND(
+                        COALESCE(
+                            NULLIF(wp.precio_promocional, 0),
+                            NULLIF(wp.precio_fijo, 0),
+                            CASE 
+                                WHEN COALESCE(wp.porcentaje_de_descuento, 0) > 0 AND COALESCE(lspp.precio, 0) > 0 
+                                THEN lspp.precio * (1.0 - wp.porcentaje_de_descuento)
+                                ELSE NULL
+                            END
+                        )
+                    )
+                ELSE NULL
+            END AS discounted_price,
+            CASE 
+                WHEN wp.tipo_promocion IN (1, 4) THEN NULL
+                ELSE NULL
+            END AS max_no_of_orders
+        FROM regional_stores rs
+        INNER JOIN ecommdata.workflow_promociones wp 
+           ON TRIM(wp.n_promocion::text) = TRIM(rs.nro_promocion::text)
+        INNER JOIN ecommdata.skus s 
+           ON s.ref_id = CONCAT(wp.material, '-', CASE WHEN UPPER(TRIM(wp.umv)) = 'ST' THEN 'UN' ELSE UPPER(TRIM(wp.umv)) END)
+        INNER JOIN integraciones.lm_stock_precio_promo lspp 
+           ON s.ref_id = CONCAT(lspp.material, '-', lspp.unidad_de_medida)
+          AND lspp.id_tienda = rs.id_tienda
+        LEFT JOIN ecommdata.lista8 l 
+           ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
+        LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
+        LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
+        WHERE wp.fecha_inicio_de_promocion::date <= (CURRENT_DATE) 
+          AND wp.fecha_fin_de_promocion::date >= (CURRENT_DATE)
+          AND (wp.registro_valido IS TRUE OR wp.registro_valido IS NULL)
+          AND wp.tipo_promocion IN (1, 2, 4, 7)
+          AND (
+                wp.tipo_promocion IN (2, 7)
+                OR (
+                    wp.tipo_promocion IN (1, 4)
+                    AND COALESCE(
+                        NULLIF(wp.precio_promocional, 0),
+                        NULLIF(wp.precio_fijo, 0),
+                        CASE WHEN COALESCE(wp.porcentaje_de_descuento, 0) > 0 THEN lspp.precio * (1.0 - wp.porcentaje_de_descuento) ELSE 0 END,
+                        0
+                    ) > 0
+                    AND COALESCE(
+                        NULLIF(wp.precio_promocional, 0),
+                        NULLIF(wp.precio_fijo, 0),
+                        CASE WHEN COALESCE(wp.porcentaje_de_descuento, 0) > 0 THEN lspp.precio * (1.0 - wp.porcentaje_de_descuento) ELSE 0 END,
+                        0
+                    ) < lspp.precio
+                )
+          )
+          AND (l.excluido IS NOT TRUE OR l.excluido IS NULL)
+          AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
+        GROUP BY 
+            s.ref_id, wp.n_promocion, wp.nombre_promocion, wp.tipo_promocion, wp.desc_promocion, 
+            wp.fecha_fin_de_promocion, wp.cantidad_n, wp.cantidad_m, wp.precio_modal, 
+            wp.precio_total_promocional, wp.ahorro_total, wp.precio_promocional, wp.precio_fijo, 
+            wp.porcentaje_de_descuento, lspp.precio;
+    """
+    df_regional = pd.DataFrame()
+    try:
+        cursor.execute(peya_regional_query)
+        results = cursor.fetchall()
+        if results:
+            columns = [i[0] for i in cursor.description]
+            df_regional = pd.DataFrame(results, columns=columns)
+            df_regional.columns = map(str.lower, df_regional.columns)
+            print(f"Promociones regionales encontradas: {len(df_regional.index)}")
+        else:
+            print("La consulta peya_regional_query retorno 0 registros.")
+    except Exception as e:
+        print(f"Advertencia al consultar promociones regionales: {e}")
+    finally:
+        cursor.close()
+        pg_connection.close()
+
+    expected_cols = [
+        "barcode",
+        "sku",
+        "campaign_name",
+        "reason",
+        "start_date",
+        "end_date",
+        "promotion_type",
+        "promotion_sub_type",
+        "discount_usage_limit",
+        "bundle_details",
+        "bundle_discount",
+        "discounted_price",
+        "max_no_of_orders",
+        "campaign_status",
+        "vendors",
+        "exclude"
+    ]
+    for col in expected_cols:
+        if col not in df_regional.columns:
+            df_regional[col] = None
+
+    df_regional = df_regional[expected_cols]
+
+    buffer = io.StringIO()
+    df_regional.to_csv(buffer, header=True, index=False, encoding="utf-8")
+    buffer.seek(0)
+
+    s3_hook.load_string(
+        buffer.getvalue(),
+        key=reg_file_name,
+        bucket_name=s3_bucket,
+        replace=True,
+        encrypt=False
+    )
+    print(f"File load on S3 for regional promotions: {reg_file_name}")
+
 def _send_joined_data_to_stfp(ds):
     import os
+    import time
     import pysftp
 
     ftp_host = Variable.get("NEW_PEYA_SFTP_HOST")
@@ -444,33 +647,42 @@ def _send_joined_data_to_stfp(ds):
     ftp_rsa_key = Variable.get("NEW_PEYA_SFTP_PASSWORD")
 
     exec_date = ds.replace("-", "/")
-    prefix = f"integraciones/last_millers/promotions/out/peya/Complex/Merged/{exec_date}/"
+    base_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/Merged/{exec_date}/SMUPromotionsCombined.csv"
+    reg_file_name = f"integraciones/last_millers/promotions/out/peya/Complex/Merged/{exec_date}/SMUPromotionsCombinedReg.csv"
         
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
 
-    s3_file_list = s3_hook.list_keys(s3_bucket, prefix=prefix)
-        
-    print(f"Number of consolidated promotion files found: {len(s3_file_list)}")
-        
-    for promo_file in s3_file_list:
-        print(promo_file)
-
-        stock_object = s3_hook.get_key(promo_file, bucket_name=s3_bucket)
+    # 1. Enviar primero el archivo habitual SMUPromotionsCombined.csv
+    if s3_hook.check_for_key(base_file_name, bucket_name=s3_bucket):
+        print(f"Enviando archivo base a SFTP: {base_file_name}")
+        stock_object = s3_hook.get_key(base_file_name, bucket_name=s3_bucket)
         stock_object_body = stock_object.get()["Body"]
+        output_file = "SMUPromotionsCombined.csv"
 
-        output_promo_file = promo_file.split("/")[-1]
-        print(f"File to load to SFTP Server: {output_promo_file}")
+        with pysftp.Connection(host=ftp_host, username=ftp_user, port=ftp_port, password=ftp_rsa_key) as sftp:
+            remote_path = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/{output_file}"
+            sftp.putfo(stock_object_body, remote_path)
+        print(f"Archivo base {output_file} cargado exitosamente a SFTP Server.")
+    else:
+        print(f"No se encontró el archivo base {base_file_name} en S3.")
 
-        with pysftp.Connection(host=ftp_host, 
-                                username=ftp_user, 
-                                port=ftp_port, 
-                                password=ftp_rsa_key) as sftp:
-            localFile = stock_object_body
-            remotePath = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/{output_promo_file}"
-            sftp.putfo(localFile, remotePath)
-        
-        print("Combined file loaded successfully to SFTP.")
+    # 2. Esperar 5 minutos (300 segundos) y enviar SMUPromotionsCombinedReg.csv
+    # if s3_hook.check_for_key(reg_file_name, bucket_name=s3_bucket):
+    #     print("Esperando 5 minutos (300 segundos) antes de enviar el archivo de promociones regionales...")
+    #     time.sleep(10)
+    #
+    #     print(f"Enviando archivo regional a SFTP: {reg_file_name}")
+    #     reg_object = s3_hook.get_key(reg_file_name, bucket_name=s3_bucket)
+    #     reg_object_body = reg_object.get()["Body"]
+    #     output_reg_file = "SMUPromotionsCombinedReg.csv"
+    #
+    #     with pysftp.Connection(host=ftp_host, username=ftp_user, port=ftp_port, password=ftp_rsa_key) as sftp:
+    #         remote_path = f"/vendor-automation-sftp-storage-live-us-1/home/PY_CL_1fff4594-d35e-44ad-af7e-1f7d663d60de/promotions/{output_reg_file}"
+    #         sftp.putfo(reg_object_body, remote_path)
+    #     print(f"Archivo regional {output_reg_file} cargado exitosamente a SFTP Server.")
+    # else:
+    #     print(f"No se encontró el archivo regional {reg_file_name} en S3.")
 
     return
 
@@ -511,10 +723,14 @@ with DAG(
         python_callable = _join_promo_prices_from_s3
     )
 
+    # t_regional = PythonOperator(
+    #     task_id = "process_regional_promotions",
+    #     python_callable = _process_regional_promotions
+    # )
+
     t2 = PythonOperator(
         task_id = "send_joined_data_to_stfp",
         python_callable = _send_joined_data_to_stfp
     )
 
-    t0 >> t1
-    t1 >> t2
+    t0 >> t1 >> t2

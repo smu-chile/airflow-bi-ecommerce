@@ -61,26 +61,31 @@ def _join_promo_prices_test_from_s3(ds, ti):
           AND wp.cantidad_n < 10
           AND wp.organizacion_ventas = '1000'
           AND wp.canal_distribucion = '10'
-          AND wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
-          AND wp.nombre_promocion NOT ILIKE '%ZONA%'
-          AND wp.nombre_promocion NOT ILIKE '%MFC%'
-          AND wp.nombre_promocion NOT ILIKE '%BANCO%'
-          AND wp.nombre_promocion NOT ILIKE '%UNIPAY%'
-          AND wp.nombre_promocion NOT ILIKE '%TERCERA%'
-          AND wp.nombre_promocion NOT ILIKE '%917%'
-          AND wp.nombre_promocion NOT ILIKE '%ESTADO%'
-          AND wp.nombre_promocion NOT ILIKE '%LOC%'
-          AND wp.nombre_promocion NOT ILIKE '%HUACHALALUME%'
-          AND wp.nombre_promocion NOT ILIKE '%LOCAL%'
-          AND wp.nombre_promocion NOT ILIKE '%MEMB%'
-          AND wp.nombre_promocion NOT ILIKE '%REGIONAL%'
-          AND wp.nombre_promocion NOT ILIKE '%CYBER%'
-          AND wp.nombre_promocion NOT ILIKE '%CUMPLEANOS%'
-          AND wp.nombre_promocion NOT ILIKE '%BLACK%'
-          AND wp.nombre_promocion NOT ILIKE '%LIQ%'
-          AND wp.nombre_promocion NOT ILIKE '%REGIO%'
-          AND wp.nombre_promocion NOT ILIKE '%BCO%'
-          AND wp.nombre_promocion NOT ILIKE '%EST%'
+          AND (
+              (
+                  wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123, 124)
+                  AND wp.nombre_promocion NOT ILIKE '%ZONA%'
+                  AND wp.nombre_promocion NOT ILIKE '%MFC%'
+                  AND wp.nombre_promocion NOT ILIKE '%BANCO%'
+                  AND wp.nombre_promocion NOT ILIKE '%UNIPAY%'
+                  AND wp.nombre_promocion NOT ILIKE '%TERCERA%'
+                  AND wp.nombre_promocion NOT ILIKE '%917%'
+                  AND wp.nombre_promocion NOT ILIKE '%ESTADO%'
+                  AND wp.nombre_promocion NOT ILIKE '%LOC%'
+                  AND wp.nombre_promocion NOT ILIKE '%HUACHALALUME%'
+                  AND wp.nombre_promocion NOT ILIKE '%LOCAL%'
+                  AND wp.nombre_promocion NOT ILIKE '%MEMB%'
+                  AND wp.nombre_promocion NOT ILIKE '%REGIONAL%'
+                  AND wp.nombre_promocion NOT ILIKE '%CYBER%'
+                  AND wp.nombre_promocion NOT ILIKE '%CUMPLEANOS%'
+                  AND wp.nombre_promocion NOT ILIKE '%BLACK%'
+                  AND wp.nombre_promocion NOT ILIKE '%LIQ%'
+                  AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+                  AND wp.nombre_promocion NOT ILIKE '%BCO%'
+                  AND wp.nombre_promocion NOT ILIKE '%EST%'
+              )
+              OR wp.n_promocion::text IN ('5640792026', '5640802026', '5630492026', '5551452026')
+          )
           AND wp.n_promocion NOT IN (
               '5552392024', '1120012024', '1120022024', '1120032024', '1120042024', '1120052024',
               '1120062024', '1120082024', '1120092024', '1120102024', '1120112024', '1120122024',
@@ -236,7 +241,7 @@ with DAG(
     "proc_uber_promotions_night_send",
     default_args=default_args,
     description="Cruce de precios y precios promocionales simples para integracion Uber",
-    schedule_interval="0 0 * * *", #para que cargue a las 12:00 de la noche 
+    schedule_interval="30 0 * * *", #para que cargue a las 12:30 de la noche 
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
