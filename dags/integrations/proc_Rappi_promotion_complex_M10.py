@@ -79,7 +79,7 @@ def _join_stock_and_promo_prices_from_s3(ds, ti):
                 AND w.tipo_promocion IN (2, 7)
                 AND w.organizacion_ventas = '1000'
                 AND w.canal_distribucion = '10'
-                AND w.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124)
+                AND (w.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 93, 99, 123, 124) OR w.n_promocion::text IN ('5640792026', '5640802026', '5630492026', '5551452026'))
                 AND lspp.ean IS NOT null
                 and lspp.id_tienda = '{store_id}'
         ;

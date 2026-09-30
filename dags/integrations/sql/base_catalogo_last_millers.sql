@@ -1,9 +1,25 @@
-WITH CatalogBase AS (
+WITH ProductosDW AS (
+    SELECT DISTINCT
+        p.ean AS ean_dw,
+        CONCAT(s.sku_product, '-', 
+            CASE 
+                WHEN p.unidad_de_medida = 'ST' THEN 'UN'
+                WHEN p.unidad_de_medida = 'DIS' THEN 'DIS'
+                WHEN p.unidad_de_medida = 'CS' THEN 'CJ'
+                ELSE p.unidad_de_medida
+            END
+        ) AS ref_id
+    FROM integraciones.productos p 
+    INNER JOIN integraciones.stock s 
+        ON p.sku_key = s.sku_key 
+    WHERE p.unidad_de_medida IS NOT NULL
+),
+CatalogBase AS (
     SELECT 
         -- 1. Campos Base
         l.material AS sku,
         l.umv AS umv, 
-        s.ean_primario AS ean,
+        COALESCE(NULLIF(TRIM(pdw.ean_dw), ''), s.ean_primario) AS ean,
         l.precio_regular AS precio,
         p.nombre AS nombre,
         CASE 
@@ -28,6 +44,8 @@ WITH CatalogBase AS (
     FROM ecommdata.lista8 l
     INNER JOIN ecommdata.skus s 
         ON l.material || '-' || l.umv = s.ref_id
+    LEFT JOIN ProductosDW pdw
+        ON s.ref_id = pdw.ref_id
     INNER JOIN ecommdata.productos p 
         ON s.ref_id = p.ref_id
     LEFT JOIN ecommdata.categorias ec
