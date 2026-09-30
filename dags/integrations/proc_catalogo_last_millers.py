@@ -165,7 +165,7 @@ with DAG(
     "proc_catalogo_last_millers",
     default_args=default_args,
     description="Extracción del catálogo base de Last Millers (Postgres), enriquecimiento con peso/dimensiones (MariaDB) y carga a Postgres",
-    schedule_interval="0 6 * * *",
+    schedule_interval="0 0 * * *",
     start_date=pendulum.datetime(2023, 2, 21, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
