@@ -215,7 +215,8 @@ def productos():
 
 def get_skus_invalidos_a_apagar():
     """
-    Retorna SKUs con categorías inválidas o inactivas (ej: 'No Trabajar', 'Inactivos', 'Integración')
+    Retorna SKUs con categorías inválidas o inactivas (ej: 'No Trabajar', 'Inactivos', 'Fizzmod')
+    NOTA: 'Integración' fue removida de la lista negra — se trata como categoría activa.
     que figuran activos o con tiendas operativas asignadas directamente en Janis API.
     Si ya están desactivados en Janis (activo=False y tiendas='0486'), NO se vuelven a enviar (delta=0).
     Los bundles se excluyen porque se gestionan por su propia lógica de componentes.
@@ -719,7 +720,8 @@ def load_tables_to_s3(ts,ds):
     print(f"\nfiltro por tienda inactivas: {len(df_desactivados.index)}\n")
 
     # APAGADO ESTRICTO DE CATEGORIAS INVALIDAS:
-    # Todo producto en 'No Trabajar', 'Inactivos', 'Integración', etc. que esté activo en Janis DEBE APAGARSE.
+    # Todo producto en 'No Trabajar', 'Inactivos', 'Fizzmod', etc. que esté activo en Janis DEBE APAGARSE.
+    # NOTA: 'Integración' ya NO está en la lista negra; esos productos se activan si están en lista8.
     df_skus_invalidos = get_skus_invalidos_a_apagar()
     if not df_skus_invalidos.empty:
         print(f"🛑 SKUs con categoría no trabajar/inválida a apagar: {len(df_skus_invalidos.index)}")
