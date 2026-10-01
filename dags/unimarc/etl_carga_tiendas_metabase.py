@@ -207,6 +207,7 @@ def productos():
         SELECT DISTINCT ref_id 
         FROM ecommdata.productos_janis_api
         WHERE categoria_valida IS TRUE
+           OR nombre_categoria ILIKE '%integraci%'
     """
     results = query_to_df(productos_query)
     results.columns = ["ref_id"]
@@ -216,7 +217,7 @@ def productos():
 def get_skus_invalidos_a_apagar():
     """
     Retorna SKUs con categorías inválidas o inactivas (ej: 'No Trabajar', 'Inactivos', 'Fizzmod')
-    NOTA: 'Integración' fue removida de la lista negra — se trata como categoría activa.
+    NOTA: 'Integración' se trata como categoría activa (se excluye explícitamente de este listado).
     que figuran activos o con tiendas operativas asignadas directamente en Janis API.
     Si ya están desactivados en Janis (activo=False y tiendas='0486'), NO se vuelven a enviar (delta=0).
     Los bundles se excluyen porque se gestionan por su propia lógica de componentes.
@@ -225,6 +226,7 @@ def get_skus_invalidos_a_apagar():
         SELECT DISTINCT p.ref_id 
         FROM ecommdata.productos_janis_api p
         WHERE COALESCE(p.categoria_valida, FALSE) IS FALSE
+          AND (p.nombre_categoria IS NULL OR p.nombre_categoria NOT ILIKE '%integraci%')
           AND (p.activo IS TRUE OR (p.tiendas IS NOT NULL AND p.tiendas != '' AND p.tiendas != '0486'))
           AND p.ref_id NOT IN (SELECT sku_bundle FROM ecommdata.sku_bundles_retornables WHERE active = true)
           AND p.ref_id NOT IN (SELECT ref_id_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true)
