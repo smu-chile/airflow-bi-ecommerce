@@ -207,7 +207,7 @@ def productos():
         SELECT DISTINCT ref_id 
         FROM ecommdata.productos_janis_api
         WHERE categoria_valida IS TRUE
-           OR nombre_categoria ILIKE '%integraci%'
+           OR nombre_categoria ILIKE ANY(ARRAY['%integraci%', '%no trabajar%'])
     """
     results = query_to_df(productos_query)
     results.columns = ["ref_id"]
@@ -216,17 +216,24 @@ def productos():
 
 def get_skus_invalidos_a_apagar():
     """
-    Retorna SKUs con categorías inválidas o inactivas (ej: 'No Trabajar', 'Inactivos', 'Fizzmod')
-    NOTA: 'Integración' se trata como categoría activa (se excluye explícitamente de este listado).
-    que figuran activos o con tiendas operativas asignadas directamente en Janis API.
-    Si ya están desactivados en Janis (activo=False y tiendas='0486'), NO se vuelven a enviar (delta=0).
+    Retorna SKUs con categorías inválidas o inactivas que NO estén en lista8.
+    NOTA: 'Integración' y 'No Trabajar' se tratan como categorías válidas si están en lista8.
+    Solo productos que NO estén en lista8 a excepción de los bundles se apagan y mandan a Ciudad de los Valles (tienda '0486').
     Los bundles se excluyen porque se gestionan por su propia lógica de componentes.
     """
     query = """
         SELECT DISTINCT p.ref_id 
         FROM ecommdata.productos_janis_api p
         WHERE COALESCE(p.categoria_valida, FALSE) IS FALSE
-          AND (p.nombre_categoria IS NULL OR p.nombre_categoria NOT ILIKE '%integraci%')
+          AND (p.nombre_categoria IS NULL OR (
+              p.nombre_categoria NOT ILIKE '%integraci%'
+              AND p.nombre_categoria NOT ILIKE '%no trabajar%'
+          ))
+          AND p.ref_id NOT IN (
+              SELECT DISTINCT concat(l.material, '-', l.umv)
+              FROM ecommdata.lista8 l
+              WHERE l.id_tienda != '0486' AND l.excluido IS NOT TRUE
+          )
           AND (p.activo IS TRUE OR (p.tiendas IS NOT NULL AND p.tiendas != '' AND p.tiendas != '0486'))
           AND p.ref_id NOT IN (SELECT sku_bundle FROM ecommdata.sku_bundles_retornables WHERE active = true)
           AND p.ref_id NOT IN (SELECT ref_id_bundle FROM ecommdata.sku_bundles_dinamicos WHERE active = true)
@@ -885,13 +892,14 @@ def load_tables_to_s3(ts,ds):
             print(f"[CANDADO 0486] ⚠️ Se eliminaron {n_vacios} filas activas que quedaron sin tiendas tras el strip de 0486.")
         df_final_productos = df_final_productos[~mask_stores_vacios].reset_index(drop=True)
 
-    # CANDADO DE SEGURIDAD 2: Ningún producto con categoría inválida ('No Trabajar', etc.) puede quedar con active = 1
+    # CANDADO DE SEGURIDAD 2: Ningún producto con categoría inválida que NO esté en lista8 puede quedar con active = 1
+    # NOTA: 'Integración' y 'No Trabajar' que estén en lista8 son válidos y permanecen activos con sus tiendas.
     if not df_skus_invalidos.empty:
         skus_invalidos_set = set(df_skus_invalidos['ref_id'].dropna().unique())
         mask_invalido_activo = (df_final_productos['active'] == 1) & (df_final_productos['refId'].isin(skus_invalidos_set))
         if mask_invalido_activo.any():
             n_inv = mask_invalido_activo.sum()
-            print(f"[CANDADO NO TRABAJAR] 🚨 Corrigiendo {n_inv} productos en 'No Trabajar' que tenían active=1 -> apagando a 0486.")
+            print(f"[CANDADO CATEGORIAS INVALIDAS] 🚨 Corrigiendo {n_inv} productos con categoría inválida no en lista8 que tenían active=1 -> apagando a 0486.")
             df_final_productos.loc[mask_invalido_activo, 'active'] = 0
             df_final_productos.loc[mask_invalido_activo, 'visible'] = 0
             df_final_productos.loc[mask_invalido_activo, 'stores'] = '0486'
