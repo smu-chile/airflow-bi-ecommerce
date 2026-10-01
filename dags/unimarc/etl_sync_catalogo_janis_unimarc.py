@@ -285,7 +285,9 @@ def _transformar_catalogo_unimarc(**kwargs):
     es_valida = (
         (df["status_categoria"] == "activo")
         & (df["nombre_categoria"] != "")
-        & (~df["nombre_categoria"].str.contains("No Trabajar|Integraci|Inactiv|Fizzmod", case=False, na=False))
+        & (~df["nombre_categoria"].str.contains("No Trabajar|Inactiv|Fizzmod", case=False, na=False))
+        # NOTA: "Integración" fue removida de la lista negra intencionalmente.
+        # Los productos de esa categoría deben activarse si están en lista8 con tienda válida.
     )
     df["categoria_valida"] = es_valida
 
