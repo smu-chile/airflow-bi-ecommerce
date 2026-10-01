@@ -281,13 +281,16 @@ def _transformar_catalogo_unimarc(**kwargs):
     df["subcategoria"] = df["subcategoria"].fillna("").astype(str).str.strip()
     df["status_categoria"] = df["status_categoria"].fillna("inactivo").astype(str).str.strip()
 
-    # Precalcular categoría válida (activa y no en listas negras de catálogo)
+    # Precalcular categoría válida (activa o 'Integración', y no en listas negras de catálogo)
+    # NOTA: "Integración" figura con status='inactivo' en VTEX/categorias, pero debe tratarse como
+    # categoría válida en Janis para que los productos nuevos se activen si están en lista8 con tienda válida.
     es_valida = (
-        (df["status_categoria"] == "activo")
+        (
+            (df["status_categoria"] == "activo")
+            | (df["nombre_categoria"].str.contains("Integraci", case=False, na=False))
+        )
         & (df["nombre_categoria"] != "")
         & (~df["nombre_categoria"].str.contains("No Trabajar|Inactiv|Fizzmod", case=False, na=False))
-        # NOTA: "Integración" fue removida de la lista negra intencionalmente.
-        # Los productos de esa categoría deben activarse si están en lista8 con tienda válida.
     )
     df["categoria_valida"] = es_valida
 
