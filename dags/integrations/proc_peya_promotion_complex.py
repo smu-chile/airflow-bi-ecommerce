@@ -61,13 +61,13 @@ def _join_promo_prices_from_s3(ds, ti):
                         s.ref_id AS sku,
                         CONCAT('PromocionesNXM_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, '')) AS campaign_name,
                         'Promociones Complejas NXM' AS reason,
-                        concat(current_date ,' 09:00:00') AS start_date,
+                        concat(current_Date ,' 00:01:00') AS start_date,
                         concat(
                             CASE 
                                 WHEN wp.fecha_fin_de_promocion::date = CURRENT_DATE THEN wp.fecha_fin_de_promocion::date + 1
                                 ELSE wp.fecha_fin_de_promocion::date
                             END, 
-                            ' 09:00:00'
+                            ' 00:01:00'
                         ) AS end_date,
                         1 AS campaign_status,
                         'same_item_bundle' AS promotion_type,
@@ -89,8 +89,8 @@ def _join_promo_prices_from_s3(ds, ti):
                     LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                     LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                     LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
-                    WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
-                      AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
+                    WHERE wp.fecha_inicio_de_promocion <= current_Date 
+                      AND wp.fecha_fin_de_promocion >= current_Date 
                       AND lspp.id_tienda = '{store_id}'
                       AND wp.tipo_promocion IN (2, 7)
                       AND Wp.cantidad_n = '{n}'
@@ -163,13 +163,13 @@ def _join_promo_prices_from_s3(ds, ti):
                     s.ref_id AS sku,
                     CONCAT('PromocionesNXS_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, '')) AS campaign_name,
                     'Promociones Complejas NX$' AS reason,
-                    concat(current_date ,' 09:00:00') AS start_date,
+                    concat(current_Date ,' 00:01:00') AS start_date,
                     concat(
                         CASE 
                             WHEN wp.fecha_fin_de_promocion::date = CURRENT_DATE THEN wp.fecha_fin_de_promocion::date + 1
                             ELSE wp.fecha_fin_de_promocion::date
                         END, 
-                        ' 09:00:00'
+                        ' 00:01:00'
                     ) AS end_date,
                     1 AS campaign_status,
                     'same_item_bundle' AS promotion_type,
@@ -199,8 +199,8 @@ def _join_promo_prices_from_s3(ds, ti):
                 LEFT JOIN ecommdata.lista8 l ON l.material = lspp.material AND l.umv = lspp.unidad_de_medida AND l.id_tienda = lspp.id_tienda
                 LEFT JOIN ecommdata.productos p ON s.ref_id = p.ref_id
                 LEFT JOIN ecommdata.categorias ec ON p.id_categoria = ec.id
-                WHERE wp.fecha_inicio_de_promocion <= CURRENT_DATE 
-                AND wp.fecha_fin_de_promocion >= CURRENT_DATE 
+                WHERE wp.fecha_inicio_de_promocion <= current_Date 
+                AND wp.fecha_fin_de_promocion >= current_Date 
                 AND wp.tipo_promocion IN (2, 7)
                 AND lspp.id_tienda = '{store_id}'
                 AND Wp.cantidad_n = '{n}'  -- Número de la iteración actual
@@ -267,13 +267,13 @@ def _join_promo_prices_from_s3(ds, ti):
                     s.ref_id AS sku,
                     CONCAT('Promociones_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, '')) AS campaign_name,
                     'Promociones Simples' AS reason,
-                    concat(current_date ,' 09:00:00') AS start_date,
+                    concat(current_Date ,' 00:01:00') AS start_date,
                     concat(
                         CASE 
                             WHEN wp.fecha_fin_de_promocion::date = CURRENT_DATE THEN wp.fecha_fin_de_promocion::date + 1
                             ELSE wp.fecha_fin_de_promocion::date
                         END, 
-                        ' 09:00:00'
+                        ' 00:01:00'
                     ) AS end_date,
                     ROUND(lspp.precio_promocional) AS discounted_price,
                     999 AS max_no_of_orders,
@@ -296,8 +296,8 @@ def _join_promo_prices_from_s3(ds, ti):
                 AND lspp.id_tienda = '{store_id}'
                 AND l.excluido IS NOT TRUE
                 AND (ec.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR ec.n1 IS NULL)
-                AND wp.fecha_inicio_de_promocion <= CURRENT_DATE 
-                AND wp.fecha_fin_de_promocion >= CURRENT_DATE
+                AND wp.fecha_inicio_de_promocion <= current_Date 
+                AND wp.fecha_fin_de_promocion >= current_Date
                 AND wp.tipo_promocion IN (1, 4)
                 AND wp.registro_valido = TRUE
                 AND wp.organizacion_ventas = '1000'
@@ -358,6 +358,10 @@ def _join_promo_prices_from_s3(ds, ti):
 
     if all_dfs:
         merged_df = pd.concat(all_dfs, ignore_index=True)
+
+        # Excluir cualquier registro donde bundle_discount sea mayor a 99%
+        bundle_disc_numeric = pd.to_numeric(merged_df["bundle_discount"], errors="coerce")
+        merged_df = merged_df[bundle_disc_numeric.isna() | (bundle_disc_numeric <= 99)]
 
         def calculate_effective_unit_price(row):
             promo_type = str(row.get("promotion_type", ""))
@@ -492,13 +496,13 @@ def _process_regional_promotions(ds):
                     CONCAT('Promociones_', wp.n_promocion, '_', COALESCE(wp.nombre_promocion, ''))
             END AS campaign_name,
             'Promocion Regional' AS reason,
-            CONCAT(CURRENT_DATE, ' 09:00:00') AS start_date,
+            CONCAT(CURRENT_DATE, ' 00:01:00') AS start_date,
             CONCAT(
                 CASE 
                     WHEN wp.fecha_fin_de_promocion::date = (CURRENT_DATE) THEN wp.fecha_fin_de_promocion::date + 1
                     ELSE wp.fecha_fin_de_promocion::date
                 END, 
-                ' 09:00:00'
+                ' 00:01:00'
             ) AS end_date,
             1 AS campaign_status,
             CASE 
