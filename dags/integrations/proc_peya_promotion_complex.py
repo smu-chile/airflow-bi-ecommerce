@@ -382,7 +382,7 @@ def _join_promo_prices_from_s3(ds, ti):
                     pass
                 return reg_price if reg_price > 0 else 9999999.0
 
-            # 2. Promoción Compleja Nx$ (percentage_value_off)
+            # 2. Promoción Compleja Nx$ (percentage_value_off) Ajuste 
             elif promo_type == "same_item_bundle" and sub_type == "percentage_value_off":
                 try:
                     tot_promo = float(row.get("total_promo_price") or 0)
@@ -405,7 +405,7 @@ def _join_promo_prices_from_s3(ds, ti):
             return reg_price if reg_price > 0 else 9999999.0
 
         merged_df["unit_effective_price"] = merged_df.apply(calculate_effective_unit_price, axis=1)
-
+        #Para merged
         # Ordenar por SKU y por menor precio unitario efectivo (el más barato primero)
         merged_df.sort_values(by=["sku", "unit_effective_price"], ascending=[True, True], inplace=True)
 
