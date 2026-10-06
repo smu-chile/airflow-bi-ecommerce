@@ -348,7 +348,182 @@ def _vtex_get_stock_retries(ti, ts):
     if len(exception_cases) > 0:
         raise Exception(f'{len(exception_cases)} exception cases found during retry.')
     
-    _load_final_responses_to_postgres(final_responses, ts, 'retries_stock_vtex')
+def _save_stock_final_batched(ds, ts, **kwargs):
+    import time
+
+    print(f"Iniciando carga dosificada y parcializada de stock final. Fecha: {ds}, TS: {ts}")
+
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    conn = pg_hook.get_conn()
+    conn.autocommit = False
+    cursor = conn.cursor()
+
+    try:
+        # Configurar límites estrictos de memoria para no competir con el resto del RDS
+        cursor.execute("SET work_mem = '32MB';")
+        cursor.execute("SET max_parallel_workers_per_gather = 0;")
+
+        # 1. Obtener lista de tiendas activas con inventario en staging
+        query_tiendas = """
+        SELECT DISTINCT t.id
+        FROM staging.stock_vtex_unimarc svu
+        JOIN ecommdata.bodegas b ON svu.id_warehouse = b.id AND b.dock_activo IS TRUE
+        JOIN ecommdata.tiendas t ON b.id_tienda = t.id AND t.status = 1
+        WHERE NOT (
+            (t.id = '0018' AND b.id = '9051') OR
+            (t.id = '0069' AND b.id = '0576') OR
+            (t.id = '0088' AND b.id = '0324')
+        )
+        ORDER BY t.id;
+        """
+        cursor.execute(query_tiendas)
+        tiendas = [row[0] for row in cursor.fetchall()]
+        total_tiendas = len(tiendas)
+        print(f"Total de tiendas a procesar tienda por tienda: {total_tiendas}")
+
+        if total_tiendas == 0:
+            print("No se encontraron tiendas activas para procesar.")
+            return
+
+        delete_query = """
+        DELETE FROM ecommdata.stock
+        WHERE fecha = %(ds)s::date
+          AND id_tienda = %(id_tienda)s;
+        """
+
+        insert_query = """
+        INSERT INTO ecommdata.stock (
+            fecha,
+            id_tienda,
+            glosa_tienda,
+            id_bodega,
+            nombre_bodega,
+            ref_id,
+            material,
+            descripcion,
+            c1,
+            c2,
+            c3,
+            multiplicador_unidad_medida,
+            unidades_pack,
+            stock_janis,
+            stock_seguridad_janis,
+            stock_infinito_janis,
+            tipo_operacion_janis,
+            stock_vtex,
+            stock_reservado_vtex,
+            stock_disponible_vtex,
+            stock_infinito_vtex,
+            fecha_publicacion_janis,
+            fecha_modificacion_janis,
+            ultima_actualizacion,
+            surtido_ecommerce,
+            infaltable
+        )
+        SELECT 
+            %(ds)s::date as fecha,
+            t.id as id_tienda,
+            t.glosa as glosa_tienda,
+            b.id as id_bodega,
+            b.nombre as nombre_bodega,
+            s.ref_id,
+            p.material,
+            s.nombre_sku as descripcion,
+            c.n1 as c1,
+            c.n2 as c2,
+            c.n3 as c3,
+            s.multiplicador_unidad_medida,
+            s.unidades_pack,
+            su.stock as stock_janis,
+            su.min_stock as stock_seguridad_janis,
+            su.infinite_stock::int::bool as stock_infinito_janis,
+            su.operation_type as tipo_operacion_janis,
+            svu.cantidad_total as stock_vtex,
+            svu.cantidad_reservada as stock_reservado_vtex,
+            (svu.cantidad_total - svu.cantidad_reservada) as stock_disponible_vtex,
+            svu.cantidad_ilimitada as stock_infinito_vtex,
+            su.date_published as fecha_publicacion_janis,
+            su.date_modified as fecha_modificacion_janis,
+            %(ts)s::timestamptz at time zone 'America/Santiago' + interval '4 hours' as ultima_actualizacion,
+            (sa.ref_id IS NOT NULL) as surtido_ecommerce,
+            (li.material IS NOT NULL) as infaltable
+        FROM staging.stock_vtex_unimarc svu
+        JOIN ecommdata.bodegas b 
+          ON svu.id_warehouse = b.id 
+         AND b.dock_activo IS TRUE
+        JOIN ecommdata.tiendas t 
+          ON b.id_tienda = t.id 
+         AND t.status = 1
+        LEFT JOIN ecommdata.skus s 
+          ON svu.vtex_id = s.vtex_id
+        LEFT JOIN staging.stock_unimarc su 
+          ON s.id = su.item_id 
+         AND t.id_janis = su.store_id 
+         AND b.id_janis = su.warehouse_id
+        LEFT JOIN ecommdata.productos p 
+          ON s.ref_id = p.ref_id
+        LEFT JOIN ecommdata.categorias c 
+          ON p.id_categoria = c.id
+        LEFT JOIN staging.surtido_activo_unimarc sa 
+          ON sa.id_tienda = t.id 
+         AND sa.ref_id = s.ref_id
+        LEFT JOIN ecommdata.lista_infaltables li 
+          ON p.material = li.material
+        WHERE t.id = %(id_tienda)s
+          AND NOT (
+            (t.id = '0018' AND b.id = '9051') OR
+            (t.id = '0069' AND b.id = '0576') OR
+            (t.id = '0088' AND b.id = '0324')
+        );
+        """
+
+        total_inserted = 0
+        failed_tiendas = []
+        start_time_total = time.time()
+
+        for idx, tienda_id in enumerate(tiendas, 1):
+            t_start = time.time()
+            max_retries = 2
+            success = False
+
+            for attempt in range(1, max_retries + 1):
+                try:
+                    params = {
+                        "ds": ds,
+                        "ts": ts,
+                        "id_tienda": tienda_id
+                    }
+                    cursor.execute(delete_query, params)
+                    cursor.execute(insert_query, params)
+                    inserted_rows = cursor.rowcount
+                    conn.commit()
+                    total_inserted += inserted_rows
+                    t_elapsed = time.time() - t_start
+                    print(f"[{idx}/{total_tiendas}] Tienda {tienda_id}: {inserted_rows} filas insertadas ({t_elapsed:.2f}s)")
+                    success = True
+                    break
+                except Exception as e:
+                    conn.rollback()
+                    print(f"Intento {attempt}/{max_retries} fallido para tienda {tienda_id}: {e}")
+                    if attempt < max_retries:
+                        time.sleep(1)
+
+            if not success:
+                failed_tiendas.append(tienda_id)
+                print(f"ERROR: No se pudo procesar tienda {tienda_id} tras {max_retries} intentos.")
+
+            # Throttling dosificado: 50ms de pausa entre tiendas para dar respiro al CPU y conexiones de Postgres
+            time.sleep(0.05)
+
+        total_time = time.time() - start_time_total
+        print(f"Proceso finalizado en {total_time:.1f}s. Total filas insertadas: {total_inserted}")
+
+        if failed_tiendas:
+            raise Exception(f"Carga incompleta. Fallaron {len(failed_tiendas)} tiendas: {failed_tiendas}")
+
+    finally:
+        cursor.close()
+        conn.close()
 
 
 default_args = {
@@ -413,10 +588,15 @@ with DAG(
         python_callable = _vtex_get_stock_retries
     )
 
-    t6 = PostgresOperator(
-        task_id = "save_stock_final",
+    t_prepare_surtido = PostgresOperator(
+        task_id = "prepare_surtido_staging",
         postgres_conn_id = "postgresql_conn",
-        sql = "sql/stock_final.sql"
+        sql = "sql/prepare_surtido_activo.sql"
+    )
+
+    t6 = PythonOperator(
+        task_id = "save_stock_final",
+        python_callable = _save_stock_final_batched,
     )
 
     t7 = PostgresOperator(
@@ -429,4 +609,5 @@ with DAG(
 
 
 [t0, t2] >> t3
-[t1, t3] >> t4 >> t5 >> t6 >> t7
+[t1, t3] >> t4 >> t5 >> t_prepare_surtido >> t6 >> t7
+
