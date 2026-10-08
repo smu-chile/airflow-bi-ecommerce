@@ -41,7 +41,8 @@ def _stopper_lista8(ts):
     query = """
         select count(1) as tiendas_activas
         from ecommdata.tiendas t
-        where t.status = 1;
+        where t.status = 1
+        and t.id != '0486';  -- Tienda basurero: excluida del conteo (no genera CSV)
     """
 
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
@@ -74,9 +75,9 @@ def _yesterday_stopper_lista8(ts):
     query = """
         select count(1) as tiendas_activas
         from ecommdata.tiendas t
-        where t.status = 1;
+        where t.status = 1
+        and t.id != '0486';  -- Tienda basurero: excluida del conteo (no genera CSV)
     """
-
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()

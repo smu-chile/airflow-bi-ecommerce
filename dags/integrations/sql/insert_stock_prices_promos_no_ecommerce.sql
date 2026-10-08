@@ -44,7 +44,11 @@ from (
 		, p.cont_conv_umb as multiplicador_unidad
 		, p.nm as nombre
 		, p.brand_desc as trademark
-		, case when p.unidad_de_medida = 'ST' then 'UN' else p.unidad_de_medida end as unidad_de_medida   
+		, case 
+			when upper(trim(p.unidad_de_medida)) in ('ST', 'UN') then 'UN'
+			when upper(trim(p.unidad_de_medida)) in ('CS', 'CJ', 'CJA') then 'CJ'
+			else upper(trim(p.unidad_de_medida)) 
+		  end as unidad_de_medida   
 	from integraciones.stock s 
 	left join integraciones.productos p 
 		on p.sku_key = s.sku_key 
@@ -73,25 +77,32 @@ left join (
     and wp.registro_valido = True
     and wp.organizacion_ventas = '1000'
     and wp.canal_distribucion = '10'
-	and wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123,124)
-	and wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
-	AND wp.nombre_promocion::text !~~ '%ZONA%'::text
-	AND wp.nombre_promocion::text !~~ '%MFC%'::text
-	AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
-	AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
-	AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
-	AND wp.nombre_promocion::text !~~ '%917%'::text
-	AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
-	AND wp.nombre_promocion::text !~~ '%LOC%'::text
-	AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
-	AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
-	AND wp.nombre_promocion::text !~~ '%MEMB%'::text
-	AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
-	AND wp.nombre_promocion::text !~~ '%CYBER%'::text
-	AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
-	AND wp.nombre_promocion::text !~~ '%BLACK%'::text
-	AND wp.nombre_promocion::text !~~ '%LIQ%'::text
-	AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+	AND (
+		(
+			wp.id_mecanica NOT IN (25, 27, 36, 37, 50, 51, 53, 67, 72, 77, 84, 93, 99, 123,124)
+			AND wp.nombre_promocion::text !~ 'L(0[0-9]{2}|[1-9][0-9]{0,2})'
+			AND wp.nombre_promocion::text !~~ '%ZONA%'::text
+			AND wp.nombre_promocion::text !~~ '%MFC%'::text
+			AND wp.nombre_promocion::text !~~ '%BANCO%'::text 
+			AND wp.nombre_promocion::text !~~ '%UNIPAY%'::text
+			AND wp.nombre_promocion::text !~~ '%TERCERA%'::text 
+			AND wp.nombre_promocion::text !~~ '%917%'::text
+			AND wp.nombre_promocion::text !~~ '%ESTADO%'::text
+			AND wp.nombre_promocion::text !~~ '%LOC%'::text
+			AND wp.nombre_promocion::text !~~ '%HUACHALALUME%'::text
+			AND wp.nombre_promocion::text !~~ '%LOCAL%'::text
+			AND wp.nombre_promocion::text !~~ '%MEMB%'::text
+			AND wp.nombre_promocion::text !~~ '%REGIONAL%'::text
+			AND wp.nombre_promocion::text !~~ '%CYBER%'::text
+			AND wp.nombre_promocion::text !~~ '%CUMPLEANOS%'::text
+			AND wp.nombre_promocion::text !~~ '%BLACK%'::text
+			AND wp.nombre_promocion::text !~~ '%LIQ%'::text
+			AND wp.nombre_promocion NOT ILIKE '%REGIO%'
+			AND wp.nombre_promocion NOT ILIKE '%BCO%'
+			AND wp.nombre_promocion NOT ILIKE '%EST%'
+		)
+		OR wp.n_promocion::text IN ('5640792026', '5640802026', '5630492026', '5551452026')
+	)
 	and wp.n_promocion  not in  ('5720882025','5640502024','5552392024','1120012024',
 '1120022024',
 '1120032024',
@@ -106,7 +117,7 @@ left join (
 '4000512024','5552792024','5552852024'
 ,'4000662024','4000942024','4000962024','4000972024','4000952024','1120012025','1120022025','1120032025','1120042025',
 '5770232025','1120162025','1120062025','1120092025','1120212025','5551272026','5552152024','4040162024','4060322024','5553242024','4000952026',
-'4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025')
+'4000182025','4000602026','4000652026','1120232025','5510102026','1020032026','1120272025','1020052026')
     group by wp.ean
 ) _t3
 on _t.ean = _t3.ean

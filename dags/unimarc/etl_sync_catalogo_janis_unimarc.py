@@ -161,24 +161,43 @@ def _extraer_catalogo_janis_api(**kwargs):
                 cant_tiendas = len(stores_list)
                 tiendas_str = ",".join(stores_list)
 
-                for item in items:
-                    sku_ref_id = item.get("IdSku")
-                    sku_active = item.get("IsActive", False)
-                    is_active = bool(product_active and sku_active and cant_tiendas > 0)
-
-                    if sku_ref_id:
+                if not items or len(items) == 0:
+                    # Producto huérfano: No tiene SKUs relacionados en Janis
+                    product_id = prod.get("IdProduct")
+                    if product_id:
                         products_extracted.append(
                             {
-                                "ref_id": sku_ref_id,
+                                "ref_id": str(product_id).strip(),
                                 "nombre_producto": product_name,
                                 "descripcion": product_description,
-                                "activo": is_active,
+                                "activo": bool(product_active and cant_tiendas > 0),
                                 "show_without_stock": bool(show_without_stock),
                                 "id_categoria": product_category,
                                 "cant_tiendas": cant_tiendas,
                                 "tiendas": tiendas_str,
+                                "es_huerfano": True,
                             }
                         )
+                else:
+                    for item in items:
+                        sku_ref_id = item.get("IdSku")
+                        sku_active = item.get("IsActive", False)
+                        is_active = bool(product_active and sku_active and cant_tiendas > 0)
+
+                        if sku_ref_id:
+                            products_extracted.append(
+                                {
+                                    "ref_id": sku_ref_id,
+                                    "nombre_producto": product_name,
+                                    "descripcion": product_description,
+                                    "activo": is_active,
+                                    "show_without_stock": bool(show_without_stock),
+                                    "id_categoria": product_category,
+                                    "cant_tiendas": cant_tiendas,
+                                    "tiendas": tiendas_str,
+                                    "es_huerfano": False,
+                                }
+                            )
 
         page += batch_size
         if not stop_fetching:
@@ -237,25 +256,66 @@ def _transformar_catalogo_unimarc(**kwargs):
     df["id_categoria"] = df["id_categoria"].fillna("").astype(str).str.strip()
     df["cant_tiendas"] = df["cant_tiendas"].fillna(0).astype(int)
     df["tiendas"] = df["tiendas"].fillna("").astype(str)
+    df["es_huerfano"] = df["es_huerfano"].fillna(False).astype(bool)
 
-    # 2. Deduplicación por SKU (1 fila por producto/SKU)
+    # 2. Enriquecer con categorías de Postgres (899 categorías, cruce en <0.05 seg)
+    try:
+        from airflow.providers.postgres.hooks.postgres import PostgresHook
+        pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+        df_cat = pg_hook.get_pandas_df("""
+            SELECT 
+                id::text AS id_categoria,
+                n1 AS nombre_categoria,
+                n2 AS subcategoria,
+                status AS status_categoria
+            FROM ecommdata.categorias
+        """)
+        df = df.merge(df_cat, on="id_categoria", how="left")
+    except Exception as e:
+        print(f"⚠️ Advertencia al cruzar categorías con Postgres: {e}")
+        df["nombre_categoria"] = ""
+        df["subcategoria"] = ""
+        df["status_categoria"] = "inactivo"
+
+    df["nombre_categoria"] = df["nombre_categoria"].fillna("").astype(str).str.strip()
+    df["subcategoria"] = df["subcategoria"].fillna("").astype(str).str.strip()
+    df["status_categoria"] = df["status_categoria"].fillna("inactivo").astype(str).str.strip()
+
+    # Precalcular categoría válida (activa, o 'Integración'/'No Trabajar', y no en listas negras de catálogo)
+    # NOTA: "Integración" y "No Trabajar" figuran como inactivas en VTEX/categorias, pero deben tratarse
+    # como categorías válidas en Janis para que los productos que estén en lista8 con tienda válida se activen.
+    es_valida = (
+        (
+            (df["status_categoria"] == "activo")
+            | (df["nombre_categoria"].str.contains("Integraci|No Trabajar", case=False, na=False))
+        )
+        & (df["nombre_categoria"] != "")
+        & (~df["nombre_categoria"].str.contains("Inactiv|Fizzmod", case=False, na=False))
+    )
+    df["categoria_valida"] = es_valida
+
+    # 3. Deduplicación por SKU/Producto (1 fila por registro)
     df_unique = df.drop_duplicates(subset=["ref_id"], keep="first")
     total_unique = len(df_unique)
 
     # Métricas de catálogo
     total_activos = (df_unique["activo"] == True).sum()
     total_inactivos = (df_unique["activo"] == False).sum()
+    total_huerfanos = (df_unique["es_huerfano"] == True).sum()
+    total_cat_validas = (df_unique["categoria_valida"] == True).sum()
     con_tiendas = (df_unique["cant_tiendas"] > 0).sum()
     sin_tiendas = (df_unique["cant_tiendas"] == 0).sum()
 
     print(f"\n==================================================")
     print(f"📊 RESUMEN TRANSFORMACIÓN CATÁLOGO UNIMARC:")
     print(f"  - Total registros procesados: {total_raw}")
-    print(f"  - Total SKUs únicos: {total_unique}")
-    print(f"  - SKUs activos: {total_activos}")
-    print(f"  - SKUs inactivos: {total_inactivos}")
-    print(f"  - SKUs con tiendas asignadas: {con_tiendas}")
-    print(f"  - SKUs sin tiendas (huérfanos): {sin_tiendas}")
+    print(f"  - Total SKUs/Productos únicos: {total_unique}")
+    print(f"  - Activos: {total_activos}")
+    print(f"  - Inactivos: {total_inactivos}")
+    print(f"  - Productos huérfanos (sin SKU): {total_huerfanos}")
+    print(f"  - Con categoría válida/activa: {total_cat_validas}")
+    print(f"  - Con tiendas asignadas: {con_tiendas}")
+    print(f"  - Sin tiendas: {sin_tiendas}")
     print(f"==================================================\n")
 
     # Guardar transformado en S3
@@ -314,12 +374,24 @@ def _cargar_postgres_productos_janis(**kwargs):
             activo BOOLEAN,
             show_without_stock BOOLEAN,
             id_categoria TEXT,
+            nombre_categoria TEXT,
+            subcategoria TEXT,
+            status_categoria TEXT,
+            categoria_valida BOOLEAN DEFAULT FALSE,
             cant_tiendas INT,
-            tiendas TEXT
+            tiendas TEXT,
+            es_huerfano BOOLEAN DEFAULT FALSE
         );
         ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS id_categoria TEXT;
+        ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS nombre_categoria TEXT;
+        ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS subcategoria TEXT;
+        ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS status_categoria TEXT;
+        ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS categoria_valida BOOLEAN DEFAULT FALSE;
         ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS cant_tiendas INT;
         ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS tiendas TEXT;
+        ALTER TABLE ecommdata.productos_janis_api ADD COLUMN IF NOT EXISTS es_huerfano BOOLEAN DEFAULT FALSE;
+        CREATE INDEX IF NOT EXISTS idx_prod_janis_ref_id ON ecommdata.productos_janis_api(ref_id);
+        CREATE INDEX IF NOT EXISTS idx_prod_janis_cat_valida ON ecommdata.productos_janis_api(categoria_valida);
     """
 
     print("Preparando buffer en memoria para COPY atómico...")

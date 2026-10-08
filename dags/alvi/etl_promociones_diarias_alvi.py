@@ -102,6 +102,16 @@ def truncate_and_load_postgres(ti):
     print("Data loaded to Postgres: ecommdata_alvi.promociones_diarias")
     return
 
+def deduplicate_promotions(df):
+    import pandas as pd
+    is_pesable = df['ref_id'].astype(str).str.upper().str.endswith(('-KG', '-KGV'))
+    df_pesables = df[is_pesable].sort_values(
+        by=['precio_promocional', 'fecha_fin_de_promocion'],
+        ascending=[True, True]
+    ).drop_duplicates(subset='ref_id', keep='first')
+    df_non_pesables = df[~is_pesable].sort_values(by='precio_promocional_2').drop_duplicates(subset='ref_id', keep='first')
+    return pd.concat([df_pesables, df_non_pesables], ignore_index=True)
+
 def create_list_price(ti):
     import json
     import pandas as pd
@@ -123,9 +133,7 @@ def create_list_price(ti):
     df['nombre_promocion'] = df['nombre_promocion'].apply(lambda x: x.strip(
     ).replace(' ', '').replace('.', '').replace('+', '').replace('-', '').replace(',', ''))
 
-    df_vtex = df
-    df_vtex = df_vtex.sort_values(by='precio_promocional_2')
-    df_vtex = df_vtex.drop_duplicates(subset='ref_id', keep='first')
+    df_vtex = deduplicate_promotions(df)
 
     if len(df_vtex.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
@@ -380,8 +388,7 @@ def load_json_to_publisher(ti):
 
     df = pd.read_csv(s_promotion_object.get()["Body"])
 
-    df = df.sort_values(by='precio_promocional_2')
-    df = df.drop_duplicates(subset='ref_id', keep='first')
+    df = deduplicate_promotions(df)
 
     if len(df.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")
@@ -426,6 +433,14 @@ def load_json_to_publisher(ti):
     df['secondPromotionalPrice'] = df['secondPromotionalPrice'].apply(lambda x: None if x == 0 else x)
     df['secondMinQuantity'] = df['secondMinQuantity'].apply(lambda x: None if x == 0 else x)
 
+    # Para productos pesables (KG o KGV) con una sola escala (secondPromotionalPrice nulo),
+    # se envia el precio de esa escala en modalPrice
+    pesable_single_scale_mask = (
+        df['refId'].astype(str).str.upper().str.endswith(('-KG', '-KGV')) &
+        df['secondPromotionalPrice'].isna()
+    )
+    df.loc[pesable_single_scale_mask, 'modalPrice'] = df.loc[pesable_single_scale_mask, 'firstPromotionalPrice']
+
     main_cols = ['promotionType'] + list(column_mapping.values()) + ['local', 'isRemoved']
     df = df[main_cols]
     result = df.to_json(orient="records")
@@ -466,9 +481,7 @@ def load_prices_to_postgres(ti):
     df['nombre_promocion'] = df['nombre_promocion'].apply(lambda x: x.strip(
     ).replace(' ', '').replace('.', '').replace('+', '').replace('-', '').replace(',', ''))
 
-    df_vtex = df
-    df_vtex = df_vtex.sort_values(by='precio_promocional_2')
-    df_vtex = df_vtex.drop_duplicates(subset='ref_id', keep='first')
+    df_vtex = deduplicate_promotions(df)
 
     if len(df_vtex.index) == 0:
         print("There are no new nor updated records to load. Task will exit as successfull.")

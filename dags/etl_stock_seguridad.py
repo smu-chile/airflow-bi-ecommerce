@@ -45,13 +45,14 @@ def stock(ds):
                             left join ecommdata.tiendas t on t.id = pt.id_tienda 
                             where pt.id_tienda not in ('9212', '1917')
                             and t.status = 1
+                            and t.id != '0486'  -- Tienda basurero: excluida explícitamente
                             union
                             select distinct
                             "refId" as ref_id,
                             unnest(string_to_array(stores, ',')) AS id_tienda
                             from ecommdata.carga_productos cp) as c
                             left join ecommdata.skus s on c.ref_id = s.ref_id
-                            where c.id_tienda not in ('9212', '1917');
+                            where c.id_tienda not in ('9212', '1917', '0486');  -- 0486: tienda basurero
                             """
     results = query_to_df(stock_tiendas_query)
     results = results[["ref_id","id_tienda","erp_id"]]
@@ -89,8 +90,9 @@ def minimos_exhibicion():
                 left join ecommdata.lista8 l 
                 on l.material = meio.material and l.umv = meio.umv and l.id_tienda = meio.id_tienda 
                 where t.status = 1
+                and t.id != '0486'  -- Tienda basurero: excluida explícitamente
                 and l.material  is not null
-                and l.id_tienda <> '1917'
+                and l.id_tienda not in ('1917', '0486')  -- 0486: tienda basurero
                 and l.id_tienda  is not null
                 and l.umv  is not null
                 and t.id is not null

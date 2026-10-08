@@ -21,7 +21,7 @@ WITH venta_neta AS (
 	    ecommdata.ordenes_janis oj ON oj.id = op.id_orden
 	WHERE
 	    op.unidades_pickeadas IS NOT NULL
-	    AND oj.fecha_facturacion >= '{ds}'::date - interval '7 day'
+	    AND oj.fecha_facturacion >= '2026-07-28'
 	GROUP BY
 	    oj.fecha_facturacion
 ),
@@ -44,7 +44,7 @@ sustituciones AS (
   WHERE
     original.unidades_solicitadas > 0
     AND (substitute.precio_lista * substitute.unidades_pickeadas) > (original.precio_lista * original.unidades_solicitadas)
-    AND oj.fecha_facturacion >= '{ds}'::date - interval '7 day'
+    AND oj.fecha_facturacion >= '2026-07-28'
     AND split_part(original.ref_id, '-', 2) NOT ILIKE '%KG%'
     AND split_part(substitute.ref_id, '-', 2) NOT ILIKE '%KG%'
   GROUP BY
@@ -143,7 +143,9 @@ SELECT
                             '6d89c126-19e1-4f4e-9f5c-a2a4ef85a8ba',
                             '74806be4-f768-4ee0-9ab6-3722153ae8e5',
                             '0deddb4c-e547-4e16-a57b-d8594852bd4b',
-                            'f7f3930e-387c-4e25-bbf6-74a204e1a1ec') THEN opp.valor
+                            'f7f3930e-387c-4e25-bbf6-74a204e1a1ec',
+                            '5de1be59-b8f8-4ef5-8d3c-6ceb5ff959ca',
+                            '997b7296-f925-4a86-8f88-4bd2272614d5') THEN opp.valor
         ELSE 0 
     END)::int AS descuento_cupones_crm,
     SUM(CASE 
@@ -205,6 +207,8 @@ SELECT
                            '74806be4-f768-4ee0-9ab6-3722153ae8e5',
                            '0deddb4c-e547-4e16-a57b-d8594852bd4b',
                            'f7f3930e-387c-4e25-bbf6-74a204e1a1ec',
+                           '5de1be59-b8f8-4ef5-8d3c-6ceb5ff959ca',
+                           '997b7296-f925-4a86-8f88-4bd2272614d5',
                            -- Viejas Promociones
                            '57886947-d010-4472-99d2-2eab8b45a23c',
                            '4bf15f33-19e9-449c-a319-108b8917216f',
@@ -241,7 +245,7 @@ left join ecommdata.workflow_promociones wp on op.ref_id = ((wp.material::text |
             ELSE wp.umv
         END::text) and oppe.valor = wp.n_promocion::text
 WHERE opp.nombre not ilike '%despacho%'
-    AND oj.fecha_facturacion >= '{ds}'::date - interval '7 day'
+    AND oj.fecha_facturacion >= '2026-07-28'
 GROUP BY 
     oj.fecha_facturacion, sustituciones.perdida_sustitucion, venta_neta.venta_total_neta_sin_descuentos, venta_neta.venta_total_neta
 ORDER BY 

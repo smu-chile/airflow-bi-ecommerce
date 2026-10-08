@@ -45,57 +45,23 @@ def _join_Catalog_from_s3(ds, ti):
 
     
 
-    uber_catalog_query = f"""
-    WITH RankedUberCatalog AS (
+    uber_catalog_query = """
     SELECT
-        l.material AS SKU,
-        s.unidad_de_venta AS Unidad_de_unidad_venta,
-        s.ean_primario::varchar AS "código de barras",
-        p.nombre AS descripcion,
-        m.nombre AS Marca,
-        CASE 
-            WHEN img.imagen IS NOT NULL AND img.imagen <> '' 
-                THEN CONCAT('https://unimarc.vteximg.com.br', img.imagen)
-            ELSE NULL
-        END AS main_image_url,
-        c.n2 AS Category_level_1,
-        c.n3 AS Category_level_2,
-        ROW_NUMBER() OVER (
-            PARTITION BY s.ref_id 
-            ORDER BY s.ref_id ASC
-        ) AS rn
-    FROM ecommdata.lista8 l
-    INNER JOIN ecommdata.skus s
-        ON l.material || '-' || l.umv = s.ref_id
-    INNER JOIN ecommdata.productos p
-        ON s.ref_id = p.ref_id
-    LEFT JOIN ecommdata.marcas m
-        ON m.id = p.id_marca
-    LEFT JOIN ecommdata.categorias c
-        ON p.id_categoria = c.id
-    LEFT JOIN ecommdata.imagenes_sku img
-        ON img.ref_id = s.ref_id
-        AND img.orden = 1
-    WHERE l.excluido IS NOT TRUE
-      AND (c.n1 NOT IN ('No Trabajar', 'Inactivos', 'Integración') OR c.n1 IS NULL)
-      AND c.n2 IS NOT NULL
-      AND c.n3 IS NOT NULL
-      AND s.ean_primario IS NOT NULL
-      AND img.imagen IS NOT NULL
-)
-SELECT
-    SKU,
-    Unidad_de_unidad_venta,
-    "código de barras",
-    descripcion,
-    Marca,
-    main_image_url,
-    Category_level_1,
-    Category_level_2
-FROM RankedUberCatalog
-WHERE rn = 1
-ORDER BY SKU ASC;
-                    """
+        sku AS "SKU",
+        umv AS "Unidad_de_unidad_venta",
+        ean::varchar AS "código de barras",
+        nombre AS descripcion,
+        marca AS "Marca",
+        imagen AS main_image_url,
+        categoria_n2 AS "Category_level_1",
+        categoria_n3 AS "Category_level_2"
+    FROM integraciones.catalogo_last_millers
+    WHERE categoria_n2 IS NOT NULL
+      AND categoria_n3 IS NOT NULL
+      AND ean IS NOT NULL
+      AND imagen IS NOT NULL
+    ORDER BY sku ASC;
+    """
     cursor.execute(uber_catalog_query)
     results = cursor.fetchall()
     columns = [i[0] for i in cursor.description]
@@ -119,7 +85,8 @@ ORDER BY SKU ASC;
 
 
     buffer = io.StringIO()
-    df['sku'] = df['sku'].apply(lambda x: int(x) if pd.notnull(x) else x)
+    col_sku = 'SKU' if 'SKU' in df.columns else 'sku'
+    df[col_sku] = df[col_sku].apply(lambda x: int(x) if pd.notnull(x) else x)
     df['código de barras'] = df['código de barras'].apply(lambda x: str(x) if pd.notnull(x) else x)
     df.to_csv(buffer, header=True, index=False, encoding="utf-8")
     buffer.seek(0)
