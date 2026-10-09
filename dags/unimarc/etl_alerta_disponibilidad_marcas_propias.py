@@ -10,6 +10,7 @@ import io
 import json
 import re
 import pandas as pd
+import numpy as np
 import requests
 
 # Orden geográfico de Norte a Sur para regiones de Chile
@@ -123,46 +124,59 @@ def _upload_excel_file_to_slack(file_name: str, data_bytes: bytes, channel_id: s
     return comp
 
 
-def _generar_matriz_grupo(df_tiendas, df_skus_base, df_stock_pos, col_grupo: str, regiones_unicas: list):
+def _generar_matriz_grupo(df_tiendas, df_skus_base, df_stock_pos, df_lista8_tienda, col_grupo: str, regiones_unicas: list):
     """
-    Genera la matriz de % disponibilidad para una agrupación específica (e.g. 'marca' o 'linea_sap').
-    Disponibilidad (%) por Tienda = (SKUs de esa Marca/Línea con stock > 0 en la tienda / Total SKUs activos de esa Marca/Línea) * 100.
+    Genera la matriz de % disponibilidad por tienda y marca/línea evaluando solo los SKUs correspondientes en Lista 8 por tienda.
+    Si una tienda no tiene SKUs de ese grupo en su Lista 8, el valor es 'N/A'.
     """
     elementos_unicos = sorted(df_skus_base[col_grupo].unique().tolist())
-    total_skus_por_grupo = df_skus_base.groupby(col_grupo)["sku_id"].nunique().to_dict()
 
+    # Cruce de Lista 8 (específica por tienda) con catálogo base de marcas propias
+    df_surtido_tienda = pd.merge(
+        df_lista8_tienda,
+        df_skus_base[["sku_id", col_grupo]],
+        on="sku_id",
+        how="inner"
+    )
+
+    # Denominador: Total SKUs que la tienda DEBERÍA tener según Lista 8 por cada grupo (Marca / Línea)
+    df_cat_tienda = df_surtido_tienda.groupby(["id_tienda", col_grupo])["sku_id"].nunique().reset_index()
+    df_cat_tienda.rename(columns={"sku_id": "total_skus_esperados"}, inplace=True)
+
+    # Numerador: Total SKUs con stock > 0 en esa tienda para ese grupo
     if not df_stock_pos.empty:
         df_stock_grupo = pd.merge(df_stock_pos, df_skus_base[["sku_id", col_grupo]], on="sku_id", how="inner")
-        
-        # Conteo de SKUs únicos con stock > 0 por tienda y grupo
         df_skus_con_stock = df_stock_grupo.groupby(["id_tienda", col_grupo])["sku_id"].nunique().reset_index()
         df_skus_con_stock.rename(columns={"sku_id": "skus_con_stock"}, inplace=True)
-        
-        # Pivot disponibilidad %
-        df_skus_con_stock["total_cat"] = df_skus_con_stock[col_grupo].map(total_skus_por_grupo)
-        df_skus_con_stock["pct_disp"] = (df_skus_con_stock["skus_con_stock"] / df_skus_con_stock["total_cat"]) * 100.0
-        df_pivot_disp = df_skus_con_stock.pivot_table(index="id_tienda", columns=col_grupo, values="pct_disp", aggfunc="max", fill_value=0.0).reset_index()
     else:
-        df_pivot_disp = pd.DataFrame(columns=["id_tienda"] + elementos_unicos)
+        df_skus_con_stock = pd.DataFrame(columns=["id_tienda", col_grupo, "skus_con_stock"])
 
-    df_matrix_disp = pd.merge(df_tiendas[["id_tienda", "nombre_tienda", "region_std"]], df_pivot_disp, on="id_tienda", how="left")
+    # Merge numerador y denominador
+    df_disp_calc = pd.merge(df_cat_tienda, df_skus_con_stock, on=["id_tienda", col_grupo], how="left")
+    df_disp_calc["skus_con_stock"] = df_disp_calc["skus_con_stock"].fillna(0)
+    df_disp_calc["pct_disp"] = (df_disp_calc["skus_con_stock"] / df_disp_calc["total_skus_esperados"]) * 100.0
+
+    # Crear grilla completa de (Tiendas x Grupos)
+    tiendas_df = df_tiendas[["id_tienda", "nombre_tienda", "region_std"]].copy()
+
+    # Pivotear porcentaje numérico (dejando NaN si no está en Lista 8 para esa tienda)
+    df_pivot_num = df_disp_calc.pivot_table(index="id_tienda", columns=col_grupo, values="pct_disp", aggfunc="max")
+    df_matrix_num = pd.merge(tiendas_df, df_pivot_num, on="id_tienda", how="left")
 
     for elem in elementos_unicos:
-        if elem not in df_matrix_disp.columns:
-            df_matrix_disp[elem] = 0.0
+        if elem not in df_matrix_num.columns:
+            df_matrix_num[elem] = np.nan
 
-    df_matrix_disp[elementos_unicos] = df_matrix_disp[elementos_unicos].fillna(0.0)
-
-    # Promedio regional de disponibilidad %
-    df_promedios_reg = df_matrix_disp.groupby("region_std")[elementos_unicos].mean().reset_index()
+    # Promedio regional (omite automáticamente los NaN / N/A)
+    df_promedios_reg = df_matrix_num.groupby("region_std")[elementos_unicos].mean().reset_index()
 
     # Construir filas para Excel
     final_rows_disp = []
 
     for r in regiones_unicas:
-        df_r = df_matrix_disp[df_matrix_disp["region_std"] == r].sort_values("id_tienda").copy()
+        df_r = df_matrix_num[df_matrix_num["region_std"] == r].sort_values("id_tienda").copy()
         for elem in elementos_unicos:
-            df_r[elem] = df_r[elem].apply(lambda x: f"{round(x, 1)}%")
+            df_r[elem] = df_r[elem].apply(lambda x: "N/A" if pd.isna(x) else f"{round(x, 1)}%")
         final_rows_disp.append(df_r)
 
         row_prom = df_promedios_reg[df_promedios_reg["region_std"] == r].iloc[0]
@@ -172,7 +186,8 @@ def _generar_matriz_grupo(df_tiendas, df_skus_base, df_stock_pos, col_grupo: str
             "region_std": r
         }
         for elem in elementos_unicos:
-            dict_prom[elem] = f"{round(row_prom[elem], 1)}%"
+            val_p = row_prom[elem]
+            dict_prom[elem] = "N/A" if pd.isna(val_p) else f"{round(val_p, 1)}%"
         final_rows_disp.append(pd.DataFrame([dict_prom]))
 
     df_excel_disp = pd.concat(final_rows_disp, ignore_index=True).rename(columns={
@@ -191,40 +206,52 @@ def _generar_matriz_grupo(df_tiendas, df_skus_base, df_stock_pos, col_grupo: str
     return df_excel_disp, df_transpuesta, elementos_unicos
 
 
-def _construir_pestaña_marca(df_skus_marca, df_tiendas, df_stock_pos):
+def _construir_pestaña_marca(df_skus_marca, df_tiendas, df_stock_pos, df_lista8_tienda):
     """
     Construye la matriz en Excel para una marca específica pertenecientes a Marcas Propias:
     - Eje Y: SKUs (SKU ID, Material, Descripción)
     - Eje X: Tiendas (ID Tienda / Nombre Tienda)
-    - Valores: Stock Unitario (stock_janis)
+    - Valores: Stock Unitario si pertenece a Lista 8 de esa tienda, o 'N/A' si no corresponde por surtido.
     """
     tiendas_ids = df_tiendas["id_tienda"].tolist()
+    skus_marca_ids = df_skus_marca["sku_id"].tolist()
 
+    # Filtrar Lista 8 para la marca en cuestión
+    df_l8_marca = df_lista8_tienda[df_lista8_tienda["sku_id"].isin(skus_marca_ids)].copy()
+    df_l8_marca["en_surtido"] = True
+
+    # Filtrar Stock positivo para la marca
     if not df_stock_pos.empty:
         df_stock_brand = pd.merge(df_stock_pos, df_skus_marca[["sku_id"]], on="sku_id", how="inner")
     else:
         df_stock_brand = pd.DataFrame(columns=["id_tienda", "sku_id", "stock_janis"])
 
-    if not df_stock_brand.empty:
-        df_pivot = df_stock_brand.pivot_table(index="sku_id", columns="id_tienda", values="stock_janis", aggfunc="sum", fill_value=0).reset_index()
-    else:
-        df_pivot = pd.DataFrame(columns=["sku_id"] + tiendas_ids)
-
-    df_marca_excel = pd.merge(df_skus_marca[["sku_id", "material", "sku_nombre"]], df_pivot, on="sku_id", how="left")
+    # Crear DataFrame base SKU x Tienda
+    df_base = df_skus_marca[["sku_id", "material", "sku_nombre"]].copy()
 
     for t_id in tiendas_ids:
-        if t_id not in df_marca_excel.columns:
-            df_marca_excel[t_id] = 0
+        # SKUs en lista 8 de esta tienda
+        skus_l8_t = set(df_l8_marca[df_l8_marca["id_tienda"] == t_id]["sku_id"])
+        
+        # Stock de esta tienda
+        stock_t_dict = df_stock_brand[df_stock_brand["id_tienda"] == t_id].set_index("sku_id")["stock_janis"].to_dict()
 
-    df_marca_excel[tiendas_ids] = df_marca_excel[tiendas_ids].fillna(0).astype(int)
-    
-    df_marca_excel.rename(columns={
+        col_vals = []
+        for s_id in df_base["sku_id"]:
+            if s_id not in skus_l8_t:
+                col_vals.append("N/A")
+            else:
+                col_vals.append(int(stock_t_dict.get(s_id, 0)))
+        
+        df_base[t_id] = col_vals
+
+    df_base.rename(columns={
         "sku_id": "SKU ID",
         "material": "Material",
         "sku_nombre": "Descripción SKU"
     }, inplace=True)
 
-    return df_marca_excel
+    return df_base
 
 
 def _construir_bloques_slack_tabla(df_transpuesta, col_name: str, elementos_unicos: list, regiones_list: list) -> list:
@@ -323,7 +350,22 @@ def _procesar_y_enviar_alerta_marcas_propias(**kwargs):
     skus_ids = df_skus_base["sku_id"].unique().tolist()
     print(f"🏷️ Total SKUs de Marcas Propias (en Lista 8) a monitorear: {len(skus_ids)}")
 
-    # 3. Consulta de Stock de alto rendimiento (Join 100% interno en Postgres filtrando por Lista 8 y stock positivo)
+    # 3. Consulta de Surtido Validadas por Tienda desde Lista 8 (cruza material/umv con ref_id)
+    query_lista8_tienda = """
+    SELECT DISTINCT
+        LPAD(l8.id_tienda::text, 4, '0') AS id_tienda,
+        s.ref_id AS sku_id
+    FROM ecommdata.lista8 l8
+    JOIN ecommdata.productos p ON l8.material = p.material
+    JOIN ecommdata.skus s ON p.ref_id = s.ref_id
+    JOIN ecommdata.maestra_sku_proveedor m ON p.material = m.material
+    WHERE m.marca_propia = 1;
+    """
+    print("⚡ Obteniendo surtido por tienda (Lista 8) para Marcas Propias...")
+    df_lista8_tienda = pg_hook.get_pandas_df(query_lista8_tienda)
+    print(f"📋 Registros de surtido tienda-SKU recuperados de Lista 8: {len(df_lista8_tienda)}")
+
+    # 4. Consulta de Stock de alto rendimiento (Join 100% interno en Postgres filtrando por Lista 8 y stock positivo)
     query_stock_optimizada = """
     WITH max_fecha AS (
         SELECT MAX(fecha) AS max_f FROM ecommdata.stock
@@ -355,19 +397,19 @@ def _procesar_y_enviar_alerta_marcas_propias(**kwargs):
     regiones_no_mapeadas = sorted(list(regiones_presentes - set(regiones_unicas)))
     regiones_unicas.extend(regiones_no_mapeadas)
 
-    # 4. Generar Matrices para Vista 1 (Marca) y Vista 2 (Línea SAP)
+    # 5. Generar Matrices para Vista 1 (Marca) y Vista 2 (Línea SAP)
     df_excel_disp_marca, df_transp_marca, marcas_unicas = _generar_matriz_grupo(
-        df_tiendas, df_skus_base, df_stock_pos, "marca", regiones_unicas
+        df_tiendas, df_skus_base, df_stock_pos, df_lista8_tienda, "marca", regiones_unicas
     )
 
     df_excel_disp_linea, df_transp_linea, lineas_unicas = _generar_matriz_grupo(
-        df_tiendas, df_skus_base, df_stock_pos, "linea_sap", regiones_unicas
+        df_tiendas, df_skus_base, df_stock_pos, df_lista8_tienda, "linea_sap", regiones_unicas
     )
 
-    # 5. Generar archivo Excel en memoria:
+    # 6. Generar archivo Excel en memoria:
     # - Pestaña 1: Disponibilidad Marca
     # - Pestaña 2: Disponibilidad Linea SAP
-    # - Pestañas individuales por cada Marca Propia: SKUs (eje Y) vs Tiendas (eje X) con stock unitario
+    # - Pestañas individuales por cada Marca Propia: SKUs (eje Y) vs Tiendas (eje X) con stock unitario (o N/A si no aplica surtido)
     excel_buffer = io.BytesIO()
     used_sheet_names = set(["Disponibilidad Marca", "Disponibilidad Linea SAP"])
 
@@ -377,7 +419,7 @@ def _procesar_y_enviar_alerta_marcas_propias(**kwargs):
 
         for m_nombre in marcas_unicas:
             df_skus_m = df_skus_base[df_skus_base["marca"] == m_nombre].copy()
-            df_m_sheet = _construir_pestaña_marca(df_skus_m, df_tiendas, df_stock_pos)
+            df_m_sheet = _construir_pestaña_marca(df_skus_m, df_tiendas, df_stock_pos, df_lista8_tienda)
             
             s_name = _clean_sheet_name(m_nombre)
             counter = 1
@@ -511,7 +553,7 @@ with DAG(
     "etl_alerta_disponibilidad_marcas_propias",
     default_args=default_args,
     description="ETL de auditoría diaria de disponibilidad de stock de Marcas Propias (en Lista 8) por Región (Vistas Marca y Línea SAP).",
-    schedule_interval="30 7 * * *",
+    schedule_interval="0 10 * * *"",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

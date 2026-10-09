@@ -285,7 +285,7 @@ with DAG(
     'etl_cargar_coleccion_unipay',
     default_args=default_args,
     description="Carga de SKUs con promociones Unipay vigentes en la colección VTEX 10432.",
-    schedule_interval="0 7 * * *",
+    schedule_interval="0 9 * * *"",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
