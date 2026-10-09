@@ -62,6 +62,23 @@ def _parse_polygon_coordinates(coord_raw):
         return None
 
 
+def _clean_tienda_id(val):
+    """
+    Normaliza el id de tienda a formato string de 4 dígitos (ej: '0917'),
+    eliminando sufijos '.0' derivados de lectura float en Pandas.
+    """
+    if pd.isna(val) or val is None:
+        return None
+    s = str(val).strip()
+    if not s or s.lower() in ("nan", "none", "<na>"):
+        return None
+    if "." in s:
+        s = s.split(".")[0].strip()
+    if s.isdigit() and len(s) <= 4:
+        return s.zfill(4)
+    return s
+
+
 def _purgar_historico_antiguo(ds, table_name):
     """
     Elimina registros con fecha_facturacion anterior a 25 meses móviles.
@@ -86,17 +103,17 @@ def _purgar_historico_antiguo(ds, table_name):
 def coordenadas_poligonos(ds):
     """
     Extrae polígonos activos de Unimarc para delivery desde forecast_and_planning.poligonos,
-    incluyendo el mapeo a la tienda vigente (id_tienda_actual).
+    incluyendo el mapeo a la tienda vigente (id_tienda_actual), id_transportadora_actual y nombre_transportadora_actual.
     Usa la fecha ds o, en su defecto, la fecha más reciente disponible.
     """
     coordenadas_poligonos_query = f"""
         SELECT 
-            p.id, 
-            p.name AS transportadora, 
+            p.id AS id_transportadora_actual, 
+            p.name AS nombre_transportadora_actual, 
             p.polygon, 
             p.coordenadas,
             COALESCE(
-                t.id_tienda, 
+                NULLIF(LPAD(TRIM(t.id_tienda::text), 4, '0'), ''), 
                 SUBSTRING(p.polygon FROM '^([0-9]{{4}})'), 
                 SUBSTRING(p.name FROM '^([0-9]{{4}})')
             ) AS id_tienda_actual
@@ -123,7 +140,8 @@ def coordenadas_poligonos(ds):
 
 def ordenes_janis(ds, **context):
     """
-    Extrae órdenes de Janis Unimarc con coordenadas válidas de entrega.
+    Extrae órdenes de Janis Unimarc con coordenadas válidas de entrega,
+    incluyendo nombre_transportadora_origen e id_tienda_origen formateado a 4 dígitos.
     Por defecto corre en modo incremental (últimos 7 días).
     Si se pasa conf={"full_refresh": true}, consulta los últimos 25 meses.
     """
@@ -147,7 +165,11 @@ def ordenes_janis(ds, **context):
             d.lat, 
             d.lng, 
             d.id_transportadora, 
-            t.id_tienda AS id_tienda_origen, 
+            t.nombre AS nombre_transportadora_origen,
+            COALESCE(
+                NULLIF(LPAD(TRIM(t.id_tienda::text), 4, '0'), ''),
+                SUBSTRING(d.id_transportadora FROM '^([0-9]{{4}})')
+            ) AS id_tienda_origen, 
             oj.fecha_facturacion
         FROM ecommdata.ordenes_janis oj
         LEFT JOIN ecommdata.despachos d 
@@ -206,6 +228,8 @@ def poligonos_ordenes_to_s3(ds, **context):
         poly_geom = poly_row["geometry"]
         poly_name = poly_row["polygon"]
         cur_tienda = poly_row.get("id_tienda_actual")
+        cur_trans_id = poly_row.get("id_transportadora_actual")
+        cur_trans_nombre = poly_row.get("nombre_transportadora_actual")
 
         minx, miny, maxx, maxy = poly_geom.bounds
         mask = (order_lngs >= minx) & (order_lngs <= maxx) & (order_lats >= miny) & (order_lats <= maxy)
@@ -223,6 +247,8 @@ def poligonos_ordenes_to_s3(ds, **context):
             matched = candidates[is_inside].copy()
             matched["nombre_poligono_actual"] = poly_name
             matched["id_tienda_actual"] = cur_tienda
+            matched["id_transportadora_actual"] = cur_trans_id
+            matched["nombre_transportadora_actual"] = cur_trans_nombre
             matched_dfs.append(matched)
 
     if not matched_dfs:
@@ -230,6 +256,9 @@ def poligonos_ordenes_to_s3(ds, **context):
         return "empty"
 
     joined = pd.concat(matched_dfs, ignore_index=True)
+
+    joined["id_tienda_origen"] = joined["id_tienda_origen"].apply(_clean_tienda_id)
+    joined["id_tienda_actual"] = joined["id_tienda_actual"].apply(_clean_tienda_id)
 
     target_columns = [
         "id_orden",
@@ -241,7 +270,10 @@ def poligonos_ordenes_to_s3(ds, **context):
         "venta_creada",
         "venta_facturada",
         "lat",
-        "lng"
+        "lng",
+        "nombre_transportadora_origen",
+        "id_transportadora_actual",
+        "nombre_transportadora_actual"
     ]
     df_final = joined[target_columns].drop_duplicates(subset=["id_orden", "nombre_poligono_actual"])
     logging.info(f"Total registros orden-polígono generados: {len(df_final)}")
@@ -263,7 +295,7 @@ def poligonos_ordenes_to_s3(ds, **context):
 
 def poligonos_ordenes_to_postgres(ti, ds, **context):
     """
-    Descarga archivo desde S3 y aplica carga incremental, sincronización de tienda actual
+    Descarga archivo desde S3 y aplica carga incremental, sincronización de tienda y transportadora actual
     y purga de 25 meses en PostgreSQL dentro de una transacción atómica.
     """
     filename = ti.xcom_pull(key="return_value", task_ids=["poligonos_ordenes_to_s3"])[0]
@@ -280,13 +312,16 @@ def poligonos_ordenes_to_postgres(ti, ds, **context):
         raise Exception(f"El archivo {filename} no existe en S3 {s3_bucket}.")
 
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
-    df = pd.read_csv(s_stock_object.get()["Body"])
+    df = pd.read_csv(s_stock_object.get()["Body"], dtype=str)
     if df.empty:
         logging.info("El DataFrame desde S3 está vacío. Finalizando.")
         _purgar_historico_antiguo(ds, "forecast_and_planning.ordenes_poligonos")
         return
 
     logging.info(f"Registros extraídos desde S3: {len(df.index)}")
+
+    df["id_tienda_origen"] = df["id_tienda_origen"].apply(_clean_tienda_id)
+    df["id_tienda_actual"] = df["id_tienda_actual"].apply(_clean_tienda_id)
 
     column_types = {
         "id_orden": "string",
@@ -298,7 +333,10 @@ def poligonos_ordenes_to_postgres(ti, ds, **context):
         "venta_creada": "float",
         "venta_facturada": "float",
         "lat": "float",
-        "lng": "float"
+        "lng": "float",
+        "nombre_transportadora_origen": "string",
+        "id_transportadora_actual": "string",
+        "nombre_transportadora_actual": "string"
     }
     df = df.astype(column_types, errors="ignore")
     df = df.drop_duplicates(subset=["id_orden", "nombre_poligono_actual"])
@@ -338,15 +376,20 @@ def poligonos_ordenes_to_postgres(ti, ds, **context):
             method="multi"
         )
 
-        logging.info("Sincronizando id_tienda_actual en todo el histórico de 25 meses...")
+        logging.info("Sincronizando id_tienda_actual y transportadora actual en todo el histórico de 25 meses...")
         conn.execute(text("""
             UPDATE forecast_and_planning.ordenes_poligonos op
-            SET id_tienda_actual = pol.id_tienda_actual
+            SET 
+                id_tienda_actual = pol.id_tienda_actual,
+                id_transportadora_actual = pol.id_transportadora_actual,
+                nombre_transportadora_actual = pol.nombre_transportadora_actual
             FROM (
                 SELECT 
+                    p.id AS id_transportadora_actual,
+                    p.name AS nombre_transportadora_actual,
                     p.polygon,
                     COALESCE(
-                        t.id_tienda, 
+                        NULLIF(LPAD(TRIM(t.id_tienda::text), 4, '0'), ''), 
                         SUBSTRING(p.polygon FROM '^([0-9]{4})'), 
                         SUBSTRING(p.name FROM '^([0-9]{4})')
                     ) AS id_tienda_actual
@@ -357,8 +400,11 @@ def poligonos_ordenes_to_postgres(ti, ds, **context):
                   AND p.fecha = (SELECT MAX(fecha) FROM forecast_and_planning.poligonos)
             ) pol
             WHERE op.nombre_poligono_actual = pol.polygon
-              AND pol.id_tienda_actual IS NOT NULL
-              AND op.id_tienda_actual IS DISTINCT FROM pol.id_tienda_actual;
+              AND (
+                  op.id_tienda_actual IS DISTINCT FROM pol.id_tienda_actual
+                  OR op.id_transportadora_actual IS DISTINCT FROM pol.id_transportadora_actual
+                  OR op.nombre_transportadora_actual IS DISTINCT FROM pol.nombre_transportadora_actual
+              );
         """))
 
         logging.info("Purgando registros con más de 25 meses de antigüedad (> 25 month)...")

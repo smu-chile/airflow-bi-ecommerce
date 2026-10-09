@@ -132,6 +132,23 @@ def _parse_polygon_coordinates(coord_raw):
         return None
 
 
+def _clean_tienda_id(val):
+    """
+    Normaliza el id de tienda a formato string de 4 dígitos (ej: '3074'),
+    eliminando sufijos '.0' derivados de lectura float en Pandas.
+    """
+    if pd.isna(val) or val is None:
+        return None
+    s = str(val).strip()
+    if not s or s.lower() in ("nan", "none", "<na>"):
+        return None
+    if "." in s:
+        s = s.split(".")[0].strip()
+    if s.isdigit() and len(s) <= 4:
+        return s.zfill(4)
+    return s
+
+
 def _purgar_historico_antiguo_alvi(ds, table_name):
     """
     Elimina registros con fecha_facturacion anterior a 25 meses móviles.
@@ -155,14 +172,15 @@ def _purgar_historico_antiguo_alvi(ds, table_name):
 
 def coordenadas_poligonos_alvi(ds):
     """
-    Extrae los polígonos activos de Alvi desde forecast_and_planning.poligonos_alvi.
+    Extrae los polígonos activos de Alvi desde forecast_and_planning.poligonos_alvi,
+    incluyendo id_transportadora_actual y nombre_transportadora_actual.
     Usa la fecha de ejecución ds o, en su defecto, la fecha más reciente disponible.
     """
     pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
     query = f"""
         SELECT 
-            p.id, 
-            p.name AS transportadora, 
+            p.id AS id_transportadora_actual, 
+            p.name AS nombre_transportadora_actual, 
             p.polygon, 
             p.coordenadas, 
             p.vtex_account
@@ -186,7 +204,8 @@ def coordenadas_poligonos_alvi(ds):
 
 def ordenes_janis_alvi(ds, **context):
     """
-    Extrae las órdenes de Janis Alvi.
+    Extrae las órdenes de Janis Alvi con coordenadas válidas de entrega,
+    incluyendo nombre_transportadora_origen e id_tienda_origen a 4 dígitos.
     Por defecto corre en modo incremental (últimos 7 días).
     Si se pasa conf={"full_refresh": true}, consulta los últimos 25 meses.
     """
@@ -211,8 +230,13 @@ def ordenes_janis_alvi(ds, **context):
             d.lat, 
             d.lng, 
             d.id_transportadora,
+            t_trans.nombre AS nombre_transportadora_origen,
             COALESCE(NULLIF(TRIM(d.comuna), ''), t.comuna, '') AS comuna,
-            t.id AS id_tienda_origen,
+            COALESCE(
+                NULLIF(LPAD(TRIM(t.id::text), 4, '0'), ''),
+                NULLIF(LPAD(TRIM(t_trans.id_tienda::text), 4, '0'), ''),
+                SUBSTRING(d.id_transportadora FROM '^([0-9]{{4}})')
+            ) AS id_tienda_origen,
             oj.fecha_facturacion,
             COALESCE(d.tipo_despacho, 'delivery') AS tipo
         FROM ecommdata_alvi.ordenes_janis oj
@@ -226,6 +250,8 @@ def ordenes_janis_alvi(ds, **context):
             ON oj.id = d_latest.id_orden
         LEFT JOIN ecommdata_alvi.despachos d 
             ON d_latest.max_id = d.id
+        LEFT JOIN ecommdata_alvi.transportadoras t_trans
+            ON t_trans.id = d.id_transportadora
         WHERE d.lat IS NOT NULL 
           AND d.lng IS NOT NULL
           AND d.lat BETWEEN -56.0 AND -17.0
@@ -310,6 +336,8 @@ def poligonos_ordenes_alvi_to_s3(ds, **context):
             poly_geom = p_row["geometry"]
             poly_name = p_row["polygon"]
             cur_tienda = p_row.get("id_tienda_actual")
+            cur_trans_id = p_row.get("id_transportadora_actual")
+            cur_trans_nombre = p_row.get("nombre_transportadora_actual")
 
             minx, miny, maxx, maxy = poly_geom.bounds
             mask = (acc_order_lngs >= minx) & (acc_order_lngs <= maxx) & (acc_order_lats >= miny) & (acc_order_lats <= maxy)
@@ -327,6 +355,8 @@ def poligonos_ordenes_alvi_to_s3(ds, **context):
                 matched = candidates[is_inside].copy()
                 matched["nombre_poligono_actual"] = poly_name
                 matched["id_tienda_actual"] = cur_tienda
+                matched["id_transportadora_actual"] = cur_trans_id
+                matched["nombre_transportadora_actual"] = cur_trans_nombre
                 results.append(matched)
 
     if not results:
@@ -338,6 +368,9 @@ def poligonos_ordenes_alvi_to_s3(ds, **context):
 
     # Deduplicar por si un punto intersecta el borde de dos polígonos de la misma cuenta
     df_final = df_final.drop_duplicates(subset=["id_orden", "nombre_poligono_actual"])
+
+    df_final["id_tienda_origen"] = df_final["id_tienda_origen"].apply(_clean_tienda_id)
+    df_final["id_tienda_actual"] = df_final["id_tienda_actual"].apply(_clean_tienda_id)
 
     # 5. Formatear columnas según el esquema exacto de forecast_and_planning.ordenes_poligonos_alvi
     target_columns = [
@@ -352,7 +385,10 @@ def poligonos_ordenes_alvi_to_s3(ds, **context):
         "fecha_facturacion",
         "tipo",
         "lat",
-        "lng"
+        "lng",
+        "nombre_transportadora_origen",
+        "id_transportadora_actual",
+        "nombre_transportadora_actual"
     ]
 
     df_final = df_final[target_columns]
@@ -375,7 +411,7 @@ def poligonos_ordenes_alvi_to_s3(ds, **context):
 
 def poligonos_ordenes_alvi_to_postgres(ti, ds, **context):
     """
-    Descarga el archivo procesado de S3 y aplica carga incremental y purga de 25 meses
+    Descarga el archivo procesado de S3 y aplica carga incremental, sincronización y purga de 25 meses
     en PostgreSQL (forecast_and_planning.ordenes_poligonos_alvi) dentro de una transacción atómica.
     """
     filename = ti.xcom_pull(key="return_value", task_ids=["poligonos_ordenes_alvi_to_s3"])[0]
@@ -392,7 +428,7 @@ def poligonos_ordenes_alvi_to_postgres(ti, ds, **context):
         raise Exception(f"El archivo {filename} no existe en S3 {s3_bucket}.")
 
     s3_obj = s3_hook.get_key(filename, bucket_name=s3_bucket)
-    df = pd.read_csv(s3_obj.get()["Body"])
+    df = pd.read_csv(s3_obj.get()["Body"], dtype=str)
 
     if df.empty:
         logging.info("El DataFrame desde S3 está vacío. Purgando registros antiguos si aplica.")
@@ -400,6 +436,9 @@ def poligonos_ordenes_alvi_to_postgres(ti, ds, **context):
         return
 
     logging.info(f"Cargando {len(df)} registros en forecast_and_planning.ordenes_poligonos_alvi...")
+
+    df["id_tienda_origen"] = df["id_tienda_origen"].apply(_clean_tienda_id)
+    df["id_tienda_actual"] = df["id_tienda_actual"].apply(_clean_tienda_id)
 
     column_types = {
         "id_orden": "string",
@@ -413,7 +452,10 @@ def poligonos_ordenes_alvi_to_postgres(ti, ds, **context):
         "fecha_facturacion": "string",
         "tipo": "string",
         "lat": "float",
-        "lng": "float"
+        "lng": "float",
+        "nombre_transportadora_origen": "string",
+        "id_transportadora_actual": "string",
+        "nombre_transportadora_actual": "string"
     }
     df = df.astype(column_types, errors="ignore")
     df = df.drop_duplicates(subset=["id_orden", "nombre_poligono_actual"])
@@ -452,6 +494,25 @@ def poligonos_ordenes_alvi_to_postgres(ti, ds, **context):
             chunksize=20000,
             method="multi"
         )
+
+        logging.info("Sincronizando id_transportadora_actual y nombre_transportadora_actual en Alvi...")
+        conn.execute(text("""
+            UPDATE forecast_and_planning.ordenes_poligonos_alvi opa
+            SET 
+                id_transportadora_actual = pol.id,
+                nombre_transportadora_actual = pol.name
+            FROM (
+                SELECT DISTINCT ON (polygon) id, name, polygon
+                FROM forecast_and_planning.poligonos_alvi
+                WHERE "isActive" = true AND "deliveryChannel" = 'delivery'
+                ORDER BY polygon, fecha DESC
+            ) pol
+            WHERE opa.nombre_poligono_actual = pol.polygon
+              AND (
+                  opa.id_transportadora_actual IS DISTINCT FROM pol.id
+                  OR opa.nombre_transportadora_actual IS DISTINCT FROM pol.name
+              );
+        """))
 
         logging.info("Purgando registros con más de 25 meses de antigüedad (> 25 month)...")
         conn.execute(text(f"""
