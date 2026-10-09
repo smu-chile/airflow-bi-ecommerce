@@ -156,9 +156,8 @@ def generate_reconciliation_csvs(ds):
     fecha_str = str(pendulum.now("America/Santiago").date())
     target_show_unavailable = int(Variable.get("ALVI_SHOW_UNAVAILABLE_ACTIVE", default_var="1"))
     
-    # 1. Cargar datos necesarios
-    # Consultar tiendas activas
-    tiendas_query = "select id from ecommdata_alvi.tiendas where status = 1 and id <> '1'"
+    # Consultar tiendas activas (excluyendo tienda principal 1 y tienda cementerio 3181)
+    tiendas_query = "select id from ecommdata_alvi.tiendas where status = 1 and id <> '1' and id <> '3181'"
     df_tiendas = query_to_df(tiendas_query)
     series_active_stores = df_tiendas['id'].unique()
     
@@ -179,6 +178,11 @@ def generate_reconciliation_csvs(ds):
     df_active_grouped = df_lista8_active.groupby('ref_id')['id_tienda'].apply(
         lambda x: ','.join(sorted(x.dropna().unique()))
     ).reset_index(name='stores_target')
+    
+    # A todos los productos en lista8 Alvi con tiendas válidas, agregar obligatoriamente la tienda 9999
+    df_active_grouped['stores_target'] = df_active_grouped['stores_target'].apply(
+        lambda s: ','.join(sorted(list(set([t.strip() for t in str(s).split(',') if t.strip()] + ['9999']))))
+    )
     
     # Consultar todos los SKUs registrados en Janis (nuestra tabla réplica)
     df_janis_skus = query_to_df("select distinct ref_id from ecommdata_alvi.productos_janis_api")
@@ -228,7 +232,7 @@ def generate_reconciliation_csvs(ds):
             # Caso B & C: SKU no tiene tiendas permitidas hoy
             reconciled_products.append({
                 "refId": sku_ref_id,
-                "stores": "3188",
+                "stores": "3181",
                 "publish": 1,
                 "updatePending": 1,
                 "visible": 0,
@@ -317,7 +321,7 @@ def send_excluded_stock_0_manual():
           AND t.status = 1 
           AND t.id <> '1'
           AND l.excluido IS TRUE
-          AND l.umv IN ('UN', 'KG', 'KGV')
+          AND l.umv = 'UN'
     """
     df_stock_0 = query_to_df(sql_stock_0)
     

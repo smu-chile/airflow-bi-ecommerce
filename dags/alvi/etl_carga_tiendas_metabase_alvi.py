@@ -78,10 +78,12 @@ def productos_manuales_exclusion():
     return results["ref_id"].dropna().astype(str).str.strip().tolist()
 
 def producto_tienda_janis():
-    # Leer el catálogo real desde nuestra nueva réplica productos_janis_api
+    # Leer el catálogo real desde nuestra nueva réplica productos_janis_api.
+    # Incluimos también cualquier producto que tenga asignada la antigua tienda cementerio '3188'
+    # para asegurar que todos los inactivos históricos migren hacia la nueva tienda cementerio '3181'.
     productos_tienda_query = """select ref_id, id_tienda, activo
                         from ecommdata_alvi.productos_janis_api
-                        where activo is true or show_without_stock is true"""
+                        where activo is true or show_without_stock is true or id_tienda = '3188'"""
     results = query_to_df(productos_tienda_query)
     results.columns = ["ref_id","id_tienda","activo"]
     results = results[["ref_id","id_tienda"]]
@@ -111,22 +113,23 @@ def load_tables_to_s3(ts, ds, ti):
     ].drop_duplicates(subset=['ref_id']).reset_index(drop=True)
     lista_skus_sin_producto = df_skus_sin_producto["ref_id"].to_list()
 
-    # 3. Filtrar tiendas activas en la lista8
-    series_active_stores = df_tiendas['id_tienda'].unique()
+    # 3. Filtrar tiendas activas en la lista8 (excluyendo explícitamente la tienda cementerio 3181)
+    series_active_stores = [s for s in df_tiendas['id_tienda'].unique() if str(s) != '3181']
     df_lista_8 = df_lista_8[df_lista_8['id_tienda'].isin(series_active_stores)]
     
     # 4. Separar lista8 en permitidos y excluidos (manejando nulos como False)
     df_lista_8['excluido'] = df_lista_8['excluido'].fillna(False)
     df_lista8_active = df_lista_8[df_lista_8['excluido'] == False].copy()
-    df_lista8_excluded = df_lista_8[(df_lista_8['excluido'] == True) & (df_lista_8['umv'].isin(['UN', 'KG', 'KGV']))].copy()
+    df_lista8_excluded = df_lista_8[(df_lista_8['excluido'] == True) & (df_lista_8['umv'] == 'UN')].copy()
     
-    # Rellenar tiendas nulas o vacías con la tienda de despublicación '3188'
+    # Rellenar tiendas nulas o vacías con la tienda de despublicación '3181'
     # para asegurar que productos activos en Janis sin tiendas asignadas no sean descartados
-    df_producto_tienda_janis['id_tienda'] = df_producto_tienda_janis['id_tienda'].fillna('3188').replace('', '3188')
+    df_producto_tienda_janis['id_tienda'] = df_producto_tienda_janis['id_tienda'].fillna('3181').replace('', '3181')
     
     df_producto_tienda_janis = df_producto_tienda_janis[
         df_producto_tienda_janis['id_tienda'].isin(series_active_stores) |
-        (df_producto_tienda_janis['id_tienda'] == '3188')
+        (df_producto_tienda_janis['id_tienda'] == '3181') |
+        (df_producto_tienda_janis['id_tienda'] == '9999')
     ]
     df_producto_tienda_janis_sorted = df_producto_tienda_janis.sort_values(by=['ref_id', 'id_tienda'])
     df_janis_grouped = df_producto_tienda_janis_sorted.groupby('ref_id')['id_tienda'].apply(
@@ -142,6 +145,11 @@ def load_tables_to_s3(ts, ds, ti):
     df_active_grouped = df_lista8_active_sorted.groupby('ref_id')['id_tienda'].apply(
         lambda x: ','.join(sorted(x.dropna().unique()))
     ).reset_index(name='stores_target')
+    
+    # A todos los productos en lista8 Alvi con tiendas válidas, agregar obligatoriamente la tienda 9999
+    df_active_grouped['stores_target'] = df_active_grouped['stores_target'].apply(
+        lambda s: ','.join(sorted(list(set([t.strip() for t in str(s).split(',') if t.strip()] + ['9999']))))
+    )
     
     # 7. Calcular Altas y Cambios de Tienda (Caso A)
     target_show_unavailable = int(Variable.get("ALVI_SHOW_UNAVAILABLE_ACTIVE", default_var="1"))
@@ -188,7 +196,7 @@ def load_tables_to_s3(ts, ds, ti):
     
     if not df_to_deactivate.empty:
         df_desactivados_productos['refId'] = df_to_deactivate['ref_id']
-        df_desactivados_productos['stores'] = "3188"
+        df_desactivados_productos['stores'] = "3181"
         df_desactivados_productos['publish'] = 1
         df_desactivados_productos['updatePending'] = 1
         df_desactivados_productos['visible'] = 0
@@ -216,6 +224,12 @@ def load_tables_to_s3(ts, ds, ti):
     # 9. Consolidar Dataframes Finales para CSV
     df_final_productos = pd.concat([df_changes_final, df_desactivados_productos], axis=0).reset_index(drop=True)
     
+    # CANDADO DE SEGURIDAD: Asegurar que ningún producto activo (active = 1) tenga '3181' en su lista de tiendas
+    mask_activos_3181 = (df_final_productos['active'] == 1) & (df_final_productos['stores'].astype(str).str.contains('3181', na=False))
+    if mask_activos_3181.any():
+        df_final_productos.loc[mask_activos_3181, 'stores'] = df_final_productos.loc[mask_activos_3181, 'stores'] \
+            .apply(lambda s: ','.join([t.strip() for t in str(s).split(',') if t.strip() and t.strip() != '3181']))
+    
     df_final_skus_active = df_changes_final[["refId", "publish", "updatePending", "active"]].copy()
     df_final_skus = pd.concat([df_final_skus_active, df_desactivados_sku], axis=0).reset_index(drop=True)
     
@@ -241,10 +255,13 @@ def load_tables_to_s3(ts, ds, ti):
     print(f"Subiendo a S3: {filename_skus}")
     s3_hook.load_string(buffer_2.getvalue(), key=filename_skus, bucket_name=s3_bucket, replace=True)
 
-    # 11. Generar payload de stock 0 para productos excluidos (Caso B)
+    # 11. Generar payloads de stock para Janis (SOLO PARA UMV == 'UN')
+    # Ojo: En Janis, CJ, DIS, etc. heredan el stock de su material UN base automáticamente.
     stock_payload = []
+
+    # A) Stock 0 en tiendas físicas para productos excluidos en lista8 (solo UN)
     for _, row in df_lista8_excluded.iterrows():
-        sku_code = row['ref_id']
+        sku_code = str(row['ref_id'])
         material = str(sku_code.split('-')[0]).zfill(18)
         id_tienda = str(row['id_tienda']).zfill(4)
         stock_payload.append({
@@ -253,9 +270,66 @@ def load_tables_to_s3(ts, ds, ti):
             "Store": id_tienda,
             "Type": 1
         })
-        
-    print(f"Total stock 0 payloads a inyectar por exclusión: {len(stock_payload)}")
+
+    # B) Stock 999 en tienda 9999 para productos ACTIVOS con tiendas válidas (solo UN)
+    df_lista8_active_un = df_lista8_active[df_lista8_active['umv'] == 'UN']
+    materiales_activos_un = set(
+        df_lista8_active_un['ref_id'].apply(lambda r: str(str(r).split('-')[0]).zfill(18)).unique()
+    )
+    for material in sorted(materiales_activos_un):
+        stock_payload.append({
+            "IdSku": material,
+            "Quantity": 999,
+            "Store": "9999",
+            "Type": 1
+        })
+
+    # C) Stock 0 en tienda 9999 para productos que dejan de ser válidos o se desactivan (solo UN)
+    # Incluye:
+    # 1. Productos dados de baja en Janis (df_to_deactivate) cuyo SKU sea UN
+    inactivos_un = df_to_deactivate[
+        df_to_deactivate['ref_id'].apply(lambda r: str(r).split('-')[-1].upper() == 'UN')
+    ]
+    materiales_inactivos_un = set(
+        inactivos_un['ref_id'].apply(lambda r: str(str(r).split('-')[0]).zfill(18)).unique()
+    )
+
+    # 2. Productos que están en lista8 como excluidos y no tienen ninguna tienda activa
+    materiales_excluidos_sin_tienda = set(
+        df_lista8_excluded['ref_id'].apply(lambda r: str(str(r).split('-')[0]).zfill(18)).unique()
+    ) - materiales_activos_un
+
+    # Unimos todos los materiales a poner en stock 0 en la 9999 (excluyendo cualquier material activo)
+    materiales_stock_0_9999 = (materiales_inactivos_un | materiales_excluidos_sin_tienda) - materiales_activos_un
+    for material in sorted(materiales_stock_0_9999):
+        stock_payload.append({
+            "IdSku": material,
+            "Quantity": 0,
+            "Store": "9999",
+            "Type": 1
+        })
+
+    # Deduplicar payload por combinación única de (IdSku, Store)
+    seen_stock = set()
+    unique_stock_payload = []
+    for item in stock_payload:
+        key = (item["IdSku"], item["Store"])
+        if key not in seen_stock:
+            seen_stock.add(key)
+            unique_stock_payload.append(item)
+    stock_payload = unique_stock_payload
+
+    q_999 = sum(1 for x in stock_payload if x["Store"] == "9999" and x["Quantity"] == 999)
+    q_0_9999 = sum(1 for x in stock_payload if x["Store"] == "9999" and x["Quantity"] == 0)
+    q_0_fisicas = sum(1 for x in stock_payload if x["Store"] != "9999" and x["Quantity"] == 0)
+    print(f"Resumen de payloads de stock a inyectar (solo UN):")
+    print(f"  - Stock 999 en tienda 9999 (activos): {q_999}")
+    print(f"  - Stock 0 en tienda 9999 (bajas/excluidos): {q_0_9999}")
+    print(f"  - Stock 0 en tiendas físicas (excluidos): {q_0_fisicas}")
+    print(f"  - Total registros a inyectar: {len(stock_payload)}")
+
     ti.xcom_push(key="stock_0_payload", value=stock_payload)
+    ti.xcom_push(key="stock_payload", value=stock_payload)
 
     return filename_productos, filename_skus
 
@@ -376,14 +450,16 @@ def send_excluded_stock_0_to_janis(ti):
         
     url = f"{janis_base_url.rstrip('/')}/stock"
     
-    # 2. Obtener el payload de stock 0 de XCom
-    stock_payload = ti.xcom_pull(key="stock_0_payload", task_ids=["load_tables_to_s3"])
+    # 2. Obtener el payload de stock de XCom
+    stock_payload = ti.xcom_pull(key="stock_payload", task_ids=["load_tables_to_s3"])
+    if not stock_payload:
+        stock_payload = ti.xcom_pull(key="stock_0_payload", task_ids=["load_tables_to_s3"])
     
     if not stock_payload:
-        print("No hay stocks en 0 que inyectar para excluidos hoy.")
+        print("No hay stocks que inyectar a Janis hoy.")
         return
         
-    print(f"Iniciando envío multihilo de {len(stock_payload)} registros de stock 0 a Janis...")
+    print(f"Iniciando envío multihilo de {len(stock_payload)} registros de stock a Janis (activos 999 en 9999, bajas 0 en 9999, excluidos 0)...")
     
     headers = {
         "janis-api-key": janis_api_key,
