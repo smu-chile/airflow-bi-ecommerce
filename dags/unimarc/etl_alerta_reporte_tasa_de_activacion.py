@@ -410,12 +410,14 @@ def _calcular_y_notificar_alerta_consolidada(**kwargs):
 
     resultados_activacion = {}
     dfs_activacion = {}
+    omitir_slack = False
 
     for canal in ["70", "10"]:
         try:
             df_act = _consultar_metricas_canal(pg_hook, canal, eval_date)
             if df_act.empty:
                 print(f"⚠️ No se encontraron SKUs en promo activa para Canal {canal} en {eval_date}. Se omite.")
+                omitir_slack = True
                 continue
             metricas_act = _calcular_metricas(df_act, canal, eval_date)
             resultados_activacion[canal] = metricas_act
@@ -566,6 +568,10 @@ def _calcular_y_notificar_alerta_consolidada(**kwargs):
     # ---------------------------------------------------------
     # 4. Construir Mensaje en Slack (Estructura requerida)
     # ---------------------------------------------------------
+    if omitir_slack:
+        print("⚠️ No se cargará el reporte en Slack debido a que no se encontraron SKUs en promo activa en al menos un canal.")
+        return
+
     channel_var_name = "SLACK_PESO_CANALES_REGISTRY"
     channel_id = Variable.get(channel_var_name, default_var="C0BVBAHD7L0")
     slack_token = Variable.get("SLACK_UNITRACK_TOKEN", default_var=None) or Variable.get("token_slack_bot", default_var=None)
@@ -712,7 +718,7 @@ def _calcular_y_notificar_alerta_consolidada(**kwargs):
 with DAG(
     dag_id="etl_alerta_reporte_tasa_de_activacion",
     default_args=default_args,
-    schedule_interval="30 8 * * *",  # Diariamente a las 8:30 AM (Chile)
+    schedule_interval="30 10 * * *",  # Diariamente a las 9:30 AM (Chile)
     catchup=False,
     max_active_runs=1,
     tags=["Unimarc", "Alerta", "Promociones", "Canal70", "Canal10", "Ventas", "Slack", "Consolidado"],
