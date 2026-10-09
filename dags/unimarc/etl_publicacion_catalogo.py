@@ -264,6 +264,13 @@ with DAG(
         failed_states=['failed']
     )
 
+    t_analyze_stock = PostgresOperator(
+        task_id="analyze_stock_before_publicacion",
+        postgres_conn_id="postgresql_conn",
+        sql="ANALYZE ecommdata.stock;",
+        autocommit=True,
+    )
+
     t1 = BranchPythonOperator(
         task_id='check_time',
         python_callable=_check_time,
@@ -335,5 +342,5 @@ with DAG(
         python_callable = _delete_daily_data
     )
 
-    t0 >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10 >> t11 >> t12
+    t0 >> t_analyze_stock >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10 >> t11 >> t12
     t1 >> t_dummy

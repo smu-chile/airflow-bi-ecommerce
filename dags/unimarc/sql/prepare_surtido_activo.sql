@@ -22,7 +22,9 @@ SELECT DISTINCT
     CONCAT(l.material, '-', l.umv) AS ref_id
 FROM ecommdata.lista8 l
 JOIN ecommdata.tiendas t ON l.id_tienda = t.id AND t.status = 1
-WHERE l.excluido IS FALSE 
+WHERE l.material IS NOT NULL
+  AND l.umv IS NOT NULL
+  AND l.excluido IS FALSE 
   AND l.bloq_centro IS NULL 
   AND l.bloq_formato IS NULL 
   AND l.catalogado IS TRUE
