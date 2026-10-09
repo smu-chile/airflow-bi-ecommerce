@@ -553,7 +553,7 @@ with DAG(
     "etl_alerta_disponibilidad_marcas_propias",
     default_args=default_args,
     description="ETL de auditoría diaria de disponibilidad de stock de Marcas Propias (en Lista 8) por Región (Vistas Marca y Línea SAP).",
-    schedule_interval="0 10 * * *"",
+    schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
