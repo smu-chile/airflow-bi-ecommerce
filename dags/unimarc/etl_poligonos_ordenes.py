@@ -12,9 +12,9 @@ import ast
 import io
 import logging
 import pandas as pd
-import geopandas as gpd
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point
 from shapely.validation import make_valid
+from shapely.prepared import prep
 import sqlalchemy
 from sqlalchemy import text
 
@@ -170,7 +170,7 @@ def ordenes_janis(ds, **context):
 
 def poligonos_ordenes_to_s3(ds, **context):
     """
-    Cruza órdenes y polígonos de Unimarc mediante geopandas.sjoin (STRtree indexado)
+    Cruza órdenes y polígonos de Unimarc mediante prefiltrado Bounding Box (NumPy) y validación exacta (Shapely prep)
     y sube el archivo procesado a Amazon S3.
     """
     exec_date = ds.replace("-", "/")
@@ -196,23 +196,40 @@ def poligonos_ordenes_to_s3(ds, **context):
         logging.warning("Ningún polígono cuenta con coordenadas válidas para construir geometrías.")
         return "empty"
 
-    # GeoDataFrames para cruce espacial acelerado
-    gdf_orders = gpd.GeoDataFrame(
-        ordenes,
-        geometry=gpd.points_from_xy(ordenes["lng"], ordenes["lat"]),
-        crs="EPSG:4326"
-    )
-    gdf_polys = gpd.GeoDataFrame(
-        poligonos[["polygon", "id_tienda_actual", "geometry"]],
-        geometry="geometry",
-        crs="EPSG:4326"
-    ).rename(columns={"polygon": "nombre_poligono_actual"})
+    # Cruce espacial Point-in-Polygon de alta velocidad sin requerir rtree/pygeos
+    # (Pre-filtrado por Bounding Box con NumPy + validación con Shapely prep en C/GEOS)
+    order_lngs = ordenes["lng"].values
+    order_lats = ordenes["lat"].values
+    matched_dfs = []
 
-    # Cruce espacial Point-in-Polygon optimizado (STRtree en C/GEOS)
-    joined = gpd.sjoin(gdf_orders, gdf_polys, predicate="within", how="inner")
-    if joined.empty:
+    for _, poly_row in poligonos.iterrows():
+        poly_geom = poly_row["geometry"]
+        poly_name = poly_row["polygon"]
+        cur_tienda = poly_row.get("id_tienda_actual")
+
+        minx, miny, maxx, maxy = poly_geom.bounds
+        mask = (order_lngs >= minx) & (order_lngs <= maxx) & (order_lats >= miny) & (order_lats <= maxy)
+        if not mask.any():
+            continue
+
+        candidates = ordenes[mask].copy()
+        prep_poly = prep(poly_geom)
+        is_inside = [
+            prep_poly.contains(Point(x, y))
+            for x, y in zip(candidates["lng"].values, candidates["lat"].values)
+        ]
+
+        if any(is_inside):
+            matched = candidates[is_inside].copy()
+            matched["nombre_poligono_actual"] = poly_name
+            matched["id_tienda_actual"] = cur_tienda
+            matched_dfs.append(matched)
+
+    if not matched_dfs:
         logging.warning("No hubo coincidencias espaciales entre órdenes y polígonos de Unimarc.")
         return "empty"
+
+    joined = pd.concat(matched_dfs, ignore_index=True)
 
     target_columns = [
         "id_orden",
@@ -383,7 +400,7 @@ with DAG(
        - Extrae órdenes desde `ecommdata.ordenes_janis` (por defecto últimos 7 días; 25 meses con `conf={"full_refresh": true}`).
     
     2. **Cruce Espacial**:
-       - Point-in-Polygon vectorizado de alta velocidad mediante `geopandas.sjoin` con árboles espaciales STRtree.
+       - Point-in-Polygon vectorizado de alta velocidad mediante Bounding Box con NumPy + `shapely.prepared.prep` en C/GEOS.
     
     3. **Carga en Postgres**:
        - Borra los últimos 7 días para evitar duplicados.

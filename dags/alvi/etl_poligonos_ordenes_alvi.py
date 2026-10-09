@@ -13,9 +13,9 @@ import json
 import logging
 import io
 import pandas as pd
-import geopandas as gpd
 from shapely.geometry import Point, Polygon
 from shapely.validation import make_valid
+from shapely.prepared import prep
 import sqlalchemy
 from sqlalchemy import text
 
@@ -302,35 +302,32 @@ def poligonos_ordenes_alvi_to_s3(ds, **context):
 
         logging.info(f"Procesando cuenta {vtex_acc}: {len(orders_acc)} órdenes contra {len(polys_acc)} polígonos.")
 
-        try:
-            # Spatial join con GeoPandas (indexado espacial STRtree - ultra rápido)
-            gdf_orders = gpd.GeoDataFrame(
-                orders_acc,
-                geometry=gpd.points_from_xy(orders_acc["lng"], orders_acc["lat"]),
-                crs="EPSG:4326"
-            )
-            gdf_polys = gpd.GeoDataFrame(
-                polys_acc[["polygon", "id_tienda_actual", "geometry"]],
-                geometry="geometry",
-                crs="EPSG:4326"
-            ).rename(columns={"polygon": "nombre_poligono_actual"})
+        # Cruce Point-in-Polygon rápido particionado por cuenta VTEX (sin requerir rtree/pygeos)
+        acc_order_lngs = orders_acc["lng"].values
+        acc_order_lats = orders_acc["lat"].values
 
-            joined = gpd.sjoin(gdf_orders, gdf_polys, predicate="within", how="inner")
-            if not joined.empty:
-                results.append(pd.DataFrame(joined.drop(columns=["geometry", "index_right"])))
-        except Exception as e:
-            logging.warning(f"Error en sjoin para cuenta {vtex_acc}, usando fallback iterativo: {e}")
-            for _, p_row in polys_acc.iterrows():
-                poly_geom = p_row["geometry"]
-                poly_name = p_row["polygon"]
-                cur_tienda = p_row.get("id_tienda_actual")
-                for _, o_row in orders_acc.iterrows():
-                    pt = Point(float(o_row["lng"]), float(o_row["lat"]))
-                    if poly_geom.contains(pt):
-                        item = o_row.to_dict()
-                        item["nombre_poligono_actual"] = poly_name
-                        item["id_tienda_actual"] = cur_tienda
-                        results.append(pd.DataFrame([item]))
+        for _, p_row in polys_acc.iterrows():
+            poly_geom = p_row["geometry"]
+            poly_name = p_row["polygon"]
+            cur_tienda = p_row.get("id_tienda_actual")
+
+            minx, miny, maxx, maxy = poly_geom.bounds
+            mask = (acc_order_lngs >= minx) & (acc_order_lngs <= maxx) & (acc_order_lats >= miny) & (acc_order_lats <= maxy)
+            if not mask.any():
+                continue
+
+            candidates = orders_acc[mask].copy()
+            prep_poly = prep(poly_geom)
+            is_inside = [
+                prep_poly.contains(Point(x, y))
+                for x, y in zip(candidates["lng"].values, candidates["lat"].values)
+            ]
+
+            if any(is_inside):
+                matched = candidates[is_inside].copy()
+                matched["nombre_poligono_actual"] = poly_name
+                matched["id_tienda_actual"] = cur_tienda
+                results.append(matched)
 
     if not results:
         logging.warning("No hubo coincidencias espaciales entre órdenes y polígonos de Alvi.")
@@ -475,7 +472,7 @@ default_args = {
 }
 
 with DAG(
-    "etl_ordenes_poligonos_alvi",
+    "etl_poligonos_ordenes_alvi",
     default_args=default_args,
     description="Carga tabla ordenes_poligonos_alvi cruzando ordenes de Janis y polígonos multicuenta VTEX",
     schedule_interval="30 8 * * *",
