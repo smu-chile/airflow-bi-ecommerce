@@ -264,7 +264,7 @@ with DAG(
     "etl_alerta_promociones_canal10",
     default_args=default_args,
     description="Auditoría de pérdida prematura de promociones Canal 10 en productos con promociones en Canal 70.",
-    schedule_interval="0 10 * * *"",
+    schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
