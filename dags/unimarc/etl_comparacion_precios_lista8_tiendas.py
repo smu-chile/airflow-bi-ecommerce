@@ -449,7 +449,7 @@ with DAG(
     "etl_comparacion_precios_lista8_tiendas",
     default_args=default_args,
     description="Compara precios de Lista 8 entre tiendas y obtiene el precio modal de workflow_promociones a las 8:00 AM.",
-    schedule_interval="0 8 * * *",
+    schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

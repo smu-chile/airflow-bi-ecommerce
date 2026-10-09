@@ -239,7 +239,7 @@ with DAG(
     'etl_ranking_top_100',
     default_args=default_args,
     description="Carga del ranking top 100 de productos con promociones vigentes en ecommdata.ranking_top_100 y sincronización con colección VTEX",
-    schedule_interval="0 7 * * *",
+    schedule_interval="0 9 * * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

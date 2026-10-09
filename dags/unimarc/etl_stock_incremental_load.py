@@ -607,7 +607,21 @@ with DAG(
             WHERE fecha <= '{{ds}}'::date - interval '21 days' """
     )
 
+    t_analyze_stock = PostgresOperator(
+        task_id = "analyze_stock",
+        postgres_conn_id = "postgresql_conn",
+        sql = "ANALYZE ecommdata.stock;",
+        autocommit = True,
+    )
+
+    t8 = TriggerDagRunOperator(
+        task_id = "trigger_vacuum_stock",
+        trigger_dag_id = "etl_vacuum_stock",
+        reset_dag_run = True,
+        wait_for_completion = False,
+    )
+
 
 [t0, t2] >> t3
-[t1, t3] >> t4 >> t5 >> t_prepare_surtido >> t6 >> t7
+[t1, t3] >> t4 >> t5 >> t_prepare_surtido >> t6 >> t7 >> t_analyze_stock >> t8
 
