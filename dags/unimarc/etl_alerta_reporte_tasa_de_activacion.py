@@ -718,7 +718,7 @@ def _calcular_y_notificar_alerta_consolidada(**kwargs):
 with DAG(
     dag_id="etl_alerta_reporte_tasa_de_activacion",
     default_args=default_args,
-    schedule_interval="30 10 * * *",  # Diariamente a las 9:30 AM (Chile)
+    schedule_interval="0 10 * * *",  # Diariamente a las 10:00 AM (Chile)
     catchup=False,
     max_active_runs=1,
     tags=["Unimarc", "Alerta", "Promociones", "Canal70", "Canal10", "Ventas", "Slack", "Consolidado"],

@@ -255,7 +255,7 @@ with DAG(
     "etl_alerta_top500_stock_janis",
     default_args=default_args,
     description="Auditoría de quiebres de stock Janis en el Top 500 de productos, promociones activas y ventas 90d para tiendas 0581 y 0917 a las 8:00 AM.",
-    schedule_interval="0 8 * * *",
+    schedule_interval="0 10 * * *",
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,

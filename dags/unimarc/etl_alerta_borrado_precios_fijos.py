@@ -449,7 +449,7 @@ with DAG(
     "etl_alerta_borrado_precios_fijos",
     default_args=default_args,
     description="Auditoría y registro en ecommdata.wp_skus_a_borrar de SKUs con precios fijos retirados prematuramente de workflow_promociones.",
-    schedule_interval="45 8 * * *",
+    schedule_interval="0 10 * * *", 
     start_date=pendulum.datetime(2024, 1, 1, tz="America/Santiago"),
     catchup=False,
     max_active_runs=1,
