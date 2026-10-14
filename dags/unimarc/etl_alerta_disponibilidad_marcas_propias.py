@@ -144,8 +144,12 @@ def _generar_matriz_grupo(df_tiendas, df_skus_base, df_stock_pos, df_lista8_tien
     df_cat_tienda.rename(columns={"sku_id": "total_skus_esperados"}, inplace=True)
 
     # Numerador: Total SKUs con stock > 0 en esa tienda para ese grupo
+    # IMPORTANTE: se filtra también por Lista 8 de cada tienda para que numerador y
+    # denominador usen el mismo universo de SKUs y el % nunca supere el 100%.
     if not df_stock_pos.empty:
         df_stock_grupo = pd.merge(df_stock_pos, df_skus_base[["sku_id", col_grupo]], on="sku_id", how="inner")
+        # Filtrar: solo contar SKUs que además estén en el surtido (Lista 8) de esa tienda
+        df_stock_grupo = pd.merge(df_stock_grupo, df_lista8_tienda[["id_tienda", "sku_id"]], on=["id_tienda", "sku_id"], how="inner")
         df_skus_con_stock = df_stock_grupo.groupby(["id_tienda", col_grupo])["sku_id"].nunique().reset_index()
         df_skus_con_stock.rename(columns={"sku_id": "skus_con_stock"}, inplace=True)
     else:
