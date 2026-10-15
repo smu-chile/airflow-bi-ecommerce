@@ -795,9 +795,17 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
     import requests
     import pandas as pd
     import json
+    from requests.adapters import HTTPAdapter
+    from urllib3.util import Retry
 
     # 1) Traer filename desde XCom del task AM o PM
-    filename = ti.xcom_pull(key="return_value", task_ids=[source_task_id])[0]
+    raw_filename = ti.xcom_pull(key="return_value", task_ids=source_task_id)
+    if not raw_filename:
+        raw_filename = ti.xcom_pull(key="return_value", task_ids=[source_task_id])
+    if isinstance(raw_filename, list):
+        filename = raw_filename[0]
+    else:
+        filename = raw_filename
 
     s3_bucket = Variable.get("AWS_S3_BUCKET_NAME")
     s3_hook = S3Hook(aws_conn_id="aws_s3_connection")
@@ -808,13 +816,15 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
     s_stock_object = s3_hook.get_key(filename, bucket_name=s3_bucket)
     df = pd.read_csv(s_stock_object.get()["Body"], dtype={"ref_id": str, "id_tienda": str, "erp_id": str})
 
-    # 2) Solo tienda 0917
+    # 2) Solo tienda 0917 (o configurable por variable)
+    target_warehouse = Variable.get("SECURITY_STOCK_MFC_WAREHOUSE", default_var="0917")
     df["id_tienda"] = df["id_tienda"].astype(str).str.zfill(4)
-    df = df[df["id_tienda"] == "0917"].copy()
+    df = df[df["id_tienda"] == target_warehouse].copy()
 
     if df.empty:
-        print("No hay registros para 0917.")
+        print(f"No hay registros para la tienda {target_warehouse}.")
         return
+
     # 2.1) Aplicar regla: si está en slotting_mfc => stock seguridad = 0
     mfc_df = listado_slotting_mfc()
     mfc_set = set(mfc_df["ref_id"].dropna().astype(str).str.strip().unique())
@@ -822,94 +832,96 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
     df["ref_id"] = df["ref_id"].astype(str).str.strip()
     df.loc[df["ref_id"].isin(mfc_set), "nuevo_stock_seguridad"] = 0
 
-    print(f"[OMS 1917] Forzados a 0 por slotting MFC: {(df['ref_id'].isin(mfc_set)).sum()} / {len(df)}")
+    print(f"[Transaction Manager {target_warehouse}] Forzados a 0 por slotting MFC: {(df['ref_id'].isin(mfc_set)).sum()} / {len(df)}")
 
     # 3) Se asigna ref_id a sku, y se asegura tipo int en stock seguridad
     df["sku"] = df["ref_id"].astype(str)
     df["nuevo_stock_seguridad"] = df["nuevo_stock_seguridad"].fillna(0).astype(int)
-    df.head(10)
 
     # 4) Config endpoint + headers
-    url = Variable.get("endpoint_security_stock_publisher")
-    token = Variable.get("security_stock_token_publisher")
-    channel = "unimarc"
+    default_url = "https://ms-transaction-manager-integrations-v2.smu-service.cl/api/v1/stock-master/security-stock/bulk"
+    url = Variable.get("ENDPOINT_SECURITY_STOCK_TRANSACTION_MANAGER", default_var=None)
+    if not url:
+        legacy_url = Variable.get("endpoint_security_stock_publisher", default_var=None)
+        if legacy_url and "transaction-manager" in legacy_url:
+            url = legacy_url
+        else:
+            url = default_url
+
+    visitor_id = Variable.get("SECURITY_STOCK_VISITOR_ID", default_var=Variable.get("security_stock_visitor_id", default_var="test"))
+    dry_run = Variable.get("SECURITY_STOCK_DRY_RUN", default_var="false").strip().lower() in ("true", "1")
 
     headers = {
-        "Authorization": f"Bearer {token}",
-        "channel": channel
+        "Content-Type": "application/json",
+        "X-Visitor-Id": visitor_id
     }
 
     session = requests.Session()
+    retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
+    session.mount('http://', HTTPAdapter(max_retries=retries, pool_connections=10, pool_maxsize=10))
 
-    # 5) Payload masivo (lista de objetos)
-    payload = [
+    # 5) Filas a enviar
+    rows = [
         {
             "sku": str(row["sku"]),
-            "idWarehouse": "0917",
+            "idWarehouse": str(row["id_tienda"]),
             "securityStock": int(row["nuevo_stock_seguridad"])
         }
         for _, row in df.iterrows()
     ]
-    
-    print(json.dumps(payload[:10], indent=2, ensure_ascii=False))
 
-    # 6) Intento BULK
-    try:
-        resp = session.post(url, json=payload, headers=headers, timeout=60)
-        if 200 <= resp.status_code < 300:
-            print(f"✅ OMS MFC BULK listo. OK={len(payload)} FAIL=0")
-            return
-        else:
-            print(f"⚠️ BULK falló status={resp.status_code} body={resp.text[:500]}")
-    except Exception as e:
-        print(f"⚠️ BULK tiró excepción: {str(e)[:500]}")
+    total_records = len(rows)
+    print(f"Total registros a enviar para warehouse {target_warehouse}: {total_records}")
+    print("Ejemplo de registros a enviar:")
+    print(json.dumps({"rows": rows[:3], "dryRun": dry_run}, indent=2, ensure_ascii=False))
 
-    # 7) Fallback a CHUNKS
-    CHUNK_SIZE = int(Variable.get("OMS_SECURITY_STOCK_CHUNK_SIZE", default_var=500))
+    # 6) Envío en lotes (chunks)
+    CHUNK_SIZE = int(Variable.get("SECURITY_STOCK_CHUNK_SIZE", default_var=Variable.get("OMS_SECURITY_STOCK_CHUNK_SIZE", default_var=500)))
 
     ok = 0
     fail = 0
     errores = []
+    total_batches = (total_records + CHUNK_SIZE - 1) // CHUNK_SIZE
 
-    for i in range(0, len(payload), CHUNK_SIZE):
-        chunk = payload[i:i + CHUNK_SIZE]
+    print(f"Iniciando envío a Transaction Manager ({url}) en {total_batches} lote(s) de hasta {CHUNK_SIZE} filas con X-Visitor-Id='{visitor_id}' y dryRun={dry_run}...")
+
+    for i in range(0, total_records, CHUNK_SIZE):
+        chunk = rows[i:i + CHUNK_SIZE]
+        batch_idx = (i // CHUNK_SIZE) + 1
+        payload = {
+            "rows": chunk,
+            "dryRun": dry_run
+        }
 
         try:
-            resp = session.post(url, json=chunk, headers=headers, timeout=60)
+            resp = session.post(url, json=payload, headers=headers, timeout=60)
             if 200 <= resp.status_code < 300:
                 ok += len(chunk)
+                print(f"✅ Lote {batch_idx}/{total_batches} enviado exitosamente ({len(chunk)} registros). Status: {resp.status_code}")
             else:
                 fail += len(chunk)
+                print(f"⚠️ Error en lote {batch_idx}/{total_batches}. Status: {resp.status_code} | Respuesta: {resp.text[:500]}")
                 errores.append({
-                    "chunk_start": i,
-                    "chunk_size": len(chunk),
+                    "batch": batch_idx,
                     "status": resp.status_code,
-                    "body": resp.text[:500]
+                    "response": resp.text[:500]
                 })
         except Exception as e:
             fail += len(chunk)
+            print(f"⚠️ Excepción en lote {batch_idx}/{total_batches}: {str(e)[:500]}")
             errores.append({
-                "chunk_start": i,
-                "chunk_size": len(chunk),
+                "batch": batch_idx,
                 "status": "EXCEPTION",
-                "body": str(e)[:500]
+                "response": str(e)[:500]
             })
 
-    print(f"✅ OMS MFC por CHUNKS listo. OK={ok} FAIL={fail}")
+    print(f"Resumen de envío Transaction Manager: OK={ok} | FAIL={fail} de {total_records} registros.")
     if errores:
-        print("❌ Ejemplos de errores (top 20):")
-        print(errores[:20])
-
-    total = ok + fail
-    fail_rate = (fail / total) if total else 0
-
-    MAX_FAIL_RATE = 0.2   # 20%
-    MAX_FAIL_COUNT = 500  # o 500 filas
-
-    if fail > 0 and (fail_rate > MAX_FAIL_RATE or fail > MAX_FAIL_COUNT):
+        print("❌ Ejemplos de errores:", json.dumps(errores[:5], indent=2))
         raise Exception(
-            f"OMS security-stock fallando: FAIL={fail}/{total} ({fail_rate:.1%}). "
-            f"Top errors: {errores[:10]}"
+            f"Fallo al enviar stock de seguridad a Transaction Manager ({fail}/{total_records} registros fallaron). "
+            f"Primeros errores: {errores[:3]}"
         )
 
     return
@@ -1078,22 +1090,22 @@ with DAG(
         python_callable = carga_stock_seguridad_janis_pm
     )
 
-#    t4_am = PythonOperator(
-#        task_id="carga_stock_seguridad_publisher_1917_am",
-#        python_callable=carga_stock_seguridad_oms_1917,
-#        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_am"},
-#    )
+    t4_am = PythonOperator(
+        task_id="carga_stock_seguridad_publisher_1917_am",
+        python_callable=carga_stock_seguridad_oms_1917,
+        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_am"},
+    )
 
-#    t4_pm = PythonOperator(
-#        task_id="carga_stock_seguridad_publisher_1917_pm",
-#        python_callable=carga_stock_seguridad_oms_1917,
-#        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_pm"},
-#    )
+    t4_pm = PythonOperator(
+        task_id="carga_stock_seguridad_publisher_1917_pm",
+        python_callable=carga_stock_seguridad_oms_1917,
+        op_kwargs={"source_task_id": "stock_ventas_tiendas_to_s3_pm"},
+    )
 
     t0 >> t1_am >> t2_am >> t3_am
-#    t2_am >> t4_am
+    t2_am >> t4_am
 
     t0 >> t1_pm >> t2_pm >> t3_pm
-#    t2_pm >> t4_pm
+    t2_pm >> t4_pm
 
     t0 >> t_dummy
