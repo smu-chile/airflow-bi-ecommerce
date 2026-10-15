@@ -451,9 +451,13 @@ def send_excluded_stock_0_to_janis(ti):
     url = f"{janis_base_url.rstrip('/')}/stock"
     
     # 2. Obtener el payload de stock de XCom
-    stock_payload = ti.xcom_pull(key="stock_payload", task_ids=["load_tables_to_s3"])
+    stock_payload = ti.xcom_pull(key="stock_payload", task_ids="load_tables_to_s3")
     if not stock_payload:
-        stock_payload = ti.xcom_pull(key="stock_0_payload", task_ids=["load_tables_to_s3"])
+        stock_payload = ti.xcom_pull(key="stock_0_payload", task_ids="load_tables_to_s3")
+    
+    # Manejar caso de desempaquetado si viene envuelto en una lista exterior de XCom
+    if isinstance(stock_payload, list) and len(stock_payload) > 0 and isinstance(stock_payload[0], list):
+        stock_payload = stock_payload[0]
     
     if not stock_payload:
         print("No hay stocks que inyectar a Janis hoy.")
