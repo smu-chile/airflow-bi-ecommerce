@@ -287,17 +287,22 @@ def load_tables_to_s3(ts, ds, ti):
     # C) Stock 0 en tienda 9999 para productos que dejan de ser válidos o se desactivan (solo UN)
     # Incluye:
     # 1. Productos dados de baja en Janis (df_to_deactivate) cuyo SKU sea UN
-    inactivos_un = df_to_deactivate[
-        df_to_deactivate['ref_id'].apply(lambda r: str(r).split('-')[-1].upper() == 'UN')
-    ]
-    materiales_inactivos_un = set(
-        inactivos_un['ref_id'].apply(lambda r: str(str(r).split('-')[0]).zfill(18)).unique()
-    )
+    materiales_inactivos_un = set()
+    if not df_to_deactivate.empty and 'ref_id' in df_to_deactivate.columns:
+        inactivos_un = df_to_deactivate[
+            df_to_deactivate['ref_id'].apply(lambda r: str(r).split('-')[-1].upper() == 'UN')
+        ]
+        if not inactivos_un.empty and 'ref_id' in inactivos_un.columns:
+            materiales_inactivos_un = set(
+                inactivos_un['ref_id'].apply(lambda r: str(str(r).split('-')[0]).zfill(18)).unique()
+            )
 
     # 2. Productos que están en lista8 como excluidos y no tienen ninguna tienda activa
-    materiales_excluidos_sin_tienda = set(
-        df_lista8_excluded['ref_id'].apply(lambda r: str(str(r).split('-')[0]).zfill(18)).unique()
-    ) - materiales_activos_un
+    materiales_excluidos_sin_tienda = set()
+    if not df_lista8_excluded.empty and 'ref_id' in df_lista8_excluded.columns:
+        materiales_excluidos_sin_tienda = set(
+            df_lista8_excluded['ref_id'].apply(lambda r: str(str(r).split('-')[0]).zfill(18)).unique()
+        ) - materiales_activos_un
 
     # Unimos todos los materiales a poner en stock 0 en la 9999 (excluyendo cualquier material activo)
     materiales_stock_0_9999 = (materiales_inactivos_un | materiales_excluidos_sin_tienda) - materiales_activos_un
