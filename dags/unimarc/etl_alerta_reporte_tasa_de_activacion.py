@@ -372,11 +372,7 @@ def _calcular_metricas(df: pd.DataFrame, canal: str, eval_date: str) -> dict:
 
 
 def _calcular_y_notificar_alerta_consolidada(**kwargs):
-    ds_str = kwargs.get("ds")
-    if ds_str:
-        eval_date = (pd.to_datetime(ds_str) - timedelta(days=1)).strftime("%Y-%m-%d")
-    else:
-        eval_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    eval_date = (datetime.now(tz=local_tz) - timedelta(days=1)).strftime("%Y-%m-%d")
 
     print(f"🔍 Ejecutando Alerta Consolidada de Ventas y Activación para la fecha: {eval_date}")
 
@@ -692,13 +688,36 @@ def _calcular_y_notificar_alerta_consolidada(**kwargs):
         "text": fall_back_text,
     }
 
+    # --- DIAGNÓSTICO: contenido del bloque de activación ---
+    print(f"🔎 Total bloques en payload: {len(slack_blocks)}")
+    for i, blk in enumerate(slack_blocks):
+        blk_type = blk.get("type", "?")
+        blk_text = blk.get("text", {}).get("text", "")[:80].replace("\n", "\\n") if "text" in blk else ""
+        print(f"  Bloque [{i}] type={blk_type!r} text_preview={blk_text!r}")
+    print(f"🔎 text_activacion completo:\n{text_activacion}")
+    # --------------------------------------------------------
+
     res = requests.post("https://slack.com/api/chat.postMessage", headers=headers, json=payload)
+    res_json = res.json()
     thread_ts = None
-    if res.ok and res.json().get("ok"):
+    if res.ok and res_json.get("ok"):
         print("✅ Notificación enviada exitosamente a Slack.")
-        thread_ts = res.json().get("ts")
+        thread_ts = res_json.get("ts")
+        # Loguear warnings si Slack los devuelve (bloques descartados, etc.)
+        if res_json.get("warning"):
+            print(f"⚠️ Slack WARNING: {res_json.get('warning')}")
+        if res_json.get("response_metadata"):
+            print(f"⚠️ Slack response_metadata: {res_json.get('response_metadata')}")
+        # Contar bloques que Slack efectivamente renderizó
+        rendered_blocks = res_json.get("message", {}).get("blocks", [])
+        print(f"🔎 Bloques enviados: {len(slack_blocks)} | Bloques renderizados por Slack: {len(rendered_blocks)}")
+        for i, blk in enumerate(rendered_blocks):
+            blk_type = blk.get("type", "?")
+            blk_text = blk.get("text", {}).get("text", "")[:80].replace("\n", "\\n") if "text" in blk else ""
+            print(f"  Renderizado [{i}] type={blk_type!r} text_preview={blk_text!r}")
     else:
         print(f"⚠️ Error al enviar mensaje a Slack: {res.text}")
+        print(f"⚠️ Slack response completo: {res_json}")
 
     # Subir Excel único en el hilo de Slack
     try:
