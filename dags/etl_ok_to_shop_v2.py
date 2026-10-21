@@ -257,17 +257,6 @@ def ok_to_shop_api_to_postgres(ti):
     df['energy_value'] = df['energy_value'].str.replace(',', '.')
     df['carb_value'] = df['carb_value'].str.replace(',', '.')
 
-    df['protein_value'] = df['protein_value'].astype(float, errors = 'raise')
-    df['fat_total_value'] = df['fat_total_value'].astype(float, errors = 'raise')
-    df['fat_sat_value'] = df['fat_sat_value'].astype(float, errors = 'raise')
-    df['fat_mono_value'] = df['fat_mono_value'].astype(float, errors = 'raise')
-    df['fat_poli_value'] = df['fat_poli_value'].astype(float, errors = 'raise')
-    df['fat_trans_value'] = df['fat_trans_value'].astype(float, errors = 'raise')
-    df['fat_cholesterol_value'] = df['fat_cholesterol_value'].astype(float, errors = 'raise')
-    df['sugars_value'] = df['sugars_value'].astype(float, errors = 'raise')
-    df['sodium_value'] = df['sodium_value'].astype(float, errors = 'raise')
-    df['energy_value'] = df['energy_value'].astype(float, errors = 'raise')
-    df['carb_value'] = df['carb_value'].astype(float, errors = 'raise')
 
     columns = [
     "product_ean", "timestamp_in", "date_in", "last_update", "date_last_update", 
