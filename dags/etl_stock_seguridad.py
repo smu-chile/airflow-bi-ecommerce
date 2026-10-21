@@ -791,7 +791,7 @@ def carga_stock_seguridad_janis_am(ds,ti):
 
     return
 
-def carga_stock_seguridad_oms_1917(ti, source_task_id):
+def carga_stock_seguridad_oms_1917(ti, source_task_id, ds=None, **kwargs):
     import requests
     import pandas as pd
     import json
@@ -837,6 +837,119 @@ def carga_stock_seguridad_oms_1917(ti, source_task_id):
     # 3) Se asigna ref_id a sku, y se asegura tipo int en stock seguridad
     df["sku"] = df["ref_id"].astype(str)
     df["nuevo_stock_seguridad"] = df["nuevo_stock_seguridad"].fillna(0).astype(int)
+
+    # 3.1) Guardar respaldo del stock enviado a MFC en S3 (carpeta stock_seguridad_mfc)
+    try:
+        import io
+        mfc_buffer = io.StringIO()
+        mfc_filename = filename.replace("stock_seguridad/", "stock_seguridad_mfc/", 1).replace("stock_seguridad_", "stock_seguridad_mfc_")
+        df.to_csv(mfc_buffer, header=True, index=False, encoding="utf-8")
+        mfc_buffer.seek(0)
+        s3_hook.load_string(
+            mfc_buffer.getvalue(),
+            key=mfc_filename,
+            bucket_name=s3_bucket,
+            replace=True,
+            encrypt=False
+        )
+        print(f"Respaldo MFC guardado exitosamente en S3: {mfc_filename}")
+    except Exception as e:
+        print(f"⚠️ Error al guardar respaldo MFC en S3 ({mfc_filename if 'mfc_filename' in locals() else 'desconocido'}): {e}")
+
+    # 3.2) Guardar stock de seguridad MFC en PostgreSQL (ecommdata.stock_seguridad_mfc) para Metabase
+    try:
+        import sqlalchemy
+        from sqlalchemy import text
+
+        # Determinar horario (AM / PM)
+        horario = "AM" if "am" in str(source_task_id).lower() or (hasattr(ti, "task_id") and "am" in str(ti.task_id).lower()) else "PM"
+
+        # Determinar fecha de ejecución (ds o fecha local)
+        fecha_str = ds if ds else None
+        if not fecha_str:
+            try:
+                fecha_str = ti.execution_date.in_timezone("America/Santiago").strftime("%Y-%m-%d")
+            except Exception:
+                fecha_str = pendulum.now("America/Santiago").strftime("%Y-%m-%d")
+
+        print(f"Iniciando guardado de stock de seguridad MFC en Postgres para fecha={fecha_str}, horario={horario}...")
+
+        # Conexión Postgres
+        try:
+            host = Variable.get("POSTGRESQL_HOST", default_var=None)
+            if host:
+                database = Variable.get("POSTGRESQL_DB")
+                username = Variable.get("POSTGRESQL_USER")
+                password = Variable.get("POSTGRESQL_PASSWORD")
+                port = Variable.get("POSTGRESQL_PORT", default_var=5432)
+                conn_url = f"postgresql+psycopg2://{username}:{password}@{host}:{port}/{database}"
+                engine = sqlalchemy.create_engine(conn_url)
+            else:
+                pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+                engine = pg_hook.get_sqlalchemy_engine()
+        except Exception:
+            pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+            engine = pg_hook.get_sqlalchemy_engine()
+
+        # Preparar DataFrame con columnas del envío + fecha + horario
+        df_mfc_pg = pd.DataFrame({
+            "sku": df["sku"].astype(str),
+            "id_warehouse": df["id_tienda"].astype(str),
+            "security_stock": df["nuevo_stock_seguridad"].astype(int),
+            "fecha": pd.to_datetime(fecha_str).date(),
+            "horario": horario
+        })
+        df_mfc_pg = df_mfc_pg.drop_duplicates(subset=["fecha", "horario", "sku"], keep="first")
+
+        with engine.begin() as conn:
+            # 1. Asegurar existencia de tabla e índices
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS ecommdata.stock_seguridad_mfc (
+                    sku VARCHAR(50) NOT NULL,
+                    id_warehouse VARCHAR(10) NOT NULL,
+                    security_stock INTEGER NOT NULL,
+                    fecha DATE NOT NULL,
+                    horario VARCHAR(2) NOT NULL,
+                    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT pk_stock_seguridad_mfc PRIMARY KEY (fecha, horario, sku)
+                );
+                CREATE INDEX IF NOT EXISTS idx_stock_seguridad_mfc_fecha_horario 
+                    ON ecommdata.stock_seguridad_mfc (fecha, horario);
+                CREATE INDEX IF NOT EXISTS idx_stock_seguridad_mfc_sku 
+                    ON ecommdata.stock_seguridad_mfc (sku);
+                CREATE INDEX IF NOT EXISTS idx_stock_seguridad_mfc_fecha 
+                    ON ecommdata.stock_seguridad_mfc (fecha);
+            """))
+
+            # 2. Limpieza de histórico con más de 5 días de antigüedad
+            res_limpieza = conn.execute(text("""
+                DELETE FROM ecommdata.stock_seguridad_mfc 
+                WHERE fecha < CURRENT_DATE - INTERVAL '5 days';
+            """))
+            print(f"Limpieza histórico MFC (> 5 días): {res_limpieza.rowcount} registros eliminados.")
+
+            # 3. Idempotencia: borrar corrida previa de la misma fecha y horario si existe
+            res_mismo_lote = conn.execute(
+                text("DELETE FROM ecommdata.stock_seguridad_mfc WHERE fecha = :fecha AND horario = :horario;"),
+                {"fecha": fecha_str, "horario": horario}
+            )
+            if res_mismo_lote.rowcount > 0:
+                print(f"Limpieza de corrida previa ({fecha_str} {horario}): {res_mismo_lote.rowcount} registros eliminados.")
+
+            # 4. Insertar lote
+            df_mfc_pg.to_sql(
+                name="stock_seguridad_mfc",
+                con=conn,
+                schema="ecommdata",
+                if_exists="append",
+                index=False,
+                chunksize=5000,
+                method="multi"
+            )
+
+        print(f"✅ Stock de seguridad MFC guardado exitosamente en Postgres (ecommdata.stock_seguridad_mfc): {len(df_mfc_pg)} registros.")
+    except Exception as e:
+        print(f"⚠️ Error al guardar stock de seguridad MFC en PostgreSQL: {e}")
 
     # 4) Config endpoint + headers
     default_url = "https://ms-transaction-manager-integrations-v2.smu-service.cl/api/v1/stock-master/security-stock/bulk"

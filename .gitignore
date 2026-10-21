@@ -19,3 +19,4 @@ logs
 dags/etl_sku_positions_normalization_QA.py
 locales/
 scripts/
+docs/
