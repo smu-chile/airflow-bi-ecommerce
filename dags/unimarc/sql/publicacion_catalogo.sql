@@ -1,6 +1,6 @@
 BEGIN TRANSACTION;
 
-ALTER TABLE ecommdata.publicacion_catalogo ADD COLUMN IF NOT EXISTS instock smallint DEFAULT 0;
+ALTER TABLE ecommdata.publicacion_catalogo ADD COLUMN IF NOT EXISTS instock smallint;
 
 DELETE FROM ecommdata.publicacion_catalogo WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 
@@ -80,7 +80,7 @@ END AS top_300
 	WHEN (smt.ref_id IS NOT NULL AND smt.quantity_on_hand > 0 AND um.mfc_is_item_side = 'REG') THEN TRUE
 	ELSE FALSE
 END AS mfc
-, COALESCE(ins.instock, 0::smallint) AS instock
+, ins.instock AS instock
 FROM ecommdata.stock s
 LEFT JOIN (
 	SELECT isku.ref_id,
@@ -103,7 +103,10 @@ LEFT JOIN (
 	WHERE fecha = (SELECT max(fecha) FROM ecommdata.stock_mfc_takeoff smt)
 ) smt ON smt.ref_id = s.ref_id AND s.id_tienda = smt.id_tienda
 LEFT JOIN ecommdata.ubicacion_mfc um ON concat(um.sap_code, '-', um.measurement_unit) = s.ref_id AND um.store = s.id_tienda
-LEFT JOIN ecommdata.instock ins ON s.id_tienda = ins.tienda AND s.material = ins.material
+LEFT JOIN ecommdata.instock ins 
+  ON s.id_tienda = ins.tienda 
+ AND s.material = ins.material 
+ AND ins.fecha = (s.fecha - interval '1 day')::date
 WHERE s.fecha = '{{ds}}'::date
   AND s.id_tienda NOT IN ('0486', '0053', '0398', '0054');
 
