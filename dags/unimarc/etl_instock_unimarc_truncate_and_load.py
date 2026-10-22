@@ -15,7 +15,7 @@ import pendulum
 TZ = "America/Santiago"
 S3_BASE_PREFIX = "datastage/instock_unimarc"
 TARGET_TABLE = "ecommdata.instock"
-TIENDAS_EXCLUIDAS = ("0486", "0053")  # 0486: tienda basurero, 0053: excluida por negocio
+TIENDAS_EXCLUIDAS = ("0486", "0053", "0398", "0054")  # Excluidas de reportes y stock esten o no con status 1
 DEADLINE_HOURS = 2  # Horas de espera desde las 08:00 antes de fallar por tiendas faltantes
 
 CREATE_TABLE_SQL = f"""
@@ -78,6 +78,8 @@ def _list_store_files(prefix):
         if len(parts) < 2:
             continue
         tienda = parts[0].zfill(4)
+        if tienda in TIENDAS_EXCLUIDAS:
+            continue
         files_by_store.setdefault(tienda, []).append(key)
     return files_by_store
 
@@ -147,6 +149,8 @@ def _transform_instock(df):
     df["clase_abc"] = df["clase_abc"].replace({"": None})
     df["car_plan"] = df["car_plan"].replace({"": None})
 
+    # Excluir tiendas no operadas en ecommerce esten o no con status 1
+    df = df[~df["tienda"].isin(TIENDAS_EXCLUIDAS)]
     df = df.dropna(subset=["tienda", "material"])
     df = df.drop_duplicates(subset=["tienda", "material"], keep="last")
     return df[TARGET_COLUMNS]

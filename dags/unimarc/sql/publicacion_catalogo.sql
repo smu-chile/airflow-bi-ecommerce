@@ -104,7 +104,8 @@ LEFT JOIN (
 ) smt ON smt.ref_id = s.ref_id AND s.id_tienda = smt.id_tienda
 LEFT JOIN ecommdata.ubicacion_mfc um ON concat(um.sap_code, '-', um.measurement_unit) = s.ref_id AND um.store = s.id_tienda
 LEFT JOIN ecommdata.instock ins ON s.id_tienda = ins.tienda AND s.material = ins.material
-WHERE s.fecha = '{{ds}}'::date;
+WHERE s.fecha = '{{ds}}'::date
+  AND s.id_tienda NOT IN ('0486', '0053', '0398', '0054');
 
 COMMIT;
 
