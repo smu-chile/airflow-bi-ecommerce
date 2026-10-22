@@ -74,6 +74,7 @@ JOIN ecommdata.bodegas b
 JOIN ecommdata.tiendas t 
   ON b.id_tienda = t.id 
  AND t.status = 1
+ AND t.id != '0486'
 LEFT JOIN ecommdata.skus s 
   ON svu.vtex_id = s.vtex_id
 LEFT JOIN staging.stock_unimarc su 
@@ -89,7 +90,8 @@ LEFT JOIN staging.surtido_activo_unimarc sa
  AND sa.ref_id = s.ref_id
 LEFT JOIN ecommdata.lista_infaltables li 
   ON p.material = li.material
-WHERE NOT (
+WHERE t.id NOT IN ('0486', '0053', '0398', '0054')
+  AND NOT (
     (t.id = '0018' AND b.id = '9051') OR
     (t.id = '0069' AND b.id = '0576') OR
     (t.id = '0088' AND b.id = '0324')

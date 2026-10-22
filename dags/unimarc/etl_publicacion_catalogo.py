@@ -267,7 +267,10 @@ with DAG(
     t_analyze_stock = PostgresOperator(
         task_id="analyze_stock_before_publicacion",
         postgres_conn_id="postgresql_conn",
-        sql="ANALYZE ecommdata.stock;",
+        sql="""
+            ANALYZE ecommdata.stock;
+            ANALYZE ecommdata.instock;
+        """,
         autocommit=True,
     )
 
