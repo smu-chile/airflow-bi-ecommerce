@@ -29,9 +29,11 @@ CREATE TABLE IF NOT EXISTS {TARGET_TABLE} (
     car_plan          VARCHAR(4),
     estado_operativo  BOOLEAN,
     fecha_carga       TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    CONSTRAINT pk_instock PRIMARY KEY (tienda, material)
+    CONSTRAINT pk_instock PRIMARY KEY (fecha, tienda, material)
 );
 CREATE INDEX IF NOT EXISTS idx_instock_material ON {TARGET_TABLE} (material);
+CREATE INDEX IF NOT EXISTS idx_instock_fecha ON {TARGET_TABLE} (fecha);
+CREATE INDEX IF NOT EXISTS idx_instock_fecha_tienda_material ON {TARGET_TABLE} (fecha, tienda, material);
 """
 
 # Columnas origen (CSV) -> destino (tabla)
@@ -151,8 +153,8 @@ def _transform_instock(df):
 
     # Excluir tiendas no operadas en ecommerce esten o no con status 1
     df = df[~df["tienda"].isin(TIENDAS_EXCLUIDAS)]
-    df = df.dropna(subset=["tienda", "material"])
-    df = df.drop_duplicates(subset=["tienda", "material"], keep="last")
+    df = df.dropna(subset=["fecha", "tienda", "material"])
+    df = df.drop_duplicates(subset=["fecha", "tienda", "material"], keep="last")
     return df[TARGET_COLUMNS]
 
 
@@ -198,12 +200,21 @@ def _load_instock(data_interval_end, dag_run, **_):
     try:
         with conn.cursor() as cursor:
             cursor.execute(CREATE_TABLE_SQL)
-            cursor.execute(f"TRUNCATE {TARGET_TABLE};")
+            # Idempotencia: borrar la fecha objetivo en caso de reintento
+            cursor.execute(
+                f"DELETE FROM {TARGET_TABLE} WHERE fecha = %s;",
+                (target_date.to_date_string(),),
+            )
             cursor.copy_expert(
                 f"COPY {TARGET_TABLE} ({','.join(TARGET_COLUMNS)}) FROM STDIN WITH CSV DELIMITER E'\\t' NULL '\\N'",
                 buffer,
             )
-        conn.commit()  # TRUNCATE + COPY atómico
+            # Retención de 21 días (idéntico a ecommdata.stock)
+            cursor.execute(
+                f"DELETE FROM {TARGET_TABLE} WHERE fecha <= %s::date - interval '21 days';",
+                (target_date.to_date_string(),),
+            )
+        conn.commit()  # DELETE + COPY + DELETE retención atómico
     except Exception:
         conn.rollback()
         raise
@@ -224,9 +235,9 @@ default_args = {
 }
 
 with DAG(
-    "etl_instock_unimarc_truncate_and_load",
+    "etl_instock_unimarc_incremental_load",
     default_args=default_args,
-    description="Carga diaria de InStock Unimarc desde S3 (datastage/instock_unimarc) a ecommdata.instock.",
+    description="Carga diaria incremental de InStock Unimarc desde S3 (datastage/instock_unimarc) a ecommdata.instock con retención de 21 días.",
     schedule_interval="0 8 * * *",
     start_date=pendulum.datetime(2026, 10, 1, tz=TZ),
     catchup=False,
@@ -240,8 +251,8 @@ with DAG(
     Extracción de archivos InStock por tienda desde S3
     (`datastage/instock_unimarc/YYYY/MM/DD/{tienda}/instock_{tienda}_YYYYMMDD.csv`) y carga en `ecommdata.instock`. \n
     No existe archivo bandera: el sensor espera (reschedule cada 5 min) a que estén los CSV de todas las tiendas
-    activas (excluye 0486 y 0053). Si a las 10:00 siguen faltando tiendas, el DAG falla y NO se carga la tabla. \n
-    Carga truncate & load atómica (TRUNCATE + COPY en una sola transacción). \n
+    activas (excluye tiendas no operativas). Si a las 10:00 siguen faltando tiendas, el DAG falla y NO se carga la tabla. \n
+    Carga incremental con retención de 21 días (DELETE fecha + COPY + DELETE <= 21 días en una sola transacción). \n
     Transformaciones: Centro -> tienda (4 dígitos), PLU_SAP60 -> material (18 dígitos, sin UMV),
     InStock se conserva 1/0, ClaseABC conserva valor original (incluyendo #). \n
     Reproceso manual de otra fecha: trigger con conf `{"fecha": "YYYY-MM-DD"}`.
