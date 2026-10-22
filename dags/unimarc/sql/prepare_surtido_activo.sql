@@ -21,7 +21,7 @@ SELECT DISTINCT
     l.id_tienda,
     CONCAT(l.material, '-', l.umv) AS ref_id
 FROM ecommdata.lista8 l
-JOIN ecommdata.tiendas t ON l.id_tienda = t.id AND t.status = 1 AND t.id != '0486'
+JOIN ecommdata.tiendas t ON l.id_tienda = t.id AND t.status = 1 AND t.id NOT IN ('0486', '0053', '0398', '0054')
 WHERE l.material IS NOT NULL
   AND l.umv IS NOT NULL
   AND l.excluido IS FALSE 

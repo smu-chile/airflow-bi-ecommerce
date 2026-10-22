@@ -53,6 +53,7 @@ WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is tru
 and pc.id_tienda != '0486'
 and msp.nombre_proveedor <> 'None'
 and l.bloq_centro is null and l.bloq_formato is null and l.catalogado =true
+and pc.id_tienda NOT IN ('0486', '0053', '0398', '0054')
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.marca,msp.nombre_proveedor;
 
 COMMIT;
