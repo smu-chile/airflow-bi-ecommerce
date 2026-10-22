@@ -1,7 +1,26 @@
 BEGIN TRANSACTION;
 
+ALTER TABLE catalogo.publicacion_dia_tienda_surtido ADD COLUMN IF NOT EXISTS con_instock integer DEFAULT 0;
+
 DELETE FROM catalogo.publicacion_dia_tienda_surtido WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
-insert into catalogo.publicacion_dia_tienda_surtido
+
+INSERT INTO catalogo.publicacion_dia_tienda_surtido (
+    fecha_hora,
+    id_tienda,
+    c1,
+    c2,
+    c3,
+    total_surtido,
+    publicacion_valida,
+    disponible_web,
+    con_stock,
+    con_stock_visible,
+    con_foto,
+    con_categoria,
+    con_tienda,
+    mfc,
+    con_instock
+)
 SELECT pc.fecha_hora,
     pc.id_tienda,
     pc.c1,
@@ -43,7 +62,8 @@ SELECT pc.fecha_hora,
             WHEN pc.tienda_valida IS TRUE THEN 1
             ELSE 0
         END) AS con_tienda,
-    pc.mfc
+    pc.mfc,
+    sum(COALESCE(pc.instock, 0::smallint)) AS con_instock
 FROM ecommdata.publicacion_catalogo pc
 left join ecommdata.lista8 l on concat(l.material, '-', l.umv) = pc.ref_id and pc.id_tienda = l.id_tienda
 WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'

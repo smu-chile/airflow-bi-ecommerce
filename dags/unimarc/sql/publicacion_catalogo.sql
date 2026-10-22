@@ -1,8 +1,41 @@
 BEGIN TRANSACTION;
 
+ALTER TABLE ecommdata.publicacion_catalogo ADD COLUMN IF NOT EXISTS instock smallint DEFAULT 0;
+
 DELETE FROM ecommdata.publicacion_catalogo WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 
-INSERT INTO ecommdata.publicacion_catalogo
+INSERT INTO ecommdata.publicacion_catalogo (
+	fecha_hora,
+	material,
+	ref_id,
+	descripcion,
+	c1,
+	c2,
+	c3,
+	id_tienda,
+	id_bodega,
+	marca,
+	foto_valida,
+	cantidad_foto,
+	foto_en_preparacion,
+	categoria_valida,
+	stock_valido,
+	precio_valido,
+	tienda_valida,
+	publicacion_valida,
+	disponible_web,
+	infaltable,
+	stock_janis,
+	stock_seguridad_janis,
+	stock_infinito_janis,
+	stock_vtex,
+	stock_reservado_vtex,
+	stock_infinito_vtex,
+	surtido_ecommerce,
+	top_300,
+	mfc,
+	instock
+)
 SELECT s.ultima_actualizacion AS fecha_hora
 , s.material
 , s.ref_id
@@ -47,6 +80,7 @@ END AS top_300
 	WHEN (smt.ref_id IS NOT NULL AND smt.quantity_on_hand > 0 AND um.mfc_is_item_side = 'REG') THEN TRUE
 	ELSE FALSE
 END AS mfc
+, COALESCE(ins.instock, 0::smallint) AS instock
 FROM ecommdata.stock s
 LEFT JOIN (
 	SELECT isku.ref_id,
@@ -69,6 +103,7 @@ LEFT JOIN (
 	WHERE fecha = (SELECT max(fecha) FROM ecommdata.stock_mfc_takeoff smt)
 ) smt ON smt.ref_id = s.ref_id AND s.id_tienda = smt.id_tienda
 LEFT JOIN ecommdata.ubicacion_mfc um ON concat(um.sap_code, '-', um.measurement_unit) = s.ref_id AND um.store = s.id_tienda
+LEFT JOIN ecommdata.instock ins ON s.id_tienda = ins.tienda AND s.material = ins.material
 WHERE s.fecha = '{{ds}}'::date;
 
 COMMIT;
