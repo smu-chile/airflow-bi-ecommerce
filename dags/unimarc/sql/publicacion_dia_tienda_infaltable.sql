@@ -47,6 +47,7 @@ SELECT pc.fecha_hora,
 FROM ecommdata.publicacion_catalogo pc
 left join ecommdata.lista8 l on concat(l.material, '-', l.umv) = pc.ref_id and pc.id_tienda = l.id_tienda
 WHERE (pc.surtido_ecommerce IS TRUE or pc.mfc is TRUE) and pc.infaltable is TRUE and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
+and pc.id_tienda != '0486'
 and l.bloq_centro is null and l.bloq_formato is null and l.catalogado =true
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.mfc;
 

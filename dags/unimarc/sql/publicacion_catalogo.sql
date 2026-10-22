@@ -69,7 +69,8 @@ LEFT JOIN (
 	WHERE fecha = (SELECT max(fecha) FROM ecommdata.stock_mfc_takeoff smt)
 ) smt ON smt.ref_id = s.ref_id AND s.id_tienda = smt.id_tienda
 LEFT JOIN ecommdata.ubicacion_mfc um ON concat(um.sap_code, '-', um.measurement_unit) = s.ref_id AND um.store = s.id_tienda
-WHERE s.fecha = '{{ds}}'::date;
+WHERE s.fecha = '{{ds}}'::date
+  AND s.id_tienda != '0486';
 
 COMMIT;
 

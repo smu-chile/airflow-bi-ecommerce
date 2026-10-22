@@ -368,7 +368,7 @@ def _save_stock_final_batched(ds, ts, **kwargs):
         SELECT DISTINCT t.id
         FROM staging.stock_vtex_unimarc svu
         JOIN ecommdata.bodegas b ON svu.id_warehouse = b.id AND b.dock_activo IS TRUE
-        JOIN ecommdata.tiendas t ON b.id_tienda = t.id AND t.status = 1
+        JOIN ecommdata.tiendas t ON b.id_tienda = t.id AND t.status = 1 AND t.id != '0486'
         WHERE NOT (
             (t.id = '0018' AND b.id = '9051') OR
             (t.id = '0069' AND b.id = '0576') OR
@@ -454,6 +454,7 @@ def _save_stock_final_batched(ds, ts, **kwargs):
         JOIN ecommdata.tiendas t 
           ON b.id_tienda = t.id 
          AND t.status = 1
+         AND t.id != '0486'
         LEFT JOIN ecommdata.skus s 
           ON svu.vtex_id = s.vtex_id
         LEFT JOIN staging.stock_unimarc su 

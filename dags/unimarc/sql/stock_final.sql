@@ -74,6 +74,7 @@ JOIN ecommdata.bodegas b
 JOIN ecommdata.tiendas t 
   ON b.id_tienda = t.id 
  AND t.status = 1
+ AND t.id != '0486'
 LEFT JOIN ecommdata.skus s 
   ON svu.vtex_id = s.vtex_id
 LEFT JOIN staging.stock_unimarc su 
