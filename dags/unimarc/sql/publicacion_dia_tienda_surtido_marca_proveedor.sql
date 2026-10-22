@@ -50,6 +50,7 @@ left join ecommdata.maestra_sku_proveedor msp
 on pc.material = msp.material 
 left join ecommdata.lista8 l on concat(l.material, '-', l.umv) = pc.ref_id and pc.id_tienda = l.id_tienda
 WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
+and pc.id_tienda != '0486'
 and msp.nombre_proveedor <> 'None'
 and l.bloq_centro is null and l.bloq_formato is null and l.catalogado =true
 and pc.id_tienda NOT IN ('0486', '0053', '0398', '0054')

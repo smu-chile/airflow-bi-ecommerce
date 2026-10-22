@@ -62,6 +62,7 @@ WHERE (
         or pc.mfc is TRUE
     )
     and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
+    and pc.id_tienda != '0486'
     and l.bloq_centro is null
     and l.bloq_formato is null
     and l.catalogado = true

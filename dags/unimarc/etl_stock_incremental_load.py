@@ -455,6 +455,7 @@ def _save_stock_final_batched(ds, ts, **kwargs):
         JOIN ecommdata.tiendas t 
           ON b.id_tienda = t.id 
          AND t.status = 1
+         AND t.id NOT IN ('0486', '0053', '0398', '0054')
         LEFT JOIN ecommdata.skus s 
           ON svu.vtex_id = s.vtex_id
         LEFT JOIN staging.stock_unimarc su 

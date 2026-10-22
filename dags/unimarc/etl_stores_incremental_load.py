@@ -144,6 +144,9 @@ def _create_final_store_table(ti):
     df["punto_retiro"] = df["id"].apply(lambda x: any(str(r).startswith(x) for r in punto_retiro_tiendas))
     df["delivery"] = df["id"].apply(lambda x: any(str(r).startswith(x) for r in delivery_tiendas))
 
+    # Candado de seguridad (Protección 1): Forzar status = 0 para tienda cementerio 0486 (Ciudad de los Valles)
+    df.loc[df["id"].astype(str).str.zfill(4) == "0486", "status"] = 0
+
     columns = ["nombre_tienda_janis",
                 "nombre_tienda",
                 "id_janis",
@@ -195,6 +198,9 @@ def _create_final_store_table(ti):
     pg_connection = pg_hook.get_conn()
     cursor = pg_connection.cursor()
     cursor.executemany(incremental_query, fixed_records)
+
+    # Doble protección (Protección 2): Forzar status = 0 directamente en PostgreSQL tras el upsert
+    cursor.execute("UPDATE ecommdata.tiendas SET status = 0 WHERE id IN ('0486', '486');")
     pg_connection.commit()
     cursor.close()
     pg_connection.close()
