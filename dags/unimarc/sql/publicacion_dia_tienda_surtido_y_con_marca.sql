@@ -1,7 +1,5 @@
 BEGIN TRANSACTION;
 
-ALTER TABLE catalogo.publicacion_dia_tienda_surtido_y_con_marca ADD COLUMN IF NOT EXISTS con_instock integer;
-
 DELETE FROM catalogo.publicacion_dia_tienda_surtido_y_con_marca WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 
 INSERT INTO catalogo.publicacion_dia_tienda_surtido_y_con_marca (

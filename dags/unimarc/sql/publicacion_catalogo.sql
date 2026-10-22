@@ -1,7 +1,5 @@
 BEGIN TRANSACTION;
 
-ALTER TABLE ecommdata.publicacion_catalogo ADD COLUMN IF NOT EXISTS instock smallint;
-
 DELETE FROM ecommdata.publicacion_catalogo WHERE fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours';
 
 INSERT INTO ecommdata.publicacion_catalogo (
@@ -106,10 +104,10 @@ LEFT JOIN ecommdata.ubicacion_mfc um ON concat(um.sap_code, '-', um.measurement_
 LEFT JOIN ecommdata.instock ins 
   ON s.id_tienda = ins.tienda 
  AND s.material = ins.material 
- AND ins.fecha = (s.fecha - interval '1 day')::date
+ AND ins.fecha = ('{{ds}}'::date - interval '1 day')::date
 WHERE s.fecha = '{{ds}}'::date
   AND s.id_tienda NOT IN ('0486', '0053', '0398', '0054');
 
 COMMIT;
 
-ANALYZE ecommdata.publicacion_catalogo;
+ANALYZE ecommdata.publicacion_catalogo_{{ execution_date.strftime('y%Ym%md%d') }};
