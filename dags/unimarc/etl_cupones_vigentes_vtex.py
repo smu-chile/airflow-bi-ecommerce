@@ -198,7 +198,9 @@ def extract_cupones_to_s3(ts, ds):
         # Los usos de Campaign Audience se calculan en Postgres (task de carga)
         rec["usos"]        = (get_usage_count(rec["utm_campaign"])
                               if rec["fuente"] == "calculatorconfiguration" else None)
-        rec["fecha_carga"] = ds
+        rec["fecha_carga"]   = ds
+        # Timestamp UTC de la lectura (para campañas se reemplaza en la carga)
+        rec["fecha_lectura"] = datetime.now(tz=timezone.utc).isoformat()
         records.append(rec)
     print(f"Total cupones tras merge/dedup: {len(records)}")
 
@@ -227,8 +229,8 @@ def extract_cupones_to_s3(ts, ds):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TASK 2: Lee el CSV desde S3 y hace TRUNCATE + carga en
-#         catalogo.cupones_vigentes_vtex
+# TASK 2: Lee el CSV desde S3 y carga el snapshot diario en
+#         catalogo.cupones_vigentes_vtex (DELETE del día + INSERT)
 # ─────────────────────────────────────────────────────────────────────────────
 def load_cupones_to_postgres(ti):
     import pandas as pd
@@ -258,6 +260,10 @@ def load_cupones_to_postgres(ti):
     # Castear tipos
     df["usos"]        = pd.to_numeric(df["usos"],  errors="coerce").astype("Int64")
     df["fecha_carga"] = pd.to_datetime(df["fecha_carga"], errors="coerce")
+    if "fecha_lectura" in df.columns:
+        df["fecha_lectura"] = pd.to_datetime(df["fecha_lectura"], errors="coerce", utc=True)
+    else:
+        df["fecha_lectura"] = pd.Timestamp.now(tz="UTC")
     df = df.where(pd.notnull(df), None)
 
     host     = Variable.get("POSTGRESQL_HOST",     default_var="")
@@ -284,7 +290,8 @@ def load_cupones_to_postgres(ti):
                 if not ref_ids:
                     continue
                 usos = conn.execute(query_usos, {"ref_ids": ref_ids}).scalar()
-                df.at[idx, "usos"] = int(usos or 0)
+                df.at[idx, "usos"]          = int(usos or 0)
+                df.at[idx, "fecha_lectura"] = pd.Timestamp.now(tz="UTC")
                 print(f"  Usos {df.at[idx, 'utm_campaign']} (promos {ref_ids}): {usos}")
 
     with engine.begin() as conn:
@@ -301,10 +308,11 @@ def load_cupones_to_postgres(ti):
                 usos          INTEGER,
                 fecha_carga   DATE,
                 fuente        TEXT,
-                id_promo      TEXT
+                id_promo      TEXT,
+                fecha_lectura TIMESTAMPTZ
             );
         """))
-        # Tablas existentes: agregar columna fuente si falta
+        # Tablas existentes: agregar columnas nuevas si faltan
         conn.execute(text("""
             ALTER TABLE catalogo.cupones_vigentes_vtex
             ADD COLUMN IF NOT EXISTS fuente TEXT;
@@ -313,8 +321,17 @@ def load_cupones_to_postgres(ti):
             ALTER TABLE catalogo.cupones_vigentes_vtex
             ADD COLUMN IF NOT EXISTS id_promo TEXT;
         """))
-        # TRUNCATE: siempre carga el snapshot del día
-        conn.execute(text("TRUNCATE catalogo.cupones_vigentes_vtex;"))
+        conn.execute(text("""
+            ALTER TABLE catalogo.cupones_vigentes_vtex
+            ADD COLUMN IF NOT EXISTS fecha_lectura TIMESTAMPTZ;
+        """))
+        # Snapshot diario: se conserva el histórico y solo se reemplaza la
+        # foto del mismo día (re-ejecuciones no duplican filas)
+        fecha_snapshot = df["fecha_carga"].dropna().iloc[0].date()
+        conn.execute(
+            text("DELETE FROM catalogo.cupones_vigentes_vtex WHERE fecha_carga = :f;"),
+            {"f": fecha_snapshot},
+        )
 
     df.to_sql(
         name="cupones_vigentes_vtex",

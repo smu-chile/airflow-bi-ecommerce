@@ -4,7 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
-from datetime import datetime
+from datetime import datetime, timezone
 import pendulum
 import io
 import json
@@ -104,6 +104,80 @@ def _upload_excel_file_to_slack(file_name: str, data_bytes: bytes, channel_id: s
         raise RuntimeError(f"Error en files.completeUploadExternal: {comp}")
 
     return comp
+
+
+def _guardar_historico_frutas_verduras(pg_hook, df_matrix, df_matrix_stock, productos_unicos):
+    """
+    Guarda la foto de disponibilidad (tienda x producto) en
+    ecommdata.alerta_frutas_verduras_historico.
+
+    - fecha_snapshot: día de la foto (hora Chile). Si el DAG se re-ejecuta el mismo día,
+      se reemplaza la foto de ese día para no duplicar filas.
+    - fecha_lectura: timestamp UTC de la lectura.
+    - tiene_stock: 1 si al menos 1 SKU del producto tiene >= 10 unidades en la tienda
+      (0 = quiebre; incluye tiendas sin el SKU en Lista 8, igual que la alerta).
+    - stock_unidades: suma de unidades de los SKUs del producto con >= 10 unidades.
+    """
+    from psycopg2.extras import execute_values
+
+    df_disp = df_matrix.melt(
+        id_vars=["id_tienda", "nombre_tienda", "region_std"],
+        value_vars=productos_unicos, var_name="producto", value_name="tiene_stock",
+    )
+    df_uni = df_matrix_stock.melt(
+        id_vars=["id_tienda"],
+        value_vars=productos_unicos, var_name="producto", value_name="stock_unidades",
+    )
+    df_hist = df_disp.merge(df_uni, on=["id_tienda", "producto"], how="left")
+    df_hist["stock_unidades"] = df_hist["stock_unidades"].fillna(0)
+
+    fecha_lectura = datetime.now(timezone.utc)
+    fecha_snapshot = datetime.now(pendulum.timezone("America/Santiago")).date()
+    rows = [
+        (fecha_snapshot, fecha_lectura, r.id_tienda, r.nombre_tienda, r.region_std,
+         r.producto, int(r.tiene_stock), int(r.stock_unidades))
+        for r in df_hist.itertuples(index=False)
+    ]
+
+    conn = pg_hook.get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ecommdata.alerta_frutas_verduras_historico (
+                    fecha_snapshot  DATE        NOT NULL,
+                    fecha_lectura   TIMESTAMPTZ NOT NULL,
+                    id_tienda       TEXT,
+                    nombre_tienda   TEXT,
+                    region          TEXT,
+                    producto        TEXT,
+                    tiene_stock     SMALLINT,
+                    stock_unidades  INTEGER
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alerta_frutas_verduras_hist_fecha
+                ON ecommdata.alerta_frutas_verduras_historico (fecha_snapshot);
+            """)
+            cur.execute(
+                "DELETE FROM ecommdata.alerta_frutas_verduras_historico WHERE fecha_snapshot = %s;",
+                (fecha_snapshot,),
+            )
+            execute_values(
+                cur,
+                """INSERT INTO ecommdata.alerta_frutas_verduras_historico
+                   (fecha_snapshot, fecha_lectura, id_tienda, nombre_tienda, region,
+                    producto, tiene_stock, stock_unidades) VALUES %s""",
+                rows,
+                page_size=5000,
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    print(f"🗂️ Histórico guardado en ecommdata.alerta_frutas_verduras_historico: "
+          f"{len(rows)} filas (snapshot {fecha_snapshot}).")
 
 
 def _procesar_y_enviar_alerta_frutas_verduras(**kwargs):
@@ -207,6 +281,12 @@ def _procesar_y_enviar_alerta_frutas_verduras(**kwargs):
             
     df_matrix[productos_unicos] = df_matrix[productos_unicos].fillna(0).astype(int)
     df_matrix_stock[productos_unicos] = df_matrix_stock[productos_unicos].fillna(0).astype(int)
+
+    # Histórico: foto diaria de la matriz en ecommdata (un fallo aquí no debe bloquear la alerta)
+    try:
+        _guardar_historico_frutas_verduras(pg_hook, df_matrix, df_matrix_stock, productos_unicos)
+    except Exception as e:
+        print(f"⚠️ No se pudo guardar el histórico en ecommdata: {e}")
 
     # 5. Calcular promedios y totales por Región (sobre el universo COMPLETO de tiendas)
     df_promedios = df_matrix.groupby("region_std")[productos_unicos].mean().reset_index()
