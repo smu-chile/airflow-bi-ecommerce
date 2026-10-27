@@ -225,7 +225,7 @@ def _procesar_y_enviar_alerta_frutas_verduras(**kwargs):
 
     regiones_presentes = set(df_matrix["region_std"].unique())
     regiones_unicas = [r for r in ORDEN_GEOGRAFICO if r in regiones_presentes]
-    # Si existen regiones no mapeadas en la lista, agregarlas al final
+    # Si existen regiones no mapeadas en la lista, agregarlas al final ---
     regiones_no_mapeadas = sorted(list(regiones_presentes - set(regiones_unicas)))
     regiones_unicas.extend(regiones_no_mapeadas)
 
