@@ -101,9 +101,29 @@ LEFT JOIN (
 	WHERE fecha = (SELECT max(fecha) FROM ecommdata.stock_mfc_takeoff smt)
 ) smt ON smt.ref_id = s.ref_id AND s.id_tienda = smt.id_tienda
 LEFT JOIN ecommdata.ubicacion_mfc um ON concat(um.sap_code, '-', um.measurement_unit) = s.ref_id AND um.store = s.id_tienda
+LEFT JOIN (
+	SELECT sku_venta, MAX(sku_compra) AS sku_compra
+	FROM (
+		SELECT DISTINCT 
+			split_part(ref_id, '-', 1) AS sku_venta, 
+			LPAD(erp_id::text, 18, '0') AS sku_compra
+		FROM ecommdata.skus
+		WHERE (ref_id ILIKE '%-KG' OR ref_id ILIKE '%-KGV')
+		  AND erp_id IS NOT NULL 
+		  AND split_part(ref_id, '-', 1) != erp_id::text
+		UNION ALL
+		SELECT 
+			LPAD(sku_venta::text, 18, '0') AS sku_venta, 
+			LPAD(sku_compra::text, 18, '0') AS sku_compra 
+		FROM ecommdata.equivalencias_vacuno
+		WHERE sku_venta != sku_compra
+	) t_eq
+	GROUP BY sku_venta
+) eq ON eq.sku_venta = s.material
+    AND (s.ref_id ILIKE '%-KG' OR s.ref_id ILIKE '%-KGV')
 LEFT JOIN ecommdata.instock ins 
   ON s.id_tienda = ins.tienda 
- AND s.material = ins.material 
+ AND COALESCE(eq.sku_compra, s.material) = ins.material 
  AND ins.fecha = ('{{ds}}'::date - interval '1 day')::date
 WHERE s.fecha = '{{ds}}'::date
   AND s.id_tienda NOT IN ('0486', '0053', '0398', '0054');

@@ -25,7 +25,7 @@ def _check_time(ts):
     if (time_str == "20:00") or (time_str == "01:00"):
         return "task_skip"
     else:
-        return "load_table_publicacion_catalogo"
+        return "wait_for_stock"
 
 def _store_periodic_data(ts):
     from io import StringIO
@@ -260,37 +260,41 @@ with DAG(
     dag.doc_md = """
     Carga de tabla publicacion_catalogo. El resultado final queda en ecommdata.
     """ 
+    # Branch primero: en las corridas que se saltan (20:00 / 01:00) no se espera al stock
+    t1 = BranchPythonOperator(
+        task_id='check_time',
+        python_callable=_check_time,
+    )
+
+    t_dummy = DummyOperator(
+            task_id='task_skip',
+        )
+
+    # reschedule: libera el worker slot entre pokes (antes poke + timeout por defecto de 7 dias)
     t0 = ExternalTaskSensor(
         task_id="wait_for_stock",
         external_dag_id='etl_stock_incremental_load',
         external_task_id=None,
         allowed_states=['success'],
-        failed_states=['failed']
+        failed_states=['failed'],
+        mode="reschedule",
+        poke_interval=2 * 60,
+        timeout=3 * 60 * 60,
     )
 
-    t_analyze_stock = PostgresOperator(
-        task_id="analyze_stock_before_publicacion",
-        postgres_conn_id="postgresql_conn",
-        sql="""
-            ANALYZE ecommdata.stock;
-            ANALYZE ecommdata.instock;
-        """,
-        autocommit=True,
-    )
-
-    t1 = BranchPythonOperator(
-        task_id='check_time',
-        python_callable=_check_time,
-    )
-    
-    t_dummy = DummyOperator(
-            task_id='task_skip',
-        )
+    # ANALYZE de stock ya lo hace etl_stock_incremental_load (analyze_stock) e instock
+    # lo hace etl_instock_unimarc_incremental_load (VACUUM ANALYZE diario)
 
     t2 = PostgresOperator(
         task_id = "load_table_publicacion_catalogo",
         postgres_conn_id="postgresql_conn",
         sql="sql/publicacion_catalogo.sql",
+    )
+
+    t_base = PostgresOperator(
+        task_id = "prepare_publicacion_base",
+        postgres_conn_id="postgresql_conn",
+        sql="sql/prepare_publicacion_base.sql",
     )
 
     t3 = PostgresOperator(
@@ -349,5 +353,5 @@ with DAG(
         python_callable = _delete_daily_data
     )
 
-    t0 >> t_analyze_stock >> t1 >> t2 >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10 >> t11 >> t12
+    t1 >> t0 >> t2 >> t_base >> t3 >> t4 >> t5 >> t6 >> t7 >> t8 >> t9 >> t10 >> t11 >> t12
     t1 >> t_dummy
