@@ -45,15 +45,12 @@ SELECT pc.fecha_hora,
             WHEN pc.stock_valido IS TRUE THEN 1
             ELSE 0
         END) AS con_stock_visible
-FROM ecommdata.publicacion_catalogo pc
+FROM staging.publicacion_catalogo_base_unimarc pc
 left join ecommdata.maestra_sku_proveedor msp
 on pc.material = msp.material 
-left join ecommdata.lista8 l on concat(l.material, '-', l.umv) = pc.ref_id and pc.id_tienda = l.id_tienda
+-- Filtros de lista8 (bloqueos/catalogado) y tiendas excluidas ya aplicados en prepare_publicacion_base.sql
 WHERE ((pc.surtido_ecommerce IS TRUE) or ((pc.mfc and pc.stock_janis > 0) is true)) and pc.fecha_hora = '{{ts}}' at time zone 'America/Santiago' + interval '4 hours'
-and pc.id_tienda != '0486'
 and msp.nombre_proveedor <> 'None'
-and l.bloq_centro is null and l.bloq_formato is null and l.catalogado =true
-and pc.id_tienda NOT IN ('0486', '0053', '0398', '0054')
 GROUP BY pc.fecha_hora, pc.id_tienda, pc.c1, pc.c2, pc.c3, pc.marca,msp.nombre_proveedor;
 
 COMMIT;
