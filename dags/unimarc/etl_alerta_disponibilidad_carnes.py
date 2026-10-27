@@ -4,7 +4,7 @@ from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 
 from utils.slack_utils import dag_success_slack, dag_failure_slack
-from datetime import datetime
+from datetime import datetime, timezone
 import pendulum
 import io
 import json
@@ -108,6 +108,79 @@ def _upload_excel_file_to_slack(file_name: str, data_bytes: bytes, channel_id: s
     return comp
 
 
+def _guardar_historico_carnes(pg_hook, df_matrix, df_matrix_stock, cortes_unicos):
+    """
+    Guarda la foto de disponibilidad (tienda x corte) en
+    ecommdata.alerta_disponibilidad_carnes_historico.
+
+    - fecha_snapshot: día de la foto (hora Chile). Si el DAG se re-ejecuta el mismo día,
+      se reemplaza la foto de ese día para no duplicar filas.
+    - fecha_lectura: timestamp UTC de la lectura.
+    - tiene_stock: 1 si algún SKU del corte tiene stock > 0 en la tienda.
+    - stock_unidades: suma de unidades de los SKUs del corte con stock > 0.
+    """
+    from psycopg2.extras import execute_values
+
+    df_disp = df_matrix.melt(
+        id_vars=["id_tienda", "nombre_tienda", "region_std"],
+        value_vars=cortes_unicos, var_name="corte", value_name="tiene_stock",
+    )
+    df_uni = df_matrix_stock.melt(
+        id_vars=["id_tienda"],
+        value_vars=cortes_unicos, var_name="corte", value_name="stock_unidades",
+    )
+    df_hist = df_disp.merge(df_uni, on=["id_tienda", "corte"], how="left")
+    df_hist["stock_unidades"] = df_hist["stock_unidades"].fillna(0)
+
+    fecha_lectura = datetime.now(timezone.utc)
+    fecha_snapshot = datetime.now(pendulum.timezone("America/Santiago")).date()
+    rows = [
+        (fecha_snapshot, fecha_lectura, r.id_tienda, r.nombre_tienda, r.region_std,
+         r.corte, int(r.tiene_stock), int(r.stock_unidades))
+        for r in df_hist.itertuples(index=False)
+    ]
+
+    conn = pg_hook.get_conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS ecommdata.alerta_disponibilidad_carnes_historico (
+                    fecha_snapshot  DATE        NOT NULL,
+                    fecha_lectura   TIMESTAMPTZ NOT NULL,
+                    id_tienda       TEXT,
+                    nombre_tienda   TEXT,
+                    region          TEXT,
+                    corte           TEXT,
+                    tiene_stock     SMALLINT,
+                    stock_unidades  INTEGER
+                );
+            """)
+            cur.execute("""
+                CREATE INDEX IF NOT EXISTS idx_alerta_carnes_hist_fecha
+                ON ecommdata.alerta_disponibilidad_carnes_historico (fecha_snapshot);
+            """)
+            cur.execute(
+                "DELETE FROM ecommdata.alerta_disponibilidad_carnes_historico WHERE fecha_snapshot = %s;",
+                (fecha_snapshot,),
+            )
+            execute_values(
+                cur,
+                """INSERT INTO ecommdata.alerta_disponibilidad_carnes_historico
+                   (fecha_snapshot, fecha_lectura, id_tienda, nombre_tienda, region,
+                    corte, tiene_stock, stock_unidades) VALUES %s""",
+                rows,
+                page_size=5000,
+            )
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+    print(f"🗂️ Histórico guardado en ecommdata.alerta_disponibilidad_carnes_historico: "
+          f"{len(rows)} filas (snapshot {fecha_snapshot}).")
+
+
 def _procesar_y_enviar_alerta_carnes(**kwargs):
     print("🔍 Iniciando proceso de auditoría de disponibilidad de stock para SKUs de carnes...")
     
@@ -190,6 +263,12 @@ def _procesar_y_enviar_alerta_carnes(**kwargs):
             
     df_matrix[cortes_unicos] = df_matrix[cortes_unicos].fillna(0).astype(int)
     df_matrix_stock[cortes_unicos] = df_matrix_stock[cortes_unicos].fillna(0).astype(int)
+
+    # Histórico: foto diaria de la matriz en ecommdata (un fallo aquí no debe bloquear la alerta)
+    try:
+        _guardar_historico_carnes(pg_hook, df_matrix, df_matrix_stock, cortes_unicos)
+    except Exception as e:
+        print(f"⚠️ No se pudo guardar el histórico en ecommdata: {e}")
 
     # 5. Calcular promedios y totales por Región
     df_promedios = df_matrix.groupby("region_std")[cortes_unicos].mean().reset_index()
