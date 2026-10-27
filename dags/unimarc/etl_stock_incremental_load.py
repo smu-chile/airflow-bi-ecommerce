@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.hooks.S3_hook import S3Hook
 from airflow.models import Variable
-from airflow.operators.python import PythonOperator
+from airflow.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.operators.trigger_dagrun import TriggerDagRunOperator
@@ -130,10 +130,37 @@ def fetch_vtex_stock(url, session, X_VTEX_API_AppKey, X_VTEX_API_AppToken, max_r
             time.sleep(0.3)
     return {"status": "error", "url": url}
 
+TIENDAS_EXCLUIDAS = ('0486', '0053', '0398', '0054')
+
+# Logical dates (hora local) cuyas corridas NO procesa etl_publicacion_catalogo (ver _check_time).
+# En esas corridas se dispara el VACUUM para no competir con la publicacion.
+VACUUM_LOGICAL_HOURS = (20, 1)
+
+def _get_active_warehouses():
+    """Bodegas que realmente usa la carga final (dock activo + tienda activa no excluida)."""
+    pg_hook = PostgresHook(postgres_conn_id="postgresql_conn")
+    records = pg_hook.get_records(
+        """
+        SELECT b.id
+        FROM ecommdata.bodegas b
+        JOIN ecommdata.tiendas t ON b.id_tienda = t.id AND t.status = 1
+        WHERE b.dock_activo IS TRUE
+          AND t.id NOT IN %s;
+        """,
+        parameters=(TIENDAS_EXCLUIDAS,),
+    )
+    return {str(r[0]) for r in records}
+
+def _should_trigger_vacuum(data_interval_start):
+    hour = data_interval_start.in_timezone("America/Santiago").hour
+    print(f"Hora local logical date: {hour}. Vacuum en horas {VACUUM_LOGICAL_HOURS}")
+    return hour in VACUUM_LOGICAL_HOURS
+
 def _load_vtex_id_list():
+    # DISTINCT de lista8 antes del join: lista8 es material x tienda, solo interesa material-umv
     query = """
         select s.vtex_id
-        from ( select CONCAT(l.material, '-', l.umv) as ref_id, l.material, l.umv
+        from ( select distinct CONCAT(l.material, '-', l.umv) as ref_id
             from ecommdata.lista8 l) _t
         inner join ecommdata.skus s on _t.ref_id = s.ref_id
         where s.vtex_id is not null
@@ -182,6 +209,13 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
 
     df = df.rename(columns=columns_rename)
 
+    # VTEX devuelve el balance de TODAS las bodegas por SKU. A staging solo van las bodegas
+    # activas (la carga final hace INNER JOIN con ellas). El respaldo en S3 queda completo.
+    df_full = df
+    active_warehouses = _get_active_warehouses()
+    if active_warehouses:
+        df = df[df["id_warehouse"].isin(active_warehouses)]
+    print(f"Filas VTEX: {len(df_full)} | Filas a staging (bodegas activas): {len(df)}")
 
     host = Variable.get("POSTGRESQL_HOST")
     database = Variable.get("POSTGRESQL_DB")
@@ -213,7 +247,7 @@ def _load_final_responses_to_postgres(final_responses, ts, file_name):
     finally:
         conn.close()
 
-    load_full_table_from_staging_to_s3(file_name, df, ts)
+    load_full_table_from_staging_to_s3(file_name, df_full, ts)
 
     return
 
@@ -344,6 +378,11 @@ def _vtex_get_stock_retries(ti, ts):
             print(e)
             print(response)
             exception_cases.append(response['url'])
+
+    # Guardar los SKUs recuperados en el retry (antes se descartaban y quedaban fuera de stock)
+    if final_responses:
+        print(f"Guardando {len(final_responses)} balances recuperados en el retry.")
+        _load_final_responses_to_postgres(final_responses, ts, 'stock_vtex_retries')
 
     if len(exception_cases) > 0:
         raise Exception(f'{len(exception_cases)} exception cases found during retry.')
@@ -616,6 +655,13 @@ with DAG(
         autocommit = True,
     )
 
+    # VACUUM solo en las corridas que la publicacion se salta (01:00 y 04:00 reales),
+    # en vez de 6 veces al dia compitiendo con la lectura de etl_publicacion_catalogo
+    t_check_vacuum = ShortCircuitOperator(
+        task_id = "check_vacuum_window",
+        python_callable = _should_trigger_vacuum,
+    )
+
     t8 = TriggerDagRunOperator(
         task_id = "trigger_vacuum_stock",
         trigger_dag_id = "etl_vacuum_stock",
@@ -625,5 +671,5 @@ with DAG(
 
 
 [t0, t2] >> t3
-[t1, t3] >> t4 >> t5 >> t_prepare_surtido >> t6 >> t7 >> t_analyze_stock >> t8
+[t1, t3] >> t4 >> t5 >> t_prepare_surtido >> t6 >> t7 >> t_analyze_stock >> t_check_vacuum >> t8
 

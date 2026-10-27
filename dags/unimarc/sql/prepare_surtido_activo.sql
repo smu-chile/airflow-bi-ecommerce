@@ -2,6 +2,9 @@
 
 CREATE INDEX IF NOT EXISTS idx_staging_stock_unimarc ON staging.stock_unimarc (item_id, store_id, warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_staging_stock_vtex ON staging.stock_vtex_unimarc (vtex_id, id_warehouse);
+-- El loop tienda x tienda filtra por bodega: sin un indice que EMPIECE por id_warehouse
+-- cada tienda hacia un seq scan completo de la staging de VTEX
+CREATE INDEX IF NOT EXISTS idx_staging_stock_vtex_wh ON staging.stock_vtex_unimarc (id_warehouse, vtex_id);
 
 ANALYZE staging.stock_vtex_unimarc;
 ANALYZE staging.stock_unimarc;
