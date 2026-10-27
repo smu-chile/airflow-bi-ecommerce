@@ -12,48 +12,7 @@ import re
 import pandas as pd
 import requests
 
-# Lista Maestra de SKUs Objetivo a monitorear
-SKUS_OBJETIVO = [
-    {"categoria": "Filete", "corte": "Filete", "sku_id": "000000000000752514-KG"},
-    {"categoria": "Filete", "corte": "Filete", "sku_id": "000000000000400622-KGV"},
-    {"categoria": "Lomo Vetado", "corte": "Lomo Vetado", "sku_id": "000000000000752526-KG"},
-    {"categoria": "Lomo Vetado", "corte": "Lomo Vetado", "sku_id": "000000000000566220-KG"},
-    {"categoria": "Lomo Liso", "corte": "Lomo Liso", "sku_id": "000000000000752523-KG"},
-    {"categoria": "Lomo Liso", "corte": "Lomo Liso", "sku_id": "000000000000566219-KG"},
-    {"categoria": "Parrilleros", "corte": "Abastero", "sku_id": "000000000000400594-KGV"},
-    {"categoria": "Parrilleros", "corte": "Abastero", "sku_id": "000000000000752502-KG"},
-    {"categoria": "Parrilleros", "corte": "Abastero", "sku_id": "000000000000028594-KGV"},
-    {"categoria": "Parrilleros", "corte": "Asado Carnicero", "sku_id": "000000000000400613-KGV"},
-    {"categoria": "Parrilleros", "corte": "Asado Carnicero", "sku_id": "000000000000503362-KGV"},
-    {"categoria": "Parrilleros", "corte": "Ganso Vacuno", "sku_id": "000000000000029397-KG"},
-    {"categoria": "Parrilleros", "corte": "Ganso Vacuno", "sku_id": "000000000000752517-KG"},
-    {"categoria": "Parrilleros", "corte": "Ganso Vacuno", "sku_id": "000000000000028601-KGV"},
-    {"categoria": "Parrilleros", "corte": "Huachalomo", "sku_id": "000000000000566022-KG"},
-    {"categoria": "Parrilleros", "corte": "Huachalomo", "sku_id": "000000000000752520-KG"},
-    {"categoria": "Parrilleros", "corte": "Huachalomo", "sku_id": "000000000000028602-KGV"},
-    {"categoria": "Parrilleros", "corte": "Punta de Ganso", "sku_id": "000000000000752487-KG"},
-    {"categoria": "Parrilleros", "corte": "Punta de Ganso", "sku_id": "000000000000400702-KGV"},
-    {"categoria": "Parrilleros", "corte": "Punta Paleta", "sku_id": "000000000000400706-KGV"},
-    {"categoria": "Parrilleros", "corte": "Punta Paleta", "sku_id": "000000000000752490-KG"},
-    {"categoria": "Parrilleros", "corte": "Punta Picana", "sku_id": "000000000000400719-KGV"},
-    {"categoria": "Parrilleros", "corte": "Punta Picana", "sku_id": "000000000000752493-KG"},
-    {"categoria": "Parrilleros", "corte": "Sobrecostilla", "sku_id": "000000000000752497-KG"},
-    {"categoria": "Parrilleros", "corte": "Sobrecostilla", "sku_id": "000000000000029402-KG"},
-    {"categoria": "Parrilleros", "corte": "Sobrecostilla", "sku_id": "000000000000028614-KGV"},
-    {"categoria": "Parrilleros", "corte": "Tapabarriga", "sku_id": "000000000000400725-KGV"},
-    {"categoria": "Cacerola", "corte": "Posta Paleta", "sku_id": "000000000000029400-KG"},
-    {"categoria": "Cacerola", "corte": "Posta Paleta", "sku_id": "000000000000028609-KGV"},
-    {"categoria": "Cacerola", "corte": "Posta Negra", "sku_id": "000000000000028608-KGV"},
-    {"categoria": "Cacerola", "corte": "Posta Negra", "sku_id": "000000000000029398-KG"},
-    {"categoria": "Cacerola", "corte": "Posta Rosada", "sku_id": "000000000000028610-KGV"},
-    {"categoria": "Cacerola", "corte": "Posta Negra", "sku_id": "000000000000752538-KG"},
-    {"categoria": "Cacerola", "corte": "Posta Rosada", "sku_id": "000000000000752484-KG"},
-    {"categoria": "Cacerola", "corte": "Posta Rosada", "sku_id": "000000000000029401-KG"},
-    {"categoria": "Pollo", "corte": "Pechuga", "sku_id": "000000000000051806-KGV"},
-    {"categoria": "Pollo", "corte": "Pechuga", "sku_id": "000000000000674766-KGV"},
-    {"categoria": "Pollo", "corte": "Trutro", "sku_id": "000000000000051802-KGV"},
-    {"categoria": "Pollo", "corte": "Trutro", "sku_id": "000000000000668742-KGV"},
-]
+
 
 # Orden geográfico de Norte a Sur
 ORDEN_GEOGRAFICO = [
@@ -172,11 +131,22 @@ def _procesar_y_enviar_alerta_carnes(**kwargs):
     print(f"🏬 Total tiendas activas encontradas: {len(df_tiendas)}")
     print(df_tiendas["region_std"].value_counts())
 
-    # 2. Obtener la lista de SKUs a consultar
-    df_skus_base = pd.DataFrame(SKUS_OBJETIVO)
+    # 2. Obtener la lista de SKUs desde ecommdata.alerta_disponibilidad_carnes
+    query_skus = """
+    SELECT categoria, corte, sku_id
+    FROM ecommdata.alerta_disponibilidad_carnes
+    ORDER BY categoria, corte, sku_id;
+    """
+    df_skus_base = pg_hook.get_pandas_df(query_skus)
+    if df_skus_base.empty:
+        print("❌ No se encontraron SKUs en ecommdata.alerta_disponibilidad_carnes.")
+        return
+
+    print(f"🥩 Total SKUs de carnes cargados: {len(df_skus_base)}")
+
     skus_ids = df_skus_base["sku_id"].unique().tolist()
     skus_in_clause = "'" + "', '".join(skus_ids) + "'"
-    cortes_unicos = list(dict.fromkeys([item["corte"] for item in SKUS_OBJETIVO]))
+    cortes_unicos = list(dict.fromkeys(df_skus_base["corte"].tolist()))
 
     # 3. Consultar stock actual de la última carga en ecommdata.stock
     query_stock = f"""
@@ -442,7 +412,10 @@ with DAG(
 
     dag.doc_md = """
     ### Auditoría de Disponibilidad de Carnes por Regiones y Cortes
-    Este DAG consulta diariamente la disponibilidad de stock en tiendas activas para los SKUs de carnes, genera una matriz binaria (100% o 0%) por Tienda y Corte (Subcategoría) agrupada por Región, y la envía a Slack junto a los promedios regionales.
+    Este DAG consulta diariamente la disponibilidad de stock en tiendas activas para los SKUs de carnes
+    definidos en `ecommdata.alerta_disponibilidad_carnes`, genera una matriz binaria (100% o 0%) por Tienda y Corte (Subcategoría)
+    agrupada por Región, y la envía a Slack junto a los promedios regionales.
+    Los SKUs se administran directamente en la tabla `ecommdata.alerta_disponibilidad_carnes` sin necesidad de modificar el DAG.
     """
 
     task_auditar_disponibilidad = PythonOperator(
