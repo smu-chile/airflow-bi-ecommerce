@@ -25,57 +25,7 @@ CATEGORIAS_C1_EXCLUIDAS = (
     "Tabaqueria",
 )
 
-UPSERT_STORE_WEEK_SQL = f"""
-WITH agregados AS (
-    SELECT
-        c.semana_ano_texto,
-        pc.id_tienda,
-        MAX(m.negocio_sap)   AS negocio_sap,
-        MAX(m.seccion_sap)   AS seccion_sap,
-        MAX(m.linea_sap)     AS linea_sap,
-        MAX(m.categoria_sap) AS categoria_sap,
-        m.grupo_id,
-        MAX(m.grupo_sap)     AS grupo_sap,
-        AVG(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.disponible_web::int END)::numeric(11, 10) AS inweb,
-        COALESCE(SUM(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.disponible_web::int END), 0) AS veces_disponible_web,
-        COUNT(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.fecha_hora END) AS veces_medido,
-        COUNT(DISTINCT pc.ref_id) AS productos_total,
-        COUNT(DISTINCT CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.ref_id END) AS productos_surtido_ecommerce,
-        COUNT(DISTINCT CASE WHEN pc.surtido_ecommerce IS FALSE THEN pc.ref_id END) AS productos_no_surtido_ecommerce
-    FROM ecommdata.publicacion_catalogo pc
-    LEFT JOIN tmp_lista8_bloqueados li
-        ON li.id_tienda = pc.id_tienda
-       AND li.ref_id = pc.ref_id
-    LEFT JOIN ecommdata.maestra_sku_proveedor m
-        ON LPAD(SPLIT_PART(pc.ref_id, '-', 1), 18, '0') = m.material
-    INNER JOIN power_bi.calendario c
-        ON c.fecha = pc.fecha_hora::date
-    WHERE pc.fecha_hora >= %(fecha_inicio)s::date
-      AND pc.fecha_hora <  (%(fecha_fin)s::date + INTERVAL '1 day')
-      AND pc.id_tienda = %(id_tienda)s
-      AND c.semana_ano_texto = %(semana_ano_texto)s
-      AND (
-          pc.c1 NOT IN %(categorias_excluidas)s
-          OR pc.c1 IS NULL
-      )
-      AND m.grupo_id IS NOT NULL
-      AND li.ref_id IS NULL
-    GROUP BY
-        c.semana_ano_texto,
-        pc.id_tienda,
-        m.grupo_id
-),
-limpieza_obsoletos AS (
-    DELETE FROM {TARGET_TABLE} t
-    WHERE t.semana_ano_texto = %(semana_ano_texto)s
-      AND t.id_tienda = %(id_tienda)s
-      AND EXISTS (SELECT 1 FROM agregados)
-      AND NOT EXISTS (
-          SELECT 1
-          FROM agregados a
-          WHERE a.grupo_id = t.grupo_id
-      )
-)
+UPSERT_WEEK_SQL = f"""
 INSERT INTO {TARGET_TABLE} (
     semana_ano_texto,
     id_tienda,
@@ -93,21 +43,42 @@ INSERT INTO {TARGET_TABLE} (
     productos_no_surtido_ecommerce
 )
 SELECT
-    semana_ano_texto,
-    id_tienda,
-    negocio_sap,
-    seccion_sap,
-    linea_sap,
-    categoria_sap,
-    grupo_id,
-    grupo_sap,
-    inweb,
-    veces_disponible_web,
-    veces_medido,
-    productos_total,
-    productos_surtido_ecommerce,
-    productos_no_surtido_ecommerce
-FROM agregados
+    %(semana_ano_texto)s AS semana_ano_texto,
+    pc.id_tienda,
+    MAX(m.negocio_sap)   AS negocio_sap,
+    MAX(m.seccion_sap)   AS seccion_sap,
+    MAX(m.linea_sap)     AS linea_sap,
+    MAX(m.categoria_sap) AS categoria_sap,
+    m.grupo_id,
+    MAX(m.grupo_sap)     AS grupo_sap,
+    AVG(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.disponible_web::int END)::numeric(11, 10) AS inweb,
+    COALESCE(SUM(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.disponible_web::int END), 0) AS veces_disponible_web,
+    COUNT(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.fecha_hora END) AS veces_medido,
+    COUNT(DISTINCT pc.ref_id) AS productos_total,
+    COUNT(DISTINCT CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.ref_id END) AS productos_surtido_ecommerce,
+    COUNT(DISTINCT CASE WHEN pc.surtido_ecommerce IS FALSE THEN pc.ref_id END) AS productos_no_surtido_ecommerce
+FROM ecommdata.publicacion_catalogo pc
+JOIN ecommdata.tiendas t
+    ON t.id = pc.id_tienda
+   AND t.status = 1
+   AND t.id NOT IN %(tiendas_excluidas)s
+LEFT JOIN tmp_lista8_bloqueados li
+    ON li.id_tienda = pc.id_tienda
+   AND li.ref_id = pc.ref_id
+LEFT JOIN ecommdata.maestra_sku_proveedor m
+    ON LPAD(SPLIT_PART(pc.ref_id, '-', 1), 18, '0') = m.material
+WHERE pc.fecha_hora >= %(fecha_inicio)s::date
+  AND pc.fecha_hora <  (%(fecha_fin)s::date + INTERVAL '1 day')
+  AND (
+      pc.c1 NOT IN %(categorias_excluidas)s
+      OR pc.c1 IS NULL
+  )
+  AND m.grupo_id IS NOT NULL
+  AND li.ref_id IS NULL
+  AND (%(tiendas_filtro)s::text[] IS NULL OR pc.id_tienda = ANY(%(tiendas_filtro)s::text[]))
+GROUP BY
+    pc.id_tienda,
+    m.grupo_id
 ON CONFLICT ON CONSTRAINT uq_publicacion_semana_tienda_grupo_sap
 DO UPDATE SET
     negocio_sap                    = EXCLUDED.negocio_sap,
@@ -190,35 +161,24 @@ def _resolve_weeks_to_process(cursor, data_interval_end, dag_run):
     return cursor.fetchall()
 
 
-def _resolve_target_stores(cursor, dag_run):
+def _resolve_target_stores(dag_run):
     """
-    Obtiene el listado de tiendas activas a procesar, permitiendo filtrar tiendas
-    puntuales por conf: {"tiendas": ["0581", "0018"]} o {"id_tienda": "0581"}.
+    Obtiene el filtro opcional de tiendas si se especificó en dag_run.conf:
+      {"tiendas": ["0581", "0018"]} o {"id_tienda": "0581"}.
+    Retorna una lista de tiendas o None si no hay filtro puntual (aplica a todas las tiendas activas).
     """
     conf = (dag_run.conf or {}) if dag_run else {}
     tiendas_conf = conf.get("tiendas") or ([conf["id_tienda"]] if conf.get("id_tienda") else None)
 
     if tiendas_conf:
-        tiendas = sorted(
+        return sorted(
             {
                 str(t).strip().zfill(4)
                 for t in tiendas_conf
                 if str(t).strip().zfill(4) not in TIENDAS_EXCLUIDAS
             }
         )
-        return tiendas
-
-    cursor.execute(
-        """
-        SELECT id
-        FROM ecommdata.tiendas
-        WHERE status = 1
-          AND id NOT IN %s
-        ORDER BY id;
-        """,
-        (TIENDAS_EXCLUIDAS,),
-    )
-    return [str(row[0]).zfill(4) for row in cursor.fetchall()]
+    return None
 
 
 def _load_publicacion_semana_tienda_grupo_sap(data_interval_end, dag_run, **_):
@@ -227,8 +187,8 @@ def _load_publicacion_semana_tienda_grupo_sap(data_interval_end, dag_run, **_):
     cursor = conn.cursor()
 
     try:
-        # 1. Configurar memoria de trabajo de la sesión
-        cursor.execute("SET work_mem = '64MB';")
+        # 1. Configurar memoria de trabajo de la sesión para soportar hash joins y agregación masiva
+        cursor.execute("SET work_mem = '256MB';")
         conn.commit()
 
         # 2. Resolver semanas y tiendas a procesar
@@ -236,13 +196,12 @@ def _load_publicacion_semana_tienda_grupo_sap(data_interval_end, dag_run, **_):
         if not semanas:
             raise AirflowFailException("No se encontraron semanas válidas en power_bi.calendario para procesar.")
 
-        tiendas = _resolve_target_stores(cursor, dag_run)
-        if not tiendas:
-            print("No se encontraron tiendas activas para procesar.")
-            return
-
+        tiendas_filtro = _resolve_target_stores(dag_run)
         print(f"Semanas a procesar ({len(semanas)}): {[(s[0], str(s[1]), str(s[2])) for s in semanas]}")
-        print(f"Total de tiendas a procesar por semana: {len(tiendas)}")
+        print(
+            f"Filtro puntual de tiendas: "
+            f"{tiendas_filtro if tiendas_filtro else 'Todas las tiendas activas (excluyendo TIENDAS_EXCLUIDAS)'}"
+        )
 
         # 3. Precalcular bloqueados de lista8 UNA sola vez en tabla temporal indexada de sesión
         t_bloq = time.time()
@@ -273,8 +232,7 @@ def _load_publicacion_semana_tienda_grupo_sap(data_interval_end, dag_run, **_):
         total_bloq = cursor.fetchone()[0]
         print(f"Tabla temporal tmp_lista8_bloqueados lista con {total_bloq} combinaciones bloqueadas ({time.time() - t_bloq:.2f}s)")
 
-        # 4. Procesar semana por semana y tienda por tienda (protege CPU y disco temporal del RDS)
-        failed_items = []
+        # 4. Procesar semana por semana en un único barrido de las particiones (Set-based SQL)
         total_upserted_global = 0
         start_global = time.time()
 
@@ -300,66 +258,29 @@ def _load_publicacion_semana_tienda_grupo_sap(data_interval_end, dag_run, **_):
                 )
                 continue
 
-            print(f"=== Iniciando carga semana {semana_ano_texto} ({fecha_inicio} al {fecha_fin}) ===")
+            print(f"=== Iniciando carga masiva semana {semana_ano_texto} ({fecha_inicio} al {fecha_fin}) ===")
             start_week = time.time()
-            week_upserted = 0
-            total_tiendas = len(tiendas)
-
-            for idx, id_tienda in enumerate(tiendas, 1):
-                t_store = time.time()
-                max_retries = 2
-                success = False
-
-                for attempt in range(1, max_retries + 1):
-                    try:
-                        params = {
-                            "semana_ano_texto": semana_ano_texto,
-                            "fecha_inicio": fecha_inicio,
-                            "fecha_fin": fecha_fin,
-                            "id_tienda": id_tienda,
-                            "categorias_excluidas": CATEGORIAS_C1_EXCLUIDAS,
-                        }
-                        cursor.execute(UPSERT_STORE_WEEK_SQL, params)
-                        affected = cursor.rowcount
-                        conn.commit()
-                        week_upserted += affected
-                        total_upserted_global += affected
-                        print(
-                            f"[{semana_ano_texto}][{idx}/{total_tiendas}] Tienda {id_tienda}: "
-                            f"{affected} grupos SAP actualizados ({time.time() - t_store:.2f}s)"
-                        )
-                        success = True
-                        break
-                    except Exception as e:
-                        conn.rollback()
-                        print(
-                            f"Intento {attempt}/{max_retries} fallido para semana {semana_ano_texto}, "
-                            f"tienda {id_tienda}: {e}"
-                        )
-                        if attempt < max_retries:
-                            time.sleep(1)
-
-                if not success:
-                    failed_items.append(f"{semana_ano_texto}:{id_tienda}")
-                    print(f"❌ ERROR: No se pudo procesar tienda {id_tienda} en semana {semana_ano_texto}.")
-
-                # Pausa breve para dosificar carga sobre RDS
-                time.sleep(0.05)
-
+            params = {
+                "semana_ano_texto": semana_ano_texto,
+                "fecha_inicio": fecha_inicio,
+                "fecha_fin": fecha_fin,
+                "categorias_excluidas": CATEGORIAS_C1_EXCLUIDAS,
+                "tiendas_excluidas": TIENDAS_EXCLUIDAS,
+                "tiendas_filtro": tiendas_filtro,
+            }
+            cursor.execute(UPSERT_WEEK_SQL, params)
+            affected = cursor.rowcount
+            conn.commit()
+            total_upserted_global += affected
             print(
                 f"✅ Semana {semana_ano_texto} completada en {time.time() - start_week:.1f}s | "
-                f"Filas actualizadas: {week_upserted}"
+                f"Filas agregadas/actualizadas: {affected}"
             )
 
         print(
             f"Proceso global finalizado en {time.time() - start_global:.1f}s | "
             f"Total filas actualizadas: {total_upserted_global}"
         )
-
-        if failed_items:
-            raise AirflowFailException(
-                f"Carga incompleta en {TARGET_TABLE}. Fallaron {len(failed_items)} ejecuciones: {failed_items}"
-            )
 
     finally:
         cursor.close()
