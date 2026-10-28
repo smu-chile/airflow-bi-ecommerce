@@ -50,3 +50,8 @@ COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.inweb IS 'Promedi
 COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.veces_disponible_web IS 'Numerador In-Web: cantidad de fotos en la semana donde el surtido e-commerce estuvo disponible para compra.';
 COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.veces_medido IS 'Denominador In-Web: total de fotos evaluadas en la semana para productos con surtido_ecommerce = TRUE.';
 
+-- Permisos de lectura para Metabase
+GRANT USAGE ON SCHEMA catalogo TO service_metabase;
+GRANT SELECT ON TABLE catalogo.publicacion_semana_tienda_grupo_sap TO service_metabase;
+
+
