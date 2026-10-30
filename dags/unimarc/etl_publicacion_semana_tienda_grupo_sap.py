@@ -38,6 +38,8 @@ INSERT INTO {TARGET_TABLE} (
     inweb,
     veces_disponible_web,
     veces_medido,
+    instock,
+    veces_instock,
     productos_total,
     productos_surtido_ecommerce,
     productos_no_surtido_ecommerce
@@ -54,6 +56,8 @@ SELECT
     AVG(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.disponible_web::int END)::numeric(11, 10) AS inweb,
     COALESCE(SUM(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.disponible_web::int END), 0) AS veces_disponible_web,
     COUNT(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.fecha_hora END) AS veces_medido,
+    AVG(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.instock END)::numeric(11, 10) AS instock,
+    SUM(CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.instock END) AS veces_instock,
     COUNT(DISTINCT pc.ref_id) AS productos_total,
     COUNT(DISTINCT CASE WHEN pc.surtido_ecommerce IS TRUE THEN pc.ref_id END) AS productos_surtido_ecommerce,
     COUNT(DISTINCT CASE WHEN pc.surtido_ecommerce IS FALSE THEN pc.ref_id END) AS productos_no_surtido_ecommerce
@@ -89,6 +93,8 @@ DO UPDATE SET
     inweb                          = EXCLUDED.inweb,
     veces_disponible_web           = EXCLUDED.veces_disponible_web,
     veces_medido                   = EXCLUDED.veces_medido,
+    instock                        = EXCLUDED.instock,
+    veces_instock                  = EXCLUDED.veces_instock,
     productos_total                = EXCLUDED.productos_total,
     productos_surtido_ecommerce    = EXCLUDED.productos_surtido_ecommerce,
     productos_no_surtido_ecommerce = EXCLUDED.productos_no_surtido_ecommerce,
