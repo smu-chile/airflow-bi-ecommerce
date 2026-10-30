@@ -20,6 +20,8 @@ CREATE TABLE IF NOT EXISTS catalogo.publicacion_semana_tienda_grupo_sap (
     inweb                           NUMERIC(11, 10) NULL,
     veces_disponible_web            BIGINT          NOT NULL DEFAULT 0,
     veces_medido                    BIGINT          NOT NULL DEFAULT 0,
+    instock                         NUMERIC(11, 10) NULL,
+    veces_instock                   BIGINT          NULL DEFAULT 0,
     productos_total                 INTEGER         NOT NULL DEFAULT 0,
     productos_surtido_ecommerce     INTEGER         NOT NULL DEFAULT 0,
     productos_no_surtido_ecommerce  INTEGER         NOT NULL DEFAULT 0,
@@ -49,6 +51,8 @@ COMMENT ON TABLE catalogo.publicacion_semana_tienda_grupo_sap IS 'Resumen semana
 COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.inweb IS 'Promedio de disponibilidad web sobre el surtido activo (veces_disponible_web / veces_medido). NULL si veces_medido = 0.';
 COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.veces_disponible_web IS 'Numerador In-Web: cantidad de fotos en la semana donde el surtido e-commerce estuvo disponible para compra.';
 COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.veces_medido IS 'Denominador In-Web: total de fotos evaluadas en la semana para productos con surtido_ecommerce = TRUE.';
+COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.instock IS 'Tasa promedio semanal de disponibilidad en stock (1/0 de SAP InStock) para productos con surtido_ecommerce = true. NULL si no hubo mediciones.';
+COMMENT ON COLUMN catalogo.publicacion_semana_tienda_grupo_sap.veces_instock IS 'Suma de mediciones semanales con instock = 1 para productos con surtido_ecommerce = true. NULL si no hubo mediciones.';
 
 -- Permisos de lectura para Metabase
 GRANT USAGE ON SCHEMA catalogo TO service_metabase;
