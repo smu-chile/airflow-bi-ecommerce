@@ -274,6 +274,12 @@ with DAG(
         wait_for_completion=False
     )
 
+    t16 = TriggerDagRunOperator(
+        task_id="trigger_test_proc_peya_stock_integration",
+        trigger_dag_id="test_proc_peya_stock_integration",
+        wait_for_completion=False
+    )
+
     t0 >> [t1, t4]
     t1 >> t2 >> t3
     t4 >> [t5, t6] 
@@ -282,4 +288,4 @@ with DAG(
     t3 >> td
     t8 >> td
     td >> t9 >> t10 >> t11 >> t12 >> t13
-    t13 >> [t14, t15]
+    t13 >> [t14, t15, t16]
